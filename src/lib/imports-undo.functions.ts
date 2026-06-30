@@ -16,7 +16,8 @@ type ContactRow = {
   created_at: string;
 };
 
-type AuthedCtx = { supabase: ReturnType<typeof requireSupabaseAuth.client> extends never ? never : never };
+
+
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function assertAdmin(sb: any, userId: string) {
