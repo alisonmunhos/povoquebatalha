@@ -2,8 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { parsePhoneBR, type ParsedPhone } from "@/lib/phone";
 
-// Field keys we map to in contacts table
 export const FIELD_KEYS = [
   "ignore",
   "nome",
@@ -19,6 +19,9 @@ export const FIELD_KEYS = [
 ] as const;
 export type FieldKey = (typeof FIELD_KEYS)[number];
 
+const ENCODINGS = ["auto", "utf-8", "utf-8-bom", "iso-8859-1", "windows-1252"] as const;
+export type EncodingOption = (typeof ENCODINGS)[number];
+
 function normalize(s: string) {
   return s
     .toString()
@@ -32,13 +35,9 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
   const map: Record<string, FieldKey> = {};
   for (const h of headers) {
     const n = normalize(h);
-    if (!n) {
-      map[h] = "ignore";
-      continue;
-    }
+    if (!n) { map[h] = "ignore"; continue; }
     if (/(nome|name|completo)/.test(n)) map[h] = "nome";
-    else if (/(telefone|celular|phone|whats|fone|tel|numero|mobile)/.test(n))
-      map[h] = "phone_raw";
+    else if (/(telefone|celular|phone|whats|fone|tel|numero|mobile)/.test(n)) map[h] = "phone_raw";
     else if (/(email|mail|eletronic)/.test(n)) map[h] = "email";
     else if (/(cidade|municipio|city)/.test(n)) map[h] = "cidade";
     else if (/(uf|estado|state)/.test(n)) map[h] = "uf";
@@ -52,32 +51,54 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
   return map;
 }
 
-async function readWorkbook(
+async function downloadBytes(
   supabase: { storage: { from: (b: string) => { download: (p: string) => Promise<{ data: Blob | null; error: unknown }> } } },
   filePath: string,
-) {
+): Promise<Uint8Array> {
   const { data, error } = await supabase.storage.from("imports").download(filePath);
   if (error || !data) throw new Error("Não foi possível ler o arquivo do storage.");
-  const buf = await data.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    defval: "",
-    raw: false,
-  });
-  return rows;
+  return new Uint8Array(await data.arrayBuffer());
 }
+
+async function readWorkbookFromBytes(bytes: Uint8Array, fileName: string, encoding: EncodingOption) {
+  const isCsv = /\.csv$/i.test(fileName);
+  let usedEncoding: string = "binary";
+  let wb: XLSX.WorkBook;
+  if (isCsv) {
+    const { decodeBytes } = await import("@/lib/encoding.server");
+    const decoded = decodeBytes(bytes, encoding);
+    usedEncoding = decoded.used;
+    wb = XLSX.read(decoded.text, { type: "string", raw: false });
+  } else {
+    wb = XLSX.read(bytes, { type: "array" });
+  }
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
+  return { rows, usedEncoding };
+}
+
+type PreviewRow = {
+  linha: number;
+  nome: string | null;
+  email: string | null;
+  phone: ParsedPhone;
+  dup?: { contact_id: string; nome: string; phone_e164: string | null; match: "forte" | "provavel" | "possivel" };
+  problemas: string[];
+};
 
 const parseSchema = z.object({
   filePath: z.string().min(1),
   fileName: z.string().min(1),
+  encoding: z.enum(ENCODINGS).default("auto"),
+  defaultDdd: z.string().trim().max(3).optional().nullable(),
 });
 
 export const parseUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => parseSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const rows = await readWorkbook(context.supabase, data.filePath);
+    const bytes = await downloadBytes(context.supabase, data.filePath);
+    const { rows, usedEncoding } = await readWorkbookFromBytes(bytes, data.fileName, data.encoding);
     if (rows.length === 0) throw new Error("Arquivo vazio.");
     const headers = Object.keys(rows[0]);
     const mapping = suggestMapping(headers);
@@ -88,7 +109,7 @@ export const parseUpload = createServerFn({ method: "POST" })
         file_path: data.filePath,
         file_name: data.fileName,
         total: rows.length,
-        mapeamento: mapping,
+        mapeamento: { mapping, encoding: usedEncoding, defaultDdd: data.defaultDdd ?? null },
         status: "pending",
         created_by: context.userId,
       })
@@ -96,12 +117,11 @@ export const parseUpload = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
-    // Persist all raw rows for later commit
     const chunkSize = 500;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const slice = rows.slice(i, i + chunkSize).map((r, idx) => ({
         import_id: imp.id,
-        linha: i + idx + 2, // +2 = header row + 1-index
+        linha: i + idx + 2,
         raw: r as never,
         status: "pending",
       }));
@@ -114,33 +134,164 @@ export const parseUpload = createServerFn({ method: "POST" })
       headers,
       mapping,
       total: rows.length,
-      sample: rows.slice(0, 5).map((r) => JSON.parse(JSON.stringify(r)) as Record<string, string>),
+      usedEncoding,
+      defaultDdd: data.defaultDdd ?? null,
+      sample: rows.slice(0, 8).map((r) => JSON.parse(JSON.stringify(r)) as Record<string, string>),
     };
   });
 
-export const getImport = createServerFn({ method: "POST" })
+const previewSchema = z.object({
+  importId: z.string().uuid(),
+  encoding: z.enum(ENCODINGS).default("auto"),
+  defaultDdd: z.string().trim().max(3).optional().nullable(),
+  mapping: z.record(z.string(), z.enum(FIELD_KEYS)),
+});
+
+// Re-decode (e.g. user changed encoding) and produce preview rows.
+export const buildPreview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ importId: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => previewSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: imp, error } = await context.supabase
+    const sb = context.supabase;
+    const { data: imp, error } = await sb
       .from("imports")
-      .select("*")
+      .select("file_path, file_name")
       .eq("id", data.importId)
       .single();
     if (error) throw error;
-    const { data: rows } = await context.supabase
-      .from("import_rows")
-      .select("linha,raw,status,erro")
-      .eq("import_id", data.importId)
-      .order("linha")
-      .limit(10);
-    return { imp, sample: rows ?? [] };
+
+    if (!imp.file_path) throw new Error("Importação sem arquivo associado.");
+    const bytes = await downloadBytes(sb, imp.file_path);
+    const { rows, usedEncoding } = await readWorkbookFromBytes(bytes, imp.file_name ?? "arquivo.csv", data.encoding);
+
+    const preview: PreviewRow[] = [];
+    const e164List: string[] = [];
+    const last8List: string[] = [];
+    const emailList: string[] = [];
+
+    rows.forEach((raw, idx) => {
+      const linha = idx + 2;
+      const get = (key: FieldKey): string | null => {
+        for (const [col, k] of Object.entries(data.mapping)) {
+          if (k === key) {
+            const v = (raw as Record<string, unknown>)[col];
+            return v == null || v === "" ? null : String(v).trim();
+          }
+        }
+        return null;
+      };
+      const nome = get("nome");
+      const email = get("email")?.toLowerCase() ?? null;
+      const phoneRaw = get("phone_raw");
+      const phone = parsePhoneBR(phoneRaw, data.defaultDdd ?? null);
+      const problemas: string[] = [];
+      if (!nome || nome.length < 2) problemas.push("Nome ausente");
+      if (!phoneRaw) problemas.push("Telefone ausente");
+      else if (phone.phone_status === "invalido") problemas.push("Telefone inválido");
+      else if (phone.phone_status === "sem_ddd") problemas.push("Telefone sem DDD");
+
+      if (phone.phone_e164) e164List.push(phone.phone_e164);
+      if (phone.phone_last8) last8List.push(phone.phone_last8);
+      if (email) emailList.push(email);
+
+      preview.push({ linha, nome, email, phone, problemas });
+    });
+
+    // Bulk dedup query
+    type DupRow = { id: string; nome: string; phone_e164: string | null; phone_last8: string | null; email: string | null; nome_normalizado: string | null };
+    const dupHits = new Map<string, DupRow>();
+    const idx_last8 = new Map<string, DupRow[]>();
+    const idx_email = new Map<string, DupRow>();
+
+    if (e164List.length || last8List.length || emailList.length) {
+      const filters: string[] = [];
+      if (e164List.length) filters.push(`phone_e164.in.(${[...new Set(e164List)].map((v) => `"${v}"`).join(",")})`);
+      if (last8List.length) filters.push(`phone_last8.in.(${[...new Set(last8List)].map((v) => `"${v}"`).join(",")})`);
+      if (emailList.length) filters.push(`email.in.(${[...new Set(emailList)].map((v) => `"${v}"`).join(",")})`);
+      const { data: hits } = await sb
+        .from("contacts")
+        .select("id,nome,phone_e164,phone_last8,email,nome_normalizado")
+        .or(filters.join(","));
+      for (const h of (hits ?? []) as DupRow[]) {
+        dupHits.set(h.id, h);
+        if (h.phone_last8) {
+          const arr = idx_last8.get(h.phone_last8) ?? [];
+          arr.push(h);
+          idx_last8.set(h.phone_last8, arr);
+        }
+        if (h.email) idx_email.set(h.email.toLowerCase(), h);
+      }
+    }
+
+    for (const pr of preview) {
+      let dup: PreviewRow["dup"];
+      if (pr.email && idx_email.has(pr.email)) {
+        const h = idx_email.get(pr.email)!;
+        dup = { contact_id: h.id, nome: h.nome, phone_e164: h.phone_e164, match: "forte" };
+      } else if (pr.phone.phone_e164) {
+        const hits = idx_last8.get(pr.phone.phone_last8 ?? "") ?? [];
+        const exact = hits.find((h) => h.phone_e164 === pr.phone.phone_e164);
+        if (exact) {
+          dup = { contact_id: exact.id, nome: exact.nome, phone_e164: exact.phone_e164, match: "forte" };
+        } else if (hits.length > 0) {
+          const h = hits[0];
+          const norm = (pr.nome ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const other = (h.nome_normalizado ?? "").toLowerCase();
+          const score = norm && other ? (norm === other ? 1 : norm.includes(other) || other.includes(norm) ? 0.7 : 0.4) : 0;
+          dup = { contact_id: h.id, nome: h.nome, phone_e164: h.phone_e164, match: score > 0.6 ? "provavel" : "possivel" };
+        }
+      }
+      if (dup) pr.dup = dup;
+    }
+
+    // Persist preview snapshot on each import_row
+    const previewByLinha = new Map(preview.map((p) => [p.linha, p]));
+    const pageSize = 500;
+    let from = 0;
+    while (true) {
+      const { data: rs } = await sb
+        .from("import_rows")
+        .select("id,linha")
+        .eq("import_id", data.importId)
+        .order("linha")
+        .range(from, from + pageSize - 1);
+      if (!rs || rs.length === 0) break;
+      for (const r of rs) {
+        const p = previewByLinha.get(r.linha);
+        if (!p) continue;
+        await sb.from("import_rows").update({ preview: p as never }).eq("id", r.id);
+      }
+      if (rs.length < pageSize) break;
+      from += pageSize;
+    }
+
+    await sb
+      .from("imports")
+      .update({
+        mapeamento: { mapping: data.mapping, encoding: usedEncoding, defaultDdd: data.defaultDdd ?? null },
+      })
+      .eq("id", data.importId);
+
+    const stats = {
+      total: preview.length,
+      validos: preview.filter((p) => p.phone.phone_status === "valido" && p.problemas.length === 0).length,
+      precisa_revisao: preview.filter((p) => ["precisa_revisao", "sem_nono_digito", "sem_ddd"].includes(p.phone.phone_status)).length,
+      invalidos: preview.filter((p) => p.phone.phone_status === "invalido" || p.problemas.length > 0).length,
+      duplicados: preview.filter((p) => p.dup).length,
+    };
+
+    return {
+      usedEncoding,
+      stats,
+      sample: preview.slice(0, 200),
+    };
   });
 
 const commitSchema = z.object({
   importId: z.string().uuid(),
-  mapping: z.record(z.string(), z.enum(FIELD_KEYS)),
+  strategy: z.enum(["all", "valid_only", "mark_review"]).default("mark_review"),
   consentimentoWhatsapp: z.boolean().default(true),
+  tipo: z.string().default("apoiador"),
 });
 
 export const commitImport = createServerFn({ method: "POST" })
@@ -148,30 +299,16 @@ export const commitImport = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => commitSchema.parse(d))
   .handler(async ({ data, context }) => {
     const sb = context.supabase;
-    const { data: imp, error: ie } = await sb
-      .from("imports")
-      .select("file_path")
-      .eq("id", data.importId)
-      .single();
-    if (ie) throw ie;
+    await sb.from("imports").update({ status: "processing" }).eq("id", data.importId);
 
-    await sb
-      .from("imports")
-      .update({ status: "processing", mapeamento: data.mapping })
-      .eq("id", data.importId);
-
-    // Re-read in chunks via import_rows to avoid re-downloading
-    const pageSize = 500;
+    let criados = 0, atualizados = 0, duplicados = 0, erros = 0, ignorados = 0;
+    const pageSize = 300;
     let page = 0;
-    let criados = 0;
-    let atualizados = 0;
-    let duplicados = 0;
-    let erros = 0;
 
     while (true) {
       const { data: rows, error } = await sb
         .from("import_rows")
-        .select("id,linha,raw")
+        .select("id,linha,preview")
         .eq("import_id", data.importId)
         .order("linha")
         .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -179,97 +316,84 @@ export const commitImport = createServerFn({ method: "POST" })
       if (!rows || rows.length === 0) break;
 
       for (const row of rows) {
-        const raw = (row.raw ?? {}) as Record<string, unknown>;
-        const fields: Record<string, string | null> = {};
-        for (const [col, key] of Object.entries(data.mapping)) {
-          if (key === "ignore") continue;
-          const v = raw[col];
-          fields[key] = v == null || v === "" ? null : String(v).trim();
-        }
-        const nome = fields.nome ?? null;
-        const phone = fields.phone_raw ?? null;
-        if (!nome || nome.length < 2) {
-          await sb
-            .from("import_rows")
-            .update({ status: "erro", erro: "Nome ausente" })
-            .eq("id", row.id);
+        const p = row.preview as PreviewRow | null;
+        if (!p) {
+          await sb.from("import_rows").update({ status: "erro", erro: "Sem prévia. Gere a prévia antes de importar." }).eq("id", row.id);
           erros++;
           continue;
         }
-        if (!phone) {
-          await sb
-            .from("import_rows")
-            .update({ status: "erro", erro: "Telefone ausente" })
-            .eq("id", row.id);
-          erros++;
-          continue;
-        }
+        const isInvalid = p.phone.phone_status === "invalido" || !p.nome || p.problemas.length > 0;
+        const needsReview = ["precisa_revisao", "sem_nono_digito", "sem_ddd"].includes(p.phone.phone_status);
 
-        // Normalize via RPC-like select — use SQL functions through .rpc not available without exposing; use raw select
-        const { data: norm } = await sb
-          .rpc("normalize_phone_br" as never, { input: phone } as never)
-          .single();
-        const phone_e164 = (norm as unknown as string) ?? null;
-        if (!phone_e164) {
-          await sb
-            .from("import_rows")
-            .update({ status: "erro", erro: "Telefone inválido" })
-            .eq("id", row.id);
-          erros++;
-          continue;
-        }
-
-        // Dedup by phone_e164
-        const { data: existing } = await sb
-          .from("contacts")
-          .select("id")
-          .eq("phone_e164", phone_e164)
-          .maybeSingle();
-
-        const payload = {
-          nome,
-          phone_raw: phone,
-          email: fields.email,
-          cidade: fields.cidade,
-          uf: fields.uf?.slice(0, 2).toUpperCase() ?? null,
-          cep: fields.cep,
-          endereco: fields.endereco,
-          numero: fields.numero,
-          bairro: fields.bairro,
-          observacoes: fields.observacoes,
-          origem: "import" as const,
-          consentimento_whatsapp: data.consentimentoWhatsapp,
-          created_by: context.userId,
-        };
-
-        if (existing) {
-          await sb.from("contacts").update(payload).eq("id", existing.id);
-          await sb
-            .from("import_rows")
-            .update({ status: "duplicado", contact_id: existing.id })
-            .eq("id", row.id);
-          duplicados++;
-          atualizados++;
-        } else {
-          const { data: ins, error: insErr } = await sb
-            .from("contacts")
-            .insert(payload)
-            .select("id")
-            .single();
-          if (insErr) {
-            await sb
-              .from("import_rows")
-              .update({ status: "erro", erro: insErr.message })
-              .eq("id", row.id);
+        if (isInvalid && data.strategy !== "all") {
+          if (data.strategy === "valid_only") {
+            await sb.from("import_rows").update({ status: "erro", erro: p.problemas.join("; ") || "Telefone inválido" }).eq("id", row.id);
             erros++;
             continue;
           }
-          await sb
-            .from("import_rows")
-            .update({ status: "criado", contact_id: ins.id })
-            .eq("id", row.id);
-          criados++;
         }
+
+        const dup = p.dup;
+        const payload: Record<string, unknown> = {
+          nome: p.nome,
+          phone_raw: p.phone.phone_original,
+          email: p.email,
+          origem: "import" as const,
+          consentimento_whatsapp: data.consentimentoWhatsapp,
+          tipo: data.tipo,
+          phone_status: isInvalid
+            ? "invalido"
+            : needsReview
+              ? (p.phone.phone_status === "sem_nono_digito" ? "sem_nono_digito" : "precisa_revisao")
+              : dup
+                ? "duplicado_possivel"
+                : "valido",
+          lifecycle_status: isInvalid
+            ? "telefone_invalido"
+            : dup && dup.match !== "forte"
+              ? "duplicado_possivel"
+              : "importado_aguardando_recadastro",
+          created_by: context.userId,
+        };
+
+        if (dup && dup.match === "forte") {
+          // Non-destructive merge
+          const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
+          if (existing) {
+            const merge: Record<string, unknown> = {};
+            const fillIfEmpty = (key: string, value: unknown) => {
+              if (value != null && (existing as Record<string, unknown>)[key] == null) merge[key] = value;
+            };
+            fillIfEmpty("nome", p.nome);
+            fillIfEmpty("email", p.email);
+            fillIfEmpty("phone_raw", p.phone.phone_original);
+            await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
+            await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
+            duplicados++;
+            atualizados++;
+            continue;
+          }
+        }
+
+        const { data: ins, error: insErr } = await sb.from("contacts").insert(payload as never).select("id").single();
+        if (insErr) {
+          await sb.from("import_rows").update({ status: "erro", erro: insErr.message }).eq("id", row.id);
+          erros++;
+          continue;
+        }
+
+        if (dup && dup.match !== "forte") {
+          await sb.from("contact_duplicates").insert({
+            contact_a: ins.id,
+            contact_b: dup.contact_id,
+            match_type: dup.match,
+            reason: `Importação linha ${p.linha}: telefone last8 igual`,
+          });
+          duplicados++;
+        }
+
+        await sb.from("import_rows").update({ status: "criado", contact_id: ins.id }).eq("id", row.id);
+        criados++;
       }
 
       if (rows.length < pageSize) break;
@@ -278,16 +402,10 @@ export const commitImport = createServerFn({ method: "POST" })
 
     await sb
       .from("imports")
-      .update({
-        status: "done",
-        criados,
-        atualizados,
-        duplicados,
-        erros,
-      })
+      .update({ status: "done", criados, atualizados, duplicados, erros })
       .eq("id", data.importId);
 
-    return { criados, atualizados, duplicados, erros };
+    return { criados, atualizados, duplicados, erros, ignorados };
   });
 
 export const listImports = createServerFn({ method: "GET" })
