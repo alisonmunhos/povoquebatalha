@@ -10,6 +10,8 @@ const schema = z.object({
   cep: z.string().trim().max(12).optional().or(z.literal("")),
   endereco: z.string().trim().max(240).optional().or(z.literal("")),
   numero: z.string().trim().max(20).optional().or(z.literal("")),
+  complemento: z.string().trim().max(120).optional().or(z.literal("")),
+  referencia: z.string().trim().max(240).optional().or(z.literal("")),
   bairro: z.string().trim().max(120).optional().or(z.literal("")),
   como_conheceu: z.string().trim().max(240).optional().or(z.literal("")),
   quer_voluntariar: z.boolean().optional(),
@@ -96,6 +98,8 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           cep: d.cep || null,
           endereco: d.endereco || null,
           numero: d.numero || null,
+          complemento: d.complemento || null,
+          referencia: d.referencia || null,
           bairro: d.bairro || null,
           como_conheceu: d.como_conheceu || null,
           quer_voluntariar: d.quer_voluntariar ?? null,
@@ -106,12 +110,12 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           lifecycle_status: "recadastro_concluido" as const,
         };
 
+        let savedId: string | null = null;
         if (target) {
-          // Non-destructive merge + phone change detection
           if (target.phone_e164 && target.phone_e164 !== phoneE164) {
-            // create a duplicate record for review instead of overwriting
             const { data: newRow } = await supabaseAdmin.from("contacts").insert({ ...fields }).select("id").single();
             if (newRow) {
+              savedId = newRow.id;
               await supabaseAdmin.from("contact_duplicates").insert({
                 contact_a: newRow.id,
                 contact_b: target.id,
@@ -122,9 +126,32 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
             }
           } else {
             await supabaseAdmin.from("contacts").update(fields).eq("id", target.id);
+            savedId = target.id;
           }
         } else {
-          await supabaseAdmin.from("contacts").insert(fields);
+          const { data: newRow } = await supabaseAdmin.from("contacts").insert(fields).select("id").single();
+          savedId = newRow?.id ?? null;
+        }
+
+        // Best-effort geocoding (fire-and-forget within request)
+        if (savedId && (d.cidade || d.cep)) {
+          try {
+            const { geocodeAddress } = await import("@/lib/cep.server");
+            const g = await geocodeAddress({
+              endereco: d.endereco, numero: d.numero, bairro: d.bairro,
+              cidade: d.cidade, uf: d.uf, cep: d.cep,
+            });
+            if (g && g.status !== "erro") {
+              await supabaseAdmin.from("contacts").update({
+                latitude: g.latitude, longitude: g.longitude,
+                geocoding_provider: g.provider,
+                geocoding_status: g.status === "aproximado" ? "aproximado" : "localizado",
+                geocoded_at: new Date().toISOString(),
+              }).eq("id", savedId);
+            } else {
+              await supabaseAdmin.from("contacts").update({ geocoding_status: g ? "erro" : "pendente" }).eq("id", savedId);
+            }
+          } catch { /* ignore */ }
         }
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       },
