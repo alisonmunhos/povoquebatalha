@@ -20,7 +20,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
+import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
+import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
@@ -83,11 +85,22 @@ const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
   path: '/usuarios',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedLinksRoute = AuthenticatedLinksRouteImport.update({
+  id: '/links',
+  path: '/links',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedImportarRoute = AuthenticatedImportarRouteImport.update({
   id: '/importar',
   path: '/importar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDuplicidadesRoute =
+  AuthenticatedDuplicidadesRouteImport.update({
+    id: '/duplicidades',
+    path: '/duplicidades',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -135,7 +148,9 @@ export interface FileRoutesByFullPath {
   '/recadastro': typeof RecadastroRoute
   '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
+  '/links': typeof AuthenticatedLinksRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -155,7 +170,9 @@ export interface FileRoutesByTo {
   '/recadastro': typeof RecadastroRoute
   '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
+  '/links': typeof AuthenticatedLinksRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -177,7 +194,9 @@ export interface FileRoutesById {
   '/recadastro': typeof RecadastroRoute
   '/_authenticated/contatos': typeof AuthenticatedContatosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
+  '/_authenticated/links': typeof AuthenticatedLinksRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -199,7 +218,9 @@ export interface FileRouteTypes {
     | '/recadastro'
     | '/contatos'
     | '/dashboard'
+    | '/duplicidades'
     | '/importar'
+    | '/links'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
@@ -219,7 +240,9 @@ export interface FileRouteTypes {
     | '/recadastro'
     | '/contatos'
     | '/dashboard'
+    | '/duplicidades'
     | '/importar'
+    | '/links'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
@@ -240,7 +263,9 @@ export interface FileRouteTypes {
     | '/recadastro'
     | '/_authenticated/contatos'
     | '/_authenticated/dashboard'
+    | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
+    | '/_authenticated/links'
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
@@ -347,11 +372,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/links': {
+      id: '/_authenticated/links'
+      path: '/links'
+      fullPath: '/links'
+      preLoaderRoute: typeof AuthenticatedLinksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/importar': {
       id: '/_authenticated/importar'
       path: '/importar'
       fullPath: '/importar'
       preLoaderRoute: typeof AuthenticatedImportarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/duplicidades': {
+      id: '/_authenticated/duplicidades'
+      path: '/duplicidades'
+      fullPath: '/duplicidades'
+      preLoaderRoute: typeof AuthenticatedDuplicidadesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -409,7 +448,9 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedContatosRoute: typeof AuthenticatedContatosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
+  AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
 }
@@ -417,7 +458,9 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedContatosRoute: AuthenticatedContatosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
+  AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
 }
