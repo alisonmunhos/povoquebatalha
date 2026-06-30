@@ -182,6 +182,60 @@ export type Database = {
           },
         ]
       }
+      contact_duplicates: {
+        Row: {
+          contact_a: string
+          contact_b: string
+          created_at: string
+          id: string
+          match_type: string
+          reason: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          score: number | null
+          status: string
+        }
+        Insert: {
+          contact_a: string
+          contact_b: string
+          created_at?: string
+          id?: string
+          match_type: string
+          reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          score?: number | null
+          status?: string
+        }
+        Update: {
+          contact_a?: string
+          contact_b?: string
+          created_at?: string
+          id?: string
+          match_type?: string
+          reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          score?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_duplicates_contact_a_fkey"
+            columns: ["contact_a"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_duplicates_contact_b_fkey"
+            columns: ["contact_b"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_tags: {
         Row: {
           contact_id: string
@@ -231,17 +285,32 @@ export type Database = {
           endereco: string | null
           id: string
           lat: number | null
+          lifecycle_status:
+            | Database["public"]["Enums"]["contact_lifecycle_status"]
+            | null
           lng: number | null
           nome: string
+          nome_normalizado: string | null
           numero: string | null
           observacoes: string | null
           opt_out_at: string | null
           opt_out_token: string
           origem: Database["public"]["Enums"]["contact_origem"]
+          origem_detalhe: string | null
+          phone_ddd: string | null
+          phone_ddi: string | null
+          phone_digits: string | null
           phone_e164: string | null
           phone_last8: string | null
+          phone_last9: string | null
           phone_raw: string | null
+          phone_status:
+            | Database["public"]["Enums"]["contact_phone_status"]
+            | null
+          phone_whatsapp_candidate: string | null
           quer_voluntariar: boolean | null
+          recad_token: string | null
+          tipo: string | null
           uf: string | null
           updated_at: string
         }
@@ -260,17 +329,32 @@ export type Database = {
           endereco?: string | null
           id?: string
           lat?: number | null
+          lifecycle_status?:
+            | Database["public"]["Enums"]["contact_lifecycle_status"]
+            | null
           lng?: number | null
           nome: string
+          nome_normalizado?: string | null
           numero?: string | null
           observacoes?: string | null
           opt_out_at?: string | null
           opt_out_token?: string
           origem?: Database["public"]["Enums"]["contact_origem"]
+          origem_detalhe?: string | null
+          phone_ddd?: string | null
+          phone_ddi?: string | null
+          phone_digits?: string | null
           phone_e164?: string | null
           phone_last8?: string | null
+          phone_last9?: string | null
           phone_raw?: string | null
+          phone_status?:
+            | Database["public"]["Enums"]["contact_phone_status"]
+            | null
+          phone_whatsapp_candidate?: string | null
           quer_voluntariar?: boolean | null
+          recad_token?: string | null
+          tipo?: string | null
           uf?: string | null
           updated_at?: string
         }
@@ -289,17 +373,32 @@ export type Database = {
           endereco?: string | null
           id?: string
           lat?: number | null
+          lifecycle_status?:
+            | Database["public"]["Enums"]["contact_lifecycle_status"]
+            | null
           lng?: number | null
           nome?: string
+          nome_normalizado?: string | null
           numero?: string | null
           observacoes?: string | null
           opt_out_at?: string | null
           opt_out_token?: string
           origem?: Database["public"]["Enums"]["contact_origem"]
+          origem_detalhe?: string | null
+          phone_ddd?: string | null
+          phone_ddi?: string | null
+          phone_digits?: string | null
           phone_e164?: string | null
           phone_last8?: string | null
+          phone_last9?: string | null
           phone_raw?: string | null
+          phone_status?:
+            | Database["public"]["Enums"]["contact_phone_status"]
+            | null
+          phone_whatsapp_candidate?: string | null
           quer_voluntariar?: boolean | null
+          recad_token?: string | null
+          tipo?: string | null
           uf?: string | null
           updated_at?: string
         }
@@ -313,6 +412,7 @@ export type Database = {
           id: string
           import_id: string
           linha: number
+          preview: Json | null
           raw: Json
           status: string
         }
@@ -323,6 +423,7 @@ export type Database = {
           id?: string
           import_id: string
           linha: number
+          preview?: Json | null
           raw: Json
           status?: string
         }
@@ -333,6 +434,7 @@ export type Database = {
           id?: string
           import_id?: string
           linha?: number
+          preview?: Json | null
           raw?: Json
           status?: string
         }
@@ -686,7 +788,25 @@ export type Database = {
         | "done"
         | "canceled"
       campaign_tipo: "text" | "image" | "document" | "link"
+      contact_lifecycle_status:
+        | "importado_aguardando_recadastro"
+        | "link_enviado"
+        | "recadastro_iniciado"
+        | "recadastro_concluido"
+        | "nao_respondeu"
+        | "telefone_invalido"
+        | "precisa_revisao"
+        | "duplicado_possivel"
+        | "duplicado_mesclado"
+        | "nao_enviar"
       contact_origem: "recadastro" | "inscricao" | "import" | "manual"
+      contact_phone_status:
+        | "valido"
+        | "precisa_revisao"
+        | "invalido"
+        | "sem_ddd"
+        | "sem_nono_digito"
+        | "duplicado_possivel"
       import_status: "pending" | "processing" | "done" | "error"
       instance_status: "disconnected" | "qr" | "connected" | "error"
       recipient_status:
@@ -836,7 +956,27 @@ export const Constants = {
         "canceled",
       ],
       campaign_tipo: ["text", "image", "document", "link"],
+      contact_lifecycle_status: [
+        "importado_aguardando_recadastro",
+        "link_enviado",
+        "recadastro_iniciado",
+        "recadastro_concluido",
+        "nao_respondeu",
+        "telefone_invalido",
+        "precisa_revisao",
+        "duplicado_possivel",
+        "duplicado_mesclado",
+        "nao_enviar",
+      ],
       contact_origem: ["recadastro", "inscricao", "import", "manual"],
+      contact_phone_status: [
+        "valido",
+        "precisa_revisao",
+        "invalido",
+        "sem_ddd",
+        "sem_nono_digito",
+        "duplicado_possivel",
+      ],
       import_status: ["pending", "processing", "done", "error"],
       instance_status: ["disconnected", "qr", "connected", "error"],
       recipient_status: [
