@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
 import { listTagsWithUsage } from "@/lib/tags.functions";
@@ -65,14 +65,14 @@ function Contatos() {
   const tagsQ = useQuery({ queryKey: ["tags-all"], queryFn: () => tagsFn() });
 
   // Aplica segmento via querystring
-  useState(() => {
-    if (search.segment) {
-      segFn().then((r) => {
-        const s = r.rows.find((x) => x.id === search.segment);
-        if (s?.tipo === "dinamico") setFilters((s.filtro as Filters) ?? {});
-      });
-    }
-  });
+  useEffect(() => {
+    if (!search.segment) return;
+    segFn().then((r) => {
+      const s = r.rows.find((x) => x.id === search.segment);
+      if (s?.tipo === "dinamico") setFilters((s.filtro as Filters) ?? { archived: "nao" });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.segment]);
 
   const q = useQuery({
     queryKey: ["contacts-rich", filters, page],
