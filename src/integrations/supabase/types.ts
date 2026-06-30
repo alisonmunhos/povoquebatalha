@@ -182,6 +182,41 @@ export type Database = {
           },
         ]
       }
+      contact_audit_log: {
+        Row: {
+          action: string
+          changes: Json | null
+          contact_id: string
+          created_at: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_audit_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_duplicates: {
         Row: {
           contact_a: string
@@ -310,8 +345,10 @@ export type Database = {
           bairro: string | null
           cep: string | null
           cidade: string | null
+          coletivo_alicerce: boolean | null
           como_conheceu: string | null
           complemento: string | null
+          consentimento_at: string | null
           consentimento_whatsapp: boolean
           cpf_hash: string | null
           created_at: string
@@ -320,6 +357,7 @@ export type Database = {
           email: string | null
           endereco: string | null
           endereco_completo: string | null
+          formas_ajuda: Json
           geocoded_at: string | null
           geocoding_provider: string | null
           geocoding_status:
@@ -336,9 +374,11 @@ export type Database = {
           longitude: number | null
           nome: string
           nome_normalizado: string | null
+          nome_social: string | null
           numero: string | null
           observacoes: string | null
           opt_out_at: string | null
+          opt_out_motivo: string | null
           opt_out_token: string
           origem: Database["public"]["Enums"]["contact_origem"]
           origem_detalhe: string | null
@@ -353,10 +393,12 @@ export type Database = {
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
           phone_whatsapp_candidate: string | null
+          profissao: string | null
           quer_voluntariar: boolean | null
           recad_token: string | null
           referencia: string | null
           tipo: string | null
+          tipo_contato: string | null
           uf: string | null
           updated_at: string
           whatsapp_status: Database["public"]["Enums"]["whatsapp_status"] | null
@@ -366,8 +408,10 @@ export type Database = {
           bairro?: string | null
           cep?: string | null
           cidade?: string | null
+          coletivo_alicerce?: boolean | null
           como_conheceu?: string | null
           complemento?: string | null
+          consentimento_at?: string | null
           consentimento_whatsapp?: boolean
           cpf_hash?: string | null
           created_at?: string
@@ -376,6 +420,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           endereco_completo?: string | null
+          formas_ajuda?: Json
           geocoded_at?: string | null
           geocoding_provider?: string | null
           geocoding_status?:
@@ -392,9 +437,11 @@ export type Database = {
           longitude?: number | null
           nome: string
           nome_normalizado?: string | null
+          nome_social?: string | null
           numero?: string | null
           observacoes?: string | null
           opt_out_at?: string | null
+          opt_out_motivo?: string | null
           opt_out_token?: string
           origem?: Database["public"]["Enums"]["contact_origem"]
           origem_detalhe?: string | null
@@ -409,10 +456,12 @@ export type Database = {
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
           phone_whatsapp_candidate?: string | null
+          profissao?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
           referencia?: string | null
           tipo?: string | null
+          tipo_contato?: string | null
           uf?: string | null
           updated_at?: string
           whatsapp_status?:
@@ -424,8 +473,10 @@ export type Database = {
           bairro?: string | null
           cep?: string | null
           cidade?: string | null
+          coletivo_alicerce?: boolean | null
           como_conheceu?: string | null
           complemento?: string | null
+          consentimento_at?: string | null
           consentimento_whatsapp?: boolean
           cpf_hash?: string | null
           created_at?: string
@@ -434,6 +485,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           endereco_completo?: string | null
+          formas_ajuda?: Json
           geocoded_at?: string | null
           geocoding_provider?: string | null
           geocoding_status?:
@@ -450,9 +502,11 @@ export type Database = {
           longitude?: number | null
           nome?: string
           nome_normalizado?: string | null
+          nome_social?: string | null
           numero?: string | null
           observacoes?: string | null
           opt_out_at?: string | null
+          opt_out_motivo?: string | null
           opt_out_token?: string
           origem?: Database["public"]["Enums"]["contact_origem"]
           origem_detalhe?: string | null
@@ -467,10 +521,12 @@ export type Database = {
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
           phone_whatsapp_candidate?: string | null
+          profissao?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
           referencia?: string | null
           tipo?: string | null
+          tipo_contato?: string | null
           uf?: string | null
           updated_at?: string
           whatsapp_status?:
