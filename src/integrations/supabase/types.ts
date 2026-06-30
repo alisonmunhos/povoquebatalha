@@ -670,15 +670,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      is_member: { Args: { _user_id: string }; Returns: boolean }
-      is_staff: { Args: { _user_id: string }; Returns: boolean }
       normalize_phone_br: { Args: { input: string }; Returns: string }
       phone_last8: { Args: { input: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
