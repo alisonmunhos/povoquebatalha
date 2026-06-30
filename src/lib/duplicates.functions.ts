@@ -50,3 +50,68 @@ export const resolveDuplicate = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true as const };
   });
+
+// Detalhes de um par para mesclagem
+export const getDuplicatePair = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: dup, error } = await context.supabase
+      .from("contact_duplicates")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+    if (error) throw error;
+    const { data: contacts } = await context.supabase
+      .from("contacts")
+      .select("*")
+      .in("id", [dup.contact_a, dup.contact_b]);
+    const a = contacts?.find((c) => c.id === dup.contact_a) ?? null;
+    const b = contacts?.find((c) => c.id === dup.contact_b) ?? null;
+    return { dup, a, b };
+  });
+
+// Mesclagem real: usa supabaseAdmin para chamar merge_contacts(SECURITY DEFINER)
+const mergeSchema = z.object({
+  duplicate_id: z.string().uuid().optional(),
+  survivor_id: z.string().uuid(),
+  merged_id: z.string().uuid(),
+  field_overrides: z.record(z.string(), z.union([z.string(), z.boolean(), z.null()])).default({}),
+  motivo: z.string().max(240).optional(),
+  confianca: z.enum(["forte", "provavel", "possivel"]).default("provavel"),
+});
+
+export const mergeContacts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => mergeSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    // Permissão: somente admin
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+    if (!isAdmin) throw new Error("Apenas administradores podem mesclar contatos.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const overridesNorm: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(data.field_overrides)) {
+      if (v === null || v === undefined) continue;
+      overridesNorm[k] = typeof v === "boolean" ? (v ? "true" : "false") : v;
+    }
+    const { data: res, error } = await supabaseAdmin.rpc("merge_contacts", {
+      p_survivor: data.survivor_id,
+      p_merged: data.merged_id,
+      p_field_overrides: overridesNorm as never,
+      p_motivo: data.motivo ?? undefined,
+      p_confianca: data.confianca,
+    });
+    if (error) throw error;
+    if (data.duplicate_id) {
+      await context.supabase
+        .from("contact_duplicates")
+        .update({ status: "mesclado", resolved_at: new Date().toISOString(), resolved_by: context.userId })
+        .eq("id", data.duplicate_id);
+    }
+    return { ok: true as const, merge_id: res as string };
+  });

@@ -20,6 +20,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
+import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
+import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
@@ -85,6 +87,16 @@ const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
 const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
   id: '/usuarios',
   path: '/usuarios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTagsRoute = AuthenticatedTagsRouteImport.update({
+  id: '/tags',
+  path: '/tags',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSegmentosRoute = AuthenticatedSegmentosRouteImport.update({
+  id: '/segmentos',
+  path: '/segmentos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLinksRoute = AuthenticatedLinksRouteImport.update({
@@ -163,6 +175,8 @@ export interface FileRoutesByFullPath {
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/links': typeof AuthenticatedLinksRoute
+  '/segmentos': typeof AuthenticatedSegmentosRoute
+  '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -187,6 +201,8 @@ export interface FileRoutesByTo {
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/links': typeof AuthenticatedLinksRoute
+  '/segmentos': typeof AuthenticatedSegmentosRoute
+  '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -213,6 +229,8 @@ export interface FileRoutesById {
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
+  '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
+  '/_authenticated/tags': typeof AuthenticatedTagsRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -239,6 +257,8 @@ export interface FileRouteTypes {
     | '/duplicidades'
     | '/importar'
     | '/links'
+    | '/segmentos'
+    | '/tags'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
@@ -263,6 +283,8 @@ export interface FileRouteTypes {
     | '/duplicidades'
     | '/importar'
     | '/links'
+    | '/segmentos'
+    | '/tags'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
@@ -288,6 +310,8 @@ export interface FileRouteTypes {
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
     | '/_authenticated/links'
+    | '/_authenticated/segmentos'
+    | '/_authenticated/tags'
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
@@ -398,6 +422,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/tags': {
+      id: '/_authenticated/tags'
+      path: '/tags'
+      fullPath: '/tags'
+      preLoaderRoute: typeof AuthenticatedTagsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/segmentos': {
+      id: '/_authenticated/segmentos'
+      path: '/segmentos'
+      fullPath: '/segmentos'
+      preLoaderRoute: typeof AuthenticatedSegmentosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/links': {
       id: '/_authenticated/links'
       path: '/links'
@@ -490,6 +528,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
+  AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
+  AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
@@ -501,6 +541,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
+  AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
+  AuthenticatedTagsRoute: AuthenticatedTagsRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
