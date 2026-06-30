@@ -97,20 +97,10 @@ function ImportarPage() {
     }
   }
 
-  async function onReparseEncoding(nextEncoding: EncodingOption) {
-    if (!parsed) return;
+  function onReparseEncoding(nextEncoding: EncodingOption) {
+    // O encoding final é aplicado quando o usuário gera a prévia.
+    // Mostramos um aviso para clicar em "Gerar prévia" para recalcular.
     setEncoding(nextEncoding);
-    setStage("uploading");
-    try {
-      const res = await parseFn({ data: { filePath: `__reparse__/${parsed.importId}`, fileName: "reparse", encoding: nextEncoding, defaultDdd: defaultDdd || null } }).catch(async () => {
-        // Falls back to triggering preview rebuild which re-decodes
-        return null;
-      });
-      if (res) setParsed(res);
-      setStage("mapping");
-    } catch {
-      setStage("mapping");
-    }
   }
 
   async function onBuildPreview() {
