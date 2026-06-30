@@ -43,9 +43,11 @@ async function zapiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   }
   if (!res.ok) {
-    const msg =
-      (json && typeof json === "object" && "error" in json && String((json as Record<string, unknown>).error)) ||
-      `Z-API HTTP ${res.status}`;
+    let msg = `Z-API HTTP ${res.status}`;
+    if (json && typeof json === "object" && "error" in json) {
+      const e = (json as Record<string, unknown>).error;
+      if (typeof e === "string" && e.length > 0) msg = e;
+    }
     throw new Error(msg);
   }
   return json as T;

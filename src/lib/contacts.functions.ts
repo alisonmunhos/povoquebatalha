@@ -57,12 +57,12 @@ export const upsertContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => upsertSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const payload = { ...data, origem: "manual" as const, created_by: context.userId };
-    if (data.id) {
-      const { id, ...rest } = payload;
+    const { id, ...rest } = data;
+    const payload = { ...rest, origem: "manual" as const, created_by: context.userId };
+    if (id) {
       const { data: row, error } = await context.supabase
         .from("contacts")
-        .update(rest)
+        .update(payload)
         .eq("id", id)
         .select()
         .single();
