@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, type ChangeEvent } from "react";
 import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle, RefreshCw, Download, Undo2, Trash2, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
@@ -136,7 +136,7 @@ function ImportarPage() {
       const r = await commitFn({ data: { importId: parsed.importId, strategy, consentimentoWhatsapp: consent, tipo } });
       setResult(r);
       setStage("done");
-      history.refetch();
+      queryClient.invalidateQueries({ queryKey: ["imports-history"] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao importar.");
       setStage("review");
