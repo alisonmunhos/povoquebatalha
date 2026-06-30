@@ -338,19 +338,37 @@ function Contatos() {
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="inline-flex gap-1">
-                      <Link to="/contatos/$id" params={{ id: c.id }} className="p-1.5 hover:bg-accent rounded" title="Ver/Editar"><Pencil className="h-3.5 w-3.5" /></Link>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Link to="/contatos/$id" params={{ id: c.id }} className="p-1.5 hover:bg-accent rounded inline-flex"><Pencil className="h-3.5 w-3.5" /></Link>
+                      </TooltipTrigger><TooltipContent>Ver / Editar ficha</TooltipContent></Tooltip>
                       {digits && (
                         <>
-                          <button onClick={() => { navigator.clipboard.writeText(c.phone_e164 ?? ""); toast.success("WhatsApp copiado"); }} className="p-1.5 hover:bg-accent rounded"><Copy className="h-3.5 w-3.5" /></button>
-                          <a href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-accent rounded text-emerald-600"><MessageCircle className="h-3.5 w-3.5" /></a>
+                          <Tooltip><TooltipTrigger asChild>
+                            <button onClick={() => { navigator.clipboard.writeText(c.phone_e164 ?? ""); toast.success("WhatsApp copiado"); }} className="p-1.5 hover:bg-accent rounded"><Copy className="h-3.5 w-3.5" /></button>
+                          </TooltipTrigger><TooltipContent>Copiar número do WhatsApp</TooltipContent></Tooltip>
+                          <Tooltip><TooltipTrigger asChild>
+                            <a href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-accent rounded text-emerald-600 inline-flex"><MessageCircle className="h-3.5 w-3.5" /></a>
+                          </TooltipTrigger><TooltipContent>Abrir conversa no WhatsApp</TooltipContent></Tooltip>
                         </>
                       )}
-                      <button onClick={async () => { await optFn({ data: { id: c.id, optOut: !c.opt_out_at } }); q.refetch(); }} className="p-1.5 hover:bg-accent rounded">
-                        {c.opt_out_at ? <UserCheck className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
-                      </button>
-                      <button onClick={async () => { await archFn({ data: { id: c.id, archived: !c.arquivado_at } }); q.refetch(); }} className="p-1.5 hover:bg-accent rounded">
-                        {c.arquivado_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                      </button>
+                      <Tooltip><TooltipTrigger asChild>
+                        <button onClick={async () => {
+                          const target = !c.opt_out_at;
+                          if (target && !confirm(`Marcar ${c.nome} como "Não enviar"?`)) return;
+                          await optFn({ data: { id: c.id, optOut: target } }); q.refetch();
+                        }} className="p-1.5 hover:bg-accent rounded">
+                          {c.opt_out_at ? <UserCheck className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
+                        </button>
+                      </TooltipTrigger><TooltipContent>{c.opt_out_at ? "Reativar envios" : "Marcar como não enviar"}</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <button onClick={async () => {
+                          const target = !c.arquivado_at;
+                          if (target && !confirm(`Arquivar ${c.nome}? Ele deixa de aparecer na listagem padrão.`)) return;
+                          await archFn({ data: { id: c.id, archived: target } }); q.refetch();
+                        }} className="p-1.5 hover:bg-accent rounded">
+                          {c.arquivado_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                        </button>
+                      </TooltipTrigger><TooltipContent>{c.arquivado_at ? "Desarquivar" : "Arquivar contato"}</TooltipContent></Tooltip>
                     </div>
                   </td>
                 </tr>
