@@ -89,7 +89,7 @@ export const parseUpload = createServerFn({ method: "POST" })
         file_name: data.fileName,
         total: rows.length,
         mapeamento: mapping,
-        status: "pendente",
+        status: "pending",
         created_by: context.userId,
       })
       .select()
@@ -102,8 +102,8 @@ export const parseUpload = createServerFn({ method: "POST" })
       const slice = rows.slice(i, i + chunkSize).map((r, idx) => ({
         import_id: imp.id,
         linha: i + idx + 2, // +2 = header row + 1-index
-        raw: r,
-        status: "pendente",
+        raw: r as never,
+        status: "pending",
       }));
       const { error: e2 } = await context.supabase.from("import_rows").insert(slice);
       if (e2) throw e2;
@@ -157,7 +157,7 @@ export const commitImport = createServerFn({ method: "POST" })
 
     await sb
       .from("imports")
-      .update({ status: "processando", mapeamento: data.mapping })
+      .update({ status: "processing", mapeamento: data.mapping })
       .eq("id", data.importId);
 
     // Re-read in chunks via import_rows to avoid re-downloading
@@ -279,7 +279,7 @@ export const commitImport = createServerFn({ method: "POST" })
     await sb
       .from("imports")
       .update({
-        status: "concluido",
+        status: "done",
         criados,
         atualizados,
         duplicados,
