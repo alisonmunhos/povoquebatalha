@@ -21,6 +21,7 @@ import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
+import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
@@ -85,6 +86,11 @@ const AuthenticatedContatosRoute = AuthenticatedContatosRouteImport.update({
   path: '/contatos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicBootstrapAdminRoute = ApiPublicBootstrapAdminRouteImport.update({
+  id: '/api/public/bootstrap-admin',
+  path: '/api/public/bootstrap-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   id: '/api/public/zapi/$evento',
   path: '/api/public/zapi/$evento',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
+    | '/api/public/bootstrap-admin'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
+    | '/api/public/bootstrap-admin'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
+    | '/api/public/bootstrap-admin'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -224,6 +236,7 @@ export interface RootRouteChildren {
   ObrigadoRoute: typeof ObrigadoRoute
   RecadastroRoute: typeof RecadastroRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
+  ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
@@ -316,6 +329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedContatosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/bootstrap-admin': {
+      id: '/api/public/bootstrap-admin'
+      path: '/api/public/bootstrap-admin'
+      fullPath: '/api/public/bootstrap-admin'
+      preLoaderRoute: typeof ApiPublicBootstrapAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/zapi/$evento': {
       id: '/api/public/zapi/$evento'
       path: '/api/public/zapi/$evento'
@@ -373,6 +393,7 @@ const rootRouteChildren: RootRouteChildren = {
   ObrigadoRoute: ObrigadoRoute,
   RecadastroRoute: RecadastroRoute,
   OptOutTokenRoute: OptOutTokenRoute,
+  ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
   ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
