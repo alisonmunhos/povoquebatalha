@@ -110,11 +110,11 @@ export const parseUpload = createServerFn({ method: "POST" })
     }
 
     return {
-      importId: imp.id,
+      importId: imp.id as string,
       headers,
       mapping,
       total: rows.length,
-      sample: rows.slice(0, 5),
+      sample: rows.slice(0, 5).map((r) => JSON.parse(JSON.stringify(r)) as Record<string, string>),
     };
   });
 
