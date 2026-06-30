@@ -273,26 +273,35 @@ export type Database = {
       }
       contact_merges: {
         Row: {
+          confianca: string | null
           created_at: string
+          field_choices: Json
           id: string
           merged_id: string | null
           merged_snapshot: Json
+          motivo: string | null
           performed_by: string | null
           survivor_id: string | null
         }
         Insert: {
+          confianca?: string | null
           created_at?: string
+          field_choices?: Json
           id?: string
           merged_id?: string | null
           merged_snapshot: Json
+          motivo?: string | null
           performed_by?: string | null
           survivor_id?: string | null
         }
         Update: {
+          confianca?: string | null
           created_at?: string
+          field_choices?: Json
           id?: string
           merged_id?: string | null
           merged_snapshot?: Json
+          motivo?: string | null
           performed_by?: string | null
           survivor_id?: string | null
         }
@@ -804,7 +813,9 @@ export type Database = {
           descricao: string | null
           filtro: Json
           id: string
+          member_ids: string[]
           nome: string
+          tipo: Database["public"]["Enums"]["segment_tipo"]
           updated_at: string
         }
         Insert: {
@@ -813,7 +824,9 @@ export type Database = {
           descricao?: string | null
           filtro?: Json
           id?: string
+          member_ids?: string[]
           nome: string
+          tipo?: Database["public"]["Enums"]["segment_tipo"]
           updated_at?: string
         }
         Update: {
@@ -822,7 +835,9 @@ export type Database = {
           descricao?: string | null
           filtro?: Json
           id?: string
+          member_ids?: string[]
           nome?: string
+          tipo?: Database["public"]["Enums"]["segment_tipo"]
           updated_at?: string
         }
         Relationships: []
@@ -832,6 +847,7 @@ export type Database = {
           categoria: Database["public"]["Enums"]["tag_categoria"]
           cor: string
           created_at: string
+          descricao: string | null
           id: string
           nome: string
           updated_at: string
@@ -840,6 +856,7 @@ export type Database = {
           categoria?: Database["public"]["Enums"]["tag_categoria"]
           cor?: string
           created_at?: string
+          descricao?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -848,6 +865,7 @@ export type Database = {
           categoria?: Database["public"]["Enums"]["tag_categoria"]
           cor?: string
           created_at?: string
+          descricao?: string | null
           id?: string
           nome?: string
           updated_at?: string
@@ -961,6 +979,16 @@ export type Database = {
         }
         Returns: string
       }
+      merge_contacts: {
+        Args: {
+          p_confianca?: string
+          p_field_overrides?: Json
+          p_merged: string
+          p_motivo?: string
+          p_survivor: string
+        }
+        Returns: string
+      }
       normalize_phone_br: { Args: { input: string }; Returns: string }
       phone_last8: { Args: { input: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
@@ -1021,7 +1049,17 @@ export type Database = {
         | "failed"
         | "opted_out"
         | "canceled"
-      tag_categoria: "perfil" | "territorio" | "acao" | "interno" | "origem"
+      segment_tipo: "dinamico" | "estatico"
+      tag_categoria:
+        | "perfil"
+        | "territorio"
+        | "acao"
+        | "interno"
+        | "origem"
+        | "interesse"
+        | "prioridade"
+        | "restricao"
+        | "campanha"
       whatsapp_status:
         | "desconhecido"
         | "confirmado"
@@ -1214,7 +1252,18 @@ export const Constants = {
         "opted_out",
         "canceled",
       ],
-      tag_categoria: ["perfil", "territorio", "acao", "interno", "origem"],
+      segment_tipo: ["dinamico", "estatico"],
+      tag_categoria: [
+        "perfil",
+        "territorio",
+        "acao",
+        "interno",
+        "origem",
+        "interesse",
+        "prioridade",
+        "restricao",
+        "campanha",
+      ],
       whatsapp_status: [
         "desconhecido",
         "confirmado",
