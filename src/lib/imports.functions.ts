@@ -341,6 +341,8 @@ export const commitImport = createServerFn({ method: "POST" })
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
           tipo: data.tipo,
+          import_id: data.importId,
+          whatsapp_status: "desconhecido",
           phone_status: isInvalid
             ? "invalido"
             : needsReview
@@ -357,7 +359,6 @@ export const commitImport = createServerFn({ method: "POST" })
         };
 
         if (dup && dup.match === "forte") {
-          // Non-destructive merge
           const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
           if (existing) {
             const merge: Record<string, unknown> = {};
@@ -402,8 +403,16 @@ export const commitImport = createServerFn({ method: "POST" })
 
     await sb
       .from("imports")
-      .update({ status: "done", criados, atualizados, duplicados, erros })
+      .update({ status: "confirmed", criados, atualizados, duplicados, erros })
       .eq("id", data.importId);
+
+    await sb.from("import_audit_log").insert({
+      import_id: data.importId,
+      action: "confirm",
+      affected_count: criados + atualizados,
+      details: { criados, atualizados, duplicados, erros, strategy: data.strategy } as never,
+      performed_by: context.userId,
+    });
 
     return { criados, atualizados, duplicados, erros, ignorados };
   });
@@ -411,11 +420,43 @@ export const commitImport = createServerFn({ method: "POST" })
 export const listImports = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const sb = context.supabase;
+    const { data: imports, error } = await sb
       .from("imports")
       .select("id,file_name,status,total,criados,atualizados,duplicados,erros,created_at")
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) throw error;
-    return { rows: data ?? [] };
+
+    const ids = (imports ?? []).map((r) => r.id);
+    const vinculadosMap = new Map<string, { ativos: number; arquivados: number }>();
+    if (ids.length) {
+      const { data: contacts } = await sb
+        .from("contacts")
+        .select("import_id, arquivado_at")
+        .in("import_id", ids);
+      for (const c of contacts ?? []) {
+        const k = c.import_id as string;
+        const cur = vinculadosMap.get(k) ?? { ativos: 0, arquivados: 0 };
+        if (c.arquivado_at) cur.arquivados++; else cur.ativos++;
+        vinculadosMap.set(k, cur);
+      }
+    }
+
+    const { data: roleRow } = await sb
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    const isAdmin = !!roleRow;
+
+    return {
+      rows: (imports ?? []).map((r) => ({
+        ...r,
+        vinculados_ativos: vinculadosMap.get(r.id)?.ativos ?? 0,
+        vinculados_arquivados: vinculadosMap.get(r.id)?.arquivados ?? 0,
+      })),
+      isAdmin,
+    };
   });
