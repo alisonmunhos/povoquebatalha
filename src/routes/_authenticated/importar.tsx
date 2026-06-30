@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, type ChangeEvent } from "react";
-import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle, RefreshCw, Download, Undo2, Trash2, ShieldAlert, X } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   parseUpload,
@@ -13,6 +14,12 @@ import {
   type FieldKey,
   type EncodingOption,
 } from "@/lib/imports.functions";
+import {
+  getUndoPreview,
+  exportBackupCsv,
+  undoImport,
+  deleteImportFile,
+} from "@/lib/imports-undo.functions";
 import { formatPhoneBR, type PhoneStatus } from "@/lib/phone";
 
 export const Route = createFileRoute("/_authenticated/importar")({
