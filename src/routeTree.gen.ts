@@ -24,8 +24,9 @@ import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
+import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
+import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
@@ -107,15 +108,21 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedContatosRoute = AuthenticatedContatosRouteImport.update({
-  id: '/contatos',
-  path: '/contatos',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedContatosIndexRoute =
+  AuthenticatedContatosIndexRouteImport.update({
+    id: '/contatos/',
+    path: '/contatos/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicBootstrapAdminRoute = ApiPublicBootstrapAdminRouteImport.update({
   id: '/api/public/bootstrap-admin',
   path: '/api/public/bootstrap-admin',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
+  id: '/contatos/$id',
+  path: '/contatos/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   id: '/api/public/zapi/$evento',
@@ -152,7 +159,6 @@ export interface FileRoutesByFullPath {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
-  '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
@@ -160,7 +166,9 @@ export interface FileRoutesByFullPath {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
@@ -175,7 +183,6 @@ export interface FileRoutesByTo {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
-  '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
@@ -183,7 +190,9 @@ export interface FileRoutesByTo {
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/contatos': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
@@ -200,7 +209,6 @@ export interface FileRoutesById {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
-  '/_authenticated/contatos': typeof AuthenticatedContatosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
@@ -208,7 +216,9 @@ export interface FileRoutesById {
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
@@ -225,7 +235,6 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
-    | '/contatos'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
@@ -233,7 +242,9 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
+    | '/contatos/$id'
     | '/api/public/bootstrap-admin'
+    | '/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
@@ -248,7 +259,6 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
-    | '/contatos'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
@@ -256,7 +266,9 @@ export interface FileRouteTypes {
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
+    | '/contatos/$id'
     | '/api/public/bootstrap-admin'
+    | '/contatos'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
@@ -272,7 +284,6 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
-    | '/_authenticated/contatos'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
@@ -280,7 +291,9 @@ export interface FileRouteTypes {
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
+    | '/_authenticated/contatos/$id'
     | '/api/public/bootstrap-admin'
+    | '/_authenticated/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
@@ -413,11 +426,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/contatos': {
-      id: '/_authenticated/contatos'
+    '/_authenticated/contatos/': {
+      id: '/_authenticated/contatos/'
       path: '/contatos'
-      fullPath: '/contatos'
-      preLoaderRoute: typeof AuthenticatedContatosRouteImport
+      fullPath: '/contatos/'
+      preLoaderRoute: typeof AuthenticatedContatosIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/bootstrap-admin': {
@@ -426,6 +439,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/bootstrap-admin'
       preLoaderRoute: typeof ApiPublicBootstrapAdminRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/contatos/$id': {
+      id: '/_authenticated/contatos/$id'
+      path: '/contatos/$id'
+      fullPath: '/contatos/$id'
+      preLoaderRoute: typeof AuthenticatedContatosIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/zapi/$evento': {
       id: '/api/public/zapi/$evento'
@@ -466,23 +486,25 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedContatosRoute: typeof AuthenticatedContatosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
+  AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
+  AuthenticatedContatosIndexRoute: typeof AuthenticatedContatosIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedContatosRoute: AuthenticatedContatosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
+  AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
+  AuthenticatedContatosIndexRoute: AuthenticatedContatosIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
