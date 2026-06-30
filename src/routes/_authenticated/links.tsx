@@ -58,8 +58,42 @@ function LinksPage() {
         </div>
       </header>
 
+      <div className="rounded-xl border bg-muted/30 p-4 space-y-2 text-sm">
+        <div className="font-medium">URL pública do sistema</div>
+        <div className="font-mono text-xs break-all bg-background border rounded p-2">{baseUrl || "—"}</div>
+        <p className="text-xs text-muted-foreground">
+          Use estes links para testar os formulários públicos em aba anônima ou enviar para pessoas de confiança.
+          O painel administrativo continua privado e só pode ser acessado por usuários autorizados (rotas como
+          <span className="font-mono"> /contatos</span>, <span className="font-mono">/importar</span> etc. exigem login).
+        </p>
+      </div>
+
       <section className="border rounded-xl p-5 bg-card space-y-4">
         <h2 className="font-semibold text-sm">Origem do link</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Preset</label>
+            <select
+              value={origemPreset}
+              onChange={(e) => setOrigemPreset(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {ORIGEM_PRESETS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Origem personalizada (sobrescreve)</label>
+            <input
+              value={origemCustom}
+              onChange={(e) => setOrigemCustom(e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase().slice(0, 60))}
+              placeholder="ex: panfleto_outubro"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          A origem é gravada em cada cadastro e permite filtrar depois quem veio de cada canal.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Preset</label>
