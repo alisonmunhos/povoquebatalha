@@ -10,33 +10,77 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
+import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
+import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
+  id: '/api/public/zapi/$evento',
+  path: '/api/public/zapi/$evento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicFormsRecadastroRoute =
+  ApiPublicFormsRecadastroRouteImport.update({
+    id: '/api/public/forms/recadastro',
+    path: '/api/public/forms/recadastro',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicFormsInscreverRoute = ApiPublicFormsInscreverRouteImport.update({
+  id: '/api/public/forms/inscrever',
+  path: '/api/public/forms/inscrever',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
+  '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
+  '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
+  '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/api/public/forms/inscrever'
+    | '/api/public/forms/recadastro'
+    | '/api/public/zapi/$evento'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/api/public/forms/inscrever'
+    | '/api/public/forms/recadastro'
+    | '/api/public/zapi/$evento'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/public/forms/inscrever'
+    | '/api/public/forms/recadastro'
+    | '/api/public/zapi/$evento'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
+  ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
+  ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +92,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/zapi/$evento': {
+      id: '/api/public/zapi/$evento'
+      path: '/api/public/zapi/$evento'
+      fullPath: '/api/public/zapi/$evento'
+      preLoaderRoute: typeof ApiPublicZapiEventoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/forms/recadastro': {
+      id: '/api/public/forms/recadastro'
+      path: '/api/public/forms/recadastro'
+      fullPath: '/api/public/forms/recadastro'
+      preLoaderRoute: typeof ApiPublicFormsRecadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/forms/inscrever': {
+      id: '/api/public/forms/inscrever'
+      path: '/api/public/forms/inscrever'
+      fullPath: '/api/public/forms/inscrever'
+      preLoaderRoute: typeof ApiPublicFormsInscreverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
+  ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
+  ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
