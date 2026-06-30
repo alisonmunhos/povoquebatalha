@@ -9,38 +9,239 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RecadastroRouteImport } from './routes/recadastro'
+import { Route as ObrigadoRouteImport } from './routes/obrigado'
+import { Route as InscreverRouteImport } from './routes/inscrever'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
+import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
+import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
+import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
+import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
+import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
 
+const RecadastroRoute = RecadastroRouteImport.update({
+  id: '/recadastro',
+  path: '/recadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ObrigadoRoute = ObrigadoRouteImport.update({
+  id: '/obrigado',
+  path: '/obrigado',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InscreverRoute = InscreverRouteImport.update({
+  id: '/inscrever',
+  path: '/inscrever',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OptOutTokenRoute = OptOutTokenRouteImport.update({
+  id: '/opt-out/$token',
+  path: '/opt-out/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedContatosRoute = AuthenticatedContatosRouteImport.update({
+  id: '/contatos',
+  path: '/contatos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
+  id: '/api/public/zapi/$evento',
+  path: '/api/public/zapi/$evento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicFormsRecadastroRoute =
+  ApiPublicFormsRecadastroRouteImport.update({
+    id: '/api/public/forms/recadastro',
+    path: '/api/public/forms/recadastro',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicFormsOptOutRoute = ApiPublicFormsOptOutRouteImport.update({
+  id: '/api/public/forms/opt-out',
+  path: '/api/public/forms/opt-out',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicFormsInscreverRoute = ApiPublicFormsInscreverRouteImport.update({
+  id: '/api/public/forms/inscrever',
+  path: '/api/public/forms/inscrever',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/inscrever': typeof InscreverRoute
+  '/obrigado': typeof ObrigadoRoute
+  '/recadastro': typeof RecadastroRoute
+  '/contatos': typeof AuthenticatedContatosRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/opt-out/$token': typeof OptOutTokenRoute
+  '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
+  '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
+  '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/inscrever': typeof InscreverRoute
+  '/obrigado': typeof ObrigadoRoute
+  '/recadastro': typeof RecadastroRoute
+  '/contatos': typeof AuthenticatedContatosRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/opt-out/$token': typeof OptOutTokenRoute
+  '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
+  '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
+  '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/inscrever': typeof InscreverRoute
+  '/obrigado': typeof ObrigadoRoute
+  '/recadastro': typeof RecadastroRoute
+  '/_authenticated/contatos': typeof AuthenticatedContatosRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/opt-out/$token': typeof OptOutTokenRoute
+  '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
+  '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
+  '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/inscrever'
+    | '/obrigado'
+    | '/recadastro'
+    | '/contatos'
+    | '/dashboard'
+    | '/whatsapp'
+    | '/opt-out/$token'
+    | '/api/public/forms/inscrever'
+    | '/api/public/forms/opt-out'
+    | '/api/public/forms/recadastro'
+    | '/api/public/zapi/$evento'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/inscrever'
+    | '/obrigado'
+    | '/recadastro'
+    | '/contatos'
+    | '/dashboard'
+    | '/whatsapp'
+    | '/opt-out/$token'
+    | '/api/public/forms/inscrever'
+    | '/api/public/forms/opt-out'
+    | '/api/public/forms/recadastro'
+    | '/api/public/zapi/$evento'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/inscrever'
+    | '/obrigado'
+    | '/recadastro'
+    | '/_authenticated/contatos'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/whatsapp'
+    | '/opt-out/$token'
+    | '/api/public/forms/inscrever'
+    | '/api/public/forms/opt-out'
+    | '/api/public/forms/recadastro'
+    | '/api/public/zapi/$evento'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  InscreverRoute: typeof InscreverRoute
+  ObrigadoRoute: typeof ObrigadoRoute
+  RecadastroRoute: typeof RecadastroRoute
+  OptOutTokenRoute: typeof OptOutTokenRoute
+  ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
+  ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
+  ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
+  ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/recadastro': {
+      id: '/recadastro'
+      path: '/recadastro'
+      fullPath: '/recadastro'
+      preLoaderRoute: typeof RecadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/obrigado': {
+      id: '/obrigado'
+      path: '/obrigado'
+      fullPath: '/obrigado'
+      preLoaderRoute: typeof ObrigadoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inscrever': {
+      id: '/inscrever'
+      path: '/inscrever'
+      fullPath: '/inscrever'
+      preLoaderRoute: typeof InscreverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +249,93 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/opt-out/$token': {
+      id: '/opt-out/$token'
+      path: '/opt-out/$token'
+      fullPath: '/opt-out/$token'
+      preLoaderRoute: typeof OptOutTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/whatsapp': {
+      id: '/_authenticated/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/contatos': {
+      id: '/_authenticated/contatos'
+      path: '/contatos'
+      fullPath: '/contatos'
+      preLoaderRoute: typeof AuthenticatedContatosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/zapi/$evento': {
+      id: '/api/public/zapi/$evento'
+      path: '/api/public/zapi/$evento'
+      fullPath: '/api/public/zapi/$evento'
+      preLoaderRoute: typeof ApiPublicZapiEventoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/forms/recadastro': {
+      id: '/api/public/forms/recadastro'
+      path: '/api/public/forms/recadastro'
+      fullPath: '/api/public/forms/recadastro'
+      preLoaderRoute: typeof ApiPublicFormsRecadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/forms/opt-out': {
+      id: '/api/public/forms/opt-out'
+      path: '/api/public/forms/opt-out'
+      fullPath: '/api/public/forms/opt-out'
+      preLoaderRoute: typeof ApiPublicFormsOptOutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/forms/inscrever': {
+      id: '/api/public/forms/inscrever'
+      path: '/api/public/forms/inscrever'
+      fullPath: '/api/public/forms/inscrever'
+      preLoaderRoute: typeof ApiPublicFormsInscreverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedContatosRoute: typeof AuthenticatedContatosRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedContatosRoute: AuthenticatedContatosRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  InscreverRoute: InscreverRoute,
+  ObrigadoRoute: ObrigadoRoute,
+  RecadastroRoute: RecadastroRoute,
+  OptOutTokenRoute: OptOutTokenRoute,
+  ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
+  ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,
+  ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
+  ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

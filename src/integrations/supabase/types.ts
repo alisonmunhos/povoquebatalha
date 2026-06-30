@@ -14,16 +14,700 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaign_recipients: {
+        Row: {
+          campaign_id: string
+          contact_id: string
+          created_at: string
+          delivered_at: string | null
+          erro: string | null
+          failed_at: string | null
+          id: string
+          message_id: string | null
+          read_at: string | null
+          rendered_message: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["recipient_status"]
+          tentativas: number
+          updated_at: string
+          zaap_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          contact_id: string
+          created_at?: string
+          delivered_at?: string | null
+          erro?: string | null
+          failed_at?: string | null
+          id?: string
+          message_id?: string | null
+          read_at?: string | null
+          rendered_message?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["recipient_status"]
+          tentativas?: number
+          updated_at?: string
+          zaap_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          erro?: string | null
+          failed_at?: string | null
+          id?: string
+          message_id?: string | null
+          read_at?: string | null
+          rendered_message?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["recipient_status"]
+          tentativas?: number
+          updated_at?: string
+          zaap_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_recipients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          agendado_para: string | null
+          created_at: string
+          created_by: string | null
+          delay_max_ms: number
+          delay_min_ms: number
+          descricao: string | null
+          filtro_adhoc: Json | null
+          id: string
+          instance_id: string | null
+          is_system: boolean
+          janela_fim: string
+          janela_inicio: string
+          mensagem_template: string
+          midia_caption: string | null
+          midia_url: string | null
+          nome: string
+          segment_id: string | null
+          status: Database["public"]["Enums"]["campaign_status"]
+          tipo: Database["public"]["Enums"]["campaign_tipo"]
+          total_destinatarios: number
+          total_entregues: number
+          total_enviados: number
+          total_falhas: number
+          total_lidos: number
+          updated_at: string
+        }
+        Insert: {
+          agendado_para?: string | null
+          created_at?: string
+          created_by?: string | null
+          delay_max_ms?: number
+          delay_min_ms?: number
+          descricao?: string | null
+          filtro_adhoc?: Json | null
+          id?: string
+          instance_id?: string | null
+          is_system?: boolean
+          janela_fim?: string
+          janela_inicio?: string
+          mensagem_template: string
+          midia_caption?: string | null
+          midia_url?: string | null
+          nome: string
+          segment_id?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          tipo?: Database["public"]["Enums"]["campaign_tipo"]
+          total_destinatarios?: number
+          total_entregues?: number
+          total_enviados?: number
+          total_falhas?: number
+          total_lidos?: number
+          updated_at?: string
+        }
+        Update: {
+          agendado_para?: string | null
+          created_at?: string
+          created_by?: string | null
+          delay_max_ms?: number
+          delay_min_ms?: number
+          descricao?: string | null
+          filtro_adhoc?: Json | null
+          id?: string
+          instance_id?: string | null
+          is_system?: boolean
+          janela_fim?: string
+          janela_inicio?: string
+          mensagem_template?: string
+          midia_caption?: string | null
+          midia_url?: string | null
+          nome?: string
+          segment_id?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          tipo?: Database["public"]["Enums"]["campaign_tipo"]
+          total_destinatarios?: number
+          total_entregues?: number
+          total_enviados?: number
+          total_falhas?: number
+          total_lidos?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_tags: {
+        Row: {
+          contact_id: string
+          created_at: string
+          tag_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          tag_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_tags_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
+          como_conheceu: string | null
+          complemento: string | null
+          consentimento_whatsapp: boolean
+          cpf_hash: string | null
+          created_at: string
+          created_by: string | null
+          custom_fields: Json
+          email: string | null
+          endereco: string | null
+          id: string
+          lat: number | null
+          lng: number | null
+          nome: string
+          numero: string | null
+          observacoes: string | null
+          opt_out_at: string | null
+          opt_out_token: string
+          origem: Database["public"]["Enums"]["contact_origem"]
+          phone_e164: string | null
+          phone_last8: string | null
+          phone_raw: string | null
+          quer_voluntariar: boolean | null
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          como_conheceu?: string | null
+          complemento?: string | null
+          consentimento_whatsapp?: boolean
+          cpf_hash?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          nome: string
+          numero?: string | null
+          observacoes?: string | null
+          opt_out_at?: string | null
+          opt_out_token?: string
+          origem?: Database["public"]["Enums"]["contact_origem"]
+          phone_e164?: string | null
+          phone_last8?: string | null
+          phone_raw?: string | null
+          quer_voluntariar?: boolean | null
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          como_conheceu?: string | null
+          complemento?: string | null
+          consentimento_whatsapp?: boolean
+          cpf_hash?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          nome?: string
+          numero?: string | null
+          observacoes?: string | null
+          opt_out_at?: string | null
+          opt_out_token?: string
+          origem?: Database["public"]["Enums"]["contact_origem"]
+          phone_e164?: string | null
+          phone_last8?: string | null
+          phone_raw?: string | null
+          quer_voluntariar?: boolean | null
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      import_rows: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          erro: string | null
+          id: string
+          import_id: string
+          linha: number
+          raw: Json
+          status: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          erro?: string | null
+          id?: string
+          import_id: string
+          linha: number
+          raw: Json
+          status?: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          erro?: string | null
+          id?: string
+          import_id?: string
+          linha?: number
+          raw?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_rows_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_rows_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imports: {
+        Row: {
+          atualizados: number
+          created_at: string
+          created_by: string | null
+          criados: number
+          duplicados: number
+          erro_msg: string | null
+          erros: number
+          file_name: string | null
+          file_path: string
+          id: string
+          mapeamento: Json
+          status: Database["public"]["Enums"]["import_status"]
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          atualizados?: number
+          created_at?: string
+          created_by?: string | null
+          criados?: number
+          duplicados?: number
+          erro_msg?: string | null
+          erros?: number
+          file_name?: string | null
+          file_path: string
+          id?: string
+          mapeamento?: Json
+          status?: Database["public"]["Enums"]["import_status"]
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          atualizados?: number
+          created_at?: string
+          created_by?: string | null
+          criados?: number
+          duplicados?: number
+          erro_msg?: string | null
+          erros?: number
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          mapeamento?: Json
+          status?: Database["public"]["Enums"]["import_status"]
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inbound_messages: {
+        Row: {
+          contact_id: string | null
+          conteudo: string | null
+          from_name: string | null
+          from_phone: string | null
+          id: string
+          instance_id: string | null
+          payload: Json | null
+          received_at: string
+          tipo: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          conteudo?: string | null
+          from_name?: string | null
+          from_phone?: string | null
+          id?: string
+          instance_id?: string | null
+          payload?: Json | null
+          received_at?: string
+          tipo?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          conteudo?: string | null
+          from_name?: string | null
+          from_phone?: string | null
+          id?: string
+          instance_id?: string | null
+          payload?: Json | null
+          received_at?: string
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbound_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_events: {
+        Row: {
+          contact_id: string | null
+          id: string
+          payload: Json | null
+          received_at: string
+          recipient_id: string | null
+          tipo: string
+        }
+        Insert: {
+          contact_id?: string | null
+          id?: string
+          payload?: Json | null
+          received_at?: string
+          recipient_id?: string | null
+          tipo: string
+        }
+        Update: {
+          contact_id?: string | null
+          id?: string
+          payload?: Json | null
+          received_at?: string
+          recipient_id?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_events_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      segments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          filtro: Json
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          filtro?: Json
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          filtro?: Json
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          categoria: Database["public"]["Enums"]["tag_categoria"]
+          cor: string
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          categoria?: Database["public"]["Enums"]["tag_categoria"]
+          cor?: string
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          categoria?: Database["public"]["Enums"]["tag_categoria"]
+          cor?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_log: {
+        Row: {
+          erro: string | null
+          evento: string
+          id: string
+          payload: Json | null
+          processado: boolean
+          provider: string
+          received_at: string
+        }
+        Insert: {
+          erro?: string | null
+          evento: string
+          id?: string
+          payload?: Json | null
+          processado?: boolean
+          provider?: string
+          received_at?: string
+        }
+        Update: {
+          erro?: string | null
+          evento?: string
+          id?: string
+          payload?: Json | null
+          processado?: boolean
+          provider?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_instances: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          last_ping: string | null
+          nome: string
+          numero_conectado: string | null
+          provider: string
+          rate_per_minute: number
+          status: Database["public"]["Enums"]["instance_status"]
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          last_ping?: string | null
+          nome: string
+          numero_conectado?: string | null
+          provider?: string
+          rate_per_minute?: number
+          status?: Database["public"]["Enums"]["instance_status"]
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          last_ping?: string | null
+          nome?: string
+          numero_conectado?: string | null
+          provider?: string
+          rate_per_minute?: number
+          status?: Database["public"]["Enums"]["instance_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_member: { Args: { _user_id: string }; Returns: boolean }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
+      normalize_phone_br: { Args: { input: string }; Returns: string }
+      phone_last8: { Args: { input: string }; Returns: string }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "operador" | "leitor"
+      campaign_status:
+        | "draft"
+        | "scheduled"
+        | "running"
+        | "paused"
+        | "done"
+        | "canceled"
+      campaign_tipo: "text" | "image" | "document" | "link"
+      contact_origem: "recadastro" | "inscricao" | "import" | "manual"
+      import_status: "pending" | "processing" | "done" | "error"
+      instance_status: "disconnected" | "qr" | "connected" | "error"
+      recipient_status:
+        | "queued"
+        | "sending"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "failed"
+        | "opted_out"
+        | "canceled"
+      tag_categoria: "perfil" | "territorio" | "acao" | "interno" | "origem"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +834,31 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "operador", "leitor"],
+      campaign_status: [
+        "draft",
+        "scheduled",
+        "running",
+        "paused",
+        "done",
+        "canceled",
+      ],
+      campaign_tipo: ["text", "image", "document", "link"],
+      contact_origem: ["recadastro", "inscricao", "import", "manual"],
+      import_status: ["pending", "processing", "done", "error"],
+      instance_status: ["disconnected", "qr", "connected", "error"],
+      recipient_status: [
+        "queued",
+        "sending",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+        "opted_out",
+        "canceled",
+      ],
+      tag_categoria: ["perfil", "territorio", "acao", "interno", "origem"],
+    },
   },
 } as const
