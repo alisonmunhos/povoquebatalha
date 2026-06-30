@@ -137,7 +137,10 @@ function Recadastro() {
           </div>
           <Field label="Endereço (rua/avenida)" value={endereco} onChange={(e) => setEndereco(e.target.value)} maxLength={240} />
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Número" name="numero" ref={numeroRef} maxLength={20} />
+            <div>
+              <label className="text-sm font-medium">Número</label>
+              <input ref={numeroRef} name="numero" maxLength={20} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
             <Field label="Complemento" name="complemento" maxLength={120} className="col-span-2" placeholder="Apto, casa, etc." />
           </div>
           <Field label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={120} />
