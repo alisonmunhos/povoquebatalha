@@ -3,9 +3,10 @@ import { z } from "zod";
 
 const schema = z.object({
   nome: z.string().trim().min(2).max(120),
-  phone: z.string().trim().min(10).max(40),
+  phone: z.string().trim().min(8).max(40),
   cidade: z.string().trim().max(120).optional().or(z.literal("")),
   uf: z.string().trim().length(2).optional().or(z.literal("")),
+  origem_detalhe: z.string().trim().max(80).optional().or(z.literal("")),
   consentimento_whatsapp: z.literal(true, {
     errorMap: () => ({ message: "É preciso autorizar o contato por WhatsApp." }),
   }),
@@ -43,26 +44,15 @@ export const Route = createFileRoute("/api/public/forms/inscrever")({
           request.headers.get("cf-connecting-ip") ||
           "unknown";
         if (isRateLimited(ip)) {
-          return new Response(JSON.stringify({ ok: false, error: "Muitas tentativas." }), {
-            status: 429,
-            headers: cors,
-          });
+          return new Response(JSON.stringify({ ok: false, error: "Muitas tentativas." }), { status: 429, headers: cors });
         }
         let body: unknown;
-        try {
-          body = await request.json();
-        } catch {
-          return new Response(JSON.stringify({ ok: false, error: "JSON inválido" }), {
-            status: 400,
-            headers: cors,
-          });
+        try { body = await request.json(); } catch {
+          return new Response(JSON.stringify({ ok: false, error: "JSON inválido" }), { status: 400, headers: cors });
         }
         const parsed = schema.safeParse(body);
         if (!parsed.success) {
-          return new Response(
-            JSON.stringify({ ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" }),
-            { status: 400, headers: cors },
-          );
+          return new Response(JSON.stringify({ ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" }), { status: 400, headers: cors });
         }
         const d = parsed.data;
         if (d.hp) return new Response(JSON.stringify({ ok: true }), { headers: cors });
@@ -71,10 +61,7 @@ export const Route = createFileRoute("/api/public/forms/inscrever")({
         const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: d.phone });
         const phoneE164 = norm as string | null;
         if (!phoneE164) {
-          return new Response(JSON.stringify({ ok: false, error: "Telefone inválido" }), {
-            status: 400,
-            headers: cors,
-          });
+          return new Response(JSON.stringify({ ok: false, error: "Telefone inválido" }), { status: 400, headers: cors });
         }
         const { data: existing } = await supabaseAdmin
           .from("contacts")
@@ -88,6 +75,9 @@ export const Route = createFileRoute("/api/public/forms/inscrever")({
           uf: d.uf ? d.uf.toUpperCase() : null,
           consentimento_whatsapp: true,
           origem: "inscricao" as const,
+          origem_detalhe: d.origem_detalhe || null,
+          tipo: "lista_divulgacao",
+          lifecycle_status: "recadastro_concluido" as const,
           opt_out_at: null,
         };
         if (existing) {
