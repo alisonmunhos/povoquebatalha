@@ -39,11 +39,13 @@ export const getZapiQr = createServerFn({ method: "GET" })
 export const disconnectZapi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Apenas administradores podem desconectar.");
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleRow) throw new Error("Apenas administradores podem desconectar.");
     const { zapi } = await import("@/integrations/zapi/client.server");
     await zapi.disconnect();
     return { ok: true as const };
