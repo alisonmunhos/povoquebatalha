@@ -153,6 +153,7 @@ function Contatos() {
   function setF<K extends keyof Filters>(k: K, v: Filters[K]) { setFilters((f) => ({ ...f, [k]: v })); setPage(1); }
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="p-6 md:p-10 space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -161,6 +162,11 @@ function Contatos() {
         </div>
         <div className="text-sm text-muted-foreground">{q.data?.total ?? 0} resultado(s)</div>
       </div>
+
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+        <Info className="h-3.5 w-3.5" />
+        Use os checkboxes para selecionar contatos e aplicar tags, status ou ações em massa.
+      </p>
 
       {/* Busca + toggle filtros */}
       <div className="flex items-center gap-3 flex-wrap">
