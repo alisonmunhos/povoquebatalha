@@ -1,50 +1,65 @@
-## Página visual para criar o primeiro administrador
+## Status atual — o que já está pronto
 
-Vou criar uma página pública `/primeiro-acesso` que substitui completamente o passo do terminal/curl. Toda a lógica de segurança permanece no backend.
+**Fundação (100%)**
+- Lovable Cloud + secrets Z-API + bucket `imports`
+- Schema completo (14 tabelas), RLS, funções de normalização BR, papéis em schema `private`
+- Auth por convite (signup público desativado), `/primeiro-acesso`, `/usuarios`, `/aceitar-convite`
+- AppShell + Dashboard com KPIs + tela WhatsApp (QR + status)
 
-### O que vou criar/alterar
+**Integração Z-API (parcial)**
+- Cliente server-side `zapi/client.server.ts`
+- Webhook universal `/api/public/zapi/$evento` com opt-out automático
+- Formulários públicos `/recadastro` e `/inscrever` + `/obrigado` + `/opt-out/:token`
 
-**1. Novo endpoint público de checagem** `GET /api/public/bootstrap-admin`
-- Retorna `{ exists: boolean }` indicando se já existe algum admin.
-- Sem expor IDs, e-mails ou qualquer dado de usuário.
-- O `POST` já existente continua igual (cria o convite e auto-bloqueia depois).
+**O que ainda não existe**
+- Importação CSV/XLSX
+- Tags / segmentos salvos (UI)
+- Composer de campanha + prévia
+- Worker de fila (`pg_cron`) + envio com jitter
+- Inbox / chat de respostas
+- Templates HSM
+- Mapa e calendário (módulos futuros)
 
-**2. Nova página `src/routes/primeiro-acesso.tsx`** (pública, sem auth)
-- No carregamento, chama o `GET` acima.
-- **Se já existe admin:** mostra "O primeiro administrador já foi criado. Faça login normalmente." + botão "Ir para login" (`/auth`). Formulário não aparece.
-- **Se não existe admin:** mostra formulário com:
-  - 1 campo de e-mail (validado com zod: `.email()`, max 255, trim, lowercase)
-  - botão "Criar primeiro administrador"
-- Ao enviar: chama `POST /api/public/bootstrap-admin` com `{ email, redirectOrigin: window.location.origin }`.
-- Em caso de sucesso: substitui o formulário por "Convite enviado. Verifique seu e-mail (incluindo a caixa de spam) para definir a senha."
-- Em caso de erro 403 (corrida — alguém criou no meio tempo): mostra a mesma mensagem de "já existe admin".
+---
 
-**3. Nenhuma mudança em:**
-- `/auth` (continua só login + recuperar senha)
-- `/usuarios` (continua sendo o único caminho para novos usuários)
-- `/aceitar-convite`
-- RLS, papéis, convites, signup desativado no Cloud Auth
+## Próximos passos (ordem recomendada)
 
-### Garantias de segurança
+### Etapa 1 — Importação de contatos (CSV/XLSX)
+- Página `/_authenticated/importacoes` com upload para bucket `imports`
+- Server fn que lê o arquivo, escreve em `import_rows`, normaliza telefone (`normalize_phone_br`), deduplica por `phone_last8` + similaridade de nome
+- Tela de revisão: novos / duplicados / inválidos, com botão "Confirmar importação"
+- Atribuição opcional de tags na importação
 
-- **Nenhum token, service role key ou função admin é exposta no frontend.** A página só faz `fetch` para `/api/public/bootstrap-admin` (GET e POST).
-- A trava do "só uma vez" continua **no servidor** (consulta `user_roles` pelo papel `admin` antes de aceitar). Mesmo se alguém abrir `/primeiro-acesso` depois, o backend recusa com 403.
-- Validação com zod tanto no cliente (UX) quanto no servidor (segurança).
-- Sem logs do e-mail no console.
+### Etapa 2 — Tags e segmentos
+- CRUD de `tags` (cor, nome) e atribuição em massa no CRM
+- Construtor visual de `segments` (filtros: tags, cidade/UF, consentimento, data de cadastro, última interação)
+- Preview de contagem em tempo real + salvar segmento nomeado
 
-### Como você vai fazer o primeiro acesso (linguagem simples)
+### Etapa 3 — Campanhas + fila de envio
+- Composer: tipo (texto / mídia / template HSM), variáveis (`{{nome}}`, `{{cidade}}`), prévia renderizada
+- Seleção de público: segmento salvo ou filtro ad-hoc
+- Configuração de envio: janela horária, intervalo entre mensagens (jitter 3–15s), limite diário
+- Materializa `campaign_recipients` (status `pending`)
+- Worker via `pg_cron` (1×/min) processa lote, chama Z-API, grava `message_events`
+- Tela de acompanhamento: enviados / entregues / lidos / falhas / opt-outs
 
-1. **No navegador, abra a página** `…/primeiro-acesso` (vou te passar o link exato depois).
-2. **Digite seu e-mail** no campo e clique em **Criar primeiro administrador**.
-3. **Abra seu e-mail** (confira também o spam) e clique no link do convite.
-4. **Escolha uma senha** (mínimo 6 caracteres) na tela que abrir e confirme.
-5. **Pronto, você está dentro do painel** como administrador.
-6. **A página `/primeiro-acesso` para de funcionar** automaticamente — qualquer pessoa que tentar acessar depois vê "O primeiro administrador já foi criado".
-7. **Para liberar acesso a outras pessoas**, vá no menu lateral em **Usuários → Convidar novo usuário**, escolha o papel (Admin, Operador ou Leitor) e envie. Cada convidado recebe e-mail e segue os passos 3 e 4.
+### Etapa 4 — Inbox de respostas
+- Lista de conversas (agrupadas por contato) com últimas mensagens de `inbound_messages`
+- Painel de chat (enviar resposta manual via Z-API)
+- Marcadores: não lido / respondido / arquivado
+- Vínculo opcional com a campanha de origem
 
-### Arquivos
+### Etapa 5 — Templates HSM e boas-vindas
+- CRUD de templates aprovados (texto base + variáveis)
+- Mensagem automática de boas-vindas no fluxo de recadastro/inscrição (trigger no webhook ou no submit do form)
 
-- **Editar:** `src/routes/api/public/bootstrap-admin.ts` (adicionar handler `GET`, manter `POST` como está).
-- **Criar:** `src/routes/primeiro-acesso.tsx` (página com a UI).
+### Etapa 6 — Módulos futuros
+- Calendário de campanhas agendadas
+- Mapa (geolocalização por CEP / cidade)
+- Relatórios exportáveis
 
-Posso aplicar?
+---
+
+## Decisão necessária antes de iniciar
+
+Por onde começo agora? Sugiro **Etapa 1 (Importação CSV/XLSX)** porque sem contatos no banco nada mais faz sentido testar de ponta a ponta. Confirma essa ordem ou prefere pular direto para outra etapa (ex: testar uma campanha pequena com contatos inseridos manualmente)?
