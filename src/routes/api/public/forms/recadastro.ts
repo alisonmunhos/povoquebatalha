@@ -1,8 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
+const FORMAS_AJUDA_VALIDAS = [
+  "panfletagem",
+  "compartilhar_whatsapp",
+  "compartilhar_redes",
+  "participar_eventos",
+  "ajudar_organizacao",
+  "mobilizar_bairro",
+  "outro",
+] as const;
+
 const schema = z.object({
   nome: z.string().trim().min(2, "Nome muito curto").max(120),
+  nome_social: z.string().trim().max(120).optional().or(z.literal("")),
   phone: z.string().trim().min(8, "Telefone inválido").max(40),
   email: z.string().trim().email().max(255).optional().or(z.literal("")),
   cidade: z.string().trim().max(120).optional().or(z.literal("")),
@@ -14,6 +25,10 @@ const schema = z.object({
   referencia: z.string().trim().max(240).optional().or(z.literal("")),
   bairro: z.string().trim().max(120).optional().or(z.literal("")),
   como_conheceu: z.string().trim().max(240).optional().or(z.literal("")),
+  profissao: z.string().trim().max(120).optional().or(z.literal("")),
+  coletivo_alicerce: z.boolean().optional(),
+  formas_ajuda: z.array(z.enum(FORMAS_AJUDA_VALIDAS)).max(10).optional(),
+  formas_ajuda_outro: z.string().trim().max(240).optional().or(z.literal("")),
   quer_voluntariar: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(80).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
@@ -74,7 +89,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           return new Response(JSON.stringify({ ok: false, error: "Telefone inválido" }), { status: 400, headers: cors });
         }
 
-        // 1) Try to resolve target contact: token first, then phone, then email
+        // Resolve target: token → phone → email
         let target: { id: string; phone_e164: string | null } | null = null;
         if (d.recad_token) {
           const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("recad_token", d.recad_token).maybeSingle();
@@ -89,8 +104,16 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           if (data) target = data;
         }
 
+        const formasAjuda = d.formas_ajuda && d.formas_ajuda.length > 0
+          ? {
+              opcoes: d.formas_ajuda,
+              outro: d.formas_ajuda.includes("outro") ? (d.formas_ajuda_outro || null) : null,
+            }
+          : null;
+
         const fields = {
           nome: d.nome,
+          nome_social: d.nome_social || null,
           phone_raw: d.phone,
           email: d.email || null,
           cidade: d.cidade || null,
@@ -102,8 +125,12 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           referencia: d.referencia || null,
           bairro: d.bairro || null,
           como_conheceu: d.como_conheceu || null,
+          profissao: d.profissao || null,
+          coletivo_alicerce: d.coletivo_alicerce ?? null,
+          formas_ajuda: formasAjuda,
           quer_voluntariar: d.quer_voluntariar ?? null,
           consentimento_whatsapp: true,
+          consentimento_at: new Date().toISOString(),
           origem: "recadastro" as const,
           origem_detalhe: d.origem_detalhe || null,
           opt_out_at: null,
@@ -133,7 +160,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           savedId = newRow?.id ?? null;
         }
 
-        // Best-effort geocoding (fire-and-forget within request)
+        // Best-effort geocoding
         if (savedId && (d.cidade || d.cep)) {
           try {
             const { geocodeAddress } = await import("@/lib/cep.server");
