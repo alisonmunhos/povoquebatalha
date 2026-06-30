@@ -112,7 +112,7 @@ export const updateContact = createServerFn({ method: "POST" })
 
     const { data: updated, error } = await context.supabase
       .from("contacts")
-      .update(payload)
+      .update(payload as never)
       .eq("id", id)
       .select()
       .single();
@@ -130,7 +130,7 @@ export const updateContact = createServerFn({ method: "POST" })
         contact_id: id,
         user_id: context.userId,
         action: "update",
-        changes,
+        changes: changes as never,
       });
     }
 
@@ -173,7 +173,7 @@ export const updateContact = createServerFn({ method: "POST" })
               latitude: g.latitude,
               longitude: g.longitude,
               geocoding_provider: g.provider,
-              geocoding_status: g.status === "aproximado" ? "aproximado" : "encontrado",
+              geocoding_status: g.status === "aproximado" ? "aproximado" : "localizado",
               geocoded_at: new Date().toISOString(),
             })
             .eq("id", id);
@@ -226,13 +226,13 @@ export const setOptOut = createServerFn({ method: "POST" })
     } else {
       upd.opt_out_motivo = null;
     }
-    const { error } = await context.supabase.from("contacts").update(upd).eq("id", data.id);
+    const { error } = await context.supabase.from("contacts").update(upd as never).eq("id", data.id);
     if (error) throw error;
     await context.supabase.from("contact_audit_log").insert({
       contact_id: data.id,
       user_id: context.userId,
       action: data.optOut ? "opt_out" : "opt_in",
-      changes: data.motivo ? { motivo: data.motivo } : null,
+      changes: (data.motivo ? { motivo: data.motivo } : null) as never,
     });
     return { ok: true as const };
   });
@@ -293,14 +293,14 @@ export const createTag = createServerFn({ method: "POST" })
       .object({
         nome: z.string().trim().min(1).max(60),
         cor: z.string().trim().max(20).optional(),
-        categoria: z.enum(["geral", "interesse", "regiao", "status", "voluntario"]).optional(),
+        categoria: z.enum(["perfil", "territorio", "acao", "interno", "origem"]).optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("tags")
-      .insert({ nome: data.nome, cor: data.cor ?? null, categoria: data.categoria ?? "geral" })
+      .insert({ nome: data.nome, cor: data.cor ?? undefined, categoria: data.categoria ?? "perfil" })
       .select()
       .single();
     if (error) throw error;
@@ -323,7 +323,7 @@ export const setContactTag = createServerFn({ method: "POST" })
         contact_id: data.contact_id,
         user_id: context.userId,
         action: "tag_add",
-        changes: { tag_id: data.tag_id },
+        changes: { tag_id: data.tag_id } as never,
       });
     } else {
       await context.supabase
@@ -335,7 +335,7 @@ export const setContactTag = createServerFn({ method: "POST" })
         contact_id: data.contact_id,
         user_id: context.userId,
         action: "tag_remove",
-        changes: { tag_id: data.tag_id },
+        changes: { tag_id: data.tag_id } as never,
       });
     }
     return { ok: true as const };
