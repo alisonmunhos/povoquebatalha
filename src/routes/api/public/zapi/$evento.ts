@@ -131,7 +131,15 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
             if (zaapId || messageId) {
               const status = (safeStr(body.status) ?? "").toLowerCase();
               const now = new Date().toISOString();
-              let patch: AnyRecord = {};
+              type RecipientPatch = {
+                status?: "sent" | "delivered" | "read" | "failed";
+                sent_at?: string;
+                delivered_at?: string;
+                read_at?: string;
+                failed_at?: string;
+                erro?: string | null;
+              };
+              let patch: RecipientPatch = {};
               if (evento === "on-send" || status === "sent" || status === "sent-by-server") {
                 patch = { status: "sent", sent_at: now };
               } else if (evento === "on-delivery" || status === "received" || status === "delivered") {
