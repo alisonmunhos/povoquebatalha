@@ -228,31 +228,72 @@ function Contatos() {
 
       {/* Barra de ações em massa */}
       {selected.size > 0 && (
-        <div className="sticky top-0 z-10 border rounded-xl bg-primary text-primary-foreground px-4 py-3 flex flex-wrap items-center gap-3 shadow">
-          <span className="text-sm font-medium">{selected.size} selecionado(s)</span>
-          <button onClick={selectAllFiltered} className="text-xs underline">Selecionar todos do filtro</button>
-          <button onClick={clearSel} className="text-xs underline">Limpar</button>
-          <div className="h-5 w-px bg-primary-foreground/40" />
-          <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
-            <option value="">— tag —</option>
-            {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-          </select>
-          <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover</Button>
-          <div className="h-5 w-px bg-primary-foreground/40" />
-          <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
-            <option value="">— lifecycle —</option>
-            {LIFECYCLE.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
-          <Button size="sm" variant="secondary" onClick={doBulkLifecycle}>Aplicar</Button>
-          <div className="h-5 w-px bg-primary-foreground/40" />
-          <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(true)}>Não enviar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
-          <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
-          <Button size="sm" variant="secondary" disabled title="Disponível na próxima etapa">Preparar campanha</Button>
+        <div className="sticky top-0 z-10 border rounded-xl bg-primary text-primary-foreground px-4 py-3 shadow space-y-2">
+          {/* Grupo: Seleção */}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs uppercase tracking-wide opacity-70">Seleção</span>
+            <span className="text-sm font-medium">{selected.size} selecionado(s)</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={selectAllFiltered} className="text-xs underline">Selecionar todos do filtro</button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">Isso selecionará todos os contatos que correspondem aos filtros atuais, não apenas os visíveis nesta página.</TooltipContent>
+            </Tooltip>
+            <button onClick={clearSel} className="text-xs underline">Limpar seleção</button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-primary-foreground/20 pt-2">
+            {/* Tags */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
+              <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
+                <option value="">— escolher tag —</option>
+                {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              </select>
+              <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
+            </div>
+
+            <div className="h-6 w-px bg-primary-foreground/30" />
+
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Status</span>
+              <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
+                <option value="">— escolher status —</option>
+                {LIFECYCLE.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <Button size="sm" variant="secondary" onClick={doBulkLifecycle}>Aplicar status</Button>
+            </div>
+
+            <div className="h-6 w-px bg-primary-foreground/30" />
+
+            {/* Ações */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Ações</span>
+              <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(true)}>Não enviar</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
+            </div>
+
+            <div className="h-6 w-px bg-primary-foreground/30" />
+
+            {/* Exportação/Segmento */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Exportar</span>
+              <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
+              <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button size="sm" variant="secondary" disabled><Send className="h-3 w-3 mr-1" /> Preparar campanha</Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Disponível na próxima etapa: campanhas de WhatsApp.</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
         </div>
       )}
 
