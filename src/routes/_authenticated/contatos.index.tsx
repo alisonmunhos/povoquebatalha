@@ -409,6 +409,7 @@ function Contatos() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
 
