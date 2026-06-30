@@ -367,7 +367,7 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("nome", p.nome);
             fillIfEmpty("email", p.email);
             fillIfEmpty("phone_raw", p.phone.phone_original);
-            await sb.from("contacts").update(merge).eq("id", dup.contact_id);
+            await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
