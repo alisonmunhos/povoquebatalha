@@ -375,7 +375,7 @@ export const commitImport = createServerFn({ method: "POST" })
           }
         }
 
-        const { data: ins, error: insErr } = await sb.from("contacts").insert(payload).select("id").single();
+        const { data: ins, error: insErr } = await sb.from("contacts").insert(payload as never).select("id").single();
         if (insErr) {
           await sb.from("import_rows").update({ status: "erro", erro: insErr.message }).eq("id", row.id);
           erros++;
