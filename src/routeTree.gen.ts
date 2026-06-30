@@ -30,6 +30,7 @@ import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zap
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
 import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
+import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 
 const RecadastroRoute = RecadastroRouteImport.update({
   id: '/recadastro',
@@ -137,6 +138,11 @@ const ApiPublicFormsInscreverRoute = ApiPublicFormsInscreverRouteImport.update({
   path: '/api/public/forms/inscrever',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
+  id: '/api/public/cep/$cep',
+  path: '/api/public/cep/$cep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -201,6 +209,7 @@ export interface FileRoutesById {
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -225,6 +234,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/opt-out/$token'
     | '/api/public/bootstrap-admin'
+    | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/opt-out/$token'
     | '/api/public/bootstrap-admin'
+    | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -270,6 +281,7 @@ export interface FileRouteTypes {
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
     | '/api/public/bootstrap-admin'
+    | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -287,6 +299,7 @@ export interface RootRouteChildren {
   RecadastroRoute: typeof RecadastroRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
+  ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
@@ -442,6 +455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormsInscreverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cep/$cep': {
+      id: '/api/public/cep/$cep'
+      path: '/api/public/cep/$cep'
+      fullPath: '/api/public/cep/$cep'
+      preLoaderRoute: typeof ApiPublicCepCepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -479,6 +499,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecadastroRoute: RecadastroRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
+  ApiPublicCepCepRoute: ApiPublicCepCepRoute,
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
   ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
