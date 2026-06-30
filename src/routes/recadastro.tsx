@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
-import { Megaphone, CheckCircle2 } from "lucide-react";
+import { Megaphone, CheckCircle2, Loader2 } from "lucide-react";
+import { useCepLookup, formatCep } from "@/hooks/use-cep";
 
 export const Route = createFileRoute("/recadastro")({
   validateSearch: z.object({
@@ -25,6 +26,29 @@ function Recadastro() {
   const { origem, t } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cep, setCep] = useState("");
+  const [endereco, setEndereco] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [uf, setUf] = useState("");
+  const cepHook = useCepLookup();
+  const numeroRef = useRef<HTMLInputElement>(null);
+
+  async function onCepChange(v: string) {
+    const formatted = formatCep(v);
+    setCep(formatted);
+    const digits = formatted.replace(/\D/g, "");
+    if (digits.length === 8) {
+      const res = await cepHook.lookup(digits);
+      if (res) {
+        if (res.endereco) setEndereco(res.endereco);
+        if (res.bairro) setBairro(res.bairro);
+        if (res.cidade) setCidade(res.cidade);
+        if (res.uf) setUf(res.uf);
+        numeroRef.current?.focus();
+      }
+    }
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -34,12 +58,14 @@ function Recadastro() {
       nome: String(fd.get("nome") ?? ""),
       phone: String(fd.get("phone") ?? ""),
       email: String(fd.get("email") ?? ""),
-      cep: String(fd.get("cep") ?? ""),
-      endereco: String(fd.get("endereco") ?? ""),
+      cep,
+      endereco,
       numero: String(fd.get("numero") ?? ""),
-      bairro: String(fd.get("bairro") ?? ""),
-      cidade: String(fd.get("cidade") ?? ""),
-      uf: String(fd.get("uf") ?? ""),
+      complemento: String(fd.get("complemento") ?? ""),
+      referencia: String(fd.get("referencia") ?? ""),
+      bairro,
+      cidade,
+      uf,
       como_conheceu: String(fd.get("como_conheceu") ?? ""),
       quer_voluntariar: fd.get("quer_voluntariar") === "on",
       consentimento_whatsapp: fd.get("consentimento_whatsapp") === "on",
@@ -89,18 +115,34 @@ function Recadastro() {
         <form onSubmit={onSubmit} className="mt-8 space-y-5 bg-card border rounded-xl p-6">
           <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
           <Field label="Nome completo *" name="nome" required maxLength={120} />
-          <Field label="Telefone (com DDD) *" name="phone" required placeholder="(11) 91234-5678" inputMode="tel" maxLength={20} />
+          <Field label="WhatsApp (com DDD) *" name="phone" required placeholder="(11) 91234-5678" inputMode="tel" maxLength={20} />
           <Field label="E-mail" name="email" type="email" maxLength={255} />
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="CEP" name="cep" maxLength={10} placeholder="00000-000" />
-            <Field label="UF" name="uf" maxLength={2} placeholder="SP" />
+
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <div>
+              <label className="text-sm font-medium flex items-center gap-2">
+                CEP {cepHook.loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              </label>
+              <input
+                value={cep}
+                onChange={(e) => onCepChange(e.target.value)}
+                placeholder="00000-000"
+                inputMode="numeric"
+                maxLength={9}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              {cepHook.error && <p className="text-xs text-amber-600 mt-1">{cepHook.error} — preencha manualmente</p>}
+            </div>
+            <Field label="UF" value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} maxLength={2} placeholder="SP" />
           </div>
-          <Field label="Endereço" name="endereco" maxLength={240} />
+          <Field label="Endereço (rua/avenida)" value={endereco} onChange={(e) => setEndereco(e.target.value)} maxLength={240} />
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Número" name="numero" maxLength={20} />
-            <Field label="Bairro" name="bairro" maxLength={120} className="col-span-2" />
+            <Field label="Número" name="numero" ref={numeroRef} maxLength={20} />
+            <Field label="Complemento" name="complemento" maxLength={120} className="col-span-2" placeholder="Apto, casa, etc." />
           </div>
-          <Field label="Cidade" name="cidade" maxLength={120} />
+          <Field label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={120} />
+          <Field label="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={120} />
+          <Field label="Ponto de referência" name="referencia" maxLength={240} placeholder="Próximo a..." />
           <Field label="Como conheceu a campanha?" name="como_conheceu" maxLength={240} />
 
           <label className="flex items-start gap-3 text-sm">
@@ -124,11 +166,13 @@ function Recadastro() {
   );
 }
 
-function Field({ label, className, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string }) {
+const Field = function Field({
+  label, className, ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string }) {
   return (
     <div className={className}>
       <label className="text-sm font-medium">{label}</label>
       <input {...props} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
     </div>
   );
-}
+};
