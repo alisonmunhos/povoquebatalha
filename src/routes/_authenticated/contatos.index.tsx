@@ -104,26 +104,28 @@ function Contatos() {
   async function doBulkTag(add: boolean) {
     if (!bulkTagId) return toast.error("Escolha uma tag");
     if (!selected.size) return;
+    if (!add && !confirm(`Remover esta tag de ${selected.size} contato(s)?`)) return;
     await tagBulkFn({ data: { ids: [...selected], tag_id: bulkTagId, add } });
     toast.success(`${selected.size} contato(s) atualizados`);
     q.refetch();
   }
   async function doBulkArchive(archived: boolean) {
     if (!selected.size) return;
-    if (archived && !confirm(`Arquivar ${selected.size} contato(s)?`)) return;
+    if (archived && !confirm(`Arquivar ${selected.size} contato(s)?\n\nEles deixam de aparecer na listagem padrão, mas o histórico é preservado.`)) return;
     await archBulkFn({ data: { ids: [...selected], archived } });
     toast.success("Aplicado"); clearSel(); q.refetch();
   }
   async function doBulkOptOut(optOut: boolean) {
     if (!selected.size) return;
-    if (optOut && !confirm(`Marcar ${selected.size} como "não enviar"?`)) return;
+    if (optOut && !confirm(`Marcar ${selected.size} contato(s) como "Não enviar"?\n\nEles não receberão mais mensagens de campanha.`)) return;
     await optBulkFn({ data: { ids: [...selected], optOut } });
     toast.success("Aplicado"); q.refetch();
   }
   async function doBulkLifecycle() {
     if (!bulkLifecycle || !selected.size) return;
+    if (!confirm(`Alterar o status de ${selected.size} contato(s) para "${bulkLifecycle}"?`)) return;
     await lifecycleBulkFn({ data: { ids: [...selected], lifecycle_status: bulkLifecycle } });
-    toast.success("Lifecycle atualizado"); q.refetch();
+    toast.success("Status atualizado"); q.refetch();
   }
   async function doExport(mode: "selecionados" | "filtrados") {
     let ids: string[] = [];
