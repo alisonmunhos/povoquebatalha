@@ -8,13 +8,14 @@ import { listTagsWithUsage } from "@/lib/tags.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact } from "@/lib/contacts.functions";
 import { formatPhoneBR } from "@/lib/phone";
-import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, X, Save } from "lucide-react";
+import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, X, Save, Info, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
 
@@ -103,26 +104,28 @@ function Contatos() {
   async function doBulkTag(add: boolean) {
     if (!bulkTagId) return toast.error("Escolha uma tag");
     if (!selected.size) return;
+    if (!add && !confirm(`Remover esta tag de ${selected.size} contato(s)?`)) return;
     await tagBulkFn({ data: { ids: [...selected], tag_id: bulkTagId, add } });
     toast.success(`${selected.size} contato(s) atualizados`);
     q.refetch();
   }
   async function doBulkArchive(archived: boolean) {
     if (!selected.size) return;
-    if (archived && !confirm(`Arquivar ${selected.size} contato(s)?`)) return;
+    if (archived && !confirm(`Arquivar ${selected.size} contato(s)?\n\nEles deixam de aparecer na listagem padrão, mas o histórico é preservado.`)) return;
     await archBulkFn({ data: { ids: [...selected], archived } });
     toast.success("Aplicado"); clearSel(); q.refetch();
   }
   async function doBulkOptOut(optOut: boolean) {
     if (!selected.size) return;
-    if (optOut && !confirm(`Marcar ${selected.size} como "não enviar"?`)) return;
+    if (optOut && !confirm(`Marcar ${selected.size} contato(s) como "Não enviar"?\n\nEles não receberão mais mensagens de campanha.`)) return;
     await optBulkFn({ data: { ids: [...selected], optOut } });
     toast.success("Aplicado"); q.refetch();
   }
   async function doBulkLifecycle() {
     if (!bulkLifecycle || !selected.size) return;
+    if (!confirm(`Alterar o status de ${selected.size} contato(s) para "${bulkLifecycle}"?`)) return;
     await lifecycleBulkFn({ data: { ids: [...selected], lifecycle_status: bulkLifecycle } });
-    toast.success("Lifecycle atualizado"); q.refetch();
+    toast.success("Status atualizado"); q.refetch();
   }
   async function doExport(mode: "selecionados" | "filtrados") {
     let ids: string[] = [];
@@ -150,6 +153,7 @@ function Contatos() {
   function setF<K extends keyof Filters>(k: K, v: Filters[K]) { setFilters((f) => ({ ...f, [k]: v })); setPage(1); }
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="p-6 md:p-10 space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -158,6 +162,11 @@ function Contatos() {
         </div>
         <div className="text-sm text-muted-foreground">{q.data?.total ?? 0} resultado(s)</div>
       </div>
+
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+        <Info className="h-3.5 w-3.5" />
+        Use os checkboxes para selecionar contatos e aplicar tags, status ou ações em massa.
+      </p>
 
       {/* Busca + toggle filtros */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -219,31 +228,72 @@ function Contatos() {
 
       {/* Barra de ações em massa */}
       {selected.size > 0 && (
-        <div className="sticky top-0 z-10 border rounded-xl bg-primary text-primary-foreground px-4 py-3 flex flex-wrap items-center gap-3 shadow">
-          <span className="text-sm font-medium">{selected.size} selecionado(s)</span>
-          <button onClick={selectAllFiltered} className="text-xs underline">Selecionar todos do filtro</button>
-          <button onClick={clearSel} className="text-xs underline">Limpar</button>
-          <div className="h-5 w-px bg-primary-foreground/40" />
-          <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
-            <option value="">— tag —</option>
-            {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-          </select>
-          <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover</Button>
-          <div className="h-5 w-px bg-primary-foreground/40" />
-          <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
-            <option value="">— lifecycle —</option>
-            {LIFECYCLE.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
-          <Button size="sm" variant="secondary" onClick={doBulkLifecycle}>Aplicar</Button>
-          <div className="h-5 w-px bg-primary-foreground/40" />
-          <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(true)}>Não enviar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
-          <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
-          <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
-          <Button size="sm" variant="secondary" disabled title="Disponível na próxima etapa">Preparar campanha</Button>
+        <div className="sticky top-0 z-10 border rounded-xl bg-primary text-primary-foreground px-4 py-3 shadow space-y-2">
+          {/* Grupo: Seleção */}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs uppercase tracking-wide opacity-70">Seleção</span>
+            <span className="text-sm font-medium">{selected.size} selecionado(s)</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={selectAllFiltered} className="text-xs underline">Selecionar todos do filtro</button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">Isso selecionará todos os contatos que correspondem aos filtros atuais, não apenas os visíveis nesta página.</TooltipContent>
+            </Tooltip>
+            <button onClick={clearSel} className="text-xs underline">Limpar seleção</button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-primary-foreground/20 pt-2">
+            {/* Tags */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
+              <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
+                <option value="">— escolher tag —</option>
+                {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              </select>
+              <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
+            </div>
+
+            <div className="h-6 w-px bg-primary-foreground/30" />
+
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Status</span>
+              <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
+                <option value="">— escolher status —</option>
+                {LIFECYCLE.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <Button size="sm" variant="secondary" onClick={doBulkLifecycle}>Aplicar status</Button>
+            </div>
+
+            <div className="h-6 w-px bg-primary-foreground/30" />
+
+            {/* Ações */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Ações</span>
+              <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(true)}>Não enviar</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
+              <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
+            </div>
+
+            <div className="h-6 w-px bg-primary-foreground/30" />
+
+            {/* Exportação/Segmento */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Exportar</span>
+              <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
+              <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button size="sm" variant="secondary" disabled><Send className="h-3 w-3 mr-1" /> Preparar campanha</Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Disponível na próxima etapa: campanhas de WhatsApp.</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
         </div>
       )}
 
@@ -288,19 +338,37 @@ function Contatos() {
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="inline-flex gap-1">
-                      <Link to="/contatos/$id" params={{ id: c.id }} className="p-1.5 hover:bg-accent rounded" title="Ver/Editar"><Pencil className="h-3.5 w-3.5" /></Link>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Link to="/contatos/$id" params={{ id: c.id }} className="p-1.5 hover:bg-accent rounded inline-flex"><Pencil className="h-3.5 w-3.5" /></Link>
+                      </TooltipTrigger><TooltipContent>Ver / Editar ficha</TooltipContent></Tooltip>
                       {digits && (
                         <>
-                          <button onClick={() => { navigator.clipboard.writeText(c.phone_e164 ?? ""); toast.success("WhatsApp copiado"); }} className="p-1.5 hover:bg-accent rounded"><Copy className="h-3.5 w-3.5" /></button>
-                          <a href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-accent rounded text-emerald-600"><MessageCircle className="h-3.5 w-3.5" /></a>
+                          <Tooltip><TooltipTrigger asChild>
+                            <button onClick={() => { navigator.clipboard.writeText(c.phone_e164 ?? ""); toast.success("WhatsApp copiado"); }} className="p-1.5 hover:bg-accent rounded"><Copy className="h-3.5 w-3.5" /></button>
+                          </TooltipTrigger><TooltipContent>Copiar número do WhatsApp</TooltipContent></Tooltip>
+                          <Tooltip><TooltipTrigger asChild>
+                            <a href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-accent rounded text-emerald-600 inline-flex"><MessageCircle className="h-3.5 w-3.5" /></a>
+                          </TooltipTrigger><TooltipContent>Abrir conversa no WhatsApp</TooltipContent></Tooltip>
                         </>
                       )}
-                      <button onClick={async () => { await optFn({ data: { id: c.id, optOut: !c.opt_out_at } }); q.refetch(); }} className="p-1.5 hover:bg-accent rounded">
-                        {c.opt_out_at ? <UserCheck className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
-                      </button>
-                      <button onClick={async () => { await archFn({ data: { id: c.id, archived: !c.arquivado_at } }); q.refetch(); }} className="p-1.5 hover:bg-accent rounded">
-                        {c.arquivado_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                      </button>
+                      <Tooltip><TooltipTrigger asChild>
+                        <button onClick={async () => {
+                          const target = !c.opt_out_at;
+                          if (target && !confirm(`Marcar ${c.nome} como "Não enviar"?`)) return;
+                          await optFn({ data: { id: c.id, optOut: target } }); q.refetch();
+                        }} className="p-1.5 hover:bg-accent rounded">
+                          {c.opt_out_at ? <UserCheck className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
+                        </button>
+                      </TooltipTrigger><TooltipContent>{c.opt_out_at ? "Reativar envios" : "Marcar como não enviar"}</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <button onClick={async () => {
+                          const target = !c.arquivado_at;
+                          if (target && !confirm(`Arquivar ${c.nome}? Ele deixa de aparecer na listagem padrão.`)) return;
+                          await archFn({ data: { id: c.id, archived: target } }); q.refetch();
+                        }} className="p-1.5 hover:bg-accent rounded">
+                          {c.arquivado_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                        </button>
+                      </TooltipTrigger><TooltipContent>{c.arquivado_at ? "Desarquivar" : "Arquivar contato"}</TooltipContent></Tooltip>
                     </div>
                   </td>
                 </tr>
@@ -341,6 +409,7 @@ function Contatos() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
 
