@@ -236,6 +236,41 @@ export type Database = {
           },
         ]
       }
+      contact_merges: {
+        Row: {
+          created_at: string
+          id: string
+          merged_id: string | null
+          merged_snapshot: Json
+          performed_by: string | null
+          survivor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merged_id?: string | null
+          merged_snapshot: Json
+          performed_by?: string | null
+          survivor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merged_id?: string | null
+          merged_snapshot?: Json
+          performed_by?: string | null
+          survivor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_merges_survivor_id_fkey"
+            columns: ["survivor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_tags: {
         Row: {
           contact_id: string
@@ -271,6 +306,7 @@ export type Database = {
       }
       contacts: {
         Row: {
+          arquivado_at: string | null
           bairro: string | null
           cep: string | null
           cidade: string | null
@@ -283,12 +319,21 @@ export type Database = {
           custom_fields: Json
           email: string | null
           endereco: string | null
+          endereco_completo: string | null
+          geocoded_at: string | null
+          geocoding_provider: string | null
+          geocoding_status:
+            | Database["public"]["Enums"]["geocoding_status"]
+            | null
           id: string
+          import_id: string | null
           lat: number | null
+          latitude: number | null
           lifecycle_status:
             | Database["public"]["Enums"]["contact_lifecycle_status"]
             | null
           lng: number | null
+          longitude: number | null
           nome: string
           nome_normalizado: string | null
           numero: string | null
@@ -310,11 +355,14 @@ export type Database = {
           phone_whatsapp_candidate: string | null
           quer_voluntariar: boolean | null
           recad_token: string | null
+          referencia: string | null
           tipo: string | null
           uf: string | null
           updated_at: string
+          whatsapp_status: Database["public"]["Enums"]["whatsapp_status"] | null
         }
         Insert: {
+          arquivado_at?: string | null
           bairro?: string | null
           cep?: string | null
           cidade?: string | null
@@ -327,12 +375,21 @@ export type Database = {
           custom_fields?: Json
           email?: string | null
           endereco?: string | null
+          endereco_completo?: string | null
+          geocoded_at?: string | null
+          geocoding_provider?: string | null
+          geocoding_status?:
+            | Database["public"]["Enums"]["geocoding_status"]
+            | null
           id?: string
+          import_id?: string | null
           lat?: number | null
+          latitude?: number | null
           lifecycle_status?:
             | Database["public"]["Enums"]["contact_lifecycle_status"]
             | null
           lng?: number | null
+          longitude?: number | null
           nome: string
           nome_normalizado?: string | null
           numero?: string | null
@@ -354,11 +411,16 @@ export type Database = {
           phone_whatsapp_candidate?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
+          referencia?: string | null
           tipo?: string | null
           uf?: string | null
           updated_at?: string
+          whatsapp_status?:
+            | Database["public"]["Enums"]["whatsapp_status"]
+            | null
         }
         Update: {
+          arquivado_at?: string | null
           bairro?: string | null
           cep?: string | null
           cidade?: string | null
@@ -371,12 +433,21 @@ export type Database = {
           custom_fields?: Json
           email?: string | null
           endereco?: string | null
+          endereco_completo?: string | null
+          geocoded_at?: string | null
+          geocoding_provider?: string | null
+          geocoding_status?:
+            | Database["public"]["Enums"]["geocoding_status"]
+            | null
           id?: string
+          import_id?: string | null
           lat?: number | null
+          latitude?: number | null
           lifecycle_status?:
             | Database["public"]["Enums"]["contact_lifecycle_status"]
             | null
           lng?: number | null
+          longitude?: number | null
           nome?: string
           nome_normalizado?: string | null
           numero?: string | null
@@ -398,11 +469,61 @@ export type Database = {
           phone_whatsapp_candidate?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
+          referencia?: string | null
           tipo?: string | null
           uf?: string | null
           updated_at?: string
+          whatsapp_status?:
+            | Database["public"]["Enums"]["whatsapp_status"]
+            | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contacts_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_audit_log: {
+        Row: {
+          action: string
+          affected_count: number
+          created_at: string
+          details: Json
+          id: string
+          import_id: string | null
+          performed_by: string | null
+        }
+        Insert: {
+          action: string
+          affected_count?: number
+          created_at?: string
+          details?: Json
+          id?: string
+          import_id?: string | null
+          performed_by?: string | null
+        }
+        Update: {
+          action?: string
+          affected_count?: number
+          created_at?: string
+          details?: Json
+          id?: string
+          import_id?: string | null
+          performed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_audit_log_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "imports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       import_rows: {
         Row: {
@@ -772,6 +893,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      build_endereco_completo: {
+        Args: {
+          p_bairro: string
+          p_cep: string
+          p_cidade: string
+          p_complemento: string
+          p_endereco: string
+          p_numero: string
+          p_uf: string
+        }
+        Returns: string
+      }
       normalize_phone_br: { Args: { input: string }; Returns: string }
       phone_last8: { Args: { input: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
@@ -807,7 +940,21 @@ export type Database = {
         | "sem_ddd"
         | "sem_nono_digito"
         | "duplicado_possivel"
-      import_status: "pending" | "processing" | "done" | "error"
+      geocoding_status:
+        | "pendente"
+        | "localizado"
+        | "aproximado"
+        | "erro"
+        | "precisa_revisao"
+      import_status:
+        | "pending"
+        | "processing"
+        | "done"
+        | "error"
+        | "previewed"
+        | "confirmed"
+        | "canceled"
+        | "reverted"
       instance_status: "disconnected" | "qr" | "connected" | "error"
       recipient_status:
         | "queued"
@@ -819,6 +966,12 @@ export type Database = {
         | "opted_out"
         | "canceled"
       tag_categoria: "perfil" | "territorio" | "acao" | "interno" | "origem"
+      whatsapp_status:
+        | "desconhecido"
+        | "confirmado"
+        | "invalido"
+        | "erro_envio"
+        | "opt_out"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -977,7 +1130,23 @@ export const Constants = {
         "sem_nono_digito",
         "duplicado_possivel",
       ],
-      import_status: ["pending", "processing", "done", "error"],
+      geocoding_status: [
+        "pendente",
+        "localizado",
+        "aproximado",
+        "erro",
+        "precisa_revisao",
+      ],
+      import_status: [
+        "pending",
+        "processing",
+        "done",
+        "error",
+        "previewed",
+        "confirmed",
+        "canceled",
+        "reverted",
+      ],
       instance_status: ["disconnected", "qr", "connected", "error"],
       recipient_status: [
         "queued",
@@ -990,6 +1159,13 @@ export const Constants = {
         "canceled",
       ],
       tag_categoria: ["perfil", "territorio", "acao", "interno", "origem"],
+      whatsapp_status: [
+        "desconhecido",
+        "confirmado",
+        "invalido",
+        "erro_envio",
+        "opt_out",
+      ],
     },
   },
 } as const
