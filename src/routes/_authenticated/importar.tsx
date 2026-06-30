@@ -65,7 +65,7 @@ function ImportarPage() {
   const parseFn = useServerFn(parseUpload);
   const previewFn = useServerFn(buildPreview);
   const commitFn = useServerFn(commitImport);
-  const listFn = useServerFn(listImports);
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [stage, setStage] = useState<"idle" | "uploading" | "mapping" | "previewing" | "review" | "committing" | "done">("idle");
@@ -79,7 +79,6 @@ function ImportarPage() {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
 
-  const history = useQuery({ queryKey: ["imports-history"], queryFn: () => listFn() });
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
