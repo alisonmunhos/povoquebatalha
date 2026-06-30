@@ -103,7 +103,7 @@ export const mergeContacts = createServerFn({ method: "POST" })
       p_survivor: data.survivor_id,
       p_merged: data.merged_id,
       p_field_overrides: overridesNorm as never,
-      p_motivo: data.motivo ?? null,
+      p_motivo: data.motivo ?? undefined,
       p_confianca: data.confianca,
     });
     if (error) throw error;
