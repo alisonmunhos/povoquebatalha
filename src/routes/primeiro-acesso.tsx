@@ -107,10 +107,9 @@ function PrimeiroAcessoPage() {
 
         {(state.status === "ready" ||
           state.status === "submitting" ||
-          (state.status === "error" && state.status !== undefined)) &&
-          state.status !== "sent" &&
-          state.status !== "locked" && (
+          state.status === "error") && (
             <>
+
               <div>
                 <h1 className="text-xl font-semibold">Criar primeiro administrador</h1>
                 <p className="text-sm text-muted-foreground mt-1">

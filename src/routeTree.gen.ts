@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RecadastroRouteImport } from './routes/recadastro'
+import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as InscreverRouteImport } from './routes/inscrever'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -30,6 +31,11 @@ import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public
 const RecadastroRoute = RecadastroRouteImport.update({
   id: '/recadastro',
   path: '/recadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrimeiroAcessoRoute = PrimeiroAcessoRouteImport.update({
+  id: '/primeiro-acesso',
+  path: '/primeiro-acesso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ObrigadoRoute = ObrigadoRouteImport.update({
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
+  '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
+  '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/contatos': typeof AuthenticatedContatosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
+  '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/_authenticated/contatos': typeof AuthenticatedContatosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/inscrever'
     | '/obrigado'
+    | '/primeiro-acesso'
     | '/recadastro'
     | '/contatos'
     | '/dashboard'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/inscrever'
     | '/obrigado'
+    | '/primeiro-acesso'
     | '/recadastro'
     | '/contatos'
     | '/dashboard'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/inscrever'
     | '/obrigado'
+    | '/primeiro-acesso'
     | '/recadastro'
     | '/_authenticated/contatos'
     | '/_authenticated/dashboard'
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   InscreverRoute: typeof InscreverRoute
   ObrigadoRoute: typeof ObrigadoRoute
+  PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       path: '/recadastro'
       fullPath: '/recadastro'
       preLoaderRoute: typeof RecadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/primeiro-acesso': {
+      id: '/primeiro-acesso'
+      path: '/primeiro-acesso'
+      fullPath: '/primeiro-acesso'
+      preLoaderRoute: typeof PrimeiroAcessoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/obrigado': {
@@ -391,6 +411,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   InscreverRoute: InscreverRoute,
   ObrigadoRoute: ObrigadoRoute,
+  PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
@@ -402,13 +423,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
