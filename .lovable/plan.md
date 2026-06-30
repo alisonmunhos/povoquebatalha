@@ -1,181 +1,118 @@
-# Reformulação do Módulo de Importação + Páginas Públicas
+# Relatório de Status — Central de Mobilização
 
-> ⚠️ Não localizei nenhuma planilha anexada nesta mensagem (a pasta de uploads está vazia). Vou implementar com base nos requisitos descritos. Quando você anexar a planilha de novo, eu valido com ela em mãos.
-
-> 🔧 Também há um erro de runtime ativo em `/contatos` (`Invariant failed: Expected to find a match below the root match in SPA mode`). Vou corrigir junto, pois envolve o mesmo conjunto de rotas.
+Visão geral do que já está pronto e do que ainda falta para fechar todas as especificações do projeto original (Lovable + Cloud + Z-API).
 
 ---
 
-## 1. Encoding PT-BR (acentos e cedilha)
+## 1. O que já está construído e funcionando
 
-**Problema:** hoje o parser lê o arquivo via `arrayBuffer` direto no `XLSX.read`. Para CSV salvo em ISO-8859-1 / Windows-1252 (padrão Excel BR), os acentos viram `Ã§`, `Ã£`, etc.
+### 1.1 Infraestrutura e segurança
+- Lovable Cloud habilitado (banco, auth, storage).
+- Secrets configurados: `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN`, `ZAPI_WEBHOOK_SECRET`.
+- Bucket `imports` no Storage (backups de CSV de importação).
+- Schema `private` para funções sensíveis (`has_role`, `parse_phone_br`) fora do alcance do Data API.
+- RLS habilitado em todas as 18 tabelas de domínio, com GRANTs explícitos.
+- Auth com e-mail/senha, signup público desabilitado.
+- Sistema de convites por e-mail (`/usuarios`) e bootstrap de primeiro admin (`/primeiro-acesso`).
+- Middleware `requireSupabaseAuth` em todas as server functions sensíveis.
 
-**Mudanças:**
-- Detectar tipo do arquivo pela extensão (`.csv` vs `.xlsx/.xls`).
-- Para XLSX: continuar via `XLSX.read(buffer, { type: 'array' })` — preserva Unicode nativamente.
-- Para CSV: detectar encoding em ordem:
-  1. BOM UTF-8 (`EF BB BF`) → UTF-8.
-  2. Tentar decodificar como UTF-8 com `fatal: true`; se falhar ou aparecerem substitutos (`�`, `Ã`+letra acentuada típica), tratar como Windows-1252.
-  3. Permitir override manual via dropdown na tela de upload (`auto`, `utf-8`, `utf-8-bom`, `iso-8859-1`, `windows-1252`).
-- Decodificar com `TextDecoder(encoding)` antes de passar para `XLSX.read(text, { type: 'string', raw: false })`.
-- Tela de prévia mostra as 5 primeiras linhas decodificadas. Se o usuário ver `Ã§`, ele troca o encoding e a prévia recarrega sem precisar reenviar o arquivo (re-decodifica a partir do binário já no Storage).
+### 1.2 Banco de dados (18 tabelas)
+- `profiles`, `user_roles` (com enum `app_role`).
+- `contacts` (55 colunas: dados básicos, endereço completo, geolocalização, perfil de mobilização, status técnicos, auditoria).
+- `tags`, `contact_tags`, `segments` (dinâmicos e estáticos).
+- `imports`, `import_rows`, `import_audit_log` (com backup CSV obrigatório no undo).
+- `contact_duplicates`, `contact_merges` (mesclagem real campo a campo).
+- `contact_audit_log` (histórico de alterações por contato).
+- `campaigns`, `campaign_recipients` (estrutura criada, lógica ainda não).
+- `inbound_messages`, `message_events`, `webhook_log` (estrutura pronta para inbox).
+- `whatsapp_instances` (gestão de conexão Z-API).
+- Funções: `parse_phone_br` (normalização BR com 9º dígito), `merge_contacts` (transferência total de histórico), trigger de `nome_normalizado` (unaccent + lower).
 
-**Campo novo no contato:**
-- `nome` permanece exibido com acentos.
-- `nome_normalizado` (gerado por trigger): `unaccent(lower(trim(nome)))` para busca/dedup.
+### 1.3 Páginas públicas (sem login, sem AppShell)
+- `/recadastro` — formulário completo com CEP → ViaCEP, endereço, consentimento, suporta `?origem=` e `?t=<token>`.
+- `/inscrever` — formulário simples (nome + WhatsApp) para lista de divulgação.
+- `/obrigado` — confirmação pós-envio.
+- `/opt-out/$token` — link de cancelamento individual.
+- Endpoints em `/api/public/forms/*` com validação Zod, normalização de telefone e dedup não-destrutiva.
+- Webhook receiver em `/api/public/zapi/$evento` (status, opt-out automático por palavra-chave).
 
----
-
-## 2. Normalização de telefone (camada robusta)
-
-Substituir a função SQL atual por uma camada que devolve todos os campos técnicos pedidos.
-
-**Novos campos em `contacts`:**
-- `phone_raw` (original — já existe, renomear conceitualmente como `telefone_original`)
-- `phone_digits` (só dígitos)
-- `phone_ddi` (default `55`)
-- `phone_ddd` (2 dígitos quando identificável)
-- `phone_e164` (já existe)
-- `phone_last8`, `phone_last9`
-- `phone_whatsapp_candidate` (versão sugerida com 9º dígito quando aplicável)
-- `phone_status` enum: `valido | precisa_revisao | invalido | sem_ddd | sem_nono_digito | duplicado_possivel`
-
-**Regras (função `private.parse_phone_br(input, default_ddd)`):**
-1. Extrai dígitos; remove zeros à esquerda.
-2. Se começa com `55` e tem 12-13 dígitos → assume DDI.
-3. Se 10-11 dígitos → adiciona `55`.
-4. Se 8-9 dígitos → tenta `default_ddd` (parâmetro da importação); senão → `sem_ddd / precisa_revisao`.
-5. Detecta celular antigo (DDD + 8 dígitos começando com 6-9) → gera `whatsapp_candidate` com `9` inserido após DDD, status `sem_nono_digito`.
-6. Não sobrescreve `phone_raw`.
-7. Retorna struct (jsonb) com todos os campos.
-
-**Tela de importação:**
-- Campo "DDD padrão (opcional)" no passo de mapeamento.
-- Prévia já mostra `telefone_original → telefone_e164` + badge de status colorido.
-
----
-
-## 3. Deduplicação inteligente
-
-No commit da importação, para cada linha:
-1. Match **forte**: `phone_e164` igual OU `email` igual (case-insensitive).
-2. Match **provável**: `phone_last8` igual + `similarity(nome_normalizado) > 0.6`.
-3. Match **possível**: `phone_last8` igual OU `similarity(nome_normalizado) > 0.8`.
-
-**Comportamento:**
-- Forte → atualiza contato existente (merge não-destrutivo: só preenche campos vazios).
-- Provável/Possível → **não mescla**. Cria contato novo com `phone_status = duplicado_possivel` e registra par em nova tabela `contact_duplicates(contact_a, contact_b, score, tipo, status='pendente')`.
-- Nova rota admin `/duplicidades` lista pares pendentes com botões "Mesclar", "Manter separados", "Ignorar".
+### 1.4 Painel administrativo (`/_authenticated/*`, redireciona para `/auth` se não logado)
+- **Dashboard** com KPIs básicos.
+- **Contatos (`/contatos`)** — CRM com:
+  - Busca, filtros avançados expansíveis (15+ campos), paginação.
+  - Seleção em massa, "selecionar todos do filtro" (até 5000).
+  - Barra de ações em massa organizada em grupos (Seleção / Tags / Status / Ações / Exportar) com confirmações para ações perigosas e tooltips em todos os ícones.
+  - Exportação CSV com BOM UTF-8.
+  - Salvar filtro como segmento.
+- **Ficha individual (`/contatos/$id`)** — edição completa com CEP automático, perfil de mobilização, timeline de auditoria, picker de tags.
+- **Importar (`/importar`)** — pipeline 4 passos (Upload → Mapeamento → Prévia visual → Resultado) com detecção de encoding (UTF-8 / Windows-1252), DDD padrão, estratégias de commit (importar tudo / só válidos / marcar revisão), histórico de importações e **desfazer importação** com backup CSV obrigatório e confirmação forte ("DESFAZER IMPORTAÇÃO").
+- **Duplicidades (`/duplicidades`)** — diálogo de mesclagem comparativa campo a campo.
+- **Links Públicos (`/links`)** — gerador de links com origem rastreada, presets, URL pública do sistema visível, links individuais com token de recadastro.
+- **Tags (`/tags`)** — CRUD com categorias, cores, contagem de uso.
+- **Segmentos (`/segmentos`)** — dinâmicos (recalculam pelos filtros) e estáticos (snapshot de IDs).
+- **WhatsApp (`/whatsapp`)** — tela de gestão da instância Z-API.
+- **Usuários (`/usuarios`)** — convites por e-mail, gestão de roles.
 
 ---
 
-## 4. Status de requalificação
+## 2. O que ainda falta para fechar o escopo original
 
-Novo enum `contact_lifecycle_status`:
-`importado_aguardando_recadastro | link_enviado | recadastro_iniciado | recadastro_concluido | nao_respondeu | telefone_invalido | precisa_revisao | duplicado_possivel | duplicado_mesclado | nao_enviar`
+Lista das especificações pendentes, agrupadas por prioridade prática.
 
-- Coluna `lifecycle_status` em `contacts`, default conforme origem:
-  - `origem='import'` → `importado_aguardando_recadastro`
-  - `origem='recadastro'` → `recadastro_concluido`
-  - `origem='inscricao'` → `recadastro_concluido` (lista de divulgação)
-- Transições atualizadas pelos fluxos de campanha e webhook (próxima etapa, mas o campo já fica preparado).
+### 2.1 Geolocalização e endereço (parcial)
+- Geocoding server-side via Nominatim/OSM: **código existe**, mas precisa rodar em background para os 93 contatos já importados (job de backfill) e validar que está sendo chamado em todos os pontos de update.
 
----
+### 2.2 Boas-vindas automáticas
+- Spec aprovada (mensagem automática após `/recadastro` e `/inscrever`).
+- Falta: trigger pós-cadastro que enfileira mensagem de boas-vindas via Z-API.
 
-## 5. Páginas públicas independentes do admin
+### 2.3 Campanhas + fila de envio (módulo central, ainda não construído)
+- Tela `/campanhas` com:
+  - Criação (texto / mídia / template HSM).
+  - Seleção de público (segmento dinâmico/estático).
+  - Prévia da mensagem com variáveis (`{{nome}}`, `{{cidade}}`).
+  - Botão "Enviar" e botão vermelho **"Cancelar envio"** (item de backlog confirmado).
+- Worker de fila: cron a cada minuto processa `campaign_recipients` pendentes com intervalo/jitter configurável.
+- Tabelas `campaigns` e `campaign_recipients` já existem; falta toda a lógica de processamento.
+- Habilitar `pg_cron` + função `process_campaign_queue()`.
 
-**Status atual:** `/recadastro`, `/inscrever`, `/obrigado`, `/opt-out/:token` já existem fora do `_authenticated`. Vou:
-- Garantir que o `_authenticated/route.tsx` **não** intercepte essas rotas (já não intercepta, mas vou confirmar e adicionar teste manual).
-- Adicionar `ssr: false` consistentemente e remover qualquer redirect que mande logado para `/dashboard` ao acessar essas rotas.
-- Remover qualquer chrome admin (sidebar/header) das páginas públicas — hoje já estão limpas, vou revisar visualmente.
-- Suportar `?origem=...` e salvar em `contacts.origem_detalhe` (novo campo texto livre, máx 80 chars, validado contra lista permitida + free-form).
-- Suportar `?t=TOKEN` no `/recadastro` para pré-associar contato importado.
+### 2.4 Inbox de respostas (estrutura pronta, UI faltando)
+- `inbound_messages` e webhook Z-API já gravam dados.
+- Falta: tela `/inbox` com lista de conversas, threading por contato, ação "Responder", marcar lida/não lida.
 
-**Token individual de recadastro:**
-- Nova coluna `contacts.recad_token` (UUID v4, único, gerado on-demand).
-- Endpoint `POST /api/public/forms/recadastro` aceita `t`; resolve contato; merge não-destrutivo; se telefone novo difere do antigo → registra em `contact_duplicates` e marca como `precisa_revisao`.
-- Token **não** expõe ID/telefone/email — só UUID opaco.
+### 2.5 Templates HSM
+- Falta: CRUD de templates aprovados, vinculação com Z-API/Meta, validação de variáveis no momento do envio.
 
----
+### 2.6 Calendário de campanhas
+- Tela `/calendario` (item já no menu, mas vazia).
+- Visualização mês/semana, agendamento de disparo futuro, drag para reagendar.
 
-## 6. Tela "Links Públicos" no admin
+### 2.7 Mapa com pins (módulo futuro)
+- Visualização geográfica dos contatos por bairro/cidade (Leaflet + dados de geocoding).
+- Filtros por tag/segmento sobre o mapa.
+- Dependência: backfill de geocoding (2.1).
 
-Nova rota `/_authenticated/links`:
-- Cards para cada link: Recadastro, Inscrição, Opt-out (genérico não — apenas com token).
-- Campo "Origem" (select com presets: `whatsapp_grupo_antigo`, `site_campanha`, `instagram`, `evento_presencial`, `qr_code_impresso`, `lista_alicerce` + free-form).
-- Geração ao vivo do link: `https://<host>/recadastro?origem=whatsapp_grupo_antigo`.
-- Botões: **Copiar**, **Abrir em nova aba**, **Copiar link com origem**, **Gerar QR Code** (PNG via `qrcode` lib).
-- Seção "Links individuais": lista contatos importados com botão "Gerar/copiar link com token".
-
----
-
-## 7. Prévia visual da importação (commit guardado)
-
-Hoje a prévia mostra só 5 linhas de amostra crua. Vou adicionar um passo **"Revisar antes de importar"** entre o mapeamento e o commit:
-
-Tabela paginada (até 200 linhas por vez) com colunas:
-- Linha da planilha
-- Nome
-- Telefone original
-- Telefone normalizado (`e164`)
-- Status do telefone (badge)
-- Possível duplicidade (com link para o contato existente)
-- Observações
-- Tags sugeridas (placeholder por enquanto, fica pronto para Etapa 2)
-
-Ações na prévia:
-- **Confirmar importação** (todos válidos + revisão)
-- **Importar apenas linhas válidas** (descarta `invalido`/`precisa_revisao`)
-- **Marcar problemáticas como "precisa revisão"** (importa tudo, mas com status)
-- **Cancelar**
-- **Baixar relatório CSV** (linhas + erros)
-
-Implementação: o `parseUpload` agora também executa o `parse_phone_br` e a busca de dedup em batch e salva o resultado em `import_rows.preview` (jsonb). O `commitImport` apenas materializa essa decisão.
+### 2.8 Polimento e operação
+- Backfill de `nome_normalizado` / `phone_*` para contatos antigos (se houver gaps).
+- Relatório de auditoria global (quem fez o quê).
+- Indicadores no Dashboard: taxa de recadastro, mensagens enviadas/recebidas, opt-outs.
+- Habilitar HIBP (proteção contra senhas vazadas) no Auth.
+- Publicar o projeto na URL `.lovable.app` definitiva (hoje só preview).
 
 ---
 
-## 8. Bug de runtime em `/contatos`
+## 3. Ordem sugerida das próximas etapas
 
-`Invariant failed: Expected to find a match below the root match in SPA mode` — provavelmente `<Outlet />` faltando ou rota órfã após mudanças anteriores. Vou abrir `_authenticated/route.tsx` e `contatos.tsx` e corrigir.
+1. **Boas-vindas automáticas** (rápido, fecha 2.2 + ativa Z-API real ponta a ponta).
+2. **Campanhas + fila** (módulo central, 2.3 — desbloqueia tudo).
+3. **Inbox** (2.4 — completa o ciclo de comunicação).
+4. **Templates HSM** (2.5).
+5. **Calendário** (2.6).
+6. **Mapa** (2.7, depende de backfill de geocoding).
+7. **Polimento + publicação** (2.8).
 
----
-
-## Detalhes técnicos (migrations + arquivos)
-
-**Migration 1 — schema:**
-- Extensão `unaccent` (já existe).
-- `ALTER TABLE contacts ADD COLUMN nome_normalizado, phone_digits, phone_ddi, phone_ddd, phone_last9, phone_whatsapp_candidate, phone_status, lifecycle_status, origem_detalhe, recad_token`.
-- Enum `contact_phone_status` e `contact_lifecycle_status`.
-- Função `private.parse_phone_br(input text, default_ddd text default null) returns jsonb`.
-- Função/trigger `contacts_phone_fill` reescrita para popular todos os campos.
-- Trigger `contacts_nome_norm_fill` (`unaccent(lower(trim(nome)))`).
-- Tabela `contact_duplicates` + grants + RLS.
-- Index `contacts(phone_last8)`, `contacts(nome_normalizado gin_trgm_ops)` (já há trigram).
-
-**Arquivos a alterar/criar:**
-- `src/lib/imports.functions.ts` — encoding detection, preview pipeline, decisão de commit.
-- `src/lib/phone.ts` — wrapper TS para uso em forms.
-- `src/routes/_authenticated/importar.tsx` — adicionar steps: Upload (+encoding) → Mapeamento (+DDD padrão) → Revisar → Resultado.
-- `src/routes/_authenticated/links.tsx` (novo) — tela Links Públicos.
-- `src/routes/_authenticated/duplicidades.tsx` (novo) — revisão de duplicatas.
-- `src/routes/api/public/forms/recadastro.ts` — aceitar `t` + merge não-destrutivo + dedup.
-- `src/routes/api/public/forms/inscrever.ts` — salvar `origem_detalhe`, marcar `lifecycle_status='recadastro_concluido'`, `tipo='lista_divulgacao'`.
-- `src/routes/recadastro.tsx` / `inscrever.tsx` — ler `?origem` e `?t` da query; pré-popular nome/telefone quando vier por token.
-- `src/components/AppShell.tsx` — adicionar item "Links Públicos" e "Duplicidades" na sidebar.
-- Bug: arquivo de rota relevante para `/contatos`.
-
-**Dependências novas:** `qrcode` (geração de QR Code em PNG base64), nada mais.
+Backlog mantido conforme combinado: botão vermelho "Cancelar envio" entra junto com o módulo de Campanhas (etapa 2).
 
 ---
 
-## Ordem de execução
-
-1. Migration (schema + funções + duplicates table).
-2. Refatorar `imports.functions.ts` (encoding + telefone + dedup + preview).
-3. Refatorar `importar.tsx` (passo de revisão).
-4. Ajustar páginas públicas (`recadastro`, `inscrever`) + endpoints (`?origem`, `?t`).
-5. Criar `/_authenticated/links` e `/_authenticated/duplicidades`.
-6. Corrigir invariante de `/contatos`.
-7. Testar com CSV em Windows-1252 (vou gerar um arquivo de teste no `/tmp` e simular).
-
-Posso seguir com a implementação?
+Este é um relatório, não uma proposta de implementação. Aprove para que eu trate a próxima etapa (sugiro a 2.1/2.2 — backfill de geocoding + boas-vindas automáticas) como tarefa de build, ou indique qual etapa quer atacar primeiro.
