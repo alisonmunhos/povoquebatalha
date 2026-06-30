@@ -244,9 +244,9 @@ function ContatoFicha() {
             {hist.data && (
               <div className="space-y-3 text-xs">
                 <HistList title="Edições" items={hist.data.audit.map((a) => ({ key: a.id, when: a.created_at, text: a.action + (a.changes ? " · " + Object.keys(a.changes as object).join(", ") : "") }))} />
-                <HistList title="Mensagens enviadas" items={hist.data.recipients.map((r) => ({ key: r.id, when: r.sent_at ?? "", text: `${r.status}${r.error ? " — " + r.error : ""}` }))} />
-                <HistList title="Eventos WhatsApp" items={hist.data.events.map((e) => ({ key: e.id, when: e.created_at, text: e.event }))} />
-                <HistList title="Respostas recebidas" items={hist.data.inbound.map((i) => ({ key: i.id, when: i.created_at, text: i.body ?? "(mídia)" }))} />
+                <HistList title="Mensagens enviadas" items={hist.data.recipients.map((r) => ({ key: r.id, when: r.sent_at ?? r.failed_at ?? "", text: r.erro ? `erro: ${r.erro}` : r.delivered_at ? "entregue" : r.sent_at ? "enviado" : "pendente" }))} />
+                <HistList title="Eventos WhatsApp" items={hist.data.events.map((e) => ({ key: e.id, when: e.received_at, text: e.tipo }))} />
+                <HistList title="Respostas recebidas" items={hist.data.inbound.map((i) => ({ key: i.id, when: i.received_at, text: i.conteudo ?? `(${i.tipo ?? "mídia"})` }))} />
               </div>
             )}
           </Section>

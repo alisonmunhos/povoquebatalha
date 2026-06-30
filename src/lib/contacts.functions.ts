@@ -250,19 +250,19 @@ export const getContactHistory = createServerFn({ method: "POST" })
         .limit(100),
       context.supabase
         .from("message_events")
-        .select("id,event,payload,created_at,campaign_id")
+        .select("id,tipo,payload,received_at,recipient_id")
         .eq("contact_id", data.id)
-        .order("created_at", { ascending: false })
+        .order("received_at", { ascending: false })
         .limit(100),
       context.supabase
         .from("inbound_messages")
-        .select("id,body,created_at,raw")
+        .select("id,conteudo,received_at,tipo")
         .eq("contact_id", data.id)
-        .order("created_at", { ascending: false })
+        .order("received_at", { ascending: false })
         .limit(100),
       context.supabase
         .from("campaign_recipients")
-        .select("id,status,sent_at,error,campaign_id")
+        .select("id,sent_at,erro,campaign_id,delivered_at,failed_at")
         .eq("contact_id", data.id)
         .order("sent_at", { ascending: false })
         .limit(100),
