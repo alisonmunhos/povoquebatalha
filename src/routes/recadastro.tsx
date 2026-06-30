@@ -1,21 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
+import { z } from "zod";
 import { Megaphone, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/recadastro")({
+  validateSearch: z.object({
+    origem: z.string().max(80).optional(),
+    t: z.string().uuid().optional(),
+  }),
   head: () => ({
     meta: [
       { title: "Recadastro de Apoiadores" },
-      {
-        name: "description",
-        content:
-          "Atualize seus dados para continuar recebendo notícias e participar das ações da campanha.",
-      },
+      { name: "description", content: "Atualize seus dados para continuar recebendo notícias e participar das ações da campanha." },
       { property: "og:title", content: "Recadastro de Apoiadores" },
-      {
-        property: "og:description",
-        content: "Confirme seu cadastro e receba informações da campanha pelo WhatsApp.",
-      },
+      { property: "og:description", content: "Confirme seu cadastro e receba informações da campanha pelo WhatsApp." },
     ],
   }),
   ssr: false,
@@ -24,14 +22,14 @@ export const Route = createFileRoute("/recadastro")({
 
 function Recadastro() {
   const navigate = useNavigate();
+  const { origem, t } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    const form = e.currentTarget;
-    const fd = new FormData(form);
+    const fd = new FormData(e.currentTarget);
     const body = {
       nome: String(fd.get("nome") ?? ""),
       phone: String(fd.get("phone") ?? ""),
@@ -45,6 +43,8 @@ function Recadastro() {
       como_conheceu: String(fd.get("como_conheceu") ?? ""),
       quer_voluntariar: fd.get("quer_voluntariar") === "on",
       consentimento_whatsapp: fd.get("consentimento_whatsapp") === "on",
+      origem_detalhe: origem ?? "",
+      recad_token: t ?? "",
       hp: String(fd.get("hp") ?? ""),
     };
     setSubmitting(true);
@@ -80,21 +80,17 @@ function Recadastro() {
           Atualize seus dados para continuar recebendo notícias e participar das ações da campanha.
           Seus dados são armazenados de forma segura.
         </p>
+        {t && (
+          <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+            ✓ Identificamos seu cadastro anterior. Confirme seus dados abaixo.
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5 bg-card border rounded-xl p-6">
           <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
-
           <Field label="Nome completo *" name="nome" required maxLength={120} />
-          <Field
-            label="Telefone (com DDD) *"
-            name="phone"
-            required
-            placeholder="(11) 91234-5678"
-            inputMode="tel"
-            maxLength={20}
-          />
+          <Field label="Telefone (com DDD) *" name="phone" required placeholder="(11) 91234-5678" inputMode="tel" maxLength={20} />
           <Field label="E-mail" name="email" type="email" maxLength={255} />
-
           <div className="grid grid-cols-2 gap-4">
             <Field label="CEP" name="cep" maxLength={10} placeholder="00000-000" />
             <Field label="UF" name="uf" maxLength={2} placeholder="SP" />
@@ -111,26 +107,14 @@ function Recadastro() {
             <input type="checkbox" name="quer_voluntariar" className="mt-1 h-4 w-4" />
             <span>Quero ser voluntário(a) e ajudar nas ações.</span>
           </label>
-
           <label className="flex items-start gap-3 text-sm">
             <input type="checkbox" name="consentimento_whatsapp" required className="mt-1 h-4 w-4" />
-            <span>
-              Autorizo receber comunicações da campanha por WhatsApp e demais canais. Posso cancelar
-              a qualquer momento respondendo "SAIR".
-            </span>
+            <span>Autorizo receber comunicações da campanha por WhatsApp e demais canais. Posso cancelar a qualquer momento respondendo "SAIR".</span>
           </label>
 
-          {error && (
-            <p className="text-sm text-destructive border border-destructive/30 bg-destructive/5 rounded-md p-2">
-              {error}
-            </p>
-          )}
+          {error && <p className="text-sm text-destructive border border-destructive/30 bg-destructive/5 rounded-md p-2">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
+          <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
             {submitting ? "Enviando…" : "Confirmar recadastro"}
           </button>
@@ -140,18 +124,11 @@ function Recadastro() {
   );
 }
 
-function Field({
-  label,
-  className,
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string }) {
+function Field({ label, className, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string }) {
   return (
     <div className={className}>
       <label className="text-sm font-medium">{label}</label>
-      <input
-        {...props}
-        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-      />
+      <input {...props} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
     </div>
   );
 }
