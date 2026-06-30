@@ -160,6 +160,7 @@ export const buildPreview = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
+    if (!imp.file_path) throw new Error("Importação sem arquivo associado.");
     const bytes = await downloadBytes(sb, imp.file_path);
     const { rows, usedEncoding } = await readWorkbookFromBytes(bytes, imp.file_name, data.encoding);
 
