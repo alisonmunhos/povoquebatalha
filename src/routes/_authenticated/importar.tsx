@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, type ChangeEvent } from "react";
-import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle, RefreshCw, Download, Undo2, Trash2, ShieldAlert, X } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   parseUpload,
@@ -13,6 +14,12 @@ import {
   type FieldKey,
   type EncodingOption,
 } from "@/lib/imports.functions";
+import {
+  getUndoPreview,
+  exportBackupCsv,
+  undoImport,
+  deleteImportFile,
+} from "@/lib/imports-undo.functions";
 import { formatPhoneBR, type PhoneStatus } from "@/lib/phone";
 
 export const Route = createFileRoute("/_authenticated/importar")({
@@ -58,7 +65,7 @@ function ImportarPage() {
   const parseFn = useServerFn(parseUpload);
   const previewFn = useServerFn(buildPreview);
   const commitFn = useServerFn(commitImport);
-  const listFn = useServerFn(listImports);
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [stage, setStage] = useState<"idle" | "uploading" | "mapping" | "previewing" | "review" | "committing" | "done">("idle");
@@ -72,7 +79,6 @@ function ImportarPage() {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
 
-  const history = useQuery({ queryKey: ["imports-history"], queryFn: () => listFn() });
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -130,7 +136,7 @@ function ImportarPage() {
       const r = await commitFn({ data: { importId: parsed.importId, strategy, consentimentoWhatsapp: consent, tipo } });
       setResult(r);
       setStage("done");
-      history.refetch();
+      queryClient.invalidateQueries({ queryKey: ["imports-history"] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao importar.");
       setStage("review");
@@ -408,41 +414,7 @@ function ImportarPage() {
         </section>
       )}
 
-      <section className="border rounded-xl bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b text-sm font-semibold">Histórico</div>
-        {history.isLoading ? (
-          <div className="p-6 text-sm text-muted-foreground">Carregando…</div>
-        ) : (history.data?.rows.length ?? 0) === 0 ? (
-          <div className="p-6 text-sm text-muted-foreground">Nenhuma importação ainda.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left text-xs uppercase">
-              <tr>
-                <th className="px-4 py-2">Arquivo</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Total</th>
-                <th className="px-4 py-2">Criados</th>
-                <th className="px-4 py-2">Duplic.</th>
-                <th className="px-4 py-2">Erros</th>
-                <th className="px-4 py-2">Quando</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.data?.rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="px-4 py-2 truncate max-w-[260px]">{r.file_name}</td>
-                  <td className="px-4 py-2">{r.status}</td>
-                  <td className="px-4 py-2">{r.total}</td>
-                  <td className="px-4 py-2 text-emerald-600">{r.criados}</td>
-                  <td className="px-4 py-2 text-amber-600">{r.duplicados}</td>
-                  <td className="px-4 py-2 text-rose-600">{r.erros}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{new Date(r.created_at).toLocaleString("pt-BR")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <ImportHistory />
     </div>
   );
 }
@@ -453,6 +425,303 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "eme
     <div className="rounded-md border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-2xl font-semibold ${toneCls}`}>{value}</div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Histórico + ações administrativas (backup CSV, excluir arquivo, desfazer)
+// ===========================================================================
+
+function ImportHistory() {
+  const listFn = useServerFn(listImports);
+  const backupFn = useServerFn(exportBackupCsv);
+  const deleteFileFn = useServerFn(deleteImportFile);
+  const history = useQuery({ queryKey: ["imports-history"], queryFn: () => listFn() });
+
+  const [undoTarget, setUndoTarget] = useState<{ id: string; file_name: string | null } | null>(null);
+  const isAdmin = history.data?.isAdmin ?? false;
+
+  async function onDownloadBackup(id: string, fileName: string | null) {
+    try {
+      const { csv, count } = await backupFn({ data: { importId: id } });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `backup-${(fileName ?? "import").replace(/[^a-zA-Z0-9._-]/g, "_")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Backup gerado: ${count} contatos`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar backup");
+    }
+  }
+
+  async function onDeleteFile(id: string) {
+    if (!confirm("Excluir apenas o arquivo do storage? Os contatos importados NÃO serão afetados.")) return;
+    try {
+      await deleteFileFn({ data: { importId: id } });
+      toast.success("Arquivo removido. Contatos preservados.");
+      history.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir arquivo");
+    }
+  }
+
+  return (
+    <>
+      <section className="border rounded-xl bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <span className="text-sm font-semibold">Histórico de importações</span>
+          {!isAdmin && (
+            <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+              <ShieldAlert className="h-3 w-3" /> Apenas admin pode desfazer
+            </span>
+          )}
+        </div>
+        <div className="px-4 py-2.5 border-b bg-muted/30 text-[11px] text-muted-foreground space-y-0.5">
+          <p><strong className="text-foreground">Excluir arquivo</strong>: remove só o CSV/XLSX do storage. Contatos ficam preservados.</p>
+          <p><strong className="text-foreground">Desfazer importação</strong>: afeta os contatos criados — arquiva ou exclui (apenas sem histórico). Exige confirmação forte.</p>
+        </div>
+        {history.isLoading ? (
+          <div className="p-6 text-sm text-muted-foreground">Carregando…</div>
+        ) : (history.data?.rows.length ?? 0) === 0 ? (
+          <div className="p-6 text-sm text-muted-foreground">Nenhuma importação ainda.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left text-xs uppercase">
+                <tr>
+                  <th className="px-4 py-2">Arquivo</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2">Linhas</th>
+                  <th className="px-4 py-2">Contatos ativos</th>
+                  <th className="px-4 py-2">Arquivados</th>
+                  <th className="px-4 py-2">Quando</th>
+                  <th className="px-4 py-2 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.data?.rows.map((r) => {
+                  const isReverted = r.status === "reverted";
+                  return (
+                    <tr key={r.id} className="border-t align-middle">
+                      <td className="px-4 py-2 truncate max-w-[260px]">{r.file_name ?? <span className="text-muted-foreground italic">sem arquivo</span>}</td>
+                      <td className="px-4 py-2">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide ${
+                          r.status === "confirmed" ? "bg-emerald-100 text-emerald-700" :
+                          r.status === "reverted" ? "bg-slate-200 text-slate-700" :
+                          r.status === "done" ? "bg-emerald-100 text-emerald-700" :
+                          r.status === "processing" ? "bg-amber-100 text-amber-700" :
+                          r.status === "error" ? "bg-rose-100 text-rose-700" :
+                          "bg-blue-100 text-blue-700"
+                        }`}>{r.status}</span>
+                      </td>
+                      <td className="px-4 py-2">{r.total}</td>
+                      <td className="px-4 py-2 text-emerald-600 font-medium">{r.vinculados_ativos}</td>
+                      <td className="px-4 py-2 text-slate-500">{r.vinculados_arquivados}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</td>
+                      <td className="px-4 py-2">
+                        <div className="flex gap-1 justify-end flex-wrap">
+                          <button
+                            onClick={() => onDownloadBackup(r.id, r.file_name)}
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                            title="Baixar CSV dos contatos desta importação"
+                          >
+                            <Download className="h-3 w-3" /> Backup CSV
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => onDeleteFile(r.id)}
+                                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted text-muted-foreground"
+                                title="Apaga só o arquivo do storage (não afeta contatos)"
+                              >
+                                <Trash2 className="h-3 w-3" /> Excluir arquivo
+                              </button>
+                              {!isReverted && (
+                                <button
+                                  onClick={() => setUndoTarget({ id: r.id, file_name: r.file_name })}
+                                  className="inline-flex items-center gap-1 rounded-md border border-destructive/40 text-destructive px-2 py-1 text-xs hover:bg-destructive/10"
+                                  title="Arquivar ou excluir contatos criados por esta importação"
+                                >
+                                  <Undo2 className="h-3 w-3" /> Desfazer importação
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {undoTarget && (
+        <UndoImportModal
+          importId={undoTarget.id}
+          fileName={undoTarget.file_name}
+          onClose={() => setUndoTarget(null)}
+          onDone={() => {
+            setUndoTarget(null);
+            history.refetch();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function UndoImportModal({
+  importId,
+  fileName,
+  onClose,
+  onDone,
+}: {
+  importId: string;
+  fileName: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const previewFn = useServerFn(getUndoPreview);
+  const backupFn = useServerFn(exportBackupCsv);
+  const execFn = useServerFn(undoImport);
+  const [mode, setMode] = useState<"archive" | "delete_safe">("archive");
+  const [confirmText, setConfirmText] = useState("");
+  const [running, setRunning] = useState(false);
+  const [backupDone, setBackupDone] = useState(false);
+
+  const preview = useQuery({
+    queryKey: ["undo-preview", importId],
+    queryFn: () => previewFn({ data: { importId } }),
+  });
+
+  async function doBackup() {
+    try {
+      const { csv, count } = await backupFn({ data: { importId } });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `backup-${(fileName ?? "import").replace(/[^a-zA-Z0-9._-]/g, "_")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setBackupDone(true);
+      toast.success(`Backup baixado: ${count} contatos`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar backup");
+    }
+  }
+
+  async function doExecute() {
+    setRunning(true);
+    try {
+      const r = await execFn({ data: { importId, mode, confirmText } });
+      toast.success(`Pronto. Excluídos: ${r.deleted} · Arquivados: ${r.archived}`);
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao desfazer");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const canExecute = confirmText.trim() === "DESFAZER IMPORTAÇÃO" && !running && preview.data;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-xl border shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <header className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-destructive" />
+            <h2 className="font-semibold">Desfazer importação</h2>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </header>
+
+        <div className="p-5 space-y-5 text-sm">
+          <p className="text-muted-foreground">
+            Arquivo: <strong className="text-foreground">{fileName ?? "sem nome"}</strong>
+          </p>
+
+          {preview.isLoading && <div className="text-muted-foreground"><Loader2 className="h-4 w-4 inline animate-spin mr-1" /> Analisando contatos…</div>}
+          {preview.error && <div className="text-destructive">Erro: {(preview.error as Error).message}</div>}
+
+          {preview.data && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Stat label="Total" value={preview.data.total} tone="blue" />
+                <Stat label="Pode excluir" value={preview.data.podeExcluir} tone="emerald" />
+                <Stat label="Será arquivado" value={preview.data.seraoArquivados} tone="amber" />
+                <Stat label="Já arquivado" value={preview.data.jaArquivados} tone="rose" />
+              </div>
+
+              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-xs">
+                ⚠ Contatos com histórico (campanha, mensagem recebida, recadastro concluído ou mesclagem) <strong>nunca</strong> são excluídos automaticamente — sempre arquivados.
+              </div>
+
+              <div>
+                <p className="font-medium mb-2">1. Baixe o backup antes de prosseguir</p>
+                <button
+                  onClick={doBackup}
+                  className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                >
+                  <Download className="h-4 w-4" /> {backupDone ? "Baixar novamente" : "Baixar backup CSV"}
+                </button>
+                {backupDone && <span className="ml-3 text-emerald-600 text-xs inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> backup baixado</span>}
+              </div>
+
+              <div>
+                <p className="font-medium mb-2">2. Escolha o modo</p>
+                <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/30 mb-2">
+                  <input type="radio" checked={mode === "archive"} onChange={() => setMode("archive")} className="mt-0.5" />
+                  <div>
+                    <div className="font-medium">Arquivar todos</div>
+                    <div className="text-xs text-muted-foreground">Marca todos os contatos como arquivados e <code>nao_enviar</code>. Não exclui nada — pode reverter manualmente depois.</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/30">
+                  <input type="radio" checked={mode === "delete_safe"} onChange={() => setMode("delete_safe")} className="mt-0.5" />
+                  <div>
+                    <div className="font-medium">Excluir definitivamente (apenas sem histórico)</div>
+                    <div className="text-xs text-muted-foreground">
+                      Exclui <strong>{preview.data.podeExcluir}</strong> contatos sem histórico. Os <strong>{preview.data.seraoArquivados}</strong> com histórico serão arquivados automaticamente.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div>
+                <p className="font-medium mb-2">3. Confirme digitando <code className="bg-muted px-1.5 py-0.5 rounded text-xs">DESFAZER IMPORTAÇÃO</code></p>
+                <input
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="DESFAZER IMPORTAÇÃO"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  autoFocus
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        <footer className="flex items-center justify-end gap-2 px-5 py-4 border-t bg-muted/20">
+          <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
+          <button
+            onClick={doExecute}
+            disabled={!canExecute}
+            className="inline-flex items-center gap-2 rounded-md bg-destructive text-destructive-foreground px-4 py-2 text-sm font-medium hover:bg-destructive/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+            Executar
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
