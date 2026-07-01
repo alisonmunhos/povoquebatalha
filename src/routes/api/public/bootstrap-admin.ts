@@ -3,7 +3,6 @@ import { z } from "zod";
 
 const bodySchema = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
-  redirectOrigin: z.string().url(),
 });
 
 async function adminExists() {
@@ -14,6 +13,14 @@ async function adminExists() {
     .eq("role", "admin");
   if (error) throw new Error(error.message);
   return (count ?? 0) > 0;
+}
+
+function getSelfOrigin(request: Request): string | null {
+  const origin = request.headers.get("origin");
+  if (origin) return origin.replace(/\/+$/, "");
+  const host = request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : null;
 }
 
 export const Route = createFileRoute("/api/public/bootstrap-admin")({
@@ -44,8 +51,13 @@ export const Route = createFileRoute("/api/public/bootstrap-admin")({
           );
         }
 
+        const selfOrigin = getSelfOrigin(request);
+        if (!selfOrigin) {
+          return Response.json({ error: "Origem inválida." }, { status: 400 });
+        }
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const redirectTo = `${parsed.data.redirectOrigin.replace(/\/+$/, "")}/aceitar-convite`;
+        const redirectTo = `${selfOrigin}/aceitar-convite`;
         const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
           parsed.data.email,
           { redirectTo },
@@ -63,3 +75,4 @@ export const Route = createFileRoute("/api/public/bootstrap-admin")({
     },
   },
 });
+
