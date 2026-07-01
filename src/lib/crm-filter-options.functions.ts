@@ -86,13 +86,19 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       }
     }
 
-    // Tags
-    const { data: tags } = await sb.from("tags").select("id,nome,cor,uso_total");
+    // Tags (com contagem via contact_tags)
+    const { data: tags } = await sb.from("tags").select("id,nome,cor");
+    const { data: tagRels } = await sb.from("contact_tags").select("tag_id").limit(50000);
+    const tagCount = new Map<string, number>();
+    for (const r of tagRels ?? []) {
+      const k = r.tag_id as string;
+      tagCount.set(k, (tagCount.get(k) ?? 0) + 1);
+    }
     const tagsOpts = (tags ?? [])
       .map((t) => ({
         value: t.id as string,
         label: t.nome as string,
-        count: (t.uso_total as number) ?? 0,
+        count: tagCount.get(t.id as string) ?? 0,
         cor: (t.cor as string) ?? null,
       }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
