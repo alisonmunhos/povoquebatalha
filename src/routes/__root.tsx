@@ -77,18 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Central de Mobilização" },
+      { title: "Campanha Do Povo Que Batalha" },
       { name: "description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Central de Mobilização" },
+      { property: "og:title", content: "Campanha Do Povo Que Batalha" },
       { property: "og:description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Central de Mobilização" },
+      { name: "twitter:title", content: "Campanha Do Povo Que Batalha" },
       { name: "twitter:description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6601dd7e-47ef-499d-9876-59f24b10e750/id-preview-03067c36--3045d5d2-135a-486e-99c7-42103653d991.lovable.app-1782864378407.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6601dd7e-47ef-499d-9876-59f24b10e750/id-preview-03067c36--3045d5d2-135a-486e-99c7-42103653d991.lovable.app-1782864378407.png" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/814014bd-db6c-41a4-b132-f0bd999863aa/id-preview-e6b98cac--3045d5d2-135a-486e-99c7-42103653d991.lovable.app-1782933848953.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/814014bd-db6c-41a4-b132-f0bd999863aa/id-preview-e6b98cac--3045d5d2-135a-486e-99c7-42103653d991.lovable.app-1782933848953.png" },
     ],
     links: [
       {
