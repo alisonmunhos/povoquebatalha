@@ -13,7 +13,7 @@ export const listImportedContactsTokens = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(data.limit);
     if (data.search) {
-      const s = data.search.trim();
+      const s = data.search.trim().replace(/[%_,()]/g, " ");
       q = q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${s}%`);
     }
     const { data: rows, error } = await q;

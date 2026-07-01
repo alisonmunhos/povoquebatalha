@@ -61,8 +61,23 @@ export const inviteUser = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => inviteSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const req = getRequest();
+    const originHeader = req.headers.get("origin");
+    const host = req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const selfOrigin = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
+    let requested: string;
+    try {
+      requested = new URL(data.redirectOrigin).origin;
+    } catch {
+      throw new Error("Origem inválida.");
+    }
+    if (!selfOrigin || requested !== selfOrigin) {
+      throw new Error("Origem de redirecionamento não permitida.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const redirectTo = `${data.redirectOrigin.replace(/\/+$/, "")}/aceitar-convite`;
+    const redirectTo = `${selfOrigin}/aceitar-convite`;
     const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       data.email,
       { redirectTo },
