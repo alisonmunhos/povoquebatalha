@@ -22,13 +22,17 @@ import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
+import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
+import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
+import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
@@ -99,6 +103,11 @@ const AuthenticatedSegmentosRoute = AuthenticatedSegmentosRouteImport.update({
   path: '/segmentos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
+  id: '/mapa',
+  path: '/mapa',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedLinksRoute = AuthenticatedLinksRouteImport.update({
   id: '/links',
   path: '/links',
@@ -120,10 +129,21 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
+  id: '/calendario',
+  path: '/calendario',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedContatosIndexRoute =
   AuthenticatedContatosIndexRouteImport.update({
     id: '/contatos/',
     path: '/contatos/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCampanhasIndexRoute =
+  AuthenticatedCampanhasIndexRouteImport.update({
+    id: '/campanhas/',
+    path: '/campanhas/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const ApiPublicBootstrapAdminRoute = ApiPublicBootstrapAdminRouteImport.update({
@@ -136,6 +156,12 @@ const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   path: '/contatos/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCampanhasIdRoute =
+  AuthenticatedCampanhasIdRouteImport.update({
+    id: '/campanhas/$id',
+    path: '/campanhas/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   id: '/api/public/zapi/$evento',
   path: '/api/public/zapi/$evento',
@@ -171,17 +197,21 @@ export interface FileRoutesByFullPath {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
+  '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/links': typeof AuthenticatedLinksRoute
+  '/mapa': typeof AuthenticatedMapaRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -197,17 +227,21 @@ export interface FileRoutesByTo {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
+  '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/links': typeof AuthenticatedLinksRoute
+  '/mapa': typeof AuthenticatedMapaRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -225,17 +259,21 @@ export interface FileRoutesById {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
+  '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
+  '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
+  '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -253,17 +291,21 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
+    | '/calendario'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
     | '/links'
+    | '/mapa'
     | '/segmentos'
     | '/tags'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
+    | '/campanhas/$id'
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
+    | '/campanhas/'
     | '/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -279,17 +321,21 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
+    | '/calendario'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
     | '/links'
+    | '/mapa'
     | '/segmentos'
     | '/tags'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
+    | '/campanhas/$id'
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
+    | '/campanhas'
     | '/contatos'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -306,17 +352,21 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
+    | '/_authenticated/calendario'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
     | '/_authenticated/links'
+    | '/_authenticated/mapa'
     | '/_authenticated/segmentos'
     | '/_authenticated/tags'
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
+    | '/_authenticated/campanhas/$id'
     | '/_authenticated/contatos/$id'
     | '/api/public/bootstrap-admin'
+    | '/_authenticated/campanhas/'
     | '/_authenticated/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -436,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSegmentosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/mapa': {
+      id: '/_authenticated/mapa'
+      path: '/mapa'
+      fullPath: '/mapa'
+      preLoaderRoute: typeof AuthenticatedMapaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/links': {
       id: '/_authenticated/links'
       path: '/links'
@@ -464,11 +521,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/calendario': {
+      id: '/_authenticated/calendario'
+      path: '/calendario'
+      fullPath: '/calendario'
+      preLoaderRoute: typeof AuthenticatedCalendarioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/contatos/': {
       id: '/_authenticated/contatos/'
       path: '/contatos'
       fullPath: '/contatos/'
       preLoaderRoute: typeof AuthenticatedContatosIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/campanhas/': {
+      id: '/_authenticated/campanhas/'
+      path: '/campanhas'
+      fullPath: '/campanhas/'
+      preLoaderRoute: typeof AuthenticatedCampanhasIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/bootstrap-admin': {
@@ -483,6 +554,13 @@ declare module '@tanstack/react-router' {
       path: '/contatos/$id'
       fullPath: '/contatos/$id'
       preLoaderRoute: typeof AuthenticatedContatosIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/campanhas/$id': {
+      id: '/_authenticated/campanhas/$id'
+      path: '/campanhas/$id'
+      fullPath: '/campanhas/$id'
+      preLoaderRoute: typeof AuthenticatedCampanhasIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/zapi/$evento': {
@@ -524,28 +602,36 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
+  AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
   AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
+  AuthenticatedCampanhasIdRoute: typeof AuthenticatedCampanhasIdRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
+  AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
   AuthenticatedContatosIndexRoute: typeof AuthenticatedContatosIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
+  AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
   AuthenticatedTagsRoute: AuthenticatedTagsRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
+  AuthenticatedCampanhasIdRoute: AuthenticatedCampanhasIdRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
+  AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
   AuthenticatedContatosIndexRoute: AuthenticatedContatosIndexRoute,
 }
 

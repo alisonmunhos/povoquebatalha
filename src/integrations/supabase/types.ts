@@ -86,6 +86,9 @@ export type Database = {
       campaigns: {
         Row: {
           agendado_para: string | null
+          canceled_at: string | null
+          canceled_by: string | null
+          canceled_motivo: string | null
           created_at: string
           created_by: string | null
           delay_max_ms: number
@@ -101,7 +104,9 @@ export type Database = {
           midia_caption: string | null
           midia_url: string | null
           nome: string
+          paused_at: string | null
           segment_id: string | null
+          started_at: string | null
           status: Database["public"]["Enums"]["campaign_status"]
           tipo: Database["public"]["Enums"]["campaign_tipo"]
           total_destinatarios: number
@@ -109,10 +114,14 @@ export type Database = {
           total_enviados: number
           total_falhas: number
           total_lidos: number
+          ultimo_lote_at: string | null
           updated_at: string
         }
         Insert: {
           agendado_para?: string | null
+          canceled_at?: string | null
+          canceled_by?: string | null
+          canceled_motivo?: string | null
           created_at?: string
           created_by?: string | null
           delay_max_ms?: number
@@ -128,7 +137,9 @@ export type Database = {
           midia_caption?: string | null
           midia_url?: string | null
           nome: string
+          paused_at?: string | null
           segment_id?: string | null
+          started_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
           tipo?: Database["public"]["Enums"]["campaign_tipo"]
           total_destinatarios?: number
@@ -136,10 +147,14 @@ export type Database = {
           total_enviados?: number
           total_falhas?: number
           total_lidos?: number
+          ultimo_lote_at?: string | null
           updated_at?: string
         }
         Update: {
           agendado_para?: string | null
+          canceled_at?: string | null
+          canceled_by?: string | null
+          canceled_motivo?: string | null
           created_at?: string
           created_by?: string | null
           delay_max_ms?: number
@@ -155,7 +170,9 @@ export type Database = {
           midia_caption?: string | null
           midia_url?: string | null
           nome?: string
+          paused_at?: string | null
           segment_id?: string | null
+          started_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
           tipo?: Database["public"]["Enums"]["campaign_tipo"]
           total_destinatarios?: number
@@ -163,6 +180,7 @@ export type Database = {
           total_enviados?: number
           total_falhas?: number
           total_lidos?: number
+          ultimo_lote_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -551,6 +569,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      geocode_cache: {
+        Row: {
+          created_at: string
+          endereco_completo: string
+          latitude: number | null
+          longitude: number | null
+          provider: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          endereco_completo: string
+          latitude?: number | null
+          longitude?: number | null
+          provider?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          endereco_completo?: string
+          latitude?: number | null
+          longitude?: number | null
+          provider?: string | null
+          status?: string
+        }
+        Relationships: []
       }
       import_audit_log: {
         Row: {

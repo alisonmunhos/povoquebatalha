@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getDashboardStats } from "@/lib/dashboard.functions";
-import { Users, MessageCircle, Send, UserMinus } from "lucide-react";
+import { Users, MessageCircle, Send, UserMinus, MapPin, MapPinOff } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
@@ -15,19 +15,13 @@ function Dashboard() {
 
   const cards = [
     { label: "Contatos", value: data.totalContatos, icon: Users, hint: `${data.novosNaSemana} novos esta semana` },
-    {
-      label: "Com consentimento",
-      value: data.comConsentimento,
-      icon: MessageCircle,
-      hint: "podem receber mensagens",
-    },
+    { label: "Com consentimento", value: data.comConsentimento, icon: MessageCircle, hint: "podem receber WhatsApp" },
     { label: "Opt-out", value: data.optOut, icon: UserMinus, hint: "descadastrados" },
-    {
-      label: "Campanhas",
-      value: data.totalCampanhas,
-      icon: Send,
-      hint: `${data.enviadasNaSemana} envios na semana`,
-    },
+    { label: "Campanhas", value: data.totalCampanhas, icon: Send, hint: `${data.enviadasNaSemana} envios na semana` },
+    { label: "Com geolocalização", value: data.comGeolocalizacao, icon: MapPin, hint: "aparecem no mapa" },
+    { label: "Sem geolocalização", value: data.semGeolocalizacao, icon: MapPinOff, hint: "pendentes de geocode" },
+    { label: "Campanhas em rascunho", value: data.campanhasRascunho, icon: Send, hint: "aguardando envio" },
+    { label: "Campanhas em envio", value: data.campanhasEmEnvio, icon: Send, hint: "processando fila" },
   ];
 
   return (
