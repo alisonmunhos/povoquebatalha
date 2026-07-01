@@ -1,11 +1,12 @@
 import { Link, Outlet, useRouter } from "@tanstack/react-router";
-import { LayoutDashboard, Users, MessageCircle, Upload, Tags, Filter, Send, Calendar, LogOut, Megaphone, ShieldCheck, Link as LinkIcon, Copy } from "lucide-react";
+import { LayoutDashboard, Users, MessageCircle, Upload, Tags, Filter, Send, Calendar, LogOut, Megaphone, ShieldCheck, Link as LinkIcon, Copy, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/contatos", label: "Contatos", icon: Users },
+  { to: "/mapa", label: "Mapa", icon: MapPin },
   { to: "/importar", label: "Importar", icon: Upload },
   { to: "/duplicidades", label: "Duplicidades", icon: Copy },
   { to: "/links", label: "Links Públicos", icon: LinkIcon },
