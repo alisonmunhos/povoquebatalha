@@ -18,12 +18,16 @@ const TIPO_OPTIONS = [
 ] as const;
 
 const FORMAS_AJUDA = [
-  { v: "panfletagem", l: "Panfletagem" },
+  { v: "panfletagem_banquinha", l: "Panfletagem / Banquinha" },
+  { v: "panfletagem", l: "Panfletagem (legado)" },
   { v: "compartilhar_whatsapp", l: "Compartilhar material no WhatsApp" },
   { v: "compartilhar_redes", l: "Compartilhar nas redes sociais" },
   { v: "participar_eventos", l: "Participar de eventos" },
   { v: "ajudar_organizacao", l: "Ajudar na organização" },
   { v: "mobilizar_bairro", l: "Mobilizar pessoas do bairro" },
+  { v: "adesivar_carro", l: "Adesivar o carro" },
+  { v: "plaquinha_casa", l: "Plaquinha na frente de casa" },
+  { v: "receber_panfletos", l: "Receber panfletos e adesivos" },
   { v: "outro", l: "Outro" },
 ];
 
