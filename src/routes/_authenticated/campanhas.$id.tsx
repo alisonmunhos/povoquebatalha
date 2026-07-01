@@ -128,7 +128,9 @@ function CampanhaDetail() {
         <section className="border rounded-xl p-5 bg-card">
           <h2 className="font-semibold mb-2">Mensagem</h2>
           <div className="text-sm whitespace-pre-wrap border rounded p-3 bg-background">{c.mensagem_template}</div>
-          {c.midia_url && <div className="mt-2 text-xs text-muted-foreground">Mídia: {c.midia_url}</div>}
+          {(c.midia_filename || c.midia_url) && (
+            <div className="mt-2 text-xs text-muted-foreground">Anexo: <b>{c.midia_filename ?? c.midia_url}</b> {c.midia_mime ? `(${c.midia_mime})` : ""}</div>
+          )}
         </section>
 
         <section className="border rounded-xl p-5 bg-card">
