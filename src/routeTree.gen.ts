@@ -23,6 +23,7 @@ import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
+import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
@@ -107,6 +108,11 @@ const AuthenticatedTagsRoute = AuthenticatedTagsRouteImport.update({
 const AuthenticatedSegmentosRoute = AuthenticatedSegmentosRouteImport.update({
   id: '/segmentos',
   path: '/segmentos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMensagensRoute = AuthenticatedMensagensRouteImport.update({
+  id: '/mensagens',
+  path: '/mensagens',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/importar': typeof AuthenticatedImportarRoute
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/mensagens': typeof AuthenticatedMensagensRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -241,6 +248,7 @@ export interface FileRoutesByTo {
   '/importar': typeof AuthenticatedImportarRoute
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/mensagens': typeof AuthenticatedMensagensRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -274,6 +282,7 @@ export interface FileRoutesById {
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
+  '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/importar'
     | '/links'
     | '/mapa'
+    | '/mensagens'
     | '/segmentos'
     | '/tags'
     | '/usuarios'
@@ -338,6 +348,7 @@ export interface FileRouteTypes {
     | '/importar'
     | '/links'
     | '/mapa'
+    | '/mensagens'
     | '/segmentos'
     | '/tags'
     | '/usuarios'
@@ -370,6 +381,7 @@ export interface FileRouteTypes {
     | '/_authenticated/importar'
     | '/_authenticated/links'
     | '/_authenticated/mapa'
+    | '/_authenticated/mensagens'
     | '/_authenticated/segmentos'
     | '/_authenticated/tags'
     | '/_authenticated/usuarios'
@@ -506,6 +518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSegmentosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/mensagens': {
+      id: '/_authenticated/mensagens'
+      path: '/mensagens'
+      fullPath: '/mensagens'
+      preLoaderRoute: typeof AuthenticatedMensagensRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/mapa': {
       id: '/_authenticated/mapa'
       path: '/mapa'
@@ -628,6 +647,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
+  AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
   AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
@@ -645,6 +665,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
+  AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
   AuthenticatedTagsRoute: AuthenticatedTagsRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,

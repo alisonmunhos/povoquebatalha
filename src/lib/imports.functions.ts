@@ -9,13 +9,20 @@ export const FIELD_KEYS = [
   "nome",
   "phone_raw",
   "email",
+  "profissao",
   "cidade",
   "uf",
   "cep",
   "endereco",
   "numero",
+  "complemento",
   "bairro",
   "observacoes",
+  "tag",
+  "origem_detalhe",
+  "movimento_social",
+  "instituicao",
+  "raw",
 ] as const;
 export type FieldKey = (typeof FIELD_KEYS)[number];
 
@@ -36,16 +43,22 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
   for (const h of headers) {
     const n = normalize(h);
     if (!n) { map[h] = "ignore"; continue; }
-    if (/(nome|name|completo)/.test(n)) map[h] = "nome";
-    else if (/(telefone|celular|phone|whats|fone|tel|numero|mobile)/.test(n)) map[h] = "phone_raw";
+    if (/(nomecompleto|nomesocial|nome|name|contato|pessoa)/.test(n)) map[h] = "nome";
+    else if (/(whatsapp|telefone|celular|phone|whats|fone|^tel$|mobile)/.test(n)) map[h] = "phone_raw";
     else if (/(email|mail|eletronic)/.test(n)) map[h] = "email";
+    else if (/(profissao|ocupacao|cargo|funcao)/.test(n)) map[h] = "profissao";
     else if (/(cidade|municipio|city)/.test(n)) map[h] = "cidade";
-    else if (/(uf|estado|state)/.test(n)) map[h] = "uf";
+    else if (/^(uf|estado|state)$/.test(n)) map[h] = "uf";
     else if (/(cep|zip|postal)/.test(n)) map[h] = "cep";
     else if (/(rua|endereco|logradouro|address|street)/.test(n)) map[h] = "endereco";
-    else if (/^numero$|^num$|^number$/.test(n)) map[h] = "numero";
+    else if (/^(numero|num|number)$/.test(n)) map[h] = "numero";
+    else if (/(complemento|apto|apartamento)/.test(n)) map[h] = "complemento";
     else if (/(bairro|neighborhood|district)/.test(n)) map[h] = "bairro";
-    else if (/(obs|nota|comentario|observ|note)/.test(n)) map[h] = "observacoes";
+    else if (/(observ|obs|comentario|nota|detalhe|informac|historico|anotac|note)/.test(n)) map[h] = "observacoes";
+    else if (/(movimento)/.test(n)) map[h] = "movimento_social";
+    else if (/(instituicao|organizacao|secretaria|orgao|coletivo)/.test(n)) map[h] = "instituicao";
+    else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
+    else if (/(tag|grupo|categoria|segmento|nucleo|setor)/.test(n)) map[h] = "tag";
     else map[h] = "ignore";
   }
   return map;
