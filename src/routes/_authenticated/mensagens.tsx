@@ -42,7 +42,7 @@ function MensagensPage() {
         <div>
           <h1 className="text-2xl font-semibold">Mensagens e automações</h1>
           <p className="text-sm text-muted-foreground">
-            Edite as mensagens automáticas, respostas rápidas e regras de envio da campanha.
+            Mensagens salvas são modelos reutilizáveis. Elas não são enviadas sozinhas, exceto quando vinculadas a uma automação. Use-as ao criar uma campanha.
           </p>
         </div>
       </header>
