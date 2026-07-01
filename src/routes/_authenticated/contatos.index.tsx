@@ -181,6 +181,7 @@ function Contatos() {
         <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}><Filter className="h-4 w-4 mr-1" /> Filtros</Button>
         <Button variant="outline" size="sm" onClick={() => doExport("filtrados")}><Download className="h-4 w-4 mr-1" /> Exportar filtrados</Button>
         <Button variant="outline" size="sm" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "dinamico" })}><Save className="h-4 w-4 mr-1" /> Salvar como segmento</Button>
+        <Button size="sm" onClick={() => setSendDlg({ open: true, mode: "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
       </div>
 
       {showFilters && (
