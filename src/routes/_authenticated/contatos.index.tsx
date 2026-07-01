@@ -252,7 +252,7 @@ function Contatos() {
               <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
               <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
                 <option value="">— escolher tag —</option>
-                {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                {(filterOptions?.tags ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
               <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
