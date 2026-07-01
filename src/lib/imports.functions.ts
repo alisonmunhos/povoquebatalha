@@ -95,6 +95,21 @@ type PreviewRow = {
   nome: string | null;
   email: string | null;
   phone: ParsedPhone;
+  extras: {
+    profissao?: string | null;
+    cep?: string | null;
+    endereco?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    uf?: string | null;
+    origem_detalhe?: string | null;
+    movimento_social_nome?: string | null;
+    observacoes?: string[];
+    tags?: string[];
+    raw?: Record<string, string>;
+  };
   dup?: { contact_id: string; nome: string; phone_e164: string | null; match: "forte" | "provavel" | "possivel" };
   problemas: string[];
 };
@@ -184,18 +199,30 @@ export const buildPreview = createServerFn({ method: "POST" })
 
     rows.forEach((raw, idx) => {
       const linha = idx + 2;
-      const get = (key: FieldKey): string | null => {
+      const rawRec = raw as Record<string, unknown>;
+      const getBy = (key: FieldKey): string | null => {
         for (const [col, k] of Object.entries(data.mapping)) {
           if (k === key) {
-            const v = (raw as Record<string, unknown>)[col];
+            const v = rawRec[col];
             return v == null || v === "" ? null : String(v).trim();
           }
         }
         return null;
       };
-      const nome = get("nome");
-      const email = get("email")?.toLowerCase() ?? null;
-      const phoneRaw = get("phone_raw");
+      const getAll = (key: FieldKey): Array<{ col: string; value: string }> => {
+        const out: Array<{ col: string; value: string }> = [];
+        for (const [col, k] of Object.entries(data.mapping)) {
+          if (k === key) {
+            const v = rawRec[col];
+            const s = v == null ? "" : String(v).trim();
+            if (s) out.push({ col, value: s });
+          }
+        }
+        return out;
+      };
+      const nome = getBy("nome");
+      const email = getBy("email")?.toLowerCase() ?? null;
+      const phoneRaw = getBy("phone_raw");
       const phone = parsePhoneBR(phoneRaw, data.defaultDdd ?? null);
       const problemas: string[] = [];
       if (!nome || nome.length < 2) problemas.push("Nome ausente");
@@ -207,7 +234,45 @@ export const buildPreview = createServerFn({ method: "POST" })
       if (phone.phone_last8) last8List.push(phone.phone_last8);
       if (email) emailList.push(email);
 
-      preview.push({ linha, nome, email, phone, problemas });
+      // Extras
+      const observacoes: string[] = [];
+      for (const o of getAll("observacoes")) observacoes.push(`${o.col}: ${o.value}`);
+      const inst = getBy("instituicao"); if (inst) observacoes.push(`Instituição: ${inst}`);
+      const tags: string[] = [];
+      for (const t of getAll("tag")) {
+        // permitir múltiplos valores separados por vírgula/;
+        for (const piece of t.value.split(/[,;|]/)) {
+          const s = piece.trim();
+          if (s) tags.push(s);
+        }
+      }
+      const rawExtras: Record<string, string> = {};
+      for (const [col, k] of Object.entries(data.mapping)) {
+        if (k === "raw") {
+          const v = rawRec[col];
+          const s = v == null ? "" : String(v).trim();
+          if (s) rawExtras[col] = s;
+        }
+      }
+
+      preview.push({
+        linha, nome, email, phone, problemas,
+        extras: {
+          profissao: getBy("profissao"),
+          cep: getBy("cep"),
+          endereco: getBy("endereco"),
+          numero: getBy("numero"),
+          complemento: getBy("complemento"),
+          bairro: getBy("bairro"),
+          cidade: getBy("cidade"),
+          uf: (getBy("uf") ?? "").toUpperCase().slice(0, 2) || null,
+          origem_detalhe: getBy("origem_detalhe"),
+          movimento_social_nome: getBy("movimento_social"),
+          observacoes,
+          tags,
+          raw: Object.keys(rawExtras).length ? rawExtras : undefined,
+        },
+      });
     });
 
     // Bulk dedup query
