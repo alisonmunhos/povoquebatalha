@@ -37,6 +37,27 @@ export const listContactsRich = createServerFn({ method: "POST" })
       if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
       q = q.in("id", ids);
     }
+    // Histórico por campanha
+    async function idsForCampaign(campaignId: string, statuses?: string[]) {
+      let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
+      if (statuses?.length) qr = qr.in("status", statuses as never[]);
+      const { data: r } = await qr.limit(20000);
+      return Array.from(new Set((r ?? []).map((x) => x.contact_id)));
+    }
+    if (data.filters.recebeu_campanha_id) {
+      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent","delivered","read"]);
+      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
+      q = q.in("id", ids);
+    }
+    if (data.filters.nao_recebeu_campanha_id) {
+      const ids = await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent","delivered","read"]);
+      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+    }
+    if (data.filters.erro_campanha_id) {
+      const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
+      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
+      q = q.in("id", ids);
+    }
 
     const { data: rows, count, error } = await q;
     if (error) throw error;
