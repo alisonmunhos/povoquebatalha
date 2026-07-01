@@ -410,6 +410,13 @@ function Contatos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SendWhatsAppWizard
+        open={sendDlg.open}
+        onOpenChange={(o) => setSendDlg({ ...sendDlg, open: o })}
+        source={sendDlg.mode === "selection" ? { ids: [...selected] } : { filters }}
+        labelSelecao={sendDlg.mode === "selection" ? `${selected.size} contato(s) selecionado(s)` : "todos os contatos do filtro atual"}
+      />
     </div>
     </TooltipProvider>
   );
