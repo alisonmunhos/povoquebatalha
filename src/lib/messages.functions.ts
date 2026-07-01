@@ -77,14 +77,23 @@ export const duplicateMessageTemplate = createServerFn({ method: "POST" })
     const { data: src, error: e1 } = await context.supabase
       .from("message_templates").select("*").eq("id", data.id).single();
     if (e1) throw e1;
-    const { id: _id, created_at, updated_at, created_by, updated_by, event_key, ...rest } = src as Record<string, unknown>;
-    void _id; void created_at; void updated_at; void created_by; void updated_by;
+    const s = src as {
+      kind: "system" | "quick_reply"; event_key: string | null; shortcut: string | null;
+      title: string; category: string | null; body: string; variables: unknown;
+      link: string | null; media_url: string | null;
+    };
     const { data: row, error } = await context.supabase
       .from("message_templates").insert({
-        ...rest,
-        // Evita conflito no índice único (event_key WHERE kind='system')
-        event_key: rest.kind === "system" ? null : ((event_key as string | null) ?? null),
-        title: `${(rest as { title: string }).title} (cópia)`,
+        kind: s.kind,
+        // Índice único parcial em event_key para kind='system' impede duplicar mensagem do sistema
+        event_key: s.kind === "system" ? null : s.event_key,
+        shortcut: s.shortcut,
+        title: `${s.title} (cópia)`,
+        category: s.category,
+        body: s.body,
+        variables: (s.variables ?? []) as never,
+        link: s.link,
+        media_url: s.media_url,
         active: false,
         created_by: context.userId,
         updated_by: context.userId,
