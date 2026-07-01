@@ -19,6 +19,9 @@ export const crmFilterSchema = z.object({
   origem_detalhe: z.string().optional(),
   import_id: z.string().uuid().optional(),
   tag_ids: z.array(z.string().uuid()).optional(),
+  recebeu_campanha_id: z.string().uuid().optional(),
+  nao_recebeu_campanha_id: z.string().uuid().optional(),
+  erro_campanha_id: z.string().uuid().optional(),
 });
 export type CrmFilters = z.infer<typeof crmFilterSchema>;
 

@@ -73,7 +73,7 @@ function CampanhasPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <Send className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-semibold">Campanhas</h1>
@@ -121,6 +121,9 @@ function CampanhasPage() {
           </DialogContent>
         </Dialog>
       </div>
+      <p className="text-xs text-muted-foreground mb-6">
+        Uma campanha é uma ação de envio para um público. Ela pode usar uma mensagem salva, ser enviada agora ou ser agendada. Para criar campanhas a partir de contatos filtrados, use a tela <b>Contatos</b>.
+      </p>
 
       <div className="border rounded-xl overflow-hidden">
         <table className="w-full text-sm">

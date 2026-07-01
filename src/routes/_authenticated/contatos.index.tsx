@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
 
 const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
 
@@ -62,6 +63,7 @@ function Contatos() {
   const [bulkTagId, setBulkTagId] = useState<string>("");
   const [bulkLifecycle, setBulkLifecycle] = useState<string>("");
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
+  const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
 
   const tagsQ = useQuery({ queryKey: ["tags-all"], queryFn: () => tagsFn() });
 
@@ -179,6 +181,7 @@ function Contatos() {
         <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}><Filter className="h-4 w-4 mr-1" /> Filtros</Button>
         <Button variant="outline" size="sm" onClick={() => doExport("filtrados")}><Download className="h-4 w-4 mr-1" /> Exportar filtrados</Button>
         <Button variant="outline" size="sm" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "dinamico" })}><Save className="h-4 w-4 mr-1" /> Salvar como segmento</Button>
+        <Button size="sm" onClick={() => setSendDlg({ open: true, mode: "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
       </div>
 
       {showFilters && (
@@ -284,14 +287,13 @@ function Contatos() {
               <span className="text-xs uppercase tracking-wide opacity-70">Exportar</span>
               <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
               <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0}>
-                    <Button size="sm" variant="secondary" disabled><Send className="h-3 w-3 mr-1" /> Preparar campanha</Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Disponível na próxima etapa: campanhas de WhatsApp.</TooltipContent>
-              </Tooltip>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setSendDlg({ open: true, mode: "selection" })}
+              >
+                <Send className="h-3 w-3 mr-1" /> Enviar WhatsApp
+              </Button>
             </div>
           </div>
         </div>
@@ -408,6 +410,13 @@ function Contatos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SendWhatsAppWizard
+        open={sendDlg.open}
+        onOpenChange={(o) => setSendDlg({ ...sendDlg, open: o })}
+        source={sendDlg.mode === "selection" ? { ids: [...selected] } : { filters }}
+        labelSelecao={sendDlg.mode === "selection" ? `${selected.size} contato(s) selecionado(s)` : "todos os contatos do filtro atual"}
+      />
     </div>
     </TooltipProvider>
   );

@@ -197,6 +197,7 @@ export type Database = {
       campaigns: {
         Row: {
           agendado_para: string | null
+          audience_ids: Json | null
           canceled_at: string | null
           canceled_by: string | null
           canceled_motivo: string | null
@@ -213,12 +214,16 @@ export type Database = {
           janela_inicio: string
           mensagem_template: string
           midia_caption: string | null
+          midia_filename: string | null
+          midia_mime: string | null
+          midia_path: string | null
           midia_url: string | null
           nome: string
           paused_at: string | null
           segment_id: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["campaign_status"]
+          template_id: string | null
           tipo: Database["public"]["Enums"]["campaign_tipo"]
           total_destinatarios: number
           total_entregues: number
@@ -230,6 +235,7 @@ export type Database = {
         }
         Insert: {
           agendado_para?: string | null
+          audience_ids?: Json | null
           canceled_at?: string | null
           canceled_by?: string | null
           canceled_motivo?: string | null
@@ -246,12 +252,16 @@ export type Database = {
           janela_inicio?: string
           mensagem_template: string
           midia_caption?: string | null
+          midia_filename?: string | null
+          midia_mime?: string | null
+          midia_path?: string | null
           midia_url?: string | null
           nome: string
           paused_at?: string | null
           segment_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
+          template_id?: string | null
           tipo?: Database["public"]["Enums"]["campaign_tipo"]
           total_destinatarios?: number
           total_entregues?: number
@@ -263,6 +273,7 @@ export type Database = {
         }
         Update: {
           agendado_para?: string | null
+          audience_ids?: Json | null
           canceled_at?: string | null
           canceled_by?: string | null
           canceled_motivo?: string | null
@@ -279,12 +290,16 @@ export type Database = {
           janela_inicio?: string
           mensagem_template?: string
           midia_caption?: string | null
+          midia_filename?: string | null
+          midia_mime?: string | null
+          midia_path?: string | null
           midia_url?: string | null
           nome?: string
           paused_at?: string | null
           segment_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
+          template_id?: string | null
           tipo?: Database["public"]["Enums"]["campaign_tipo"]
           total_destinatarios?: number
           total_entregues?: number
@@ -307,6 +322,13 @@ export type Database = {
             columns: ["segment_id"]
             isOneToOne: false
             referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
             referencedColumns: ["id"]
           },
         ]
