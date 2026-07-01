@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -367,5 +366,3 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "ok"
   );
 }
 
-// Prevent unused import warnings
-void z;
