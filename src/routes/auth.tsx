@@ -6,7 +6,7 @@ import { Megaphone } from "lucide-react";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Entrar — Central de Mobilização" },
+      { title: "Entrar — Campanha do Povo que Batalha" },
       { name: "description", content: "Acesso ao painel administrativo da campanha." },
     ],
   }),
@@ -51,7 +51,7 @@ function AuthPage() {
       <div className="w-full max-w-sm bg-card border rounded-xl shadow-sm p-6 space-y-5">
         <div className="flex items-center gap-2 text-foreground">
           <Megaphone className="h-5 w-5 text-primary" />
-          <span className="font-semibold">Central de Mobilização</span>
+          <span className="font-semibold">Campanha do Povo que Batalha</span>
         </div>
         <div>
           <h1 className="text-xl font-semibold">

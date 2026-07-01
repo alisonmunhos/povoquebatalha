@@ -6,7 +6,7 @@ import { ShieldCheck, Mail, CheckCircle2 } from "lucide-react";
 export const Route = createFileRoute("/primeiro-acesso")({
   head: () => ({
     meta: [
-      { title: "Primeiro acesso — Central de Mobilização" },
+      { title: "Primeiro acesso — Campanha do Povo que Batalha" },
       { name: "robots", content: "noindex,nofollow" },
     ],
   }),
@@ -83,7 +83,7 @@ function PrimeiroAcessoPage() {
       <div className="w-full max-w-md bg-card border rounded-xl shadow-sm p-6 space-y-5">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5 text-primary" />
-          <span className="font-semibold">Central de Mobilização</span>
+          <span className="font-semibold">Campanha do Povo que Batalha</span>
         </div>
 
         {state.status === "checking" && (

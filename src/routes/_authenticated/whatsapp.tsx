@@ -31,7 +31,7 @@ function WhatsAppPage() {
   });
 
   const [testPhone, setTestPhone] = useState("");
-  const [testMsg, setTestMsg] = useState("Teste de envio da Central de Mobilização.");
+  const [testMsg, setTestMsg] = useState("Teste de envio da Campanha do Povo que Batalha.");
   const [testResult, setTestResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
