@@ -83,7 +83,7 @@ export const duplicateMessageTemplate = createServerFn({ method: "POST" })
       .from("message_templates").insert({
         ...rest,
         // Evita conflito no índice único (event_key WHERE kind='system')
-        event_key: rest.kind === "system" ? null : event_key,
+        event_key: rest.kind === "system" ? null : ((event_key as string | null) ?? null),
         title: `${(rest as { title: string }).title} (cópia)`,
         active: false,
         created_by: context.userId,

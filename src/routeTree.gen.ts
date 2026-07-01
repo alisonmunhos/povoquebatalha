@@ -14,6 +14,7 @@ import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as InscreverRouteImport } from './routes/inscrever'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AtualizacaoRouteImport } from './routes/atualizacao'
 import { Route as AceitarConviteRouteImport } from './routes/aceitar-convite'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -62,6 +63,11 @@ const InscreverRoute = InscreverRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtualizacaoRoute = AtualizacaoRouteImport.update({
+  id: '/atualizacao',
+  path: '/atualizacao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AceitarConviteRoute = AceitarConviteRouteImport.update({
@@ -192,6 +198,7 @@ const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/atualizacao': typeof AtualizacaoRoute
   '/auth': typeof AuthRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/atualizacao': typeof AtualizacaoRoute
   '/auth': typeof AuthRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/aceitar-convite': typeof AceitarConviteRoute
+  '/atualizacao': typeof AtualizacaoRoute
   '/auth': typeof AuthRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/aceitar-convite'
+    | '/atualizacao'
     | '/auth'
     | '/inscrever'
     | '/obrigado'
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/aceitar-convite'
+    | '/atualizacao'
     | '/auth'
     | '/inscrever'
     | '/obrigado'
@@ -347,6 +358,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/aceitar-convite'
+    | '/atualizacao'
     | '/auth'
     | '/inscrever'
     | '/obrigado'
@@ -379,6 +391,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AceitarConviteRoute: typeof AceitarConviteRoute
+  AtualizacaoRoute: typeof AtualizacaoRoute
   AuthRoute: typeof AuthRoute
   InscreverRoute: typeof InscreverRoute
   ObrigadoRoute: typeof ObrigadoRoute
@@ -428,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/atualizacao': {
+      id: '/atualizacao'
+      path: '/atualizacao'
+      fullPath: '/atualizacao'
+      preLoaderRoute: typeof AtualizacaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/aceitar-convite': {
@@ -642,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AceitarConviteRoute: AceitarConviteRoute,
+  AtualizacaoRoute: AtualizacaoRoute,
   AuthRoute: AuthRoute,
   InscreverRoute: InscreverRoute,
   ObrigadoRoute: ObrigadoRoute,
