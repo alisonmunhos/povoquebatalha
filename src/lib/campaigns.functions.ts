@@ -323,7 +323,7 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
         }).eq("id", r.id);
         await context.supabase.from("message_events").insert({
           contact_id: r.contact_id,
-          campaign_id: data.id,
+          recipient_id: r.id,
           tipo: "sent",
           payload: result as never,
         });
