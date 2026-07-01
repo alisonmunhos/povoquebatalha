@@ -422,19 +422,3 @@ function Contatos() {
     </TooltipProvider>
   );
 }
-
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (<div><label className="text-xs text-muted-foreground block mb-1">{label}</label>{children}</div>);
-}
-
-function Select({ value, onChange, options }: { value: string | undefined; onChange: (v: string | undefined) => void; options: readonly string[] }) {
-  return (
-    <div className="flex items-center gap-1">
-      <select value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)} className="flex-1 h-9 rounded-md border bg-background px-2 text-sm">
-        <option value="">— qualquer —</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-      {value && <button onClick={() => onChange(undefined)} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>}
-    </div>
-  );
-}
