@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
 
 const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
 
