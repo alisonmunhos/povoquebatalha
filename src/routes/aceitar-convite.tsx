@@ -6,7 +6,7 @@ import { Megaphone } from "lucide-react";
 export const Route = createFileRoute("/aceitar-convite")({
   ssr: false,
   head: () => ({
-    meta: [{ title: "Aceitar convite — Central de Mobilização" }],
+    meta: [{ title: "Aceitar convite — Campanha do Povo que Batalha" }],
   }),
   component: AceitarConvite,
 });
@@ -70,7 +70,7 @@ function AceitarConvite() {
       <div className="w-full max-w-sm bg-card border rounded-xl shadow-sm p-6 space-y-5">
         <div className="flex items-center gap-2">
           <Megaphone className="h-5 w-5 text-primary" />
-          <span className="font-semibold">Central de Mobilização</span>
+          <span className="font-semibold">Campanha do Povo que Batalha</span>
         </div>
         <div>
           <h1 className="text-xl font-semibold">Aceitar convite</h1>

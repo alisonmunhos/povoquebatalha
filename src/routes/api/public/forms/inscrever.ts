@@ -80,10 +80,26 @@ export const Route = createFileRoute("/api/public/forms/inscrever")({
           lifecycle_status: "recadastro_concluido" as const,
           opt_out_at: null,
         };
+        let savedId: string | null = null;
         if (existing) {
           await supabaseAdmin.from("contacts").update(payload).eq("id", existing.id);
+          savedId = existing.id;
         } else {
-          await supabaseAdmin.from("contacts").insert(payload);
+          const { data: ins } = await supabaseAdmin.from("contacts").insert(payload).select("id").single();
+          savedId = ins?.id ?? null;
+        }
+        if (savedId) {
+          try {
+            const origin = request.headers.get("origin") ||
+              (request.headers.get("host") ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}` : null);
+            const { data: c } = await supabaseAdmin.from("contacts")
+              .select("id,nome,phone_e164,cidade,bairro,recad_token,consentimento_whatsapp,opt_out_at,arquivado_at")
+              .eq("id", savedId).single();
+            if (c) {
+              const { triggerAutomationsForEvent } = await import("@/lib/automations.server");
+              await triggerAutomationsForEvent({ eventKey: "inscricao_concluida", contact: c, origin });
+            }
+          } catch { /* ignore */ }
         }
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       },

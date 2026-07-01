@@ -9,13 +9,20 @@ export const FIELD_KEYS = [
   "nome",
   "phone_raw",
   "email",
+  "profissao",
   "cidade",
   "uf",
   "cep",
   "endereco",
   "numero",
+  "complemento",
   "bairro",
   "observacoes",
+  "tag",
+  "origem_detalhe",
+  "movimento_social",
+  "instituicao",
+  "raw",
 ] as const;
 export type FieldKey = (typeof FIELD_KEYS)[number];
 
@@ -36,16 +43,22 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
   for (const h of headers) {
     const n = normalize(h);
     if (!n) { map[h] = "ignore"; continue; }
-    if (/(nome|name|completo)/.test(n)) map[h] = "nome";
-    else if (/(telefone|celular|phone|whats|fone|tel|numero|mobile)/.test(n)) map[h] = "phone_raw";
+    if (/(nomecompleto|nomesocial|nome|name|contato|pessoa)/.test(n)) map[h] = "nome";
+    else if (/(whatsapp|telefone|celular|phone|whats|fone|^tel$|mobile)/.test(n)) map[h] = "phone_raw";
     else if (/(email|mail|eletronic)/.test(n)) map[h] = "email";
+    else if (/(profissao|ocupacao|cargo|funcao)/.test(n)) map[h] = "profissao";
     else if (/(cidade|municipio|city)/.test(n)) map[h] = "cidade";
-    else if (/(uf|estado|state)/.test(n)) map[h] = "uf";
+    else if (/^(uf|estado|state)$/.test(n)) map[h] = "uf";
     else if (/(cep|zip|postal)/.test(n)) map[h] = "cep";
     else if (/(rua|endereco|logradouro|address|street)/.test(n)) map[h] = "endereco";
-    else if (/^numero$|^num$|^number$/.test(n)) map[h] = "numero";
+    else if (/^(numero|num|number)$/.test(n)) map[h] = "numero";
+    else if (/(complemento|apto|apartamento)/.test(n)) map[h] = "complemento";
     else if (/(bairro|neighborhood|district)/.test(n)) map[h] = "bairro";
-    else if (/(obs|nota|comentario|observ|note)/.test(n)) map[h] = "observacoes";
+    else if (/(observ|obs|comentario|nota|detalhe|informac|historico|anotac|note)/.test(n)) map[h] = "observacoes";
+    else if (/(movimento)/.test(n)) map[h] = "movimento_social";
+    else if (/(instituicao|organizacao|secretaria|orgao|coletivo)/.test(n)) map[h] = "instituicao";
+    else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
+    else if (/(tag|grupo|categoria|segmento|nucleo|setor)/.test(n)) map[h] = "tag";
     else map[h] = "ignore";
   }
   return map;
@@ -82,6 +95,21 @@ type PreviewRow = {
   nome: string | null;
   email: string | null;
   phone: ParsedPhone;
+  extras: {
+    profissao?: string | null;
+    cep?: string | null;
+    endereco?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    uf?: string | null;
+    origem_detalhe?: string | null;
+    movimento_social_nome?: string | null;
+    observacoes?: string[];
+    tags?: string[];
+    raw?: Record<string, string>;
+  };
   dup?: { contact_id: string; nome: string; phone_e164: string | null; match: "forte" | "provavel" | "possivel" };
   problemas: string[];
 };
@@ -171,18 +199,30 @@ export const buildPreview = createServerFn({ method: "POST" })
 
     rows.forEach((raw, idx) => {
       const linha = idx + 2;
-      const get = (key: FieldKey): string | null => {
+      const rawRec = raw as Record<string, unknown>;
+      const getBy = (key: FieldKey): string | null => {
         for (const [col, k] of Object.entries(data.mapping)) {
           if (k === key) {
-            const v = (raw as Record<string, unknown>)[col];
+            const v = rawRec[col];
             return v == null || v === "" ? null : String(v).trim();
           }
         }
         return null;
       };
-      const nome = get("nome");
-      const email = get("email")?.toLowerCase() ?? null;
-      const phoneRaw = get("phone_raw");
+      const getAll = (key: FieldKey): Array<{ col: string; value: string }> => {
+        const out: Array<{ col: string; value: string }> = [];
+        for (const [col, k] of Object.entries(data.mapping)) {
+          if (k === key) {
+            const v = rawRec[col];
+            const s = v == null ? "" : String(v).trim();
+            if (s) out.push({ col, value: s });
+          }
+        }
+        return out;
+      };
+      const nome = getBy("nome");
+      const email = getBy("email")?.toLowerCase() ?? null;
+      const phoneRaw = getBy("phone_raw");
       const phone = parsePhoneBR(phoneRaw, data.defaultDdd ?? null);
       const problemas: string[] = [];
       if (!nome || nome.length < 2) problemas.push("Nome ausente");
@@ -194,7 +234,45 @@ export const buildPreview = createServerFn({ method: "POST" })
       if (phone.phone_last8) last8List.push(phone.phone_last8);
       if (email) emailList.push(email);
 
-      preview.push({ linha, nome, email, phone, problemas });
+      // Extras
+      const observacoes: string[] = [];
+      for (const o of getAll("observacoes")) observacoes.push(`${o.col}: ${o.value}`);
+      const inst = getBy("instituicao"); if (inst) observacoes.push(`Instituição: ${inst}`);
+      const tags: string[] = [];
+      for (const t of getAll("tag")) {
+        // permitir múltiplos valores separados por vírgula/;
+        for (const piece of t.value.split(/[,;|]/)) {
+          const s = piece.trim();
+          if (s) tags.push(s);
+        }
+      }
+      const rawExtras: Record<string, string> = {};
+      for (const [col, k] of Object.entries(data.mapping)) {
+        if (k === "raw") {
+          const v = rawRec[col];
+          const s = v == null ? "" : String(v).trim();
+          if (s) rawExtras[col] = s;
+        }
+      }
+
+      preview.push({
+        linha, nome, email, phone, problemas,
+        extras: {
+          profissao: getBy("profissao"),
+          cep: getBy("cep"),
+          endereco: getBy("endereco"),
+          numero: getBy("numero"),
+          complemento: getBy("complemento"),
+          bairro: getBy("bairro"),
+          cidade: getBy("cidade"),
+          uf: (getBy("uf") ?? "").toUpperCase().slice(0, 2) || null,
+          origem_detalhe: getBy("origem_detalhe"),
+          movimento_social_nome: getBy("movimento_social"),
+          observacoes,
+          tags,
+          raw: Object.keys(rawExtras).length ? rawExtras : undefined,
+        },
+      });
     });
 
     // Bulk dedup query
@@ -334,10 +412,25 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         const dup = p.dup;
+        const ex = p.extras ?? {};
+        const obsText = (ex.observacoes ?? []).join("\n") || null;
+        const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
           nome: p.nome,
           phone_raw: p.phone.phone_original,
           email: p.email,
+          profissao: ex.profissao ?? null,
+          cep: ex.cep ?? null,
+          endereco: ex.endereco ?? null,
+          numero: ex.numero ?? null,
+          complemento: ex.complemento ?? null,
+          bairro: ex.bairro ?? null,
+          cidade: ex.cidade ?? null,
+          uf: ex.uf ?? null,
+          origem_detalhe: ex.origem_detalhe ?? null,
+          participa_movimento_social: ex.movimento_social_nome ? true : null,
+          movimento_social_nome: ex.movimento_social_nome ?? null,
+          observacoes: obsText,
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
           tipo: data.tipo,
@@ -357,6 +450,27 @@ export const commitImport = createServerFn({ method: "POST" })
               : "importado_aguardando_recadastro",
           created_by: context.userId,
         };
+        if (rawJson) {
+          // guarda na coluna extras se existir, senão anexa nas observações
+          payload.observacoes = [obsText, `Dados brutos: ${JSON.stringify(rawJson)}`].filter(Boolean).join("\n");
+        }
+
+        async function applyTagsTo(contactId: string) {
+          const tags = ex.tags ?? [];
+          for (const tagName of tags) {
+            if (!tagName || tagName.length > 60) continue;
+            // busca ou cria tag
+            const { data: existingTag } = await sb.from("tags").select("id").eq("nome", tagName).maybeSingle();
+            let tagId = existingTag?.id as string | undefined;
+            if (!tagId) {
+              const { data: newTag } = await sb.from("tags").insert({ nome: tagName, cor: "#64748b" }).select("id").maybeSingle();
+              tagId = newTag?.id as string | undefined;
+            }
+            if (tagId) {
+              await sb.from("contact_tags").insert({ contact_id: contactId, tag_id: tagId }).select().maybeSingle();
+            }
+          }
+        }
 
         if (dup && dup.match === "forte") {
           const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
@@ -368,7 +482,22 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("nome", p.nome);
             fillIfEmpty("email", p.email);
             fillIfEmpty("phone_raw", p.phone.phone_original);
+            fillIfEmpty("profissao", ex.profissao ?? null);
+            fillIfEmpty("cep", ex.cep ?? null);
+            fillIfEmpty("endereco", ex.endereco ?? null);
+            fillIfEmpty("numero", ex.numero ?? null);
+            fillIfEmpty("complemento", ex.complemento ?? null);
+            fillIfEmpty("bairro", ex.bairro ?? null);
+            fillIfEmpty("cidade", ex.cidade ?? null);
+            fillIfEmpty("uf", ex.uf ?? null);
+            fillIfEmpty("origem_detalhe", ex.origem_detalhe ?? null);
+            fillIfEmpty("movimento_social_nome", ex.movimento_social_nome ?? null);
+            if (obsText) {
+              const cur = (existing as Record<string, unknown>).observacoes as string | null;
+              merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
+            }
             await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
+            await applyTagsTo(dup.contact_id);
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
@@ -393,6 +522,7 @@ export const commitImport = createServerFn({ method: "POST" })
           duplicados++;
         }
 
+        await applyTagsTo(ins.id);
         await sb.from("import_rows").update({ status: "criado", contact_id: ins.id }).eq("id", row.id);
         criados++;
       }

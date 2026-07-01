@@ -2,12 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 const FORMAS_AJUDA_VALIDAS = [
+  // legado (compatibilidade)
   "panfletagem",
+  // atuais
+  "panfletagem_banquinha",
   "compartilhar_whatsapp",
   "compartilhar_redes",
   "participar_eventos",
   "ajudar_organizacao",
   "mobilizar_bairro",
+  "adesivar_carro",
+  "plaquinha_casa",
+  "receber_panfletos",
   "outro",
 ] as const;
 
@@ -27,9 +33,10 @@ const schema = z.object({
   como_conheceu: z.string().trim().max(240).optional().or(z.literal("")),
   profissao: z.string().trim().max(120).optional().or(z.literal("")),
   coletivo_alicerce: z.boolean().optional(),
-  formas_ajuda: z.array(z.enum(FORMAS_AJUDA_VALIDAS)).max(10).optional(),
+  participa_movimento_social: z.boolean().optional(),
+  movimento_social_nome: z.string().trim().max(160).optional().or(z.literal("")),
+  formas_ajuda: z.array(z.enum(FORMAS_AJUDA_VALIDAS)).max(15).optional(),
   formas_ajuda_outro: z.string().trim().max(240).optional().or(z.literal("")),
-  quer_voluntariar: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(80).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
   consentimento_whatsapp: z.literal(true, {
@@ -48,6 +55,14 @@ function isRateLimited(ip: string, limit = 5, windowMs = 60_000) {
   }
   entry.count += 1;
   return entry.count > limit;
+}
+
+function getOrigin(request: Request): string | null {
+  const origin = request.headers.get("origin");
+  if (origin) return origin;
+  const host = request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : null;
 }
 
 export const Route = createFileRoute("/api/public/forms/recadastro")({
@@ -89,7 +104,6 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           return new Response(JSON.stringify({ ok: false, error: "Telefone inválido" }), { status: 400, headers: cors });
         }
 
-        // Resolve target: token → phone → email
         let target: { id: string; phone_e164: string | null } | null = null;
         if (d.recad_token) {
           const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("recad_token", d.recad_token).maybeSingle();
@@ -127,8 +141,9 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           como_conheceu: d.como_conheceu || null,
           profissao: d.profissao || null,
           coletivo_alicerce: d.coletivo_alicerce ?? null,
+          participa_movimento_social: d.participa_movimento_social ?? null,
+          movimento_social_nome: d.movimento_social_nome || null,
           formas_ajuda: formasAjuda,
-          quer_voluntariar: d.quer_voluntariar ?? null,
           consentimento_whatsapp: true,
           consentimento_at: new Date().toISOString(),
           origem: "recadastro" as const,
@@ -147,7 +162,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
                 contact_a: newRow.id,
                 contact_b: target.id,
                 match_type: "provavel",
-                reason: "Recadastro com telefone diferente do registrado",
+                reason: "Atualização com telefone diferente do registrado",
               });
               await supabaseAdmin.from("contacts").update({ lifecycle_status: "precisa_revisao" }).eq("id", newRow.id);
             }
@@ -160,7 +175,6 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           savedId = newRow?.id ?? null;
         }
 
-        // Best-effort geocoding
         if (savedId && (d.cidade || d.cep)) {
           try {
             const { geocodeAddress } = await import("@/lib/cep.server");
@@ -180,6 +194,24 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
             }
           } catch { /* ignore */ }
         }
+
+        // Dispara automações (se houver)
+        if (savedId) {
+          try {
+            const { data: c } = await supabaseAdmin.from("contacts")
+              .select("id,nome,phone_e164,cidade,bairro,recad_token,consentimento_whatsapp,opt_out_at,arquivado_at")
+              .eq("id", savedId).single();
+            if (c) {
+              const { triggerAutomationsForEvent } = await import("@/lib/automations.server");
+              await triggerAutomationsForEvent({
+                eventKey: "atualizacao_apoiador_concluida",
+                contact: c,
+                origin: getOrigin(request),
+              });
+            }
+          } catch { /* ignore */ }
+        }
+
         return new Response(JSON.stringify({ ok: true }), { headers: cors });
       },
     },

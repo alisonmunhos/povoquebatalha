@@ -30,15 +30,22 @@ export const Route = createFileRoute("/_authenticated/importar")({
 const FIELD_LABELS: Record<FieldKey, string> = {
   ignore: "— Ignorar —",
   nome: "Nome",
-  phone_raw: "Telefone",
+  phone_raw: "Telefone / WhatsApp",
   email: "E-mail",
+  profissao: "Profissão / Ocupação",
   cidade: "Cidade",
   uf: "UF",
   cep: "CEP",
-  endereco: "Endereço",
+  endereco: "Rua / Endereço",
   numero: "Número",
+  complemento: "Complemento",
   bairro: "Bairro",
-  observacoes: "Observações",
+  observacoes: "Observação interna",
+  tag: "Criar tag",
+  origem_detalhe: "Origem da importação",
+  movimento_social: "Movimento social",
+  instituicao: "Instituição / Organização",
+  raw: "Guardar como dado bruto",
 };
 
 const ENCODING_LABELS: Record<EncodingOption, string> = {

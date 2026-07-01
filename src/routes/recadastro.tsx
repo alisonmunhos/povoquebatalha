@@ -11,10 +11,10 @@ export const Route = createFileRoute("/recadastro")({
   }),
   head: () => ({
     meta: [
-      { title: "Recadastro de Apoiadores" },
-      { name: "description", content: "Atualize seus dados para continuar recebendo notícias e participar das ações da campanha." },
-      { property: "og:title", content: "Recadastro de Apoiadores" },
-      { property: "og:description", content: "Confirme seu cadastro e receba informações da campanha pelo WhatsApp." },
+      { title: "Atualização de Apoiadores" },
+      { name: "description", content: "Atualize seus dados para continuar recebendo comunicados da Campanha do Povo que Batalha." },
+      { property: "og:title", content: "Atualização de Apoiadores" },
+      { property: "og:description", content: "Confirme seus dados e receba comunicados pelo WhatsApp." },
     ],
   }),
   ssr: false,
@@ -22,16 +22,19 @@ export const Route = createFileRoute("/recadastro")({
 });
 
 const FORMAS_AJUDA_OPTS: Array<{ value: string; label: string }> = [
-  { value: "panfletagem", label: "Panfletagem" },
+  { value: "panfletagem_banquinha", label: "Panfletagem / Banquinha" },
   { value: "compartilhar_whatsapp", label: "Compartilhar material no WhatsApp" },
   { value: "compartilhar_redes", label: "Compartilhar nas redes sociais" },
   { value: "participar_eventos", label: "Participar de eventos" },
   { value: "ajudar_organizacao", label: "Ajudar na organização" },
   { value: "mobilizar_bairro", label: "Mobilizar pessoas do bairro" },
+  { value: "adesivar_carro", label: "Quero adesivar meu carro" },
+  { value: "plaquinha_casa", label: "Quero colocar uma plaquinha na frente de casa" },
+  { value: "receber_panfletos", label: "Receber panfletos e adesivos" },
   { value: "outro", label: "Outro" },
 ];
 
-function Recadastro() {
+export function Recadastro() {
   const navigate = useNavigate();
   const { origem, t } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +46,7 @@ function Recadastro() {
   const [uf, setUf] = useState("");
   const [formasAjuda, setFormasAjuda] = useState<string[]>([]);
   const [coletivoAlicerce, setColetivoAlicerce] = useState<"sim" | "nao" | "">("");
+  const [movSocial, setMovSocial] = useState<"sim" | "nao" | "">("");
   const cepHook = useCepLookup();
   const numeroRef = useRef<HTMLInputElement>(null);
 
@@ -86,9 +90,10 @@ function Recadastro() {
       como_conheceu: String(fd.get("como_conheceu") ?? ""),
       profissao: String(fd.get("profissao") ?? ""),
       coletivo_alicerce: coletivoAlicerce === "sim" ? true : coletivoAlicerce === "nao" ? false : undefined,
+      participa_movimento_social: movSocial === "sim" ? true : movSocial === "nao" ? false : undefined,
+      movimento_social_nome: movSocial === "sim" ? String(fd.get("movimento_social_nome") ?? "") : "",
       formas_ajuda: formasAjuda,
       formas_ajuda_outro: String(fd.get("formas_ajuda_outro") ?? ""),
-      quer_voluntariar: fd.get("quer_voluntariar") === "on",
       consentimento_whatsapp: fd.get("consentimento_whatsapp") === "on",
       origem_detalhe: origem ?? "",
       recad_token: t ?? "",
@@ -117,15 +122,15 @@ function Recadastro() {
         <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary" />
-            <span className="font-semibold">Central de Mobilização</span>
+            <span className="font-semibold">Campanha do Povo que Batalha</span>
           </Link>
         </div>
       </header>
       <main className="max-w-2xl mx-auto px-6 py-10">
-        <h1 className="text-3xl font-bold tracking-tight">Recadastro de Apoiadores</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Atualização de Apoiadores</h1>
         <p className="mt-2 text-muted-foreground">
-          Atualize seus dados para continuar recebendo notícias e participar das ações da campanha.
-          Seus dados são armazenados de forma segura.
+          Atualize seus dados para continuar recebendo comunicados e participar das ações da campanha.
+          Suas informações são armazenadas de forma segura.
         </p>
         {t && (
           <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
@@ -136,7 +141,6 @@ function Recadastro() {
         <form onSubmit={onSubmit} className="mt-8 space-y-8 bg-card border rounded-xl p-6">
           <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
 
-          {/* Seção 1: Dados pessoais */}
           <section className="space-y-5">
             <h2 className="text-lg font-semibold border-b pb-2">Dados pessoais</h2>
             <Field label="Nome completo *" name="nome" required maxLength={120} />
@@ -146,7 +150,6 @@ function Recadastro() {
             <Field label="Profissão / ocupação" name="profissao" maxLength={120} />
           </section>
 
-          {/* Seção 2: Endereço */}
           <section className="space-y-5">
             <h2 className="text-lg font-semibold border-b pb-2">Endereço</h2>
             <div className="grid grid-cols-2 gap-4 items-end">
@@ -179,7 +182,6 @@ function Recadastro() {
             <Field label="Ponto de referência" name="referencia" maxLength={240} placeholder="Próximo a..." />
           </section>
 
-          {/* Seção 3: Participação na campanha */}
           <section className="space-y-5">
             <h2 className="text-lg font-semibold border-b pb-2">Participação na campanha</h2>
             <p className="text-sm text-muted-foreground">
@@ -199,6 +201,25 @@ function Recadastro() {
                   Não
                 </label>
               </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Participa de algum movimento social?</label>
+              <div className="mt-2 flex gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="mov_social" checked={movSocial === "sim"} onChange={() => setMovSocial("sim")} />
+                  Sim
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="mov_social" checked={movSocial === "nao"} onChange={() => setMovSocial("nao")} />
+                  Não
+                </label>
+              </div>
+              {movSocial === "sim" && (
+                <div className="mt-3">
+                  <Field label="Qual movimento social?" name="movimento_social_nome" maxLength={160} />
+                </div>
+              )}
             </div>
 
             <div>
@@ -223,14 +244,8 @@ function Recadastro() {
                 </div>
               )}
             </div>
-
-            <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" name="quer_voluntariar" className="mt-1 h-4 w-4" />
-              <span>Quero ser voluntário(a) e ajudar nas ações.</span>
-            </label>
           </section>
 
-          {/* Seção 4: Consentimento */}
           <section className="space-y-3">
             <h2 className="text-lg font-semibold border-b pb-2">Consentimento</h2>
             <label className="flex items-start gap-3 text-sm">
@@ -243,7 +258,7 @@ function Recadastro() {
 
           <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
-            {submitting ? "Enviando…" : "Confirmar recadastro"}
+            {submitting ? "Enviando…" : "Confirmar atualização"}
           </button>
         </form>
       </main>

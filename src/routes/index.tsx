@@ -7,13 +7,13 @@ import { Link } from "@tanstack/react-router";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Central de Mobilização" },
+      { title: "Campanha do Povo que Batalha" },
       {
         name: "description",
         content:
           "Plataforma para recadastrar apoiadores, organizar contatos e disparar campanhas de WhatsApp em massa com controle.",
       },
-      { property: "og:title", content: "Central de Mobilização da Campanha" },
+      { property: "og:title", content: "Campanha do Povo que Batalha da Campanha" },
       {
         property: "og:description",
         content: "Recadastro de apoiadores, CRM, segmentação e campanhas de WhatsApp.",
@@ -37,7 +37,7 @@ function Landing() {
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary" />
-            <span className="font-semibold">Central de Mobilização</span>
+            <span className="font-semibold">Campanha do Povo que Batalha</span>
           </div>
           <Link
             to="/auth"

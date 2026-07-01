@@ -5,7 +5,7 @@ import { listUsers, inviteUser, deleteUser, setUserRole } from "@/lib/users.func
 import { UserPlus, Trash2, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
-  head: () => ({ meta: [{ title: "Usuários — Central de Mobilização" }] }),
+  head: () => ({ meta: [{ title: "Usuários — Campanha do Povo que Batalha" }] }),
   component: UsuariosPage,
 });
 

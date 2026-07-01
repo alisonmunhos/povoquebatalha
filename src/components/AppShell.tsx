@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouter } from "@tanstack/react-router";
-import { LayoutDashboard, Users, MessageCircle, Upload, Tags, Filter, Send, Calendar, LogOut, Megaphone, ShieldCheck, Link as LinkIcon, Copy, MapPin } from "lucide-react";
+import { LayoutDashboard, Users, MessageCircle, Upload, Tags, Filter, Send, Calendar, LogOut, Megaphone, ShieldCheck, Link as LinkIcon, Copy, MapPin, MessageSquareText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -12,6 +12,7 @@ const nav = [
   { to: "/links", label: "Links Públicos", icon: LinkIcon },
   { to: "/tags", label: "Tags", icon: Tags },
   { to: "/segmentos", label: "Segmentos", icon: Filter },
+  { to: "/mensagens", label: "Mensagens", icon: MessageSquareText },
   { to: "/campanhas", label: "Campanhas", icon: Send },
   { to: "/calendario", label: "Calendário", icon: Calendar },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
@@ -34,9 +35,9 @@ export function AppShell() {
         <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
           <Megaphone className="h-5 w-5 text-sidebar-primary" />
           <div className="font-semibold text-sm leading-tight">
-            Central de
+            Campanha do Povo
             <br />
-            Mobilização
+            que Batalha
           </div>
         </div>
         <nav className="flex-1 p-2 space-y-1">

@@ -7,7 +7,7 @@ export const Route = createFileRoute("/obrigado")({
   head: () => ({
     meta: [
       { title: "Obrigado!" },
-      { name: "description", content: "Cadastro recebido com sucesso." },
+      { name: "description", content: "Atualização recebida com sucesso." },
     ],
   }),
   ssr: false,
@@ -22,7 +22,7 @@ function Obrigado() {
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center">
           <Link to="/" className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary" />
-            <span className="font-semibold">Central de Mobilização</span>
+            <span className="font-semibold">Campanha do Povo que Batalha</span>
           </Link>
         </div>
       </header>
@@ -32,7 +32,7 @@ function Obrigado() {
           <h1 className="mt-4 text-2xl font-bold">Tudo certo!</h1>
           <p className="mt-2 text-muted-foreground">
             {origem === "recadastro"
-              ? "Seu recadastro foi registrado. Em breve você receberá uma mensagem de confirmação no WhatsApp."
+              ? "Sua atualização foi concluída. Em breve você receberá uma mensagem de confirmação no WhatsApp."
               : "Sua inscrição foi confirmada. Em breve você começará a receber novidades pelo WhatsApp."}
           </p>
           <p className="mt-6 text-xs text-muted-foreground">
