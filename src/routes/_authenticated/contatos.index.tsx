@@ -63,6 +63,7 @@ function Contatos() {
   const [bulkTagId, setBulkTagId] = useState<string>("");
   const [bulkLifecycle, setBulkLifecycle] = useState<string>("");
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
+  const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
 
   const tagsQ = useQuery({ queryKey: ["tags-all"], queryFn: () => tagsFn() });
 
