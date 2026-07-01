@@ -102,6 +102,26 @@ export const idsByFilter = createServerFn({ method: "POST" })
       if (!ids.length) return { ids: [] as string[] };
       q = q.in("id", ids);
     }
+    async function idsForCampaign(campaignId: string, statuses?: string[]) {
+      let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
+      if (statuses?.length) qr = qr.in("status", statuses as never[]);
+      const { data: r } = await qr.limit(20000);
+      return Array.from(new Set((r ?? []).map((x) => x.contact_id)));
+    }
+    if (data.filters.recebeu_campanha_id) {
+      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent","delivered","read"]);
+      if (!ids.length) return { ids: [] as string[] };
+      q = q.in("id", ids);
+    }
+    if (data.filters.nao_recebeu_campanha_id) {
+      const ids = await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent","delivered","read"]);
+      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+    }
+    if (data.filters.erro_campanha_id) {
+      const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
+      if (!ids.length) return { ids: [] as string[] };
+      q = q.in("id", ids);
+    }
     const { data: rows, error } = await q;
     if (error) throw error;
     return { ids: (rows ?? []).map((r) => r.id) };
