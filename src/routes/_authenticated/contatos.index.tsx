@@ -286,14 +286,13 @@ function Contatos() {
               <span className="text-xs uppercase tracking-wide opacity-70">Exportar</span>
               <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
               <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0}>
-                    <Button size="sm" variant="secondary" disabled><Send className="h-3 w-3 mr-1" /> Preparar campanha</Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Disponível na próxima etapa: campanhas de WhatsApp.</TooltipContent>
-              </Tooltip>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setSendDlg({ open: true, mode: "selection" })}
+              >
+                <Send className="h-3 w-3 mr-1" /> Enviar WhatsApp
+              </Button>
             </div>
           </div>
         </div>
