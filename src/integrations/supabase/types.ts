@@ -14,6 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_deliveries: {
+        Row: {
+          automation_id: string
+          contact_id: string
+          created_at: string
+          error: string | null
+          id: string
+          rendered_body: string | null
+          sent_at: string | null
+          status: string
+          template_id: string | null
+          zapi_message_id: string | null
+        }
+        Insert: {
+          automation_id: string
+          contact_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          rendered_body?: string | null
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          zapi_message_id?: string | null
+        }
+        Update: {
+          automation_id?: string
+          contact_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          rendered_body?: string | null
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          zapi_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_deliveries_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_deliveries_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_deliveries_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automations: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          delay_seconds: number
+          event_key: string
+          id: string
+          notes: string | null
+          require_consent: boolean
+          template_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          delay_seconds?: number
+          event_key: string
+          id?: string
+          notes?: string | null
+          require_consent?: boolean
+          template_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          delay_seconds?: number
+          event_key?: string
+          id?: string
+          notes?: string | null
+          require_consent?: boolean
+          template_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automations_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_recipients: {
         Row: {
           campaign_id: string
@@ -399,6 +510,7 @@ export type Database = {
             | null
           lng: number | null
           longitude: number | null
+          movimento_social_nome: string | null
           nome: string
           nome_normalizado: string | null
           nome_social: string | null
@@ -409,6 +521,7 @@ export type Database = {
           opt_out_token: string
           origem: Database["public"]["Enums"]["contact_origem"]
           origem_detalhe: string | null
+          participa_movimento_social: boolean | null
           phone_ddd: string | null
           phone_ddi: string | null
           phone_digits: string | null
@@ -462,6 +575,7 @@ export type Database = {
             | null
           lng?: number | null
           longitude?: number | null
+          movimento_social_nome?: string | null
           nome: string
           nome_normalizado?: string | null
           nome_social?: string | null
@@ -472,6 +586,7 @@ export type Database = {
           opt_out_token?: string
           origem?: Database["public"]["Enums"]["contact_origem"]
           origem_detalhe?: string | null
+          participa_movimento_social?: boolean | null
           phone_ddd?: string | null
           phone_ddi?: string | null
           phone_digits?: string | null
@@ -527,6 +642,7 @@ export type Database = {
             | null
           lng?: number | null
           longitude?: number | null
+          movimento_social_nome?: string | null
           nome?: string
           nome_normalizado?: string | null
           nome_social?: string | null
@@ -537,6 +653,7 @@ export type Database = {
           opt_out_token?: string
           origem?: Database["public"]["Enums"]["contact_origem"]
           origem_detalhe?: string | null
+          participa_movimento_social?: boolean | null
           phone_ddd?: string | null
           phone_ddi?: string | null
           phone_digits?: string | null
@@ -829,6 +946,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      message_templates: {
+        Row: {
+          active: boolean
+          archived_at: string | null
+          body: string
+          category: string | null
+          created_at: string
+          created_by: string | null
+          event_key: string | null
+          id: string
+          kind: string
+          link: string | null
+          media_url: string | null
+          shortcut: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+          variables: Json
+        }
+        Insert: {
+          active?: boolean
+          archived_at?: string | null
+          body: string
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_key?: string | null
+          id?: string
+          kind: string
+          link?: string | null
+          media_url?: string | null
+          shortcut?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+        }
+        Update: {
+          active?: boolean
+          archived_at?: string | null
+          body?: string
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_key?: string | null
+          id?: string
+          kind?: string
+          link?: string | null
+          media_url?: string | null
+          shortcut?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
