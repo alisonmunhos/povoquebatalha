@@ -58,6 +58,25 @@ export const listContactsRich = createServerFn({ method: "POST" })
       if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
       q = q.in("id", ids);
     }
+    // Histórico por mensagem salva (automation_deliveries)
+    async function idsForTemplate(templateId: string) {
+      const { data: r } = await context.supabase
+        .from("automation_deliveries")
+        .select("contact_id")
+        .eq("template_id", templateId)
+        .eq("status", "sent")
+        .limit(20000);
+      return Array.from(new Set((r ?? []).map((x) => x.contact_id as string)));
+    }
+    if (data.filters.recebeu_template_id) {
+      const ids = await idsForTemplate(data.filters.recebeu_template_id);
+      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
+      q = q.in("id", ids);
+    }
+    if (data.filters.nao_recebeu_template_id) {
+      const ids = await idsForTemplate(data.filters.nao_recebeu_template_id);
+      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+    }
 
     const { data: rows, count, error } = await q;
     if (error) throw error;
@@ -121,6 +140,24 @@ export const idsByFilter = createServerFn({ method: "POST" })
       const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
       if (!ids.length) return { ids: [] as string[] };
       q = q.in("id", ids);
+    }
+    async function idsForTemplate(templateId: string) {
+      const { data: r } = await context.supabase
+        .from("automation_deliveries")
+        .select("contact_id")
+        .eq("template_id", templateId)
+        .eq("status", "sent")
+        .limit(20000);
+      return Array.from(new Set((r ?? []).map((x) => x.contact_id as string)));
+    }
+    if (data.filters.recebeu_template_id) {
+      const ids = await idsForTemplate(data.filters.recebeu_template_id);
+      if (!ids.length) return { ids: [] as string[] };
+      q = q.in("id", ids);
+    }
+    if (data.filters.nao_recebeu_template_id) {
+      const ids = await idsForTemplate(data.filters.nao_recebeu_template_id);
+      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
     }
     const { data: rows, error } = await q;
     if (error) throw error;

@@ -4,11 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
-import { listTagsWithUsage } from "@/lib/tags.functions";
+import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact } from "@/lib/contacts.functions";
 import { formatPhoneBR } from "@/lib/phone";
-import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, X, Save, Info, Send } from "lucide-react";
+import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
+import { ContactFiltersPanel, type FilterOptionsBundle } from "@/components/ContactFiltersPanel";
+import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
+import type { CrmFilters } from "@/lib/crm-filters";
 
 const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
 
@@ -27,24 +30,12 @@ export const Route = createFileRoute("/_authenticated/contatos/")({
 });
 
 const LIFECYCLE = ["importado_aguardando_recadastro","link_enviado","recadastro_iniciado","recadastro_concluido","nao_respondeu","telefone_invalido","precisa_revisao","duplicado_possivel","duplicado_mesclado","nao_enviar"] as const;
-const PHONE_STATUS = ["valido","precisa_revisao","invalido","sem_ddd","sem_nono_digito","duplicado_possivel"] as const;
-const WPP_STATUS = ["desconhecido","confirmado","invalido","erro_envio","opt_out"] as const;
-const TIPO_CONTATO = ["apoiador","voluntario","lista_divulgacao","importado","outro"] as const;
-const ORIGEM = ["recadastro","inscricao","import","manual"] as const;
-
-type Filters = {
-  search?: string; cidade?: string; bairro?: string; uf?: string; profissao?: string;
-  coletivo_alicerce?: boolean; tipo_contato?: string;
-  consent?: "sim" | "nao"; optOut?: "sim" | "nao"; archived?: "nao" | "sim" | "todos";
-  phone_status?: string; whatsapp_status?: string; lifecycle_status?: string;
-  origem?: string; origem_detalhe?: string; tag_ids?: string[];
-};
 
 function Contatos() {
   const search = Route.useSearch();
   const listFn = useServerFn(listContactsRich);
   const idsFn = useServerFn(idsByFilter);
-  const tagsFn = useServerFn(listTagsWithUsage);
+  const optionsFn = useServerFn(getContactFilterOptions);
   const segFn = useServerFn(listSegments);
   const saveSegFn = useServerFn(upsertSegment);
   const tagBulkFn = useServerFn(bulkApplyTag);
@@ -55,7 +46,8 @@ function Contatos() {
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
 
-  const [filters, setFilters] = useState<Filters>({ archived: "nao" });
+  const [filters, setFilters] = useState<CrmFilters>({ archived: "nao" });
+  const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const [showFilters, setShowFilters] = useState(false);
@@ -65,14 +57,35 @@ function Contatos() {
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
   const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
 
-  const tagsQ = useQuery({ queryKey: ["tags-all"], queryFn: () => tagsFn() });
+  // Opções dinâmicas dos filtros (com cache longo)
+  const optionsQ = useQuery({
+    queryKey: ["contact-filter-options"],
+    queryFn: () => optionsFn(),
+    staleTime: 5 * 60_000,
+  });
+  const filterOptions = optionsQ.data as unknown as FilterOptionsBundle | undefined;
+
+  // Debounce da busca geral
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFilters((f) => {
+        const s = searchInput.trim();
+        const next = { ...f };
+        if (s) next.search = s;
+        else delete next.search;
+        return next;
+      });
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   // Aplica segmento via querystring
   useEffect(() => {
     if (!search.segment) return;
     segFn().then((r) => {
       const s = r.rows.find((x) => x.id === search.segment);
-      if (s?.tipo === "dinamico") setFilters((s.filtro as Filters) ?? { archived: "nao" });
+      if (s?.tipo === "dinamico") setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.segment]);
@@ -152,7 +165,18 @@ function Contatos() {
     setSaveDlg({ open: false, nome: "", descricao: "", tipo: "dinamico" });
   }
 
-  function setF<K extends keyof Filters>(k: K, v: Filters[K]) { setFilters((f) => ({ ...f, [k]: v })); setPage(1); }
+  function clearAllFilters() {
+    setFilters({ archived: "nao" });
+    setSearchInput("");
+    setPage(1);
+  }
+
+  const activeCount =
+    Object.entries(filters).filter(([k, v]) => {
+      if (k === "archived") return v && v !== "nao";
+      if (Array.isArray(v)) return v.length > 0;
+      return v !== undefined && v !== null && v !== "";
+    }).length;
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -167,67 +191,44 @@ function Contatos() {
 
       <p className="text-xs text-muted-foreground flex items-center gap-1.5">
         <Info className="h-3.5 w-3.5" />
-        Use os checkboxes para selecionar contatos e aplicar tags, status ou ações em massa.
+        Use os filtros para encontrar um público. Depois você pode salvar como segmento ou enviar WhatsApp para todos os contatos filtrados aptos.
       </p>
 
-      {/* Busca + toggle filtros */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Busca + toggle filtros + ações principais */}
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[260px] max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input value={filters.search ?? ""} onChange={(e) => setF("search", e.target.value)}
-            placeholder="Buscar por nome, telefone ou e-mail…"
-            className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm" />
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Buscar em nome, telefone, e-mail, profissão, observações, bairro, cidade, origem, movimento…"
+            className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm"
+          />
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}><Filter className="h-4 w-4 mr-1" /> Filtros</Button>
+        <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}>
+          <Filter className="h-4 w-4 mr-1" /> Filtros{activeCount > 0 && ` (${activeCount})`}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => doExport("filtrados")}><Download className="h-4 w-4 mr-1" /> Exportar filtrados</Button>
         <Button variant="outline" size="sm" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "dinamico" })}><Save className="h-4 w-4 mr-1" /> Salvar como segmento</Button>
         <Button size="sm" onClick={() => setSendDlg({ open: true, mode: "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
       </div>
 
-      {showFilters && (
-        <div className="border rounded-xl p-4 bg-card grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          <FilterField label="Cidade"><Input value={filters.cidade ?? ""} onChange={(e) => setF("cidade", e.target.value)} /></FilterField>
-          <FilterField label="Bairro"><Input value={filters.bairro ?? ""} onChange={(e) => setF("bairro", e.target.value)} /></FilterField>
-          <FilterField label="UF"><Input maxLength={2} value={filters.uf ?? ""} onChange={(e) => setF("uf", e.target.value.toUpperCase())} /></FilterField>
-          <FilterField label="Profissão"><Input value={filters.profissao ?? ""} onChange={(e) => setF("profissao", e.target.value)} /></FilterField>
-          <FilterField label="Tipo de contato">
-            <Select value={filters.tipo_contato} onChange={(v) => setF("tipo_contato", v)} options={TIPO_CONTATO} />
-          </FilterField>
-          <FilterField label="Lifecycle">
-            <Select value={filters.lifecycle_status} onChange={(v) => setF("lifecycle_status", v)} options={LIFECYCLE} />
-          </FilterField>
-          <FilterField label="Status telefone">
-            <Select value={filters.phone_status} onChange={(v) => setF("phone_status", v)} options={PHONE_STATUS} />
-          </FilterField>
-          <FilterField label="Status WhatsApp">
-            <Select value={filters.whatsapp_status} onChange={(v) => setF("whatsapp_status", v)} options={WPP_STATUS} />
-          </FilterField>
-          <FilterField label="Origem">
-            <Select value={filters.origem} onChange={(v) => setF("origem", v)} options={ORIGEM} />
-          </FilterField>
-          <FilterField label="Origem detalhe"><Input value={filters.origem_detalhe ?? ""} onChange={(e) => setF("origem_detalhe", e.target.value)} /></FilterField>
-          <FilterField label="Consentimento">
-            <Select value={filters.consent} onChange={(v) => setF("consent", v as "sim" | "nao" | undefined)} options={["sim","nao"]} />
-          </FilterField>
-          <FilterField label="Opt-out">
-            <Select value={filters.optOut} onChange={(v) => setF("optOut", v as "sim" | "nao" | undefined)} options={["sim","nao"]} />
-          </FilterField>
-          <FilterField label="Arquivados">
-            <Select value={filters.archived} onChange={(v) => setF("archived", (v as "sim"|"nao"|"todos") ?? "nao")} options={["nao","sim","todos"]} />
-          </FilterField>
-          <FilterField label="Coletivo Alicerce">
-            <Select value={filters.coletivo_alicerce === undefined ? "" : filters.coletivo_alicerce ? "sim" : "nao"} onChange={(v) => setF("coletivo_alicerce", v === undefined ? undefined : v === "sim")} options={["sim","nao"]} />
-          </FilterField>
-          <FilterField label="Tags (qualquer uma)">
-            <select multiple value={filters.tag_ids ?? []} onChange={(e) => setF("tag_ids", Array.from(e.target.selectedOptions).map((o) => o.value))} className="w-full h-24 rounded-md border bg-background px-2 text-sm">
-              {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-            </select>
-          </FilterField>
-          <div className="md:col-span-3 lg:col-span-4 flex justify-end">
-            <Button size="sm" variant="ghost" onClick={() => { setFilters({ archived: "nao" }); setPage(1); }}>Limpar filtros</Button>
-          </div>
+      {/* Chips de filtros ativos */}
+      {activeCount > 0 && (
+        <div className="flex items-start gap-3 flex-wrap">
+          <ActiveFiltersChips filters={filters} onChange={(f) => { setFilters(f); setPage(1); }} options={filterOptions} />
+          <Button size="sm" variant="ghost" onClick={clearAllFilters}>Limpar filtros</Button>
         </div>
       )}
+
+      {showFilters && (
+        <ContactFiltersPanel
+          filters={filters}
+          onChange={(f) => { setFilters(f); setPage(1); }}
+          options={filterOptions}
+        />
+      )}
+
 
       {/* Barra de ações em massa */}
       {selected.size > 0 && (
@@ -251,7 +252,7 @@ function Contatos() {
               <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
               <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
                 <option value="">— escolher tag —</option>
-                {(tagsQ.data?.tags ?? []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                {(filterOptions?.tags ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
               <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
@@ -419,21 +420,5 @@ function Contatos() {
       />
     </div>
     </TooltipProvider>
-  );
-}
-
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (<div><label className="text-xs text-muted-foreground block mb-1">{label}</label>{children}</div>);
-}
-
-function Select({ value, onChange, options }: { value: string | undefined; onChange: (v: string | undefined) => void; options: readonly string[] }) {
-  return (
-    <div className="flex items-center gap-1">
-      <select value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)} className="flex-1 h-9 rounded-md border bg-background px-2 text-sm">
-        <option value="">— qualquer —</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-      {value && <button onClick={() => onChange(undefined)} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>}
-    </div>
   );
 }
