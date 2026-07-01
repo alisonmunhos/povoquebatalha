@@ -412,10 +412,25 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         const dup = p.dup;
+        const ex = p.extras ?? {};
+        const obsText = (ex.observacoes ?? []).join("\n") || null;
+        const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
           nome: p.nome,
           phone_raw: p.phone.phone_original,
           email: p.email,
+          profissao: ex.profissao ?? null,
+          cep: ex.cep ?? null,
+          endereco: ex.endereco ?? null,
+          numero: ex.numero ?? null,
+          complemento: ex.complemento ?? null,
+          bairro: ex.bairro ?? null,
+          cidade: ex.cidade ?? null,
+          uf: ex.uf ?? null,
+          origem_detalhe: ex.origem_detalhe ?? null,
+          participa_movimento_social: ex.movimento_social_nome ? true : null,
+          movimento_social_nome: ex.movimento_social_nome ?? null,
+          observacoes: obsText,
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
           tipo: data.tipo,
@@ -435,6 +450,27 @@ export const commitImport = createServerFn({ method: "POST" })
               : "importado_aguardando_recadastro",
           created_by: context.userId,
         };
+        if (rawJson) {
+          // guarda na coluna extras se existir, senão anexa nas observações
+          payload.observacoes = [obsText, `Dados brutos: ${JSON.stringify(rawJson)}`].filter(Boolean).join("\n");
+        }
+
+        async function applyTagsTo(contactId: string) {
+          const tags = ex.tags ?? [];
+          for (const tagName of tags) {
+            if (!tagName || tagName.length > 60) continue;
+            // busca ou cria tag
+            const { data: existingTag } = await sb.from("tags").select("id").eq("nome", tagName).maybeSingle();
+            let tagId = existingTag?.id as string | undefined;
+            if (!tagId) {
+              const { data: newTag } = await sb.from("tags").insert({ nome: tagName, cor: "#64748b" }).select("id").maybeSingle();
+              tagId = newTag?.id as string | undefined;
+            }
+            if (tagId) {
+              await sb.from("contact_tags").insert({ contact_id: contactId, tag_id: tagId }).select().maybeSingle();
+            }
+          }
+        }
 
         if (dup && dup.match === "forte") {
           const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
@@ -446,7 +482,22 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("nome", p.nome);
             fillIfEmpty("email", p.email);
             fillIfEmpty("phone_raw", p.phone.phone_original);
+            fillIfEmpty("profissao", ex.profissao ?? null);
+            fillIfEmpty("cep", ex.cep ?? null);
+            fillIfEmpty("endereco", ex.endereco ?? null);
+            fillIfEmpty("numero", ex.numero ?? null);
+            fillIfEmpty("complemento", ex.complemento ?? null);
+            fillIfEmpty("bairro", ex.bairro ?? null);
+            fillIfEmpty("cidade", ex.cidade ?? null);
+            fillIfEmpty("uf", ex.uf ?? null);
+            fillIfEmpty("origem_detalhe", ex.origem_detalhe ?? null);
+            fillIfEmpty("movimento_social_nome", ex.movimento_social_nome ?? null);
+            if (obsText) {
+              const cur = (existing as Record<string, unknown>).observacoes as string | null;
+              merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
+            }
             await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
+            await applyTagsTo(dup.contact_id);
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
@@ -471,6 +522,7 @@ export const commitImport = createServerFn({ method: "POST" })
           duplicados++;
         }
 
+        await applyTagsTo(ins.id);
         await sb.from("import_rows").update({ status: "criado", contact_id: ins.id }).eq("id", row.id);
         criados++;
       }
