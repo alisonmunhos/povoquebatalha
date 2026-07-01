@@ -75,6 +75,8 @@ const updateSchema = z.object({
   uf: z.string().trim().length(2).nullable().optional(),
   profissao: z.string().trim().max(120).nullable().optional(),
   coletivo_alicerce: z.boolean().nullable().optional(),
+  participa_movimento_social: z.boolean().nullable().optional(),
+  movimento_social_nome: z.string().trim().max(160).nullable().optional(),
   tipo_contato: z
     .enum(["apoiador", "voluntario", "lista_divulgacao", "importado", "outro"])
     .nullable()

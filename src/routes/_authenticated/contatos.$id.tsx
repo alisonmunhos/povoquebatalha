@@ -66,6 +66,8 @@ function ContatoFicha() {
         complemento: c.complemento ?? "", referencia: c.referencia ?? "",
         bairro: c.bairro ?? "", cidade: c.cidade ?? "", uf: c.uf ?? "",
         profissao: c.profissao ?? "", coletivo_alicerce: c.coletivo_alicerce ?? false,
+        participa_movimento_social: c.participa_movimento_social ?? false,
+        movimento_social_nome: c.movimento_social_nome ?? "",
         tipo_contato: c.tipo_contato ?? "apoiador",
         formas_ajuda: Array.isArray(c.formas_ajuda) ? c.formas_ajuda : [],
         consentimento_whatsapp: c.consentimento_whatsapp,
@@ -198,6 +200,13 @@ function ContatoFicha() {
               <input type="checkbox" checked={!!form.coletivo_alicerce} onChange={(e) => set("coletivo_alicerce", e.target.checked)} />
               Faz parte do Coletivo Alicerce
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={!!form.participa_movimento_social} onChange={(e) => set("participa_movimento_social", e.target.checked)} />
+              Participa de movimento social
+            </label>
+            {!!form.participa_movimento_social && (
+              <Row><Field label="Qual movimento social?" value={form.movimento_social_nome} onChange={(v) => set("movimento_social_nome", v)} /></Row>
+            )}
             <div>
               <p className="text-sm font-medium mb-2">Formas de ajuda</p>
               <div className="grid grid-cols-2 gap-2">
