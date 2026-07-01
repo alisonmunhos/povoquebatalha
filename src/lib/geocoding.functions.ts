@@ -85,7 +85,7 @@ export const runGeocodingBatch = createServerFn({ method: "POST" })
       await supabaseAdmin.from("contacts").update({
         latitude: lat, longitude: lng,
         geocoding_provider: prov,
-        geocoding_status: status,
+        geocoding_status: status as "aproximado" | "erro" | "localizado" | "pendente",
         geocoded_at: new Date().toISOString(),
       }).eq("id", r.id);
 
