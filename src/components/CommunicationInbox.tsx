@@ -152,13 +152,28 @@ export function CommunicationInbox() {
   function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (selected?.contact_id && reply.trim()) sendMut.mutate({ contact_id: selected.contact_id, message: reply });
+      if (selectedContactId && reply.trim()) sendMut.mutate({ contact_id: selectedContactId, message: reply });
     }
   }
 
   const contact = convQ.data?.contact;
   const conv = convQ.data?.conversation;
   const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
+
+  // Contato ativo do painel direito: usa a conversa existente OU o contato carregado
+  // (caso de "iniciar nova conversa" antes da 1ª mensagem sair).
+  const active = selected ?? (contact
+    ? {
+        id: "",
+        contact_id: contact.id,
+        nome: contact.nome,
+        phone: contact.phone_e164 ?? contact.phone_whatsapp_candidate,
+        cidade: contact.cidade,
+        uf: contact.uf,
+        bairro: contact.bairro,
+        opt_out: Boolean(contact.opt_out_at),
+      }
+    : null);
 
   const timeline = useMemo(() => {
     const t: Array<{ id: string; kind: "in" | "out"; text: string; at: string; meta?: string }> = [];
