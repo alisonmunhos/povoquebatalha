@@ -106,3 +106,44 @@ export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
     return { ok: true as const, enabled: data.enabled, actor: context.userId };
   });
 
+// Diagnóstico do webhook: mostra último evento recebido, último on-receive
+// e URLs prontas para colar no painel Z-API (com token embutido).
+export const getWebhookDiagnostics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: role } = await context.supabase
+      .from("user_roles").select("role").eq("user_id", context.userId)
+      .eq("role", "admin").maybeSingle();
+    if (!role) throw new Error("Apenas administradores podem ver o token de webhook.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: last }, { data: lastReceive }, { data: lastErr }, { data: inst }] = await Promise.all([
+      supabaseAdmin.from("webhook_log").select("evento, received_at").order("received_at", { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from("webhook_log").select("evento, received_at").eq("evento", "on-receive").order("received_at", { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from("webhook_log").select("evento, erro, received_at").not("erro", "is", null).order("received_at", { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from("whatsapp_instances").select("status, numero_conectado, last_ping").eq("provider", "zapi").maybeSingle(),
+    ]);
+
+    const secret = process.env.ZAPI_WEBHOOK_SECRET ?? "";
+    // Base URL estável do projeto publicado (project-id vem do env do build)
+    const projectId = process.env.SUPABASE_PROJECT_ID ?? "";
+    const base = projectId
+      ? `https://project--${projectId}.lovable.app`
+      : "https://<seu-projeto>.lovable.app";
+    const events = ["on-connect", "on-disconnect", "on-send", "on-delivery", "on-read", "on-receive", "on-message-status"];
+    const urls = events.map((ev) => ({
+      event: ev,
+      url: secret ? `${base}/api/public/zapi/${ev}?token=${secret}` : `${base}/api/public/zapi/${ev}?token=<ZAPI_WEBHOOK_SECRET>`,
+    }));
+
+    return {
+      base_url: base,
+      has_secret: Boolean(secret),
+      last_event: last ?? null,
+      last_receive: lastReceive ?? null,
+      last_error: lastErr ?? null,
+      instance: inst ?? null,
+      urls,
+    };
+  });
+
