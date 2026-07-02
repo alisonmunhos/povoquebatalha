@@ -353,7 +353,9 @@ export const prepareCampaign = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: c } = await context.supabase.from("campaigns").select("*").eq("id", data.id).single();
     if (!c) throw new Error("Não encontrada");
-    if (c.status !== "draft" && c.status !== "scheduled") throw new Error("Campanha já preparada.");
+    if (!["draft", "scheduled", "paused"].includes(c.status)) {
+      throw new Error("Campanha em andamento ou finalizada — não pode ser reprocessada.");
+    }
 
     const audience = await buildAudienceIds(context, c);
     if (!audience.length) throw new Error("Público vazio.");
