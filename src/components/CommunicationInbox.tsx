@@ -118,9 +118,14 @@ export function CommunicationInbox() {
   });
 
   const sendMut = useMutation({
-    mutationFn: (payload: { contact_id: string; message: string }) => sendFn({ data: { ...payload, origem: "inbox" } }),
+    mutationFn: (payload: {
+      contact_id: string; message: string;
+      media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+    }) => sendFn({ data: { ...payload, origem: "inbox" } }),
     onSuccess: () => {
       setReply("");
+      setAttachment(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Mensagem enviada");
@@ -167,11 +172,52 @@ export function CommunicationInbox() {
     if (unread > 0) readMut.mutate(contactId);
   }
 
+  function submitReply() {
+    if (!selectedContactId) return;
+    if (!reply.trim() && !attachment) return;
+    sendMut.mutate({
+      contact_id: selectedContactId,
+      message: reply,
+      media_path: attachment?.path ?? null,
+      media_mime: attachment?.mime ?? null,
+      media_filename: attachment?.filename ?? null,
+    });
+  }
+
   function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (selectedContactId && reply.trim()) sendMut.mutate({ contact_id: selectedContactId, message: reply });
+      submitReply();
     }
+  }
+
+  async function onPickFile(f: File | null) {
+    if (!f) return;
+    const okTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
+    if (!okTypes.includes(f.type)) { toast.error("Envie PNG, JPG, WEBP ou PDF."); return; }
+    if (f.size > 15 * 1024 * 1024) { toast.error("Máx. 15MB."); return; }
+    setUploading(true);
+    try {
+      const s = await signFn({ data: { filename: f.name, contentType: f.type } });
+      const up = await supabase.storage.from("campaign-media").uploadToSignedUrl(s.path, s.token, f, {
+        contentType: f.type, upsert: true,
+      });
+      if (up.error) throw up.error;
+      const previewUrl = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
+      setAttachment({ path: s.path, filename: s.filename, mime: f.type, previewUrl });
+      toast.success("Anexo pronto — clique enviar");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao anexar");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function clearAttachment() {
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const contact = convQ.data?.contact;
