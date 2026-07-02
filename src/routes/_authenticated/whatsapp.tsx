@@ -264,6 +264,11 @@ function WebhookDiagnosticsSection() {
       <p className="mt-1 text-xs text-muted-foreground">
         Cole cada URL abaixo <b>inteira</b> (incluindo <code>?token=…</code>) no evento correspondente do painel da Z-API. Sem isso, o Inbox não recebe mensagens.
       </p>
+      <div className="mt-3 text-xs bg-amber-50 border border-amber-200 rounded p-3 text-amber-900">
+        <b>Importante:</b> use sempre as URLs de <b>produção</b> exibidas abaixo (começam com <code>https://povoquebatalha.lovable.app</code>).
+        Não configure na Z-API URLs de preview (<code>preview--…</code> ou <code>id-preview--…</code>) — elas mudam a cada build e param de receber mensagens.
+        Se você já colou URLs de preview no painel Z-API, <b>substitua todas</b> pelas URLs abaixo — especialmente <code>on-receive</code>.
+      </div>
 
       {q.isLoading && <p className="mt-4 text-sm text-muted-foreground">Carregando diagnóstico…</p>}
 
