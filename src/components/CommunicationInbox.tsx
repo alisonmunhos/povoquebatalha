@@ -631,14 +631,21 @@ export function CommunicationInbox() {
               {contact.profissao && (
                 <div><span className="text-muted-foreground">Profissão:</span> {contact.profissao}</div>
               )}
-              {contact.whatsapp_status && (
-                <div>
-                  <span className="text-muted-foreground">WhatsApp:</span>{" "}
-                  <span className={contact.whatsapp_status === "invalid" ? "text-destructive" : ""}>
-                    {contact.whatsapp_status}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                // Se já houve mensagens (in ou out) nesta conversa, o WhatsApp claramente responde:
+                // mostramos "ativo" independente do whatsapp_status legado ("desconhecido").
+                const hasTraffic = timeline.length > 0;
+                const raw = (contact.whatsapp_status ?? "").toLowerCase();
+                const isProblem = raw === "invalido" || raw === "invalid" || raw === "erro_envio" || raw === "opt_out";
+                const label = isProblem ? contact.whatsapp_status : (hasTraffic ? "ativo" : (raw && raw !== "desconhecido" && raw !== "unknown" ? contact.whatsapp_status : null));
+                if (!label) return null;
+                return (
+                  <div>
+                    <span className="text-muted-foreground">WhatsApp:</span>{" "}
+                    <span className={isProblem ? "text-destructive" : "text-emerald-700"}>{label}</span>
+                  </div>
+                );
+              })()}
               <div>
                 <span className="text-muted-foreground">Consentimento:</span>{" "}
                 {contact.consentimento_whatsapp
