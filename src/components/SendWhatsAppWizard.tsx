@@ -179,8 +179,12 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
 
   function applyTemplate(id: string) {
     setTemplateId(id);
-    const t = (templatesQ.data ?? []).find((x) => x.id === id);
-    if (t) { setMensagem(t.body); if (!nomeCampanha) setNomeCampanha(t.title); }
+    const t = (templatesQ.data ?? []).find((x) => x.id === id) as { id: string; body: string; title: string; link?: string | null } | undefined;
+    if (t) {
+      setMensagem(t.body);
+      if (!nomeCampanha) setNomeCampanha(t.title);
+      if (t.link) setLinkUrl(t.link);
+    }
   }
   function applyCampaignBody(id: string) {
     const c = prevCampsQ.data?.rows.find((x) => x.id === id);
