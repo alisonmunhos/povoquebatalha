@@ -168,13 +168,26 @@ export const resolveInbox = createServerFn({ method: "POST" })
   });
 
 // ------- Send reply via Z-API -------
-function renderVars(body: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null }) {
+function saudacaoAgora(): string {
+  const h = new Date(Date.now() - 3 * 3600 * 1000).getUTCHours();
+  if (h >= 5 && h < 12) return "Bom dia";
+  if (h >= 12 && h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+function renderVars(body: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null }) {
   const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
-  return body
-    .replace(/\{\{\s*nome\s*\}\}/g, c.nome ?? "")
-    .replace(/\{\{\s*primeiro_nome\s*\}\}/g, primeiro)
-    .replace(/\{\{\s*cidade\s*\}\}/g, c.cidade ?? "")
-    .replace(/\{\{\s*bairro\s*\}\}/g, c.bairro ?? "");
+  const values: Record<string, string> = {
+    nome: c.nome ?? "",
+    primeiro_nome: primeiro,
+    primeiro_nome_ou_ola: primeiro || "Olá",
+    cidade: c.cidade ?? "",
+    bairro: c.bairro ?? "",
+    uf: c.uf ?? "",
+    saudacao: saudacaoAgora(),
+  };
+  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
+  );
 }
 
 export const sendDirectMessage = createServerFn({ method: "POST" })
@@ -197,7 +210,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     const { data: c, error } = await context.supabase
       .from("contacts")
-      .select("id,nome,cidade,bairro,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
+      .select("id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
       .eq("id", data.contact_id).single();
     if (error || !c) throw new Error("Contato não encontrado.");
 

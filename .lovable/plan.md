@@ -1,73 +1,50 @@
-
 ## Objetivo
-
-Deixar a tabela `/contatos` operacional direto pelo cabeçalho, sem precisar abrir o painel lateral de filtros para tarefas do dia a dia.
+No Passo 2 (Mensagem) do **SendWhatsAppWizard**, ampliar opções de personalização do texto e adicionar um campo dedicado para link com **prévia estilo WhatsApp** antes de enviar.
 
 ## Mudanças
 
-### 1. Nova estrutura de colunas
-Separar `Cidade/Bairro` em duas colunas independentes:
+### 1. Barra de formatação do WhatsApp
+Botões acima do textarea que envolvem a seleção (ou inserem no cursor):
+- **Negrito** `*texto*`
+- *Itálico* `_texto_`
+- ~Riscado~ `~texto~`
+- Código `` `texto` ``
+- Lista `- item`
+- Quebra de linha / separador
 
-```text
-[ ✓ ]  Nome ↕  |  WhatsApp  |  Cidade ▾  |  Bairro ▾  |  Tags ▾  |  Status ▾  |  Ações
-```
+### 2. Novas variáveis dinâmicas
+Adicionar aos chips existentes:
+- `{{saudacao}}` → "Bom dia / Boa tarde / Boa noite" (calculado por horário do envio)
+- `{{uf}}`
+- `{{primeiro_nome_ou_ola}}` → fallback "Olá" quando não houver nome
+- `{{link}}` → placeholder do link do passo 2.3 (abaixo)
 
-- **Nome**: título clicável para ordenar (A→Z padrão, clique alterna Z→A, e depois "mais recentes").
-- **WhatsApp**: sem filtro no header (já tem busca geral e filtros de status).
-- **Cidade / Bairro / Tags / Status**: cada um vira um botão-dropdown no header com multi-seleção.
+Atualizar `personalize()` no wizard **e** `renderVars()` server-side (`src/lib/campaigns.server.ts` e `src/lib/inbox.functions.ts`) para reconhecer as novas variáveis.
 
-### 2. Ordenação por nome como padrão
-- `sort` inicial passa de `"recent"` → `"name"` (o backend já suporta ambos em `listContactsRich`).
-- Indicador visual `↑ / ↓` na coluna ativa; clique alterna asc/desc/recent.
+### 3. Campo de link com prévia
+- Novo input "Link (opcional)" com validação de URL.
+- Botão **"Inserir no texto"** que adiciona a URL na mensagem (ou substitui `{{link}}` se existir).
+- Ao colar/validar a URL, chamar novo server function `fetchLinkPreview({ url })` que:
+  - Faz `fetch` server-side com timeout 4s e User-Agent do WhatsApp.
+  - Extrai `og:title`, `og:description`, `og:image`, `og:site_name` (fallback para `<title>` / `<meta description>` / favicon).
+  - Retorna `{ title, description, image, siteName, url }` ou `{ error }`.
+  - Cache leve em memória (LRU 50, TTL 10min).
+- Card de prévia estilo WhatsApp abaixo do input: thumbnail à esquerda, título/descrição/domínio; skeleton enquanto carrega; mensagem "Sem prévia disponível" no erro.
+- Persistência: guardar `preview_url` no payload de campanha para reaproveitamento no Passo 6 (Confirmação).
 
-### 3. Filtros direto no cabeçalho (multi-seleção)
+### 4. Confirmação (Passo 6)
+Exibir o card de prévia do link junto com a mensagem final.
 
-Criar componente `ColumnFilterHeader` reutilizável — dropdown com:
-- Busca interna (para cidades longas / muitas tags)
-- Lista com checkboxes
-- Contador ao lado do título quando filtro ativo: `Cidade (3)`
-- Ações "Selecionar todos" / "Limpar"
-- Aplica no `filters` do CRM (`cidades[]`, `bairros[]`, `tag_ids[]`, `lifecycle_statuses[]` + estados derivados)
+### 5. Envio
+- Envio de campanha texto simples já usa `sendText` com `linkPreview: true` (Z-API renderiza a prévia no destinatário). Garantir que o mesmo flag esteja ativo em qualquer novo caminho.
+- Nada muda no schema do banco; `mensagem_template` continua guardando o texto com a URL.
 
-Fontes de opções (já existem em `getContactFilterOptions`):
-- Cidades: lista distinta com contagem
-- Bairros: lista distinta com contagem — quando houver cidades selecionadas, filtra bairros por elas
-- Tags: catálogo completo com cor
-- Status: composto — Ativo / Arquivado / Opt-out / Telefone inválido / cada `lifecycle_status`
+## Fora de escopo
+- Não alterar o Inbox direto (`CommunicationInbox`) nesta fase — foco apenas no wizard.
+- Não fazer encurtador de URL nem rastreamento de clique (pode ser fase futura).
+- Sem alteração de migrations.
 
-### 4. Sincronização com painel lateral e chips
-- O painel `ContactFiltersPanel` (botão "Filtros") continua funcionando e reflete/edita o mesmo estado.
-- Os `ActiveFiltersChips` continuam mostrando o resumo, com "×" para remover individual.
-- Selecionar no header adiciona ao mesmo `filters`; nada duplica.
-
-### 5. Detalhes de UX
-- Cabeçalho fica sticky ao rolar (`sticky top-0`).
-- Popover fecha ao clicar fora ou ao pressionar Esc.
-- Se a coluna não tem opções (ex.: base sem bairros), o botão exibe "Sem opções" desabilitado.
-- Mobile: cabeçalho vira acordeão simples (mantém dropdowns funcionando com touch).
-
-## Detalhes técnicos
-
-**Arquivos alterados**
-- `src/routes/_authenticated/contatos.index.tsx`
-  - Trocar `<thead>` por cabeçalho com o novo componente
-  - Trocar `<td>` de "Cidade/Bairro" por duas células
-  - `useState<"name-asc" | "name-desc" | "recent">("name-asc")` e mandar para `listFn`
-  - Handler que faz merge `setFilters((f) => ({ ...f, cidades: novo }))`
-- `src/components/ColumnFilterHeader.tsx` **(novo)**
-  - Props: `label`, `options: {value, label, count?, color?}[]`, `selected: string[]`, `onChange`, `searchable?`
-  - Baseado em `Popover` + `Command` do shadcn (já usado em `MultiSelectFilter`) — pode reaproveitar/estender o existente
-- `src/lib/crm-bulk.functions.ts`
-  - Suportar `sort: "recent" | "name" | "name-desc"` (adicionar o desc)
-
-**Sem mudanças em**: schema do banco, RLS, `crm-filters.ts` (multi-select já existe), painel lateral, chips, envio em massa.
-
-## Fora de escopo (para próximas iterações, se quiser)
-- Reordenar / esconder colunas por usuário
-- Salvar a ordenação/filtros no URL (`?sort=name-asc&cidades=…`)
-- Ordenar por outras colunas (Cidade, Status)
-
-## Cuidados
-- Preservar comportamento atual do painel "Filtros" e dos chips.
-- Não quebrar contagem `129 resultado(s)` — continua vindo do `count: "exact"`.
-- Não afetar seleção em massa: `idsByFilter` já usa o mesmo `filters`.
+## Arquivos afetados
+- `src/components/SendWhatsAppWizard.tsx` — barra de formatação, chips extras, campo de link, card de prévia, uso em Passo 6.
+- `src/lib/messages.functions.ts` (ou novo `src/lib/link-preview.functions.ts`) — `fetchLinkPreview` server function.
+- `src/lib/campaigns.server.ts` e `src/lib/inbox.functions.ts` — expandir `renderVars` com `saudacao`, `uf`, `primeiro_nome_ou_ola`.

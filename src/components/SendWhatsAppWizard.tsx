@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -9,12 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Upload, FileText, Image as ImageIcon, X, Send, Save, Calendar, MessageSquareText, Users, ArrowRight, ArrowLeft } from "lucide-react";
+import {
+  Loader2, Upload, FileText, Image as ImageIcon, X, Send, Save, Calendar,
+  MessageSquareText, Users, ArrowRight, ArrowLeft,
+  Bold, Italic, Strikethrough, Code2, List, Link2, Smile,
+} from "lucide-react";
 import {
   getAudienceStats, signCampaignMediaUpload, createCampaignFromSelection,
   startCampaign, listCampaigns,
 } from "@/lib/campaigns.functions";
 import { listMessageTemplates } from "@/lib/messages.functions";
+import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { supabase } from "@/integrations/supabase/client";
 import type { CrmFilters } from "@/lib/crm-filters";
 
@@ -27,18 +32,37 @@ type Props = {
   labelSelecao: string; // e.g. "12 selecionados" ou "todos do filtro atual"
 };
 
-const VARIABLES = ["nome", "primeiro_nome", "cidade", "bairro", "link_atualizacao", "link_inscricao"];
+const VARIABLES = [
+  "saudacao", "primeiro_nome", "primeiro_nome_ou_ola", "nome",
+  "cidade", "bairro", "uf", "link_atualizacao", "link_inscricao",
+];
+const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️", "🔗", "📍", "⏰"];
 
-function personalize(tpl: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null }) {
-  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
-  return tpl
-    .replaceAll("{{nome}}", c.nome ?? "")
-    .replaceAll("{{primeiro_nome}}", primeiro)
-    .replaceAll("{{cidade}}", c.cidade ?? "")
-    .replaceAll("{{bairro}}", c.bairro ?? "")
-    .replaceAll("{{link_atualizacao}}", `${typeof window !== "undefined" ? window.location.origin : ""}/atualizacao`)
-    .replaceAll("{{link_inscricao}}", `${typeof window !== "undefined" ? window.location.origin : ""}/inscrever`);
+function saudacaoAgora(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Bom dia";
+  if (h >= 12 && h < 18) return "Boa tarde";
+  return "Boa noite";
 }
+
+function personalize(tpl: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null }) {
+  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
+  const values: Record<string, string> = {
+    nome: c.nome ?? "",
+    primeiro_nome: primeiro,
+    primeiro_nome_ou_ola: primeiro || "Olá",
+    cidade: c.cidade ?? "",
+    bairro: c.bairro ?? "",
+    uf: c.uf ?? "",
+    saudacao: saudacaoAgora(),
+    link_atualizacao: `${typeof window !== "undefined" ? window.location.origin : ""}/atualizacao`,
+    link_inscricao: `${typeof window !== "undefined" ? window.location.origin : ""}/inscrever`,
+  };
+  return tpl.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
+  );
+}
+
 
 export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }: Props) {
   const navigate = useNavigate();
@@ -61,6 +85,11 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   const [delayMin, setDelayMin] = useState(3000);
   const [delayMax, setDelayMax] = useState(8000);
   const [submitting, setSubmitting] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previewFn = useServerFn(fetchLinkPreview);
 
   const audienceQ = useQuery({
     queryKey: ["audience-stats", source],
@@ -76,8 +105,65 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
       setSaveAsTemplate({ enabled: false, title: "" });
       setFile(null); setUploadInfo(null); setSchedule("");
       setDelayMin(3000); setDelayMax(8000);
+      setLinkUrl(""); setLinkPreview(null); setLinkLoading(false);
     }
   }, [open]);
+
+  // Debounced link preview fetch
+  useEffect(() => {
+    const raw = linkUrl.trim();
+    if (!raw) { setLinkPreview(null); setLinkLoading(false); return; }
+    let url = raw;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    try { new URL(url); } catch { setLinkPreview(null); return; }
+    setLinkLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await previewFn({ data: { url } });
+        setLinkPreview(r);
+      } catch (e) {
+        setLinkPreview({ url, title: null, description: null, image: null, siteName: null, error: (e as Error).message });
+      } finally { setLinkLoading(false); }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [linkUrl, previewFn]);
+
+  function wrapSelection(before: string, after: string = before) {
+    const ta = textareaRef.current;
+    if (!ta) { setMensagem((m) => m + before + after); return; }
+    const start = ta.selectionStart ?? mensagem.length;
+    const end = ta.selectionEnd ?? mensagem.length;
+    const sel = mensagem.slice(start, end);
+    const next = mensagem.slice(0, start) + before + sel + after + mensagem.slice(end);
+    setMensagem(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + before.length + sel.length + after.length;
+      ta.setSelectionRange(sel ? pos : start + before.length, pos);
+    });
+  }
+  function insertAtCursor(text: string) {
+    const ta = textareaRef.current;
+    if (!ta) { setMensagem((m) => m + text); return; }
+    const start = ta.selectionStart ?? mensagem.length;
+    const end = ta.selectionEnd ?? mensagem.length;
+    const next = mensagem.slice(0, start) + text + mensagem.slice(end);
+    setMensagem(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + text.length;
+      ta.setSelectionRange(pos, pos);
+    });
+  }
+  function insertLinkIntoMessage() {
+    let url = linkUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const needsSpace = mensagem.length > 0 && !/\s$/.test(mensagem);
+    insertAtCursor(`${needsSpace ? " " : ""}${url}`);
+    toast.success("Link inserido na mensagem");
+  }
+
 
   const tipo: "text" | "image" | "document" = useMemo(() => {
     if (!uploadInfo) return "text";
@@ -219,12 +305,52 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
                 </select>
               </div>
             </div>
-            <Textarea rows={8} placeholder="Digite a mensagem. Use {{primeiro_nome}}, {{cidade}}, {{link_atualizacao}}…" value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
-            <div className="flex flex-wrap gap-1">
-              {VARIABLES.map((v) => (
-                <button key={v} type="button" onClick={() => setMensagem((m) => m + ` {{${v}}}`)} className="text-[11px] px-2 py-1 rounded bg-muted hover:bg-accent">{`{{${v}}}`}</button>
-              ))}
+            {/* Barra de formatação estilo WhatsApp */}
+            <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-muted/30">
+              <FmtBtn title="Negrito (*texto*)" onClick={() => wrapSelection("*")}><Bold className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Itálico (_texto_)" onClick={() => wrapSelection("_")}><Italic className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Riscado (~texto~)" onClick={() => wrapSelection("~")}><Strikethrough className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Monoespaçado (```texto```)" onClick={() => wrapSelection("```")}><Code2 className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Lista" onClick={() => insertAtCursor("\n- ")}><List className="h-3.5 w-3.5" /></FmtBtn>
+              <span className="w-px h-4 bg-border mx-1" />
+              <div className="flex items-center gap-1 pl-1">
+                <Smile className="h-3.5 w-3.5 text-muted-foreground" />
+                {QUICK_EMOJIS.map((e) => (
+                  <button key={e} type="button" onClick={() => insertAtCursor(e)} className="text-base leading-none hover:scale-110 transition" title={`Inserir ${e}`}>{e}</button>
+                ))}
+              </div>
             </div>
+
+            <Textarea ref={textareaRef} rows={8} placeholder="Digite a mensagem. Use {{primeiro_nome}}, {{cidade}}, {{link_atualizacao}}…" value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
+
+            <div>
+              <Label className="text-xs text-muted-foreground">Variáveis dinâmicas — inseridas ao clicar</Label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {VARIABLES.map((v) => (
+                  <button key={v} type="button" onClick={() => insertAtCursor(`{{${v}}}`)} className="text-[11px] px-2 py-1 rounded bg-muted hover:bg-accent">{`{{${v}}}`}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Campo de link com prévia estilo WhatsApp */}
+            <div className="space-y-2">
+              <Label className="text-xs flex items-center gap-1"><Link2 className="h-3.5 w-3.5" /> Link (opcional) — com prévia</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://exemplo.com/pagina"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                />
+                <Button type="button" variant="outline" onClick={insertLinkIntoMessage} disabled={!linkUrl.trim()}>
+                  Inserir no texto
+                </Button>
+              </div>
+              {(linkLoading || linkPreview) && (
+                <LinkPreviewCard loading={linkLoading} preview={linkPreview} />
+              )}
+              <p className="text-[11px] text-muted-foreground">A prévia aparece no WhatsApp do contato automaticamente quando o link estiver no corpo da mensagem.</p>
+            </div>
+
             <label className="flex items-start gap-2 text-xs">
               <input type="checkbox" checked={saveAsTemplate.enabled} onChange={(e) => setSaveAsTemplate({ ...saveAsTemplate, enabled: e.target.checked })} className="mt-0.5" />
               <span>Salvar este texto como <b>Resposta pronta</b> reutilizável</span>
@@ -320,6 +446,12 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
                 <b>Mensagem (prévia):</b>
                 <div className="border rounded bg-background p-2 whitespace-pre-wrap mt-1">{previewText || mensagem}</div>
               </div>
+              {linkPreview && !linkPreview.error && (
+                <div className="mt-2">
+                  <b>Prévia do link:</b>
+                  <div className="mt-1"><LinkPreviewCard loading={false} preview={linkPreview} /></div>
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">Envios já executados não podem ser desfeitos. Você poderá pausar ou cancelar depois na tela da campanha.</p>
           </section>
@@ -363,6 +495,66 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "ok"
       <div className="text-2xl font-bold tabular-nums">{value}</div>
       <div className="text-[11px] uppercase tracking-wide">{label}</div>
     </div>
+  );
+}
+
+function FmtBtn({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+    >
+      {children}
+    </button>
+  );
+}
+
+function LinkPreviewCard({ loading, preview }: { loading: boolean; preview: LinkPreview | null }) {
+  if (loading) {
+    return (
+      <div className="border rounded-lg p-3 flex items-center gap-3 bg-muted/30">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span className="text-xs text-muted-foreground">Carregando prévia do link…</span>
+      </div>
+    );
+  }
+  if (!preview) return null;
+  if (preview.error || (!preview.title && !preview.description && !preview.image)) {
+    return (
+      <div className="border rounded-lg p-3 bg-amber-50 border-amber-200 text-xs text-amber-800">
+        Sem prévia disponível para este link{preview.error ? ` (${preview.error})` : ""}. O link será enviado mesmo assim.
+      </div>
+    );
+  }
+  return (
+    <a
+      href={preview.url}
+      target="_blank"
+      rel="noreferrer"
+      className="border rounded-lg overflow-hidden flex bg-background hover:bg-muted/40 transition"
+    >
+      {preview.image && (
+        <img
+          src={preview.image}
+          alt=""
+          className="w-24 h-24 object-cover flex-shrink-0 bg-muted"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        />
+      )}
+      <div className="p-3 min-w-0 flex-1">
+        {preview.siteName && (
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{preview.siteName}</div>
+        )}
+        {preview.title && (
+          <div className="text-sm font-medium leading-tight line-clamp-2">{preview.title}</div>
+        )}
+        {preview.description && (
+          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{preview.description}</div>
+        )}
+      </div>
+    </a>
   );
 }
 
