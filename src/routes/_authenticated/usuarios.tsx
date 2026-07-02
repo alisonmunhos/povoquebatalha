@@ -162,51 +162,70 @@ function UsuariosPage() {
               <tbody>
                 {rows.map((u) => {
                   const currentRole = (u.roles[0] ?? "leitor") as
-                    | "admin"
-                    | "operador"
-                    | "leitor";
+                    | "admin" | "operador" | "leitor" | "vrm" | "territorio";
                   const pending = !u.confirmed_at;
+                  const showScopes = currentRole === "territorio" || currentRole === "leitor";
+                  const expanded = expandedScopes === u.id;
                   return (
-                    <tr key={u.id} className="border-t">
-                      <td className="px-4 py-2">{u.email}</td>
-                      <td className="px-4 py-2">
-                        <select
-                          value={currentRole}
-                          onChange={(e) =>
-                            onRoleChange(u.id, e.target.value as typeof currentRole)
-                          }
-                          className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="operador">Operador</option>
-                          <option value="leitor">Leitor</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        {pending ? (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                            Convite pendente
-                          </span>
-                        ) : (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                            Ativo
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-muted-foreground">
-                        {u.last_sign_in_at
-                          ? new Date(u.last_sign_in_at).toLocaleString("pt-BR")
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => onDelete(u.id, u.email)}
-                          className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" /> Remover
-                        </button>
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={u.id} className="border-t">
+                        <td className="px-4 py-2">{u.email}</td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={currentRole}
+                            onChange={(e) =>
+                              onRoleChange(u.id, e.target.value as typeof currentRole)
+                            }
+                            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="operador">Operador</option>
+                            <option value="vrm">VRM</option>
+                            <option value="territorio">Território</option>
+                            <option value="leitor">Leitor</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          {pending ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                              Convite pendente
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Ativo
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-muted-foreground">
+                          {u.last_sign_in_at
+                            ? new Date(u.last_sign_in_at).toLocaleString("pt-BR")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
+                          {showScopes && (
+                            <button
+                              onClick={() => setExpandedScopes(expanded ? null : u.id)}
+                              className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                            >
+                              <MapPin className="h-3.5 w-3.5" /> {expanded ? "Fechar" : "Escopos"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onDelete(u.id, u.email)}
+                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remover
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded && showScopes && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-3 bg-muted/30">
+                            <ScopesEditor userId={u.id} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>
