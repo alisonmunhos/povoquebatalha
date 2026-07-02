@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_audit_log: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          event: string
+          id: string
+          meta: Json
+          target_user_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          event: string
+          id?: string
+          meta?: Json
+          target_user_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          event?: string
+          id?: string
+          meta?: Json
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       automation_deliveries: {
         Row: {
           automation_id: string
@@ -1110,18 +1137,30 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          invited_by: string | null
+          revoked_at: string | null
+          status: Database["public"]["Enums"]["user_access_status"]
+          suspended_at: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           full_name?: string | null
           id: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          status?: Database["public"]["Enums"]["user_access_status"]
+          suspended_at?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           full_name?: string | null
           id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          status?: Database["public"]["Enums"]["user_access_status"]
+          suspended_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1191,6 +1230,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      territory_contact_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["territory_log_action"]
+          contact_id: string
+          created_at: string
+          id: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["territory_log_action"]
+          contact_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["territory_log_action"]
+          contact_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "territory_contact_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -1410,6 +1484,13 @@ export type Database = {
         | "prioridade"
         | "restricao"
         | "campanha"
+      territory_log_action:
+        | "whatsapp_aberto"
+        | "contato_realizado"
+        | "nao_encontrado"
+        | "pediu_atualizacao"
+        | "observacao"
+      user_access_status: "ativo" | "suspenso" | "revogado"
       whatsapp_status:
         | "desconhecido"
         | "confirmado"
@@ -1614,6 +1695,14 @@ export const Constants = {
         "restricao",
         "campanha",
       ],
+      territory_log_action: [
+        "whatsapp_aberto",
+        "contato_realizado",
+        "nao_encontrado",
+        "pediu_atualizacao",
+        "observacao",
+      ],
+      user_access_status: ["ativo", "suspenso", "revogado"],
       whatsapp_status: [
         "desconhecido",
         "confirmado",

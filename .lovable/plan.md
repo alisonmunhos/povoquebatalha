@@ -1,72 +1,81 @@
-# Fase 2 — Papéis, Escopo Territorial, /territorio e Mapa com painel
+## Fase 3 — Segurança, login mobile e Território mini-app
 
-Escopo entregue em uma única execução de build. Objetivo: separar responsabilidades por papel, permitir escopo geográfico por usuário, entregar módulo de território mobile-first e enriquecer o mapa com painel lateral e ações rápidas.
+Executarei em uma única build, dividido em blocos técnicos abaixo.
 
-## 1. Banco de dados (migration única)
+### 1. Bloqueio de cadastro público (`/auth`)
+- Confirmar que `disable_signup=true` no Auth (já está); remover qualquer link/CTA de "criar conta" na UI.
+- Rejeitar login de usuário sem role válida: após `signInWithPassword`, checar `user_roles`; se vazio ou role revogada → `signOut()` + mensagem "Acesso não autorizado. Solicite convite ao administrador."
 
-- **Enum `app_role`**: adicionar valores `vrm` e `territorio` (mantendo `admin`, `operador`, `leitor`).
-- **Nova tabela `user_territory_scopes`** (escopo geográfico por usuário):
-  - `user_id uuid` (FK auth.users)
-  - `uf text`, `cidade text`, `bairro text` (qualquer combinação; NULL = "todos")
-  - unique parcial para evitar duplicidade exata
-  - RLS: admin gerencia; usuário lê o próprio escopo
-- **Função `private.user_can_see_contact(contact_row)`**: retorna true se admin/operador/vrm OU se o contato bate com pelo menos um escopo do usuário (territorio/leitor com escopo).
-- **Ajuste em policies de leitura** de `contacts` (e `contact_audit_log`, `message_events`) para respeitar escopo territorial quando papel for `territorio` ou `leitor` com escopo.
-- **Função RPC `assign_territory_scope(user_id, uf, cidade, bairro)`** e `remove_territory_scope(id)` — admin only.
+### 2. Login mobile-friendly
+- Refatorar `src/routes/auth.tsx`: container com `min-h-dvh`, scroll interno, sem `overflow-hidden`, campos `h-12 text-base`, botão `w-full h-12`, safe-area padding, teste em 360/390px.
+- Suporte a `?next=/rota`: preservar querystring e navegar após login. Rota `_authenticated` passa `next=location.pathname` ao redirecionar.
 
-## 2. Backend (server functions)
+### 3. Redirect por papel
+- Helper `defaultRouteForRoles(roles)`: admin→/dashboard, vrm→/relacionamento, territorio→/territorio, leitor→/dashboard.
+- Guard central em `_authenticated/route.tsx`: se role=territorio e path não começa com `/territorio` → redirect `/territorio`.
 
-- `src/lib/territory.functions.ts`:
-  - `listMyScopes()` — escopos do usuário logado.
-  - `listUserScopes(userId)` — admin.
-  - `addScope`, `removeScope` — admin.
-  - `getTerritoryOverview()` — KPIs do escopo do usuário: total de contatos, engajados, opt-outs, últimas interações.
-  - `listTerritoryContacts(filters)` — lista mobile-friendly (paginada, com telefone e endereço curto).
-- Atualizar `src/lib/map.functions.ts`:
-  - `getContactDetailForMap(id)` — dados enxutos para o painel.
-  - `sendQuickWhatsApp({contactId, templateId|text})` — envia via Z-API respeitando papel e escopo.
-- Atualizar `src/lib/users.functions.ts` para expor escopos ao editar usuário.
+### 4. `/usuarios` como central de acesso
+- Abas: Usuários ativos, Convites pendentes, Escopos territoriais, Auditoria.
+- Colunas ampliadas: papel, status, último login, criado, convidado por, escopo, ações (alterar papel, editar escopo, suspender, reativar, revogar, reenviar convite).
+- Status via nova coluna `profiles.status` (`ativo|suspenso|revogado`) + convites via `auth.admin.listUsers` filtrando `invited_at & !last_sign_in_at`.
 
-## 3. UI — Papéis e escopo (`/usuarios`)
+### 5. Convites
+- Manter `inviteUser` server-fn. Adicionar: `resendInvite`, `cancelInvite`, `copyInviteLink` (usa `generateLink type=invite`).
+- Convites amarrados ao e-mail (Supabase já garante); admin pode editar papel/escopo antes do aceite.
 
-- Dropdown de papel passa a incluir `vrm` e `territorio`.
-- Ao selecionar `territorio` ou `leitor`, mostrar painel de **Escopos**: adicionar UF/cidade/bairro com autocomplete a partir de `getContactFilterOptions`.
-- Listagem dos escopos com botão remover.
+### 6. Papéis e permissões (server-side)
+- Middleware helper `requireRole(roles[])` em cada server-fn sensível: contatos edit/exportar, importar, campanhas, mensagens, Z-API, inbox, usuários — bloqueia `territorio` e `leitor`.
+- Menu do `AppShell` já filtra por role; reforçar guards de rota.
 
-## 4. Nova tela `/territorio` (mobile-first)
+### 7. Escopo territorial server-side
+- Todas as fns usadas por `/territorio` e mapa (quando role=territorio) aplicam filtro por `user_territory_scopes` do próprio caller.
+- Se sem escopo → retornar vazio + flag `noScope=true` (UI mostra aviso).
+- `getMapContacts` recebe role no server; se territorio, força escopo.
 
-- Rota `_authenticated/territorio.tsx`.
-- Layout single-column otimizado para celular:
-  - Header com nome do território ativo (concatenação dos escopos).
-  - Cards de KPI: apoiadores no território, engajados últimos 30d, opt-outs, precisando de atualização.
-  - Lista de contatos do escopo com busca, badges (tags), botão "Abrir ficha" e "WhatsApp".
-- Item de menu "Território" na sidebar já mostra este link (substitui o placeholder atual do mapa como único item do grupo).
+### 8. `/territorio` mini-app mobile-first
+- Nova layout route `_territorio` (fora de `_authenticated` AppShell) com header próprio "Modo Território" e sem sidebar.
+- Redirect: usuários com role=territorio caem aqui; admin/vrm continuam podendo abrir via menu.
+- Abas Lista / Mapa, filtros (cidade, bairro, tag, formas_ajuda, movimento_social, profissão, busca).
+- Cards com botões grandes: WhatsApp, Ver no mapa, Marcar realizado, Observação.
 
-## 5. Mapa com painel lateral (`/mapa`)
+### 9. WhatsApp pessoal
+- Botão abre `https://wa.me/<phone>?text=<msg>` (encoded); antes registra log `whatsapp_pessoal_aberto`.
+- Nunca marca envio; botão manual separado "Marcar contato realizado".
 
-- Ao clicar num pin, abre painel lateral (Sheet no mobile, coluna fixa no desktop) com:
-  - Nome, telefone, endereço, tags, status de lifecycle.
-  - Timeline resumida (últimas 3 interações).
-  - Botões: "Abrir ficha", "Enviar WhatsApp" (abre mini-form com template ou texto livre) e "Ver no território".
-- Filtros do mapa passam a respeitar escopo do usuário automaticamente (server-side).
-- Botão "Voltar ao CRM com este filtro" para exportar o recorte para `/contatos`.
+### 10. `territory_contact_logs`
+- Migration: tabela com `user_id, contact_id, action, note, created_at`; RLS: territorio vê os próprios, admin/vrm veem todos.
+- Actions enum: `whatsapp_aberto|contato_realizado|nao_encontrado|pediu_atualizacao|observacao`.
+- Exibir seção "Território" em `/contatos/$id` (admin/vrm).
 
-## 6. Menu lateral
+### 11. PWA básico
+- `public/manifest.webmanifest` (nome "Território — Povo que Batalha", start_url `/territorio`, display standalone, theme color, ícone placeholder).
+- `<link rel="manifest">` no `__root.tsx`. Sem service worker (per PWA guidance).
+- Card em `/territorio` e `/links` com instruções "Adicionar à tela inicial" e link copiável `/territorio`.
 
-- Grupo **Território** agora contém: `Território` (nova) e `Mapa`.
-- Papéis `territorio` veem apenas Território, Mapa e Inbox (quando aplicável).
+### 12. Mapa por escopo
+- `/mapa` continua para admin/vrm. Para territorio, esconder do menu e do guard bloquear rota direta; usa apenas mapa dentro de `/territorio`.
 
-## Detalhes técnicos
+### 13. Auditoria
+- Reutilizar `contact_audit_log` para eventos de território; nova tabela leve `access_audit_log` (evento, actor_id, target_user_id, meta jsonb) para convites/papel/escopo/suspensão.
 
-- Todas as funções server usam `requireSupabaseAuth`; helpers `assertRole('admin')`, `assertRoleAny(['admin','vrm'])`, `assertHasScopeAccess()`.
-- Envio de WhatsApp rápido reutiliza `src/lib/zapi.functions.ts` + registra em `direct_messages` e `contact_audit_log`.
-- Mapa: painel lateral usa `Sheet` no mobile e layout flex no desktop; sem mudança na lib de mapa.
-- Menu: filtragem por papel feita client-side com base em `useRoles`.
+### 14. Não fazer
+- pg_cron, HSM, heatmap, raio, calendário DnD, chatbot, múltiplas instâncias, redesign global.
 
-## Limitações aceitas nesta fase
+---
 
-- Escopo territorial baseado em texto exato (UF/cidade/bairro), sem polígonos.
-- Sem realtime no mapa nem no /territorio.
-- Sem push/notificações mobile — apenas layout responsivo.
+### Alterações técnicas (arquivos)
+- Migrations: `profiles.status`, `territory_contact_logs`, `access_audit_log`, RLS.
+- `src/routes/auth.tsx` (mobile + next + role gate).
+- `src/routes/_authenticated/route.tsx` (role guard, redirect territorio).
+- Novo `src/routes/_territorio/route.tsx` + mover `/territorio` para dentro (ou wrapper condicional).
+- `src/lib/users.functions.ts`, `src/lib/territory.functions.ts`, `src/lib/map.functions.ts` (escopo server-side, novas fns).
+- `src/routes/_authenticated/usuarios.tsx` (abas).
+- `src/components/AppShell.tsx` (filtro por role reforçado).
+- `public/manifest.webmanifest` + `__root.tsx`.
 
-Aprovado? Se sim, respondo com "Fase 2" e executo tudo em um único build.
+### Riscos / limitações
+- Detectar role no client para escolher layout do `/territorio` causa flash — usarei `ssr:false` + loader que aguarda role.
+- Sem service worker (por diretriz PWA): "adicionar à tela inicial" funciona, offline não.
+- Auditoria mínima; sem UI complexa de filtro.
+
+Confirma para eu executar tudo em uma build?

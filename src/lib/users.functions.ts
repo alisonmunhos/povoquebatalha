@@ -2,10 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function assertAdmin(ctx: {
-  supabase: { from: (t: string) => any };
-  userId: string;
-}) {
+type Ctx = { supabase: { from: (t: string) => any }; userId: string };
+
+async function assertAdmin(ctx: Ctx) {
   const { data, error } = await ctx.supabase
     .from("user_roles")
     .select("role")
@@ -16,45 +15,105 @@ async function assertAdmin(ctx: {
   if (!data) throw new Error("Apenas administradores podem executar esta ação.");
 }
 
+async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Record<string, unknown> = {}) {
+  try {
+    await ctx.supabase.from("access_audit_log").insert({
+      actor_id: ctx.userId,
+      target_user_id: targetId,
+      event,
+      meta,
+    });
+  } catch {
+    /* non-blocking */
+  }
+}
+
+const RoleEnum = z.enum(["admin", "operador", "leitor", "vrm", "territorio"]);
+
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 200,
-    });
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     if (error) throw error;
     const ids = data.users.map((u) => u.id);
-    const { data: roles } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id, role")
-      .in("user_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
+    const [{ data: roles }, { data: profiles }, { data: scopes }] = await Promise.all([
+      supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", safeIds),
+      supabaseAdmin.from("profiles").select("id, status, invited_by, suspended_at, revoked_at").in("id", safeIds),
+      supabaseAdmin.from("user_territory_scopes").select("user_id, uf, cidade, bairro").in("user_id", safeIds),
+    ]);
+
     const byUser = new Map<string, string[]>();
     (roles ?? []).forEach((r: { user_id: string; role: string }) => {
       const arr = byUser.get(r.user_id) ?? [];
       arr.push(r.role);
       byUser.set(r.user_id, arr);
     });
+    const profByUser = new Map<string, { status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }>();
+    (profiles ?? []).forEach((p: { id: string; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }) => {
+      profByUser.set(p.id, p);
+    });
+    const scopeCount = new Map<string, number>();
+    (scopes ?? []).forEach((s: { user_id: string }) => {
+      scopeCount.set(s.user_id, (scopeCount.get(s.user_id) ?? 0) + 1);
+    });
+
     return {
-      users: data.users.map((u) => ({
-        id: u.id,
-        email: u.email ?? "",
-        created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at ?? null,
-        confirmed_at: u.email_confirmed_at ?? u.confirmed_at ?? null,
-        invited_at: u.invited_at ?? null,
-        roles: byUser.get(u.id) ?? [],
-      })),
+      users: data.users.map((u) => {
+        const prof = profByUser.get(u.id);
+        const roles_ = byUser.get(u.id) ?? [];
+        const confirmed = u.email_confirmed_at ?? u.confirmed_at ?? null;
+        const invited = u.invited_at ?? null;
+        const lastSignIn = u.last_sign_in_at ?? null;
+        const status = (prof?.status ?? "ativo") as "ativo" | "suspenso" | "revogado";
+        let derived:
+          | "ativo"
+          | "convite_pendente"
+          | "convite_expirado"
+          | "suspenso"
+          | "revogado";
+        if (status === "suspenso") derived = "suspenso";
+        else if (status === "revogado") derived = "revogado";
+        else if (!confirmed && invited) {
+          const invitedMs = new Date(invited).getTime();
+          const expired = Date.now() - invitedMs > 7 * 86400_000;
+          derived = expired ? "convite_expirado" : "convite_pendente";
+        } else derived = "ativo";
+        return {
+          id: u.id,
+          email: u.email ?? "",
+          created_at: u.created_at,
+          last_sign_in_at: lastSignIn,
+          confirmed_at: confirmed,
+          invited_at: invited,
+          roles: roles_,
+          status,
+          derived_status: derived,
+          invited_by: prof?.invited_by ?? null,
+          scope_count: scopeCount.get(u.id) ?? 0,
+        };
+      }),
     };
   });
 
 const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  role: z.enum(["admin", "operador", "leitor", "vrm", "territorio"]),
+  role: RoleEnum,
   redirectOrigin: z.string().url(),
 });
+
+function selfOrigin(): string {
+  // Runtime import to avoid client bundling of the request helper.
+  const req = (globalThis as unknown as { __req?: Request }).__req;
+  if (!req) return "";
+  const origin = req.headers.get("origin");
+  if (origin) return origin.replace(/\/+$/, "");
+  const host = req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : "";
+}
 
 export const inviteUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -66,18 +125,16 @@ export const inviteUser = createServerFn({ method: "POST" })
     const originHeader = req.headers.get("origin");
     const host = req.headers.get("host");
     const proto = req.headers.get("x-forwarded-proto") ?? "https";
-    const selfOrigin = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
+    const self = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
     let requested: string;
     try {
       requested = new URL(data.redirectOrigin).origin;
     } catch {
       throw new Error("Origem inválida.");
     }
-    if (!selfOrigin || requested !== selfOrigin) {
-      throw new Error("Origem de redirecionamento não permitida.");
-    }
+    if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const redirectTo = `${selfOrigin}/aceitar-convite`;
+    const redirectTo = `${self}/aceitar-convite`;
     const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       data.email,
       { redirectTo },
@@ -88,8 +145,104 @@ export const inviteUser = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("user_roles")
         .upsert({ user_id: userId, role: data.role }, { onConflict: "user_id,role" });
+      await supabaseAdmin
+        .from("profiles")
+        .update({ invited_by: context.userId })
+        .eq("id", userId);
     }
+    await audit(context, userId ?? null, "convite_enviado", { email: data.email, role: data.role });
     return { ok: true as const, userId };
+  });
+
+export const resendInvite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ userId: z.string().uuid(), redirectOrigin: z.string().url() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const req = getRequest();
+    const originHeader = req.headers.get("origin");
+    const host = req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const self = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
+    let requested: string;
+    try {
+      requested = new URL(data.redirectOrigin).origin;
+    } catch {
+      throw new Error("Origem inválida.");
+    }
+    if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: got, error: gotErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (gotErr || !got.user?.email) throw new Error("Usuário não encontrado.");
+    const redirectTo = `${self}/aceitar-convite`;
+    const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(got.user.email, { redirectTo });
+    if (error) throw new Error(error.message);
+    await audit(context, data.userId, "convite_reenviado", { email: got.user.email });
+    return { ok: true as const };
+  });
+
+export const generateInviteLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ userId: z.string().uuid(), redirectOrigin: z.string().url() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const req = getRequest();
+    const originHeader = req.headers.get("origin");
+    const host = req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const self = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
+    let requested: string;
+    try {
+      requested = new URL(data.redirectOrigin).origin;
+    } catch {
+      throw new Error("Origem inválida.");
+    }
+    if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: got } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (!got.user?.email) throw new Error("Usuário não encontrado.");
+    const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "invite",
+      email: got.user.email,
+      options: { redirectTo: `${self}/aceitar-convite` },
+    });
+    if (error) throw new Error(error.message);
+    return { url: link.properties?.action_link ?? null };
+  });
+
+const setStatusSchema = z.object({
+  userId: z.string().uuid(),
+  status: z.enum(["ativo", "suspenso", "revogado"]),
+});
+
+export const setUserStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => setStatusSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    if (data.userId === context.userId && data.status !== "ativo") {
+      throw new Error("Você não pode alterar seu próprio status.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const patch = {
+      status: data.status,
+      suspended_at: data.status === "suspenso" ? new Date().toISOString() : null,
+      revoked_at: data.status === "revogado" ? new Date().toISOString() : null,
+    };
+    const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.userId);
+    if (error) throw new Error(error.message);
+    if (data.status === "revogado") {
+      // remove todas as roles para bloquear painel
+      await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
+    }
+    await audit(context, data.userId, "status_alterado", { status: data.status });
+    return { ok: true as const };
   });
 
 const deleteSchema = z.object({ userId: z.string().uuid() });
@@ -105,12 +258,13 @@ export const deleteUser = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
+    await audit(context, data.userId, "usuario_removido", {});
     return { ok: true as const };
   });
 
 const setRoleSchema = z.object({
   userId: z.string().uuid(),
-  role: z.enum(["admin", "operador", "leitor", "vrm", "territorio"]),
+  role: RoleEnum,
 });
 
 export const setUserRole = createServerFn({ method: "POST" })
@@ -124,6 +278,20 @@ export const setUserRole = createServerFn({ method: "POST" })
       .from("user_roles")
       .insert({ user_id: data.userId, role: data.role });
     if (error) throw new Error(error.message);
+    await audit(context, data.userId, "papel_alterado", { role: data.role });
     return { ok: true as const };
   });
 
+export const listAccessAudit = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("access_audit_log")
+      .select("id,actor_id,target_user_id,event,meta,created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return { rows: data ?? [] };
+  });
