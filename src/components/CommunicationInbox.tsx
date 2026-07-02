@@ -240,11 +240,18 @@ export function CommunicationInbox() {
     : null);
 
   const timeline = useMemo(() => {
-    const t: Array<{ id: string; kind: "in" | "out"; text: string; at: string; meta?: string }> = [];
+    type Msg = {
+      id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
+      media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+    };
+    const t: Msg[] = [];
     for (const m of convQ.data?.inbound ?? []) t.push({ id: `in-${m.id}`, kind: "in", text: m.conteudo ?? "", at: m.received_at as string });
     for (const m of convQ.data?.direct ?? []) t.push({
-      id: `d-${m.id}`, kind: "out", text: m.conteudo as string, at: m.created_at as string,
+      id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
       meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? " · erro" : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
+      media_path: (m as { media_path?: string | null }).media_path ?? null,
+      media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
+      media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
     });
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
