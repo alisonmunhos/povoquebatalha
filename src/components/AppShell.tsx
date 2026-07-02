@@ -47,7 +47,6 @@ const groups: NavGroup[] = [
     label: "Sistema",
     items: [
       { to: "/links", label: "Links públicos", icon: LinkIcon, roles: ["admin", "operador"] },
-      { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin"] },
       { to: "/usuarios", label: "Usuários", icon: ShieldCheck, roles: ["admin"] },
     ],
   },
