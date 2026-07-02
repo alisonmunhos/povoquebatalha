@@ -312,9 +312,9 @@ export function CommunicationInbox() {
           {list.map((c) => (
             <button
               key={c.id}
-              onClick={() => openConversation(c.contact_id, c.unread)}
+              onClick={() => openConversation(c.contact_id, c.id, c.unread)}
               className={`w-full text-left px-3 py-2.5 border-b hover:bg-muted/40 transition-colors ${
-                selectedContactId === c.contact_id ? "bg-muted/60" : ""
+                (selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id) ? "bg-muted/60" : ""
               }`}
             >
               <div className="flex justify-between items-baseline gap-2">
@@ -349,7 +349,7 @@ export function CommunicationInbox() {
               {(searchNewQ.data ?? []).map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => openConversation(c.id, 0)}
+                  onClick={() => openConversation(c.id, null, 0)}
                   className="w-full text-left px-3 py-2 border-b hover:bg-background/50"
                 >
                   <div className="text-sm font-medium truncate">{c.nome ?? "Sem nome"}</div>
