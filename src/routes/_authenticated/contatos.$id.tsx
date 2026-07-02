@@ -20,7 +20,6 @@ const TIPO_OPTIONS = [
 
 const FORMAS_AJUDA = [
   { v: "panfletagem_banquinha", l: "Panfletagem / Banquinha" },
-  { v: "panfletagem", l: "Panfletagem (legado)" },
   { v: "compartilhar_whatsapp", l: "Compartilhar material no WhatsApp" },
   { v: "compartilhar_redes", l: "Compartilhar nas redes sociais" },
   { v: "participar_eventos", l: "Participar de eventos" },
