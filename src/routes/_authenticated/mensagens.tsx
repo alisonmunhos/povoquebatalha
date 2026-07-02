@@ -7,7 +7,7 @@ import {
   listMessageTemplates, upsertMessageTemplate, archiveMessageTemplate,
   duplicateMessageTemplate, sendTestTemplate,
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
-  retryAutomationDelivery,
+  retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, Paperclip, RefreshCw, X } from "lucide-react";
