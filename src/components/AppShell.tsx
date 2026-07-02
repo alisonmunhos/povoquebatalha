@@ -72,8 +72,21 @@ export function AppShell() {
     return item.roles.some((r) => roles.includes(r));
   }
 
+  const badgeFn = useServerFn(getMyCommunicationBadge);
+  const badgeQ = useQuery({
+    queryKey: ["comm-badge"],
+    queryFn: () => badgeFn(),
+    enabled: Boolean(user),
+    refetchInterval: 30000,
+  });
+
+  // Comunicação abrange várias rotas (o app dedicado): destaca no menu quando estiver em qualquer uma delas.
+  const COMM_PATHS = ["/comunicacao", "/campanhas", "/mensagens", "/calendario", "/relacionamento", "/whatsapp", "/inbox"];
   function isActive(to: string) {
     if (to === "/dashboard") return currentPath === "/dashboard" || currentPath === "/";
+    if (to === "/comunicacao/inbox") {
+      return COMM_PATHS.some((p) => currentPath === p || currentPath.startsWith(p + "/"));
+    }
     return currentPath === to || currentPath.startsWith(to + "/");
   }
 
