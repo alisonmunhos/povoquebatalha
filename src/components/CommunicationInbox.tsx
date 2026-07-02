@@ -181,10 +181,11 @@ export function CommunicationInbox() {
     },
   });
 
-  function openConversation(contactId: string, unread: number) {
+  function openConversation(contactId: string | null, convId: string | null, unread: number) {
     setSelectedContactId(contactId);
+    setSelectedConvId(contactId ? null : convId);
     setMobilePane("thread");
-    if (unread > 0) readMut.mutate(contactId);
+    if (contactId && unread > 0) readMut.mutate(contactId);
   }
 
   function submitReply() {
