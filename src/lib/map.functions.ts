@@ -52,3 +52,36 @@ export const listUnmappedContacts = createServerFn({ method: "POST" })
     if (error) throw error;
     return { rows: rows ?? [] };
   });
+
+export const getMapContactDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: c, error } = await context.supabase
+      .from("contacts")
+      .select("id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,endereco_completo,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda")
+      .eq("id", data.id).maybeSingle();
+    if (error) throw error;
+    if (!c) throw new Error("Contato não encontrado.");
+
+    const { data: tagRows } = await context.supabase
+      .from("contact_tags")
+      .select("tags(nome)")
+      .eq("contact_id", data.id);
+    const tags = (tagRows ?? [])
+      .map((r: { tags: { nome: string } | { nome: string }[] | null }) => {
+        const t = Array.isArray(r.tags) ? r.tags[0] : r.tags;
+        return t?.nome ?? null;
+      })
+      .filter(Boolean) as string[];
+
+    const { data: audit } = await context.supabase
+      .from("contact_audit_log")
+      .select("action,changes,created_at")
+      .eq("contact_id", data.id)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    return { contact: c, tags, timeline: audit ?? [] };
+  });
+

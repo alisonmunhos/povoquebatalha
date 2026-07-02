@@ -21,6 +21,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
+import { Route as AuthenticatedTerritorioRouteImport } from './routes/_authenticated/territorio'
 import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
 import { Route as AuthenticatedRelacionamentoRouteImport } from './routes/_authenticated/relacionamento'
@@ -100,6 +101,11 @@ const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
 const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
   id: '/usuarios',
   path: '/usuarios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTerritorioRoute = AuthenticatedTerritorioRouteImport.update({
+  id: '/territorio',
+  path: '/territorio',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTagsRoute = AuthenticatedTagsRouteImport.update({
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
+  '/territorio': typeof AuthenticatedTerritorioRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
+  '/territorio': typeof AuthenticatedTerritorioRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/_authenticated/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
+  '/_authenticated/territorio': typeof AuthenticatedTerritorioRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/relacionamento'
     | '/segmentos'
     | '/tags'
+    | '/territorio'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/relacionamento'
     | '/segmentos'
     | '/tags'
+    | '/territorio'
     | '/usuarios'
     | '/whatsapp'
     | '/opt-out/$token'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relacionamento'
     | '/_authenticated/segmentos'
     | '/_authenticated/tags'
+    | '/_authenticated/territorio'
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
@@ -527,6 +539,13 @@ declare module '@tanstack/react-router' {
       path: '/usuarios'
       fullPath: '/usuarios'
       preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/territorio': {
+      id: '/_authenticated/territorio'
+      path: '/territorio'
+      fullPath: '/territorio'
+      preLoaderRoute: typeof AuthenticatedTerritorioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tags': {
@@ -691,6 +710,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRelacionamentoRoute: typeof AuthenticatedRelacionamentoRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
   AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
+  AuthenticatedTerritorioRoute: typeof AuthenticatedTerritorioRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedCampanhasIdRoute: typeof AuthenticatedCampanhasIdRoute
@@ -711,6 +731,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRelacionamentoRoute: AuthenticatedRelacionamentoRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
   AuthenticatedTagsRoute: AuthenticatedTagsRoute,
+  AuthenticatedTerritorioRoute: AuthenticatedTerritorioRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedCampanhasIdRoute: AuthenticatedCampanhasIdRoute,
@@ -743,13 +764,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

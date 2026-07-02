@@ -1213,6 +1213,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_territory_scopes: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          uf: string | null
+          user_id: string
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          uf?: string | null
+          user_id: string
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          uf?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       webhook_log: {
         Row: {
           erro: string | null
@@ -1316,7 +1346,7 @@ export type Database = {
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
-      app_role: "admin" | "operador" | "leitor"
+      app_role: "admin" | "operador" | "leitor" | "vrm" | "territorio"
       campaign_status:
         | "draft"
         | "scheduled"
@@ -1513,7 +1543,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "operador", "leitor"],
+      app_role: ["admin", "operador", "leitor", "vrm", "territorio"],
       campaign_status: [
         "draft",
         "scheduled",

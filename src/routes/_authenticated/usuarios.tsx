@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { listUsers, inviteUser, deleteUser, setUserRole } from "@/lib/users.functions";
-import { UserPlus, Trash2, ShieldCheck } from "lucide-react";
+import { listUserScopes, addScope, removeScope } from "@/lib/territory.functions";
+import { UserPlus, Trash2, ShieldCheck, MapPin, Plus, X } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   head: () => ({ meta: [{ title: "Usuários — Campanha do Povo que Batalha" }] }),
@@ -30,7 +31,8 @@ function UsuariosPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "operador" | "leitor">("operador");
+  const [role, setRole] = useState<"admin" | "operador" | "leitor" | "vrm" | "territorio">("operador");
+  const [expandedScopes, setExpandedScopes] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -81,7 +83,7 @@ function UsuariosPage() {
     }
   }
 
-  async function onRoleChange(id: string, newRole: "admin" | "operador" | "leitor") {
+  async function onRoleChange(id: string, newRole: "admin" | "operador" | "leitor" | "vrm" | "territorio") {
     try {
       await updateRole({ data: { userId: id, role: newRole } });
       await load();
@@ -121,6 +123,8 @@ function UsuariosPage() {
           >
             <option value="admin">Admin</option>
             <option value="operador">Operador</option>
+            <option value="vrm">VRM (Relacionamento)</option>
+            <option value="territorio">Território</option>
             <option value="leitor">Leitor</option>
           </select>
           <button
@@ -158,51 +162,70 @@ function UsuariosPage() {
               <tbody>
                 {rows.map((u) => {
                   const currentRole = (u.roles[0] ?? "leitor") as
-                    | "admin"
-                    | "operador"
-                    | "leitor";
+                    | "admin" | "operador" | "leitor" | "vrm" | "territorio";
                   const pending = !u.confirmed_at;
+                  const showScopes = currentRole === "territorio" || currentRole === "leitor";
+                  const expanded = expandedScopes === u.id;
                   return (
-                    <tr key={u.id} className="border-t">
-                      <td className="px-4 py-2">{u.email}</td>
-                      <td className="px-4 py-2">
-                        <select
-                          value={currentRole}
-                          onChange={(e) =>
-                            onRoleChange(u.id, e.target.value as typeof currentRole)
-                          }
-                          className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="operador">Operador</option>
-                          <option value="leitor">Leitor</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        {pending ? (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                            Convite pendente
-                          </span>
-                        ) : (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                            Ativo
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-muted-foreground">
-                        {u.last_sign_in_at
-                          ? new Date(u.last_sign_in_at).toLocaleString("pt-BR")
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => onDelete(u.id, u.email)}
-                          className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" /> Remover
-                        </button>
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={u.id} className="border-t">
+                        <td className="px-4 py-2">{u.email}</td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={currentRole}
+                            onChange={(e) =>
+                              onRoleChange(u.id, e.target.value as typeof currentRole)
+                            }
+                            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="operador">Operador</option>
+                            <option value="vrm">VRM</option>
+                            <option value="territorio">Território</option>
+                            <option value="leitor">Leitor</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          {pending ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                              Convite pendente
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Ativo
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-muted-foreground">
+                          {u.last_sign_in_at
+                            ? new Date(u.last_sign_in_at).toLocaleString("pt-BR")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
+                          {showScopes && (
+                            <button
+                              onClick={() => setExpandedScopes(expanded ? null : u.id)}
+                              className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                            >
+                              <MapPin className="h-3.5 w-3.5" /> {expanded ? "Fechar" : "Escopos"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onDelete(u.id, u.email)}
+                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remover
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded && showScopes && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-3 bg-muted/30">
+                            <ScopesEditor userId={u.id} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>
@@ -213,3 +236,87 @@ function UsuariosPage() {
     </div>
   );
 }
+
+type Scope = { id: string; uf: string | null; cidade: string | null; bairro: string | null };
+
+function ScopesEditor({ userId }: { userId: string }) {
+  const listFn = useServerFn(listUserScopes);
+  const addFn = useServerFn(addScope);
+  const removeFn = useServerFn(removeScope);
+  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [uf, setUf] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const r = await listFn({ data: { userId } });
+      setScopes(r as Scope[]);
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [userId]);
+
+  async function add() {
+    if (!uf && !cidade && !bairro) return alert("Informe ao menos UF, cidade ou bairro.");
+    setSaving(true);
+    try {
+      await addFn({ data: { userId, uf: uf.trim().toUpperCase() || null, cidade: cidade.trim() || null, bairro: bairro.trim() || null } });
+      setUf(""); setCidade(""); setBairro("");
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao adicionar.");
+    } finally { setSaving(false); }
+  }
+
+  async function del(id: string) {
+    try { await removeFn({ data: { id } }); await load(); }
+    catch (e) { alert(e instanceof Error ? e.message : "Erro ao remover."); }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Escopos territoriais deste usuário
+      </div>
+      {loading ? (
+        <div className="text-xs text-muted-foreground">Carregando…</div>
+      ) : scopes.length === 0 ? (
+        <div className="text-xs text-muted-foreground">Sem escopos — o usuário não verá nenhum contato.</div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {scopes.map((s) => (
+            <span key={s.id} className="inline-flex items-center gap-2 rounded-full bg-background border px-2 py-1 text-xs">
+              {[s.bairro, s.cidade, s.uf].filter(Boolean).join(" / ") || "(vazio)"}
+              <button onClick={() => del(s.id)} className="text-destructive hover:opacity-70" title="Remover">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-[70px_1fr_1fr_auto] gap-2 items-center">
+        <input value={uf} onChange={(e) => setUf(e.target.value)} maxLength={2} placeholder="UF"
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs uppercase" />
+        <input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Cidade"
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
+        <input value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder="Bairro"
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
+        <button
+          onClick={add}
+          disabled={saving}
+          className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Adicionar
+        </button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Deixe campos em branco para "todos". Ex.: só UF = todo o estado; UF + cidade = cidade toda.
+      </p>
+    </div>
+  );
+}
+
