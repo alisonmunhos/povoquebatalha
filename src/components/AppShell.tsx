@@ -40,11 +40,7 @@ const groups: NavGroup[] = [
   {
     label: "Comunicação",
     items: [
-      { to: "/mensagens", label: "Mensagens", icon: MessageSquareText, roles: ["admin", "operador", "vrm"] },
-      { to: "/campanhas", label: "Campanhas", icon: Send, roles: ["admin", "operador"] },
-      { to: "/calendario", label: "Calendário", icon: Calendar, roles: ["admin", "operador", "vrm"] },
-      { to: "/relacionamento", label: "Relacionamento", icon: Heart, roles: ["admin", "operador", "vrm"] },
-      { to: "/inbox", label: "Inbox", icon: InboxIcon, roles: ["admin", "operador", "vrm"] },
+      { to: "/comunicacao/inbox", label: "Módulo Comunicação", icon: MessageCircle, hint: "Inbox, campanhas, mensagens, contatos.", roles: ["admin", "operador", "vrm", "comunicacao"] },
     ],
   },
   {
