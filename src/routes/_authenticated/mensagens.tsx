@@ -429,6 +429,7 @@ function AutomationsPanel() {
                 <th className="text-left px-4 py-2">Evento</th>
                 <th className="text-left px-4 py-2">Status</th>
                 <th className="text-left px-4 py-2">Detalhe</th>
+                <th className="text-left px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -442,6 +443,7 @@ function AutomationsPanel() {
                 const color = row.status === "sent" ? "bg-emerald-100 text-emerald-700"
                   : row.status === "error" ? "bg-red-100 text-red-700"
                   : "bg-slate-200 text-slate-600";
+                const canRetry = row.status !== "sent";
                 return (
                   <tr key={row.id} className="border-t">
                     <td className="px-4 py-2 whitespace-nowrap text-xs">{when}</td>
@@ -449,11 +451,14 @@ function AutomationsPanel() {
                     <td className="px-4 py-2 font-mono text-xs">{row.automation?.event_key ?? "—"}</td>
                     <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${color}`}>{row.status}</span></td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">{row.error ?? ""}</td>
+                    <td className="px-4 py-2 text-right">
+                      {canRetry && <RetryButton id={row.id} onDone={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })} />}
+                    </td>
                   </tr>
                 );
               })}
               {(deliveries.data ?? []).length === 0 && !deliveries.isLoading && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground text-sm">Nenhuma entrega ainda. Faça uma atualização cadastral de teste para conferir.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground text-sm">Nenhuma entrega ainda. Faça uma atualização cadastral de teste para conferir.</td></tr>
               )}
             </tbody>
           </table>
