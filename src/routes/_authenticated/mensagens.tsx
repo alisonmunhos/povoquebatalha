@@ -513,3 +513,79 @@ function AutomationsPanel() {
     </div>
   );
 }
+
+// ============= Pré-visualização estilo WhatsApp =============
+function WhatsappPreview({ body, link, mediaMime, mediaFilename }: {
+  body: string; link: string | null; mediaMime: string | null; mediaFilename: string | null;
+}) {
+  // Substitui variáveis por exemplos amigáveis
+  const rendered = (body || "")
+    .replace(/\{\{\s*nome\s*\}\}/gi, "Marina")
+    .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, "Marina")
+    .replace(/\{\{\s*cidade\s*\}\}/gi, "Curitiba")
+    .replace(/\{\{\s*bairro\s*\}\}/gi, "Centro")
+    .replace(/\{\{\s*link_atualizacao\s*\}\}/gi, "https://povoquebatalha.lovable.app/recadastro?t=exemplo")
+    .replace(/\{\{\s*link_inscricao\s*\}\}/gi, "https://povoquebatalha.lovable.app/inscrever");
+
+  // Detecta primeiro link no corpo para mostrar cartão de prévia
+  const urlMatch = rendered.match(/https?:\/\/[^\s]+/);
+  const previewUrl = link || (urlMatch ? urlMatch[0] : null);
+  const host = previewUrl ? (() => { try { return new URL(previewUrl).hostname.replace("www.", ""); } catch { return null; } })() : null;
+
+  // Formatação básica *negrito* e _itálico_
+  const html = rendered
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\*(.+?)\*/g, "<strong>$1</strong>")
+    .replace(/_(.+?)_/g, "<em>$1</em>")
+    .replace(/(https?:\/\/[^\s]+)/g, '<a class="text-sky-700 underline break-all" href="$1" target="_blank" rel="noopener">$1</a>')
+    .replace(/\n/g, "<br/>");
+
+  return (
+    <div className="max-w-sm ml-auto">
+      <div className="rounded-lg bg-[#dcf8c6] shadow-sm p-2 text-[13px] text-slate-800">
+        {mediaMime && mediaMime.startsWith("image/") && (
+          <div className="mb-2 aspect-video rounded bg-slate-300/60 flex items-center justify-center text-[11px] text-slate-600">
+            🖼️ {mediaFilename ?? "imagem anexada"}
+          </div>
+        )}
+        {mediaMime === "application/pdf" && (
+          <div className="mb-2 rounded border border-slate-300 bg-white/60 p-2 text-[11px] text-slate-700 flex items-center gap-2">
+            📄 {mediaFilename ?? "documento.pdf"}
+          </div>
+        )}
+        {host && (
+          <div className="mb-2 rounded-md overflow-hidden border border-black/5 bg-white/70">
+            <div className="aspect-video bg-slate-200 flex items-center justify-center text-[10px] text-slate-500">
+              Prévia gerada pelo WhatsApp
+            </div>
+            <div className="px-2 py-1.5">
+              <div className="text-[11px] font-medium truncate">{host}</div>
+              <div className="text-[10px] text-slate-500 truncate">{previewUrl}</div>
+            </div>
+          </div>
+        )}
+        <div dangerouslySetInnerHTML={{ __html: html || "<span class='text-slate-400'>(mensagem vazia)</span>" }} />
+        <div className="text-[10px] text-slate-500 text-right mt-1">agora ✓✓</div>
+      </div>
+    </div>
+  );
+}
+
+function RetryButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const retryFn = useServerFn(retryAutomationDelivery);
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    try {
+      await retryFn({ data: { deliveryId: id } });
+      toast.success("Reenviado");
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <button onClick={run} disabled={busy} className="inline-flex items-center gap-1 text-xs rounded border px-2 py-0.5 hover:bg-muted disabled:opacity-50">
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Reenviar
+    </button>
+  );
+}
