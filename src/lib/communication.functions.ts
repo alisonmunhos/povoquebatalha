@@ -123,23 +123,23 @@ export const getConversation = createServerFn({ method: "GET" })
     conversation_id: z.string().uuid().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    // Descobre conversation (por contact ou por id direto — usado para não-vinculadas)
-    let convRow: {
+    type ConvRow = {
       id: string; contact_id: string | null; from_phone: string | null;
       status: string; assigned_to: string | null; unread_count: number; flagged: boolean; last_message_at: string | null;
-    } | null = null;
+    };
+    let convRow: ConvRow | null = null;
     if (data.conversation_id) {
       const { data: c } = await context.supabase
         .from("conversations")
         .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at")
         .eq("id", data.conversation_id).maybeSingle();
-      convRow = c as typeof convRow;
+      convRow = (c as ConvRow | null) ?? null;
     } else if (data.contact_id) {
       const { data: c } = await context.supabase
         .from("conversations")
         .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at")
         .eq("contact_id", data.contact_id).maybeSingle();
-      convRow = c as typeof convRow;
+      convRow = (c as ConvRow | null) ?? null;
     }
 
     const effectiveContactId = data.contact_id ?? convRow?.contact_id ?? null;
