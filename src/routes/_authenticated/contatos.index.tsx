@@ -95,8 +95,8 @@ function Contatos() {
   }, [search.segment]);
 
   const q = useQuery({
-    queryKey: ["contacts-rich", filters, page],
-    queryFn: () => listFn({ data: { filters, page, pageSize } }),
+    queryKey: ["contacts-rich", filters, page, sort],
+    queryFn: () => listFn({ data: { filters, page, pageSize, sort } }),
   });
 
   const allOnPage = useMemo(() => (q.data?.rows ?? []).map((r) => r.id), [q.data]);
