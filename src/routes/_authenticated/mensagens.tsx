@@ -89,6 +89,10 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     setEditing({ kind, active: true, variables: VARIAVEIS });
   }
 
+  const signUpload = useServerFn(signCampaignMediaUpload);
+  const [testPhone, setTestPhone] = useState("");
+  const [uploading, setUploading] = useState(false);
+
   async function save() {
     if (!editing?.title || !editing.body) return toast.error("Título e mensagem são obrigatórios");
     try {
@@ -103,6 +107,9 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
         variables: Array.isArray(editing.variables) ? editing.variables as string[] : VARIAVEIS,
         link: (editing.link as string | null) ?? null,
         media_url: (editing.media_url as string | null) ?? null,
+        media_path: (editing.media_path as string | null) ?? null,
+        media_mime: (editing.media_mime as string | null) ?? null,
+        media_filename: (editing.media_filename as string | null) ?? null,
         active: editing.active ?? true,
       }});
       toast.success("Salvo");
@@ -123,12 +130,31 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     qc.invalidateQueries({ queryKey: ["message-templates"] });
   }
   async function onTest(id: string) {
-    const phone = prompt("Enviar teste para qual WhatsApp? (com DDD)");
-    if (!phone) return;
+    const phone = testPhone.trim();
+    if (!phone) return toast.error("Informe um WhatsApp de teste (com DDD)");
     try {
       await testFn({ data: { templateId: id, phone } });
-      toast.success("Teste enviado");
+      toast.success(`Teste enviado para ${phone}`);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+  }
+
+  async function onAttach(file: File) {
+    if (!editing) return;
+    if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
+    setUploading(true);
+    try {
+      const sig = await signUpload({ data: { filename: file.name, contentType: file.type } });
+      const up = await fetch(sig.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": sig.contentType, "x-upsert": "true" },
+        body: file,
+      });
+      if (!up.ok) throw new Error(`Falha upload (${up.status})`);
+      setEditing({ ...editing, media_path: sig.path, media_mime: sig.contentType, media_filename: sig.filename });
+      toast.success("Anexo carregado");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro upload");
+    } finally { setUploading(false); }
   }
 
   return (
