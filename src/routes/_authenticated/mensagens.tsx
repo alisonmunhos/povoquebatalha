@@ -7,8 +7,10 @@ import {
   listMessageTemplates, upsertMessageTemplate, archiveMessageTemplate,
   duplicateMessageTemplate, sendTestTemplate,
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
+  retryAutomationDelivery,
 } from "@/lib/messages.functions";
-import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2 } from "lucide-react";
+import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
+import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, Paperclip, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/mensagens")({
@@ -19,7 +21,9 @@ export const Route = createFileRoute("/_authenticated/mensagens")({
 type Tpl = {
   id: string; kind: "system" | "quick_reply"; event_key: string | null; shortcut: string | null;
   title: string; category: string | null; body: string; variables: unknown;
-  link: string | null; media_url: string | null; active: boolean; updated_at: string;
+  link: string | null; media_url: string | null;
+  media_path: string | null; media_mime: string | null; media_filename: string | null;
+  active: boolean; updated_at: string;
 };
 
 const SYSTEM_EVENTS = [
