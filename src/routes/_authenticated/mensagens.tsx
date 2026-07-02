@@ -340,6 +340,60 @@ function AutomationsPanel() {
         </table>
       </div>
 
+      <div className="border rounded-xl bg-card">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Últimas entregas</h2>
+            <p className="text-xs text-muted-foreground">Registro das mensagens automáticas disparadas — útil para checar se a confirmação de cadastro está saindo.</p>
+          </div>
+          <button
+            onClick={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })}
+            className="text-xs rounded border px-2 py-1 hover:bg-muted"
+          >
+            Atualizar
+          </button>
+        </div>
+        <div className="max-h-80 overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs uppercase sticky top-0">
+              <tr>
+                <th className="text-left px-4 py-2">Quando</th>
+                <th className="text-left px-4 py-2">Contato</th>
+                <th className="text-left px-4 py-2">Evento</th>
+                <th className="text-left px-4 py-2">Status</th>
+                <th className="text-left px-4 py-2">Detalhe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(deliveries.data ?? []).map((d) => {
+                const row = d as {
+                  id: string; status: string; error: string | null; sent_at: string | null; created_at: string;
+                  contact?: { nome: string | null; phone_e164: string | null } | null;
+                  automation?: { event_key: string } | null;
+                };
+                const when = new Date(row.sent_at ?? row.created_at).toLocaleString("pt-BR");
+                const color = row.status === "sent" ? "bg-emerald-100 text-emerald-700"
+                  : row.status === "error" ? "bg-red-100 text-red-700"
+                  : "bg-slate-200 text-slate-600";
+                return (
+                  <tr key={row.id} className="border-t">
+                    <td className="px-4 py-2 whitespace-nowrap text-xs">{when}</td>
+                    <td className="px-4 py-2">{row.contact?.nome ?? "—"} <span className="text-xs text-muted-foreground">{row.contact?.phone_e164 ?? ""}</span></td>
+                    <td className="px-4 py-2 font-mono text-xs">{row.automation?.event_key ?? "—"}</td>
+                    <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${color}`}>{row.status}</span></td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">{row.error ?? ""}</td>
+                  </tr>
+                );
+              })}
+              {(deliveries.data ?? []).length === 0 && !deliveries.isLoading && (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground text-sm">Nenhuma entrega ainda. Faça uma atualização cadastral de teste para conferir.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+
       {editing && (
         <div className="border rounded-xl bg-card p-5 space-y-3">
           <h2 className="text-sm font-semibold">Editar automação</h2>
