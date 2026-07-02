@@ -70,6 +70,7 @@ function ContatoFicha() {
         movimento_social_nome: c.movimento_social_nome ?? "",
         tipo_contato: c.tipo_contato ?? "apoiador",
         formas_ajuda: Array.isArray(c.formas_ajuda) ? c.formas_ajuda : [],
+        formas_ajuda_outro: (c as { formas_ajuda_outro?: string | null }).formas_ajuda_outro ?? "",
         consentimento_whatsapp: c.consentimento_whatsapp,
         origem_detalhe: c.origem_detalhe ?? "",
         observacoes: c.observacoes ?? "",
