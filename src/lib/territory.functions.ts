@@ -169,7 +169,7 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
 
     let q = context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,bairro,cidade,uf,lifecycle_status,last_engagement_at,consentimento_whatsapp,opt_out_at", { count: "exact" })
+      .select("id,nome,phone_e164,bairro,cidade,uf,lifecycle_status,consentimento_whatsapp,opt_out_at", { count: "exact" })
       .is("arquivado_at", null)
       .order("created_at", { ascending: false })
       .range(from, to);
