@@ -361,3 +361,27 @@ function HistList({ title, items }: { title: string; items: Array<{ key: string;
     </div>
   );
 }
+
+function TerritorioLogsSection({ contactId }: { contactId: string }) {
+  const listFn = useServerFn(listContactTerritoryLogs);
+  const q = useQuery({ queryKey: ["territory-logs", contactId], queryFn: () => listFn({ data: { contactId } }) });
+  return (
+    <Section title={<span className="flex items-center gap-2"><History className="h-4 w-4" /> Território</span>}>
+      {q.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
+      {q.data && q.data.rows.length === 0 && (
+        <p className="text-xs text-muted-foreground">Sem registros territoriais.</p>
+      )}
+      {q.data && q.data.rows.length > 0 && (
+        <ul className="space-y-1.5 text-xs">
+          {q.data.rows.map((r: { id: string; action: string; note: string | null; created_at: string }) => (
+            <li key={r.id} className="border-l-2 border-muted pl-2">
+              <span className="text-muted-foreground">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
+              {" · "}<span className="font-medium">{r.action}</span>
+              {r.note && <span className="text-muted-foreground"> · {r.note}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
