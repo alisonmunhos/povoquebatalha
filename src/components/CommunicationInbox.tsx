@@ -18,13 +18,19 @@ import {
   listCommunicationStaff, searchContactsForNewChat,
 } from "@/lib/communication.functions";
 
-type Filter = "all" | "mine" | "unread" | "flagged" | "resolved";
+type Filter =
+  | "all" | "mine" | "unread" | "flagged" | "resolved"
+  | "in_service" | "unlinked" | "with_error" | "opt_out";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "Todas" },
   { key: "mine", label: "Minhas" },
   { key: "unread", label: "Não lidas" },
   { key: "flagged", label: "Sinalizadas" },
+  { key: "in_service", label: "Em atendimento" },
+  { key: "unlinked", label: "Não vinculadas" },
+  { key: "with_error", label: "Com erro" },
+  { key: "opt_out", label: "Opt-out" },
   { key: "resolved", label: "Resolvidas" },
 ];
 
