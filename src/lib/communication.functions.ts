@@ -325,30 +325,36 @@ export const getMyCommunicationBadge = createServerFn({ method: "GET" })
     };
   });
 
-// Read-only contacts list para o módulo (apenas WhatsApp validado, sem opt-out)
+// Lista read-only para o módulo. Retorna qualquer contato ativo com telefone
+// (E.164 ou candidato), independente de status do WhatsApp — opt-out e arquivado ficam de fora.
+// A UI pode filtrar por "só confirmados" quando quiser.
 export const listCommContactsForBulk = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     search: z.string().trim().max(120).optional(),
-    limit: z.number().int().min(1).max(500).default(200),
+    onlyConfirmed: z.boolean().optional(),
+    limit: z.number().int().min(1).max(1000).default(500),
   }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("contacts")
-      .select("id, nome, phone_e164, cidade, uf, bairro, whatsapp_status, consentimento_whatsapp")
-      .in("whatsapp_status", ["confirmado", "desconhecido"])
+      .select("id, nome, phone_e164, phone_whatsapp_candidate, cidade, uf, bairro, whatsapp_status, consentimento_whatsapp")
       .is("opt_out_at", null)
       .is("arquivado_at", null)
+      .or("phone_e164.not.is.null,phone_whatsapp_candidate.not.is.null")
       .order("nome", { ascending: true })
       .limit(data.limit);
+    if (data.onlyConfirmed) q = q.eq("whatsapp_status", "confirmado");
     if (data.search) {
       const s = data.search;
       const digits = s.replace(/\D+/g, "");
       q = digits.length >= 4
-        ? q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${digits}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`)
+        ? q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`)
         : q.or(`nome.ilike.%${s}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`);
     }
     const { data: rows, error } = await q;
     if (error) throw error;
     return rows ?? [];
+  });
+
   });
