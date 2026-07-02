@@ -305,12 +305,52 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
                 </select>
               </div>
             </div>
-            <Textarea rows={8} placeholder="Digite a mensagem. Use {{primeiro_nome}}, {{cidade}}, {{link_atualizacao}}…" value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
-            <div className="flex flex-wrap gap-1">
-              {VARIABLES.map((v) => (
-                <button key={v} type="button" onClick={() => setMensagem((m) => m + ` {{${v}}}`)} className="text-[11px] px-2 py-1 rounded bg-muted hover:bg-accent">{`{{${v}}}`}</button>
-              ))}
+            {/* Barra de formatação estilo WhatsApp */}
+            <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-muted/30">
+              <FmtBtn title="Negrito (*texto*)" onClick={() => wrapSelection("*")}><Bold className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Itálico (_texto_)" onClick={() => wrapSelection("_")}><Italic className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Riscado (~texto~)" onClick={() => wrapSelection("~")}><Strikethrough className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Monoespaçado (```texto```)" onClick={() => wrapSelection("```")}><Code2 className="h-3.5 w-3.5" /></FmtBtn>
+              <FmtBtn title="Lista" onClick={() => insertAtCursor("\n- ")}><List className="h-3.5 w-3.5" /></FmtBtn>
+              <span className="w-px h-4 bg-border mx-1" />
+              <div className="flex items-center gap-1 pl-1">
+                <Smile className="h-3.5 w-3.5 text-muted-foreground" />
+                {QUICK_EMOJIS.map((e) => (
+                  <button key={e} type="button" onClick={() => insertAtCursor(e)} className="text-base leading-none hover:scale-110 transition" title={`Inserir ${e}`}>{e}</button>
+                ))}
+              </div>
             </div>
+
+            <Textarea ref={textareaRef} rows={8} placeholder="Digite a mensagem. Use {{primeiro_nome}}, {{cidade}}, {{link_atualizacao}}…" value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
+
+            <div>
+              <Label className="text-xs text-muted-foreground">Variáveis dinâmicas — inseridas ao clicar</Label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {VARIABLES.map((v) => (
+                  <button key={v} type="button" onClick={() => insertAtCursor(`{{${v}}}`)} className="text-[11px] px-2 py-1 rounded bg-muted hover:bg-accent">{`{{${v}}}`}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Campo de link com prévia estilo WhatsApp */}
+            <div className="space-y-2">
+              <Label className="text-xs flex items-center gap-1"><Link2 className="h-3.5 w-3.5" /> Link (opcional) — com prévia</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://exemplo.com/pagina"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                />
+                <Button type="button" variant="outline" onClick={insertLinkIntoMessage} disabled={!linkUrl.trim()}>
+                  Inserir no texto
+                </Button>
+              </div>
+              {(linkLoading || linkPreview) && (
+                <LinkPreviewCard loading={linkLoading} preview={linkPreview} />
+              )}
+              <p className="text-[11px] text-muted-foreground">A prévia aparece no WhatsApp do contato automaticamente quando o link estiver no corpo da mensagem.</p>
+            </div>
+
             <label className="flex items-start gap-2 text-xs">
               <input type="checkbox" checked={saveAsTemplate.enabled} onChange={(e) => setSaveAsTemplate({ ...saveAsTemplate, enabled: e.target.checked })} className="mt-0.5" />
               <span>Salvar este texto como <b>Resposta pronta</b> reutilizável</span>
