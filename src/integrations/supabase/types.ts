@@ -1437,6 +1437,7 @@ export type Database = {
           config: Json
           created_at: string
           id: string
+          inbound_to_inbox_enabled: boolean
           last_ping: string | null
           nome: string
           numero_conectado: string | null
@@ -1449,6 +1450,7 @@ export type Database = {
           config?: Json
           created_at?: string
           id?: string
+          inbound_to_inbox_enabled?: boolean
           last_ping?: string | null
           nome: string
           numero_conectado?: string | null
@@ -1461,6 +1463,7 @@ export type Database = {
           config?: Json
           created_at?: string
           id?: string
+          inbound_to_inbox_enabled?: boolean
           last_ping?: string | null
           nome?: string
           numero_conectado?: string | null

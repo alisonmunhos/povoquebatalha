@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_instances ADD COLUMN IF NOT EXISTS inbound_to_inbox_enabled boolean NOT NULL DEFAULT false;

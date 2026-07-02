@@ -43,6 +43,7 @@ import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_aut
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
+import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/api/public/jobs/process-campaign-queue'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
 import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
@@ -226,6 +227,12 @@ const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   path: '/api/public/zapi/$evento',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsProcessCampaignQueueRoute =
+  ApiPublicJobsProcessCampaignQueueRouteImport.update({
+    id: '/api/public/jobs/process-campaign-queue',
+    path: '/api/public/jobs/process-campaign-queue',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicFormsRecadastroRoute =
   ApiPublicFormsRecadastroRouteImport.update({
     id: '/api/public/forms/recadastro',
@@ -285,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRoutesByTo {
@@ -323,6 +331,7 @@ export interface FileRoutesByTo {
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRoutesById {
@@ -364,6 +373,7 @@ export interface FileRoutesById {
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
+  '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
 }
 export interface FileRouteTypes {
@@ -405,6 +415,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
+    | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -443,6 +454,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
+    | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
   id:
     | '__root__'
@@ -483,6 +495,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
+    | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
   fileRoutesById: FileRoutesById
 }
@@ -502,6 +515,7 @@ export interface RootRouteChildren {
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
+  ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
   ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
 }
 
@@ -745,6 +759,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicZapiEventoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/process-campaign-queue': {
+      id: '/api/public/jobs/process-campaign-queue'
+      path: '/api/public/jobs/process-campaign-queue'
+      fullPath: '/api/public/jobs/process-campaign-queue'
+      preLoaderRoute: typeof ApiPublicJobsProcessCampaignQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/forms/recadastro': {
       id: '/api/public/forms/recadastro'
       path: '/api/public/forms/recadastro'
@@ -858,18 +879,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
   ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
+  ApiPublicJobsProcessCampaignQueueRoute:
+    ApiPublicJobsProcessCampaignQueueRoute,
   ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

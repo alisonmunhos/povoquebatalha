@@ -63,43 +63,37 @@ export const listConversations = createServerFn({ method: "GET" })
     return list;
   });
 
-// Contatos com WhatsApp válido que ainda NÃO têm conversa — usado para iniciar novo chat pela busca.
+// Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
+// que bata com nome/telefone/cidade, independente de status do WhatsApp.
+// Contatos que já tenham conversa também podem aparecer; a UI decide como agrupar.
 export const searchContactsForNewChat = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ q: z.string().trim().min(1).max(80) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ q: z.string().trim().min(1).max(120) }).parse(d))
   .handler(async ({ data, context }) => {
-    const digits = data.q.replace(/\D+/g, "");
     let q = context.supabase
       .from("contacts")
       .select("id, nome, phone_e164, cidade, uf, whatsapp_status")
-      .in("whatsapp_status", ["confirmado", "desconhecido"])
       .is("opt_out_at", null)
       .is("arquivado_at", null)
+      .order("nome", { ascending: true })
       .limit(30);
-
+    const digits = data.q.replace(/\D+/g, "");
     if (digits.length >= 4) {
-      q = q.or(`phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,nome.ilike.%${data.q}%`);
+      q = q.or(`phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,nome.ilike.%${data.q}%,cidade.ilike.%${data.q}%`);
     } else {
-      q = q.ilike("nome", `%${data.q}%`);
+      q = q.or(`nome.ilike.%${data.q}%,cidade.ilike.%${data.q}%`);
     }
     const { data: rows, error } = await q;
     if (error) throw error;
-    const ids = (rows ?? []).map((r) => r.id as string);
-    if (ids.length === 0) return [];
-    const { data: existing } = await context.supabase
-      .from("conversations").select("contact_id").in("contact_id", ids);
-    const withConv = new Set((existing ?? []).map((e) => e.contact_id as string));
-    return (rows ?? [])
-      .filter((r) => !withConv.has(r.id as string))
-      .slice(0, 20)
-      .map((r) => ({
-        id: r.id as string,
-        nome: r.nome as string | null,
-        phone: r.phone_e164 as string | null,
-        cidade: r.cidade as string | null,
-        uf: r.uf as string | null,
-      }));
+    return (rows ?? []).map((r) => ({
+      id: r.id as string,
+      nome: r.nome as string | null,
+      phone: (r.phone_e164 as string | null) ?? null,
+      cidade: r.cidade as string | null,
+      uf: r.uf as string | null,
+    }));
   });
+
 
 // ------- Load unified conversation thread -------
 export const getConversation = createServerFn({ method: "GET" })
@@ -331,27 +325,31 @@ export const getMyCommunicationBadge = createServerFn({ method: "GET" })
     };
   });
 
-// Read-only contacts list para o módulo (apenas WhatsApp validado, sem opt-out)
+// Lista read-only para o módulo. Retorna qualquer contato ativo com telefone
+// (E.164 ou candidato), independente de status do WhatsApp — opt-out e arquivado ficam de fora.
+// A UI pode filtrar por "só confirmados" quando quiser.
 export const listCommContactsForBulk = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     search: z.string().trim().max(120).optional(),
-    limit: z.number().int().min(1).max(500).default(200),
+    onlyConfirmed: z.boolean().optional(),
+    limit: z.number().int().min(1).max(1000).default(500),
   }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("contacts")
-      .select("id, nome, phone_e164, cidade, uf, bairro, whatsapp_status, consentimento_whatsapp")
-      .in("whatsapp_status", ["confirmado", "desconhecido"])
+      .select("id, nome, phone_e164, phone_whatsapp_candidate, cidade, uf, bairro, whatsapp_status, consentimento_whatsapp")
       .is("opt_out_at", null)
       .is("arquivado_at", null)
+      .or("phone_e164.not.is.null,phone_whatsapp_candidate.not.is.null")
       .order("nome", { ascending: true })
       .limit(data.limit);
+    if (data.onlyConfirmed) q = q.eq("whatsapp_status", "confirmado");
     if (data.search) {
       const s = data.search;
       const digits = s.replace(/\D+/g, "");
       q = digits.length >= 4
-        ? q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${digits}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`)
+        ? q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`)
         : q.or(`nome.ilike.%${s}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`);
     }
     const { data: rows, error } = await q;

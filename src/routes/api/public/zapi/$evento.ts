@@ -76,50 +76,79 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
               })
               .eq("provider", "zapi");
           } else if (evento === "on-receive") {
-            const phone = pickPhone(body);
-            const text =
-              safeStr((body.text as AnyRecord | undefined)?.message) ??
-              safeStr((body.message as AnyRecord | undefined)?.text) ??
-              safeStr(body.text) ??
-              safeStr(body.message) ??
-              null;
-            // Try to find existing contact by last 8 digits
-            let contactId: string | null = null;
-            if (phone) {
-              const digits = phone.replace(/\D+/g, "");
-              const last8 = digits.length >= 8 ? digits.slice(-8) : null;
-              if (last8) {
-                const { data: c } = await supabaseAdmin
-                  .from("contacts")
-                  .select("id")
-                  .eq("phone_last8", last8)
-                  .maybeSingle();
-                contactId = c?.id ?? null;
+            // Só cria conversa/inbound se a instância tiver o toggle ligado.
+            const { data: inst } = await supabaseAdmin
+              .from("whatsapp_instances")
+              .select("inbound_to_inbox_enabled")
+              .eq("provider", "zapi")
+              .maybeSingle();
+            const inboundEnabled = inst?.inbound_to_inbox_enabled === true;
+
+            if (inboundEnabled) {
+              const phone = pickPhone(body);
+              const senderName =
+                safeStr(body.senderName) ?? safeStr(body.chatName) ?? safeStr(body.notifyName);
+              const text =
+                safeStr((body.text as AnyRecord | undefined)?.message) ??
+                safeStr((body.message as AnyRecord | undefined)?.text) ??
+                safeStr(body.text) ??
+                safeStr(body.message) ??
+                null;
+
+              // Busca contato existente pelos últimos 8 dígitos; se não achar, cria.
+              let contactId: string | null = null;
+              if (phone) {
+                const digits = phone.replace(/\D+/g, "");
+                const last8 = digits.length >= 8 ? digits.slice(-8) : null;
+                if (last8) {
+                  const { data: c } = await supabaseAdmin
+                    .from("contacts")
+                    .select("id")
+                    .eq("phone_last8", last8)
+                    .maybeSingle();
+                  contactId = c?.id ?? null;
+                }
+                if (!contactId) {
+                  const { data: novo } = await supabaseAdmin
+                    .from("contacts")
+                    .insert({
+                      nome: senderName ?? `WhatsApp ${digits.slice(-4)}`,
+                      phone_raw: phone,
+                      origem: "manual",
+                      origem_detalhe: "inbound_whatsapp",
+                      consentimento_whatsapp: true,
+                    })
+                    .select("id")
+                    .maybeSingle();
+                  contactId = novo?.id ?? null;
+                }
+              }
+              await supabaseAdmin.from("inbound_messages").insert({
+                from_phone: phone,
+                from_name: senderName,
+                conteudo: text,
+                tipo: safeStr(body.type) ?? "text",
+                payload: body as never,
+                contact_id: contactId,
+              });
+              // Opt-out via palavra-chave
+              if (text && contactId) {
+                const norm = text.trim().toLowerCase();
+                if (OPT_OUT_KEYWORDS.some((k) => norm === k || norm.startsWith(k + " "))) {
+                  await supabaseAdmin
+                    .from("contacts")
+                    .update({ opt_out_at: new Date().toISOString() })
+                    .eq("id", contactId);
+                  await supabaseAdmin
+                    .from("campaign_recipients")
+                    .update({ status: "opted_out" })
+                    .eq("contact_id", contactId)
+                    .in("status", ["queued", "sending"]);
+                }
               }
             }
-            await supabaseAdmin.from("inbound_messages").insert({
-              from_phone: phone,
-              from_name: safeStr(body.senderName) ?? safeStr(body.chatName),
-              conteudo: text,
-              tipo: safeStr(body.type) ?? "text",
-              payload: body as never,
-              contact_id: contactId,
-            });
-            // Opt-out via keyword
-            if (text && contactId) {
-              const norm = text.trim().toLowerCase();
-              if (OPT_OUT_KEYWORDS.some((k) => norm === k || norm.startsWith(k + " "))) {
-                await supabaseAdmin
-                  .from("contacts")
-                  .update({ opt_out_at: new Date().toISOString() })
-                  .eq("id", contactId);
-                await supabaseAdmin
-                  .from("campaign_recipients")
-                  .update({ status: "opted_out" })
-                  .eq("contact_id", contactId)
-                  .in("status", ["queued", "sending"]);
-              }
-            }
+            // Se o toggle estiver desligado, ignoramos silenciosamente (webhook_log guarda auditoria).
+
           } else if (
             evento === "on-send" ||
             evento === "on-delivery" ||

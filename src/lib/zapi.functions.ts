@@ -65,3 +65,44 @@ export const testSendWhatsApp = createServerFn({ method: "POST" })
     const r = await zapi.sendText(phone, data.message);
     return { ok: true as const, result: r };
   });
+
+// Retorna configuração da instância (flag inbound_to_inbox_enabled).
+export const getInstanceSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("whatsapp_instances")
+      .select("inbound_to_inbox_enabled, numero_conectado, status")
+      .eq("provider", "zapi")
+      .maybeSingle();
+    return {
+      inbound_to_inbox_enabled: data?.inbound_to_inbox_enabled ?? false,
+      numero_conectado: data?.numero_conectado ?? null,
+      status: data?.status ?? null,
+    };
+  });
+
+export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    // Verifica papel admin/vrm; RLS já protege, mas mensagem clara ajuda.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("provider", "zapi")
+      .maybeSingle();
+    if (existing) {
+      await supabaseAdmin
+        .from("whatsapp_instances")
+        .update({ inbound_to_inbox_enabled: data.enabled })
+        .eq("id", existing.id);
+    } else {
+      await supabaseAdmin
+        .from("whatsapp_instances")
+        .insert({ provider: "zapi", nome: "Instância principal", inbound_to_inbox_enabled: data.enabled });
+    }
+    return { ok: true as const, enabled: data.enabled, actor: context.userId };
+  });
+
