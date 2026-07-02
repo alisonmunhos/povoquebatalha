@@ -68,6 +68,24 @@ function LinksPage() {
         </p>
       </div>
 
+      <section className="rounded-xl border p-5 bg-card space-y-3">
+        <h2 className="font-semibold text-sm">Link do Módulo Território</h2>
+        <div className="font-mono text-xs break-all bg-muted/40 border rounded p-2">
+          {baseUrl ? `${baseUrl}/territorio` : "/territorio"}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => copy(`${baseUrl}/territorio`)} className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
+            <Copy className="h-3 w-3" /> Copiar
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Envie este link apenas para pessoas convidadas com papel <strong>Território</strong>.
+          Após login, elas verão somente os contatos autorizados para seu escopo.
+          No celular, ao abrir, use o menu do navegador → <em>Adicionar à tela inicial</em> para usar como app.
+        </p>
+      </section>
+
+
       <section className="border rounded-xl p-5 bg-card space-y-4">
         <h2 className="font-semibold text-sm">Origem do link</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
