@@ -188,6 +188,41 @@ export const retryAutomationDelivery = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Dispara manualmente uma automação (por event_key) para um contato específico —
+// útil quando o disparo original falhou e não gerou nenhuma linha em automation_deliveries.
+export const triggerAutomationForContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    eventKey: z.string().trim().min(2).max(80),
+    contactQuery: z.string().trim().min(3).max(80), // nome, telefone ou id
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const q = data.contactQuery.trim();
+    let contact: any = null;
+    // tenta por id UUID
+    if (/^[0-9a-f-]{36}$/i.test(q)) {
+      const { data: c } = await supabaseAdmin.from("contacts").select("*").eq("id", q).maybeSingle();
+      contact = c;
+    }
+    if (!contact) {
+      const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: q });
+      if (norm) {
+        const { data: c } = await supabaseAdmin.from("contacts").select("*").eq("phone_e164", norm).maybeSingle();
+        contact = c;
+      }
+    }
+    if (!contact) {
+      const { data: c } = await supabaseAdmin.from("contacts")
+        .select("*").ilike("nome", `%${q}%`).limit(1).maybeSingle();
+      contact = c;
+    }
+    if (!contact) throw new Error("Contato não encontrado");
+    const { triggerAutomationsForEvent } = await import("@/lib/automations.server");
+    await triggerAutomationsForEvent({ eventKey: data.eventKey, contact });
+    return { ok: true, contact_id: contact.id, nome: contact.nome };
+  });
+
 // AUTOMATIONS
 const automationSchema = z.object({
   id: z.string().uuid().optional(),
