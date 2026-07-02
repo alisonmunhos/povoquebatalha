@@ -1,0 +1,529 @@
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
+import {
+  Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
+  MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
+  Flag, ClipboardList, StickyNote, Clock, X,
+} from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
+import {
+  listConversations, getConversation, markConversationRead, assignConversation,
+  setConversationStatus, toggleConversationFlag, addConversationNote,
+  listCommunicationStaff, searchContactsForNewChat,
+} from "@/lib/communication.functions";
+
+type Filter = "all" | "mine" | "unread" | "flagged" | "resolved";
+
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "Todas" },
+  { key: "mine", label: "Minhas" },
+  { key: "unread", label: "Não lidas" },
+  { key: "flagged", label: "Sinalizadas" },
+  { key: "resolved", label: "Resolvidas" },
+];
+
+export function CommunicationInbox() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [mobilePane, setMobilePane] = useState<"list" | "thread" | "info">("list");
+
+  const listFn = useServerFn(listConversations);
+  const convFn = useServerFn(getConversation);
+  const readFn = useServerFn(markConversationRead);
+  const sendFn = useServerFn(sendDirectMessage);
+  const tplsFn = useServerFn(listQuickReplies);
+  const assignFn = useServerFn(assignConversation);
+  const statusFn = useServerFn(setConversationStatus);
+  const flagFn = useServerFn(toggleConversationFlag);
+  const noteFn = useServerFn(addConversationNote);
+  const staffFn = useServerFn(listCommunicationStaff);
+  const searchNewFn = useServerFn(searchContactsForNewChat);
+
+  const listQ = useQuery({
+    queryKey: ["comm-conv-list", filter, search],
+    queryFn: () => listFn({ data: { filter, search: search || undefined } }),
+    refetchInterval: 15000,
+  });
+
+  const list = listQ.data ?? [];
+  const selected = useMemo(() => list.find((c) => c.contact_id === selectedContactId) ?? null, [list, selectedContactId]);
+
+  const searchNewQ = useQuery({
+    queryKey: ["comm-search-new", search],
+    queryFn: () => searchNewFn({ data: { q: search } }),
+    enabled: search.trim().length >= 2,
+  });
+
+  const convQ = useQuery({
+    queryKey: ["comm-conv", selectedContactId],
+    queryFn: () => convFn({ data: { contact_id: selectedContactId! } }),
+    enabled: Boolean(selectedContactId),
+    refetchInterval: 15000,
+  });
+
+  const tplsQ = useQuery({ queryKey: ["comm-tpls"], queryFn: () => tplsFn() });
+  const staffQ = useQuery({ queryKey: ["comm-staff"], queryFn: () => staffFn() });
+
+  // Realtime: refresh list quando conversas mudam
+  useEffect(() => {
+    const ch = supabase
+      .channel("conv-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
+        qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+        qc.invalidateQueries({ queryKey: ["comm-badge"] });
+        if (selectedContactId) qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "inbound_messages" }, () => {
+        if (selectedContactId) qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [qc, selectedContactId]);
+
+  const readMut = useMutation({
+    mutationFn: (contact_id: string) => readFn({ data: { contact_id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-badge"] });
+    },
+  });
+
+  const sendMut = useMutation({
+    mutationFn: (payload: { contact_id: string; message: string }) => sendFn({ data: { ...payload, origem: "inbox" } }),
+    onSuccess: () => {
+      setReply("");
+      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      toast.success("Mensagem enviada");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao enviar"),
+  });
+
+  const assignMut = useMutation({
+    mutationFn: (v: { conversation_id: string; assigned_to: string | null }) => assignFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-badge"] });
+      toast.success("Atribuição atualizada");
+    },
+  });
+
+  const statusMut = useMutation({
+    mutationFn: (v: { conversation_id: string; status: "aberta" | "aguardando" | "resolvida" }) => statusFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      toast.success("Status atualizado");
+    },
+  });
+
+  const flagMut = useMutation({
+    mutationFn: (v: { conversation_id: string; flagged: boolean }) => flagFn({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["comm-conv-list"] }),
+  });
+
+  const noteMut = useMutation({
+    mutationFn: (v: { conversation_id: string; body: string; mention_user_id?: string }) => noteFn({ data: v }),
+    onSuccess: () => {
+      setNote("");
+      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      toast.success("Nota adicionada");
+    },
+  });
+
+  function openConversation(contactId: string, unread: number) {
+    setSelectedContactId(contactId);
+    setMobilePane("thread");
+    if (unread > 0) readMut.mutate(contactId);
+  }
+
+  function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (selected?.contact_id && reply.trim()) sendMut.mutate({ contact_id: selected.contact_id, message: reply });
+    }
+  }
+
+  const contact = convQ.data?.contact;
+  const conv = convQ.data?.conversation;
+  const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
+
+  const timeline = useMemo(() => {
+    const t: Array<{ id: string; kind: "in" | "out"; text: string; at: string; meta?: string }> = [];
+    for (const m of convQ.data?.inbound ?? []) t.push({ id: `in-${m.id}`, kind: "in", text: m.conteudo ?? "", at: m.received_at as string });
+    for (const m of convQ.data?.direct ?? []) t.push({
+      id: `d-${m.id}`, kind: "out", text: m.conteudo as string, at: m.created_at as string,
+      meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? " · erro" : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
+    });
+    for (const m of convQ.data?.campaign ?? []) t.push({
+      id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
+      meta: `campanha · ${m.campaign_name ?? ""}`,
+    });
+    return t.sort((a, b) => (a.at < b.at ? -1 : 1));
+  }, [convQ.data]);
+
+  return (
+    <div className="flex h-full min-h-0 bg-muted/10">
+      {/* LEFT: conversation list */}
+      <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col border-r bg-background`}>
+        <div className="p-3 border-b space-y-2">
+          <div className="relative">
+            <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar nome, telefone…"
+              className="w-full text-sm pl-8 pr-2 py-2 rounded-md border border-input bg-background"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                  filter === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {listQ.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
+          {list.length === 0 && !listQ.isLoading && (
+            <div className="p-6 text-center text-sm text-muted-foreground">Nenhuma conversa neste filtro.</div>
+          )}
+          {list.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => openConversation(c.contact_id, c.unread)}
+              className={`w-full text-left px-3 py-2.5 border-b hover:bg-muted/40 transition-colors ${
+                selectedContactId === c.contact_id ? "bg-muted/60" : ""
+              }`}
+            >
+              <div className="flex justify-between items-baseline gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {c.flagged && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
+                  <span className="font-medium text-sm truncate">{c.nome ?? c.phone ?? "Sem nome"}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0">{fmtRel(c.last_at)}</span>
+              </div>
+              <div className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1.5">
+                {c.unread > 0 && (
+                  <span className="inline-flex items-center justify-center bg-primary text-primary-foreground rounded-full text-[10px] px-1.5 min-w-[1rem] font-semibold">
+                    {c.unread}
+                  </span>
+                )}
+                {c.last_dir === "out" && <span className="text-muted-foreground/60">↩</span>}
+                <span className="truncate">{c.last_preview ?? "(sem prévia)"}</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-1">
+                <span>{c.phone}</span>
+                {c.cidade && <span>· {c.cidade}/{c.uf ?? ""}</span>}
+                {c.assigned_to && <span className="ml-auto inline-flex items-center gap-0.5"><UserPlus className="h-2.5 w-2.5" />atribuída</span>}
+              </div>
+            </button>
+          ))}
+
+          {search.trim().length >= 2 && (searchNewQ.data?.length ?? 0) > 0 && (
+            <div className="border-t bg-muted/10">
+              <div className="px-3 py-2 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                Iniciar nova conversa
+              </div>
+              {(searchNewQ.data ?? []).map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => openConversation(c.id, 0)}
+                  className="w-full text-left px-3 py-2 border-b hover:bg-background/50"
+                >
+                  <div className="text-sm font-medium truncate">{c.nome ?? "Sem nome"}</div>
+                  <div className="text-xs text-muted-foreground truncate">{c.phone}{c.cidade ? ` · ${c.cidade}/${c.uf ?? ""}` : ""}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CENTER: thread */}
+      <div className={`${mobilePane === "thread" ? "flex" : "hidden"} md:flex flex-1 flex-col min-w-0`}>
+        {!selected ? (
+          <div className="flex-1 grid place-items-center text-center text-sm text-muted-foreground p-8">
+            <div>
+              <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              Selecione uma conversa para começar.
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="border-b p-3 flex items-center gap-2 bg-background">
+              <button className="md:hidden" onClick={() => setMobilePane("list")}>
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold truncate">{selected.nome ?? selected.phone ?? "Sem nome"}</div>
+                <div className="text-xs text-muted-foreground truncate flex items-center gap-2">
+                  <span>{selected.phone}</span>
+                  {selected.cidade && <span>· {selected.cidade}/{selected.uf ?? ""}</span>}
+                  {selected.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => conv && flagMut.mutate({ conversation_id: conv.id, flagged: !convQ.data?.conversation?.flagged })}
+                  className="p-2 rounded-md hover:bg-muted"
+                  title="Sinalizar"
+                >
+                  {convQ.data?.conversation?.flagged ? <Star className="h-4 w-4 text-amber-500 fill-amber-500" /> : <StarOff className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={() => conv && statusMut.mutate({ conversation_id: conv.id, status: conv.status === "resolvida" ? "aberta" : "resolvida" })}
+                  className="text-xs inline-flex items-center gap-1 px-2 py-1.5 border rounded-md hover:bg-muted"
+                >
+                  {conv?.status === "resolvida" ? <><RotateCcw className="h-3 w-3" /> Reabrir</> : <><CheckCircle2 className="h-3 w-3" /> Resolver</>}
+                </button>
+                <button className="md:hidden p-2 rounded-md hover:bg-muted" onClick={() => setMobilePane("info")}>
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2260%22%3E%3Ccircle%20cx%3D%221%22%20cy%3D%221%22%20r%3D%221%22%20fill%3D%22%23e5e7eb%22%20fill-opacity%3D%22.4%22%2F%3E%3C%2Fsvg%3E')]">
+              {convQ.isLoading && <div className="text-sm text-muted-foreground text-center py-4">Carregando…</div>}
+              {timeline.length === 0 && !convQ.isLoading && (
+                <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
+              )}
+              {timeline.map((m) => (
+                <div key={m.id} className={`flex ${m.kind === "out" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
+                    m.kind === "out" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-background border rounded-bl-none"
+                  }`}>
+                    <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                    <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
+                      {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t p-3 bg-background space-y-2">
+              {!canSend && (
+                <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  {contact?.opt_out_at ? "Contato optou por sair (opt-out). Envio bloqueado." : "Contato sem WhatsApp válido."}
+                </div>
+              )}
+              <div className="flex items-end gap-2">
+                <button
+                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0"
+                  title="Anexar (em breve)"
+                  disabled
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+                {tplsQ.data && tplsQ.data.length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      const t = tplsQ.data?.find((x) => x.id === e.target.value);
+                      if (t) setReply((prev) => prev ? prev + "\n" + t.body : t.body);
+                      e.currentTarget.value = "";
+                    }}
+                    className="text-xs px-2 py-2 rounded-md border bg-background shrink-0 hidden sm:block"
+                    title="Resposta pronta"
+                  >
+                    <option value="">📋</option>
+                    {tplsQ.data.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+                  </select>
+                )}
+                <textarea
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  onKeyDown={handleSendKeyDown}
+                  disabled={!canSend}
+                  rows={1}
+                  placeholder="Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
+                  className="flex-1 text-sm px-3 py-2 rounded-md border bg-background resize-none max-h-40"
+                  style={{ minHeight: "40px" }}
+                />
+                <button
+                  onClick={() => selected.contact_id && reply.trim() && sendMut.mutate({ contact_id: selected.contact_id, message: reply })}
+                  disabled={!canSend || !reply.trim() || sendMut.isPending}
+                  className="p-2.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
+                  title="Enviar"
+                >
+                  {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* RIGHT: contact panel */}
+      {selected && (
+        <div className={`${mobilePane === "info" ? "flex" : "hidden"} md:flex w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
+          <div className="p-4 border-b flex items-start gap-2">
+            <button className="md:hidden" onClick={() => setMobilePane("thread")}>
+              <X className="h-5 w-5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm truncate">{selected.nome ?? "Sem nome"}</div>
+              <div className="text-xs text-muted-foreground truncate">{selected.phone}</div>
+              {selected.cidade && <div className="text-xs text-muted-foreground truncate">{selected.cidade}/{selected.uf ?? ""}{selected.bairro ? ` · ${selected.bairro}` : ""}</div>}
+              {selected.contact_id && (
+                <Link
+                  to="/contatos/$id" params={{ id: selected.contact_id }} target="_blank"
+                  className="text-xs text-primary inline-flex items-center gap-1 hover:underline mt-1"
+                >
+                  <ExternalLink className="h-3 w-3" /> Ver ficha completa
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <div className="p-4 border-b space-y-3">
+            <div>
+              <label className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1">
+                <UserPlus className="h-3 w-3" /> Atribuído a
+              </label>
+              <select
+                value={conv?.assigned_to ?? ""}
+                onChange={(e) => conv && assignMut.mutate({ conversation_id: conv.id, assigned_to: e.target.value || null })}
+                className="w-full text-sm mt-1 px-2 py-1.5 rounded border bg-background"
+              >
+                <option value="">— Ninguém —</option>
+                {user && <option value={user.id}>Eu ({staffQ.data?.find((s) => s.id === user.id)?.name ?? "meu usuário"})</option>}
+                {(staffQ.data ?? []).filter((s) => s.id !== user?.id).map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1">
+                <Flag className="h-3 w-3" /> Status
+              </label>
+              <select
+                value={conv?.status ?? "aberta"}
+                onChange={(e) => conv && statusMut.mutate({ conversation_id: conv.id, status: e.target.value as "aberta" | "aguardando" | "resolvida" })}
+                className="w-full text-sm mt-1 px-2 py-1.5 rounded border bg-background"
+              >
+                <option value="aberta">Aberta</option>
+                <option value="aguardando">Aguardando</option>
+                <option value="resolvida">Resolvida</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="p-4 border-b">
+            <button
+              onClick={() => setNotesOpen((v) => !v)}
+              className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1 mb-2"
+            >
+              <StickyNote className="h-3 w-3" /> Notas internas {notesOpen ? "▾" : "▸"}
+            </button>
+            {notesOpen && (
+              <div className="space-y-2">
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="Anotação privada (não vai para o WhatsApp)…"
+                  className="w-full text-sm px-2 py-1.5 rounded border bg-background resize-none"
+                />
+                <select
+                  className="w-full text-xs px-2 py-1 rounded border bg-background"
+                  id="note-mention"
+                  defaultValue=""
+                >
+                  <option value="">Sem menção</option>
+                  {(staffQ.data ?? []).map((s) => <option key={s.id} value={s.id}>@{s.name}</option>)}
+                </select>
+                <button
+                  disabled={!note.trim() || noteMut.isPending}
+                  onClick={() => {
+                    if (!conv) return;
+                    const mention = (document.getElementById("note-mention") as HTMLSelectElement | null)?.value || undefined;
+                    noteMut.mutate({ conversation_id: conv.id, body: note, mention_user_id: mention });
+                  }}
+                  className="w-full text-xs px-2 py-1.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 inline-flex items-center justify-center gap-1"
+                >
+                  <ClipboardList className="h-3 w-3" /> Adicionar nota
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1 mb-3">
+              <Clock className="h-3 w-3" /> Timeline
+            </div>
+            <div className="space-y-2">
+              {(convQ.data?.events ?? []).length === 0 && (
+                <div className="text-xs text-muted-foreground italic">Sem eventos ainda.</div>
+              )}
+              {(convQ.data?.events ?? []).map((e) => (
+                <div key={e.id} className="text-xs border-l-2 border-muted pl-2 py-1">
+                  <div className="font-medium">{describeEvent(e)}</div>
+                  {typeof e.payload.body === "string" && (
+                    <div className="text-muted-foreground italic mt-0.5">"{e.payload.body}"</div>
+                  )}
+                  <div className="text-muted-foreground/70">{fmtDate(e.created_at)} · {e.actor_name ?? "Sistema"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function describeEvent(e: { event_type: string; payload: Record<string, string | number | boolean | null> }) {
+  switch (e.event_type) {
+    case "assigned": return "Conversa atribuída";
+    case "unassigned": return "Atribuição removida";
+    case "status_changed": return `Status: ${e.payload.from ?? "?"} → ${e.payload.to ?? "?"}`;
+    case "note": return "Nota interna adicionada";
+    case "mention": return "Mencionou um colega";
+    case "flagged": return "Marcada como importante";
+    case "unflagged": return "Removida a marcação";
+    default: return e.event_type;
+  }
+}
+
+function fmtDate(iso: string) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch { return iso; }
+}
+function fmtRel(iso: string | null) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  try {
+    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  } catch { return `${d}d`; }
+}
