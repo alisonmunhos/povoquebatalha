@@ -180,7 +180,37 @@ function WhatsAppPage() {
         </section>
       )}
 
+      <section className="mt-6 border rounded-xl p-6 bg-card">
+        <h2 className="font-semibold">Recebimento de mensagens (Inbox)</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Quando <b>ligado</b>, mensagens iniciadas por terceiros (inclusive de números que não estão na base) aparecem no Inbox e o contato é criado/mesclado automaticamente. Quando <b>desligado</b>, o sistema só mostra conversas iniciadas por você.
+        </p>
+        <label className="mt-3 flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.data.inbound_to_inbox_enabled}
+            disabled={busy}
+            onChange={async (e) => {
+              const enabled = e.target.checked;
+              setBusy(true);
+              try {
+                await setInboundFn({ data: { enabled } });
+                qc.invalidateQueries({ queryKey: ["zapi-instance-settings"] });
+              } finally { setBusy(false); }
+            }}
+            className="h-5 w-5"
+          />
+          <span className="text-sm font-medium">
+            {settings.data.inbound_to_inbox_enabled ? "Ligado — recebendo mensagens no Inbox" : "Desligado — Inbox só mostra conversas iniciadas por você"}
+          </span>
+        </label>
+        <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+          <b>Dica sobre teste com seu número:</b> a Z-API está pareada com o seu WhatsApp; mensagens enviadas por ela saem do seu número. Você <b>não</b> recebe no seu próprio celular — quem recebe é o destinatário. Para conferir, peça a alguém confirmar o recebimento.
+        </p>
+      </section>
+
       <section className="mt-8 border rounded-xl p-6 bg-muted/30">
+
         <h2 className="font-semibold text-sm">Configuração de webhooks</h2>
         <p className="mt-1 text-xs text-muted-foreground">
           No painel Z-API, configure cada evento apontando para a URL abaixo (substituindo o evento)
