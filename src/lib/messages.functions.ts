@@ -46,6 +46,9 @@ export const upsertMessageTemplate = createServerFn({ method: "POST" })
       variables: data.variables,
       link: data.link || null,
       media_url: data.media_url || null,
+      media_path: data.media_path || null,
+      media_mime: data.media_mime || null,
+      media_filename: data.media_filename || null,
       active: data.active,
       updated_by: context.userId,
     };
