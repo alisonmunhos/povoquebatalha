@@ -187,12 +187,10 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     inbound_id: z.string().uuid().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    // Verify staff
-    const { data: staff } = await context.supabase.rpc("is_staff" as never, {} as never).single();
-    // Fallback via user_roles
     const { data: role } = await context.supabase
-      .from("user_roles").select("role").eq("user_id", context.userId).in("role", ["admin", "staff"]).maybeSingle();
-    if (!staff && !role) throw new Error("Apenas admin/vrm podem enviar mensagens.");
+      .from("user_roles").select("role").eq("user_id", context.userId)
+      .in("role", ["admin", "operador"]).maybeSingle();
+    if (!role) throw new Error("Apenas admin/operador podem enviar mensagens.");
 
     const { data: c, error } = await context.supabase
       .from("contacts")
@@ -203,8 +201,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     if (c.opt_out_at) throw new Error("Contato optou por sair. Envio bloqueado.");
     const phone = c.phone_whatsapp_candidate ?? c.phone_e164;
     if (!phone) throw new Error("Contato sem WhatsApp válido.");
-    if (c.whatsapp_status === "invalido" || c.whatsapp_status === "bloqueado") {
-      throw new Error("WhatsApp do contato inválido/bloqueado.");
+    if (c.whatsapp_status === "invalido" || c.whatsapp_status === "erro_envio" || c.whatsapp_status === "opt_out") {
+      throw new Error("WhatsApp do contato indisponível para envio.");
     }
 
     const rendered = renderVars(data.message, c);

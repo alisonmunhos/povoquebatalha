@@ -95,8 +95,8 @@ function TabVisao() {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  pendente: "Pendente", enviado_para_api: "Enviado (sem confirmação)", entregue: "Entregue",
-  lido: "Lido", erro: "Erro", cancelado: "Cancelado", ignorado: "Ignorado", opt_out: "Saiu da lista",
+  queued: "Pendente", sending: "Enviando", sent: "Enviado (sem confirmação)",
+  delivered: "Entregue", read: "Lido", failed: "Erro", canceled: "Cancelado", opted_out: "Saiu da lista",
 };
 
 function TabMensagem() {
@@ -322,10 +322,10 @@ function ResultTable({ rows, loading }: { rows: Array<{
 
 function StatusBadge({ status }: { status: string }) {
   const label = STATUS_LABELS[status] ?? status;
-  const color = status === "erro" ? "bg-destructive/10 text-destructive" :
-    status === "lido" ? "bg-green-100 text-green-800" :
-    status === "entregue" ? "bg-blue-100 text-blue-800" :
-    status === "cancelado" ? "bg-muted text-muted-foreground" :
+  const color = status === "failed" ? "bg-destructive/10 text-destructive" :
+    status === "read" ? "bg-green-100 text-green-800" :
+    status === "delivered" ? "bg-blue-100 text-blue-800" :
+    status === "canceled" ? "bg-muted text-muted-foreground" :
     "bg-muted";
   return <span className={`inline-block text-xs px-2 py-0.5 rounded ${color}`}>{label}</span>;
 }

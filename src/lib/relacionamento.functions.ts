@@ -17,7 +17,7 @@ export const getRelacionamentoOverview = createServerFn({ method: "GET" })
         .not("sent_at", "is", null) as unknown as Promise<{ count: number | null }>),
       cnt(async () => await s.from("inbound_messages").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>),
       cnt(async () => await s.from("campaign_recipients").select("id", { count: "exact", head: true })
-        .eq("status", "erro") as unknown as Promise<{ count: number | null }>),
+        .eq("status", "failed") as unknown as Promise<{ count: number | null }>),
       cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
         .not("opt_out_at", "is", null) as unknown as Promise<{ count: number | null }>),
       cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
@@ -73,7 +73,9 @@ export const listRecipientsByFilter = createServerFn({ method: "GET" })
       .limit(data.limit);
 
     if (data.campaign_id) q = q.eq("campaign_id", data.campaign_id);
-    if (data.status && data.status.length > 0) q = q.in("status", data.status);
+    if (data.status && data.status.length > 0) {
+      q = q.in("status", data.status as ("queued" | "sending" | "sent" | "delivered" | "read" | "failed" | "opted_out" | "canceled")[]);
+    }
 
     const { data: rows, error } = await q;
     if (error) throw error;
@@ -163,7 +165,7 @@ export const getCuratedList = createServerFn({ method: "GET" })
 
     switch (data.kind) {
       case "opt_out": q = q.not("opt_out_at", "is", null); break;
-      case "bloqueados": q = q.eq("whatsapp_status", "bloqueado"); break;
+      case "bloqueados": q = q.eq("whatsapp_status", "erro_envio"); break;
       case "telefone_invalido": q = q.eq("whatsapp_status", "invalido"); break;
       case "arquivados": q = q.not("arquivado_at", "is", null); break;
       case "sem_consentimento": q = q.or("consentimento_whatsapp.is.null,consentimento_whatsapp.eq.false").is("arquivado_at", null); break;
@@ -177,7 +179,7 @@ export const getCuratedList = createServerFn({ method: "GET" })
       case "receber_material": q = q.contains("formas_ajuda", ["receber_panfletos"]); break;
       case "movimento_social": q = q.eq("participa_movimento_social" as never, true); break;
       case "erro_recente": {
-        const { data: errs } = await s.from("campaign_recipients").select("contact_id").eq("status", "erro").limit(1000);
+        const { data: errs } = await s.from("campaign_recipients").select("contact_id").eq("status", "failed").limit(1000);
         const ids = Array.from(new Set((errs ?? []).map((e) => e.contact_id).filter(Boolean))) as string[];
         if (ids.length === 0) return [];
         q = q.in("id", ids);
