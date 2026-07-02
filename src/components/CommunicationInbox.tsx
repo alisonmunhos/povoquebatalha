@@ -62,6 +62,7 @@ export function CommunicationInbox() {
   const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
 
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
@@ -141,14 +142,16 @@ export function CommunicationInbox() {
       media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
     }) => sendFn({ data: { ...payload, origem: "inbox" } }),
     onSuccess: () => {
-      setReply("");
-      setAttachment(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      // Input já foi limpo otimisticamente em submitReply(); aqui só sincronizamos as queries.
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Mensagem enviada");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao enviar"),
+    onError: (e, vars) => {
+      // Rollback: se falhou, devolve o texto pro input para o usuário reenviar/corrigir.
+      setReply((prev) => prev.length > 0 ? prev : (vars?.message ?? ""));
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar");
+    },
   });
 
   const assignMut = useMutation({
@@ -218,13 +221,20 @@ export function CommunicationInbox() {
   function submitReply() {
     if (!selectedContactId) return;
     if (!reply.trim() && !attachment) return;
-    sendMut.mutate({
+    // Optimistic clear: input limpa e anexo some assim que o usuário confirma o envio,
+    // evitando cliques repetidos enquanto a mutation ainda está em voo.
+    const payload = {
       contact_id: selectedContactId,
       message: reply,
       media_path: attachment?.path ?? null,
       media_mime: attachment?.mime ?? null,
       media_filename: attachment?.filename ?? null,
-    });
+    };
+    setReply("");
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    sendMut.mutate(payload);
   }
 
   function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -325,6 +335,14 @@ export function CommunicationInbox() {
     });
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [convQ.data]);
+
+  // Auto-scroll: quando chega mensagem nova (in ou out), rolar thread até o fim.
+  useEffect(() => {
+    if (!threadEndRef.current) return;
+    threadEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [timeline.length, selectedContactId, selectedConvId]);
+
+
 
   return (
     <div className="flex h-full min-h-0 bg-muted/10">
@@ -480,6 +498,7 @@ export function CommunicationInbox() {
                   </div>
                 </div>
               ))}
+              <div ref={threadEndRef} />
             </div>
 
             {conv && !conv.contact_id && (
@@ -594,7 +613,7 @@ export function CommunicationInbox() {
             </button>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm truncate">{active.nome ?? "Sem nome"}</div>
-              <div className="text-xs text-muted-foreground truncate">{active.phone}</div>
+              <div className="text-xs text-muted-foreground truncate">{active.phone ?? conv?.from_phone ?? "Sem telefone"}</div>
               {active.cidade && <div className="text-xs text-muted-foreground truncate">{active.cidade}/{active.uf ?? ""}{active.bairro ? ` · ${active.bairro}` : ""}</div>}
               {active.contact_id && (
                 <Link
@@ -612,14 +631,21 @@ export function CommunicationInbox() {
               {contact.profissao && (
                 <div><span className="text-muted-foreground">Profissão:</span> {contact.profissao}</div>
               )}
-              {contact.whatsapp_status && (
-                <div>
-                  <span className="text-muted-foreground">WhatsApp:</span>{" "}
-                  <span className={contact.whatsapp_status === "invalid" ? "text-destructive" : ""}>
-                    {contact.whatsapp_status}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                // Se já houve mensagens (in ou out) nesta conversa, o WhatsApp claramente responde:
+                // mostramos "ativo" independente do whatsapp_status legado ("desconhecido").
+                const hasTraffic = timeline.length > 0;
+                const raw = (contact.whatsapp_status ?? "").toLowerCase();
+                const isProblem = raw === "invalido" || raw === "invalid" || raw === "erro_envio" || raw === "opt_out";
+                const label = isProblem ? contact.whatsapp_status : (hasTraffic ? "ativo" : (raw && raw !== "desconhecido" && raw !== "unknown" ? contact.whatsapp_status : null));
+                if (!label) return null;
+                return (
+                  <div>
+                    <span className="text-muted-foreground">WhatsApp:</span>{" "}
+                    <span className={isProblem ? "text-destructive" : "text-emerald-700"}>{label}</span>
+                  </div>
+                );
+              })()}
               <div>
                 <span className="text-muted-foreground">Consentimento:</span>{" "}
                 {contact.consentimento_whatsapp

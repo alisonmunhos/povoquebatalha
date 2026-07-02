@@ -41,9 +41,15 @@ export function Recadastro() {
   const [error, setError] = useState<string | null>(null);
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [uf, setUf] = useState("");
+  // 'idle' — nada consultado ainda; 'ok' — lookup OK e usuário não alterou;
+  // 'edited' — lookup OK mas usuário editou algum campo (rua/bairro/cidade/UF);
+  // 'not_found' — CEP não retornou; 'manual' — usuário optou por preencher sem CEP.
+  const [cepStatus, setCepStatus] = useState<"idle" | "ok" | "edited" | "not_found" | "manual">("idle");
   const [formasAjuda, setFormasAjuda] = useState<string[]>([]);
   const [coletivoAlicerce, setColetivoAlicerce] = useState<"sim" | "nao" | "">("");
   const [movSocial, setMovSocial] = useState<"sim" | "nao" | "">("");
@@ -54,17 +60,28 @@ export function Recadastro() {
     const formatted = formatCep(v);
     setCep(formatted);
     const digits = formatted.replace(/\D/g, "");
-    if (digits.length === 8) {
-      const res = await cepHook.lookup(digits);
-      if (res) {
-        if (res.endereco) setEndereco(res.endereco);
-        if (res.bairro) setBairro(res.bairro);
-        if (res.cidade) setCidade(res.cidade);
-        if (res.uf) setUf(res.uf);
-        numeroRef.current?.focus();
-      }
+    if (digits.length !== 8) {
+      if (cepStatus !== "manual") setCepStatus("idle");
+      return;
+    }
+    const res = await cepHook.lookup(digits);
+    if (res) {
+      if (res.endereco) setEndereco(res.endereco);
+      if (res.bairro) setBairro(res.bairro);
+      if (res.cidade) setCidade(res.cidade);
+      if (res.uf) setUf(res.uf);
+      setCepStatus("ok");
+      numeroRef.current?.focus();
+    } else {
+      setCepStatus("not_found");
     }
   }
+
+  // Marca como "edited" se o usuário mexer nos campos após um lookup OK.
+  function markEdited() {
+    if (cepStatus === "ok") setCepStatus("edited");
+  }
+
 
   function toggleForma(v: string) {
     setFormasAjuda((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
@@ -81,8 +98,8 @@ export function Recadastro() {
       email: String(fd.get("email") ?? ""),
       cep,
       endereco,
-      numero: String(fd.get("numero") ?? ""),
-      complemento: String(fd.get("complemento") ?? ""),
+      numero,
+      complemento,
       referencia: String(fd.get("referencia") ?? ""),
       bairro,
       cidade,
@@ -167,20 +184,90 @@ export function Recadastro() {
                 />
                 {cepHook.error && <p className="text-xs text-amber-600 mt-1">{cepHook.error} — preencha manualmente</p>}
               </div>
-              <Field label="UF" value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} maxLength={2} placeholder="SP" />
+              <Field label="UF" value={uf} onChange={(e) => { setUf(e.target.value.toUpperCase()); markEdited(); }} maxLength={2} placeholder="SP" />
             </div>
-            <Field label="Endereço (rua/avenida)" value={endereco} onChange={(e) => setEndereco(e.target.value)} maxLength={240} />
+
+            {/* Feedback do CEP: card verde quando encontramos, amarelo quando falha */}
+            {cepStatus === "ok" && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-700 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium text-emerald-900">Endereço encontrado pelo CEP</div>
+                  <div className="text-emerald-800/80 text-xs mt-0.5">
+                    Confira rua, bairro e cidade abaixo. Se algo estiver errado, é só editar.
+                  </div>
+                </div>
+              </div>
+            )}
+            {cepStatus === "edited" && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Você ajustou o endereço sugerido pelo CEP — vamos salvar os dados que você digitou.
+              </div>
+            )}
+            {cepStatus === "not_found" && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                CEP não encontrado. Sem problema — preencha o endereço manualmente abaixo. Seu cadastro será salvo normalmente.
+              </div>
+            )}
+
+            <Field label="Endereço (rua/avenida)" value={endereco} onChange={(e) => { setEndereco(e.target.value); markEdited(); }} maxLength={240} />
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium">Número</label>
-                <input ref={numeroRef} name="numero" maxLength={20} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <label className="text-sm font-medium flex items-center gap-2">
+                  Número
+                  <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary px-1.5 py-0.5 rounded">Importante</span>
+                </label>
+                <input
+                  ref={numeroRef}
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                  maxLength={20}
+                  inputMode="numeric"
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  O número é essencial para localizar sua casa no mapa da campanha.
+                </p>
               </div>
-              <Field label="Complemento" name="complemento" maxLength={120} className="col-span-2" placeholder="Apto, casa, etc." />
+              <div className="col-span-2">
+                <label className="text-sm font-medium">Complemento</label>
+                <input
+                  value={complemento}
+                  onChange={(e) => setComplemento(e.target.value)}
+                  maxLength={120}
+                  placeholder="Apto, casa, bloco…"
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
             </div>
-            <Field label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={120} />
-            <Field label="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={120} />
+            <Field label="Bairro" value={bairro} onChange={(e) => { setBairro(e.target.value); markEdited(); }} maxLength={120} />
+            <Field label="Cidade" value={cidade} onChange={(e) => { setCidade(e.target.value); markEdited(); }} maxLength={120} />
             <Field label="Ponto de referência" name="referencia" maxLength={240} placeholder="Próximo a..." />
+
+            {/* Prévia final do endereço */}
+            {(endereco || cidade) && (
+              <div className="rounded-md border bg-muted/40 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">
+                  Endereço que será salvo
+                </div>
+                <div className="text-sm">
+                  {[
+                    [endereco, numero].filter(Boolean).join(", "),
+                    complemento,
+                    bairro,
+                    [cidade, uf].filter(Boolean).join("/"),
+                    cep,
+                  ].filter(Boolean).join(" — ") || "—"}
+                </div>
+                {!numero && endereco && (
+                  <div className="text-[11px] text-amber-700 mt-1">
+                    ⚠ Sem número, sua localização no mapa vai ficar aproximada.
+                  </div>
+                )}
+              </div>
+            )}
           </section>
+
 
           <section className="space-y-5">
             <h2 className="text-lg font-semibold border-b pb-2">Participação na campanha</h2>
