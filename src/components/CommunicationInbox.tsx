@@ -242,7 +242,18 @@ export function CommunicationInbox() {
 
   // Contato ativo do painel direito: usa a conversa existente OU o contato carregado
   // (caso de "iniciar nova conversa" antes da 1ª mensagem sair).
-  const active = selected ?? (contact
+  type ActiveShape = {
+    id: string;
+    contact_id: string | null;
+    nome: string | null;
+    phone: string | null;
+    cidade: string | null;
+    uf: string | null;
+    bairro: string | null;
+    opt_out: boolean;
+    whatsapp_status?: string | null;
+  };
+  const active: ActiveShape | null = selected ?? (contact
     ? {
         id: "",
         contact_id: contact.id,
@@ -252,6 +263,7 @@ export function CommunicationInbox() {
         uf: contact.uf,
         bairro: contact.bairro,
         opt_out: Boolean(contact.opt_out_at),
+        whatsapp_status: contact.whatsapp_status ?? null,
       }
     : null);
 
