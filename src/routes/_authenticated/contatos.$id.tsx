@@ -218,6 +218,17 @@ function ContatoFicha() {
                   </label>
                 ))}
               </div>
+              {((form.formas_ajuda as string[]) ?? []).includes("outro") && (
+                <div className="mt-3">
+                  <Field
+                    label='Descreva a opção "Outro"'
+                    value={form.formas_ajuda_outro}
+                    onChange={(v) => set("formas_ajuda_outro", v)}
+                    maxLength={240}
+                    placeholder="Ex.: motorista voluntário, tradução, etc."
+                  />
+                </div>
+              )}
             </div>
           </Section>
 
