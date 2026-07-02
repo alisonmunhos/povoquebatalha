@@ -19,6 +19,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/comp
 import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
 import { ContactFiltersPanel, type FilterOptionsBundle } from "@/components/ContactFiltersPanel";
 import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
+import { ColumnFilterHeader, ColumnSortHeader, type ColumnFilterOption } from "@/components/ColumnFilterHeader";
 import type { CrmFilters } from "@/lib/crm-filters";
 
 const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
@@ -50,6 +51,8 @@ function Contatos() {
   const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
+  // Ordenação: nome A→Z é o padrão pedido; ciclo asc → desc → recent
+  const [sort, setSort] = useState<"name" | "name-desc" | "recent">("name");
   const pageSize = 25;
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -92,8 +95,8 @@ function Contatos() {
   }, [search.segment]);
 
   const q = useQuery({
-    queryKey: ["contacts-rich", filters, page],
-    queryFn: () => listFn({ data: { filters, page, pageSize } }),
+    queryKey: ["contacts-rich", filters, page, sort],
+    queryFn: () => listFn({ data: { filters, page, pageSize, sort } }),
   });
 
   const allOnPage = useMemo(() => (q.data?.rows ?? []).map((r) => r.id), [q.data]);
@@ -178,6 +181,48 @@ function Contatos() {
       if (Array.isArray(v)) return v.length > 0;
       return v !== undefined && v !== null && v !== "";
     }).length;
+
+  // Opções para filtros no cabeçalho — reusa o bundle já carregado em filterOptions.
+  const cidadesOpts: ColumnFilterOption[] = (filterOptions?.cidades ?? []).map((o) => ({ value: o.value, label: o.label, count: o.count }));
+  // Bairros: se houver cidades selecionadas, filtra bairros por elas seria ideal, mas o bundle
+  // é global; mantemos todos e a busca interna resolve o resto.
+  const bairrosOpts: ColumnFilterOption[] = (filterOptions?.bairros ?? []).map((o) => ({ value: o.value, label: o.label, count: o.count }));
+  const tagsOpts: ColumnFilterOption[] = (filterOptions?.tags ?? []).map((t) => ({
+    value: t.value,
+    label: t.label,
+    count: t.count,
+    color: (t as { cor?: string | null }).cor ?? null,
+  }));
+  const LIFECYCLE_LABELS: Record<string, string> = {
+    importado_aguardando_recadastro: "Importado (aguardando)",
+    link_enviado: "Link enviado",
+    recadastro_iniciado: "Cadastro iniciado",
+    recadastro_concluido: "Cadastro concluído",
+    nao_respondeu: "Não respondeu",
+    telefone_invalido: "Telefone inválido",
+    precisa_revisao: "Precisa revisão",
+    duplicado_possivel: "Possível duplicado",
+    duplicado_mesclado: "Mesclado",
+    nao_enviar: "Não enviar",
+  };
+  const statusOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({ value: v, label: LIFECYCLE_LABELS[v] ?? v }));
+
+  const nameSortState = sort === "name" ? "asc" : sort === "name-desc" ? "desc" : "none";
+  function cycleNameSort() {
+    setSort((s) => (s === "name" ? "name-desc" : s === "name-desc" ? "recent" : "name"));
+    setPage(1);
+  }
+  function setListFilter(key: "cidades" | "bairros" | "tag_ids" | "lifecycle_statuses", values: string[]) {
+    setFilters((f) => {
+      const next = { ...f } as CrmFilters;
+      if (values.length === 0) delete (next as Record<string, unknown>)[key];
+      else (next as Record<string, unknown>)[key] = values;
+      return next;
+    });
+    setPage(1);
+  }
+
+
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -306,17 +351,49 @@ function Contatos() {
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-3 py-3 w-8"><Checkbox checked={allChecked} onCheckedChange={togglePage} /></th>
-              <th className="text-left px-3 py-3">Nome</th>
+              <th className="text-left px-3 py-3">
+                <ColumnSortHeader label="Nome" state={nameSortState} onCycle={cycleNameSort} />
+              </th>
               <th className="text-left px-3 py-3">WhatsApp</th>
-              <th className="text-left px-3 py-3">Cidade/Bairro</th>
-              <th className="text-left px-3 py-3">Tags</th>
-              <th className="text-left px-3 py-3">Status</th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Cidade"
+                  options={cidadesOpts}
+                  selected={filters.cidades ?? []}
+                  onChange={(v) => setListFilter("cidades", v)}
+                />
+              </th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Bairro"
+                  options={bairrosOpts}
+                  selected={filters.bairros ?? []}
+                  onChange={(v) => setListFilter("bairros", v)}
+                />
+              </th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Tags"
+                  options={tagsOpts}
+                  selected={filters.tag_ids ?? []}
+                  onChange={(v) => setListFilter("tag_ids", v)}
+                />
+              </th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Status"
+                  options={statusOpts}
+                  selected={filters.lifecycle_statuses ?? []}
+                  onChange={(v) => setListFilter("lifecycle_statuses", v)}
+                  align="end"
+                />
+              </th>
               <th className="text-right px-3 py-3">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {q.isLoading && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Carregando…</td></tr>}
-            {q.data?.rows.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Nenhum contato encontrado.</td></tr>}
+            {q.isLoading && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Carregando…</td></tr>}
+            {q.data?.rows.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Nenhum contato encontrado.</td></tr>}
             {q.data?.rows.map((c) => {
               const digits = (c.phone_e164 ?? "").replace(/\D/g, "");
               return (
@@ -326,7 +403,8 @@ function Contatos() {
                     <Link to="/contatos/$id" params={{ id: c.id }} className="hover:underline">{c.nome}</Link>
                   </td>
                   <td className="px-3 py-3 tabular-nums text-muted-foreground">{formatPhoneBR(c.phone_e164)}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{[c.cidade, c.bairro].filter(Boolean).join(" / ") || "—"}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{c.cidade || "—"}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{c.bairro || "—"}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-1">
                       {c.tags.map((t) => (
