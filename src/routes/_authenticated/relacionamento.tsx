@@ -23,6 +23,8 @@ function Page() {
   const [tab, setTab] = useState<Tab>("visao");
   return (
     <div className="p-6 md:p-10 max-w-7xl">
+    <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
+      
       <header className="flex items-center gap-3 mb-2">
         <Heart className="h-6 w-6 text-primary" />
         <div>

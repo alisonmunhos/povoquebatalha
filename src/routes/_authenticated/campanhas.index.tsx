@@ -74,6 +74,8 @@ function CampanhasPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-6xl">
+    <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
+      
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <Send className="h-6 w-6 text-primary" />

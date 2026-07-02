@@ -41,6 +41,8 @@ function WhatsAppPage() {
 
   return (
     <div className="p-6 md:p-10 max-w-4xl">
+    <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
+      
       <div className="flex items-center gap-3">
         <MessageCircle className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-semibold">Conexão WhatsApp (Z-API)</h1>
