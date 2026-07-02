@@ -135,7 +135,13 @@ export async function triggerAutomationsForEvent(params: {
         }, { onConflict: "automation_id,contact_id" });
       }
     }
-  } catch {
-    // Não propaga: automações não devem quebrar submissões públicas
+  } catch (e) {
+    // Não propaga: automações não devem quebrar submissões públicas.
+    // Log server-side para diagnóstico via server-function-logs.
+    console.error("[triggerAutomationsForEvent] falha", {
+      eventKey: params.eventKey,
+      contactId: params.contact.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
