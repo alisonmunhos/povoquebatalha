@@ -185,7 +185,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       tipos_contato: toOptions(tipos_contato),
       origens: toOptions(origens),
       origem_detalhes: toOptions(origem_detalhes),
-      formas_ajuda: toOptions(formas_ajuda),
+      formas_ajuda: [...formas_ajuda.entries()]
+        .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
       movimentos_sociais: toOptions(movimentos_sociais),
       tags: tagsOpts,
       segmentos: segmentsOpts,
