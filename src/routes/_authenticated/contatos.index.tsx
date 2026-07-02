@@ -46,7 +46,8 @@ function Contatos() {
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
 
-  const [filters, setFilters] = useState<CrmFilters>({ archived: "nao" });
+  // Default: mostra todos os contatos (ativos + arquivados) para não "sumir" registros mesclados/arquivados
+  const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
