@@ -709,6 +709,73 @@ export type Database = {
           },
         ]
       }
+      direct_messages: {
+        Row: {
+          contact_id: string
+          conteudo: string
+          created_at: string
+          erro: string | null
+          id: string
+          inbound_id: string | null
+          message_id: string | null
+          origem: string
+          sent_by: string | null
+          status: string
+          template_id: string | null
+          zaap_id: string | null
+        }
+        Insert: {
+          contact_id: string
+          conteudo: string
+          created_at?: string
+          erro?: string | null
+          id?: string
+          inbound_id?: string | null
+          message_id?: string | null
+          origem: string
+          sent_by?: string | null
+          status?: string
+          template_id?: string | null
+          zaap_id?: string | null
+        }
+        Update: {
+          contact_id?: string
+          conteudo?: string
+          created_at?: string
+          erro?: string | null
+          id?: string
+          inbound_id?: string | null
+          message_id?: string | null
+          origem?: string
+          sent_by?: string | null
+          status?: string
+          template_id?: string | null
+          zaap_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_messages_inbound_id_fkey"
+            columns: ["inbound_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       geocode_cache: {
         Row: {
           created_at: string
@@ -878,6 +945,7 @@ export type Database = {
       }
       inbound_messages: {
         Row: {
+          assigned_to: string | null
           contact_id: string | null
           conteudo: string | null
           from_name: string | null
@@ -885,10 +953,14 @@ export type Database = {
           id: string
           instance_id: string | null
           payload: Json | null
+          read_at: string | null
           received_at: string
+          resolved_at: string | null
+          resolved_by: string | null
           tipo: string | null
         }
         Insert: {
+          assigned_to?: string | null
           contact_id?: string | null
           conteudo?: string | null
           from_name?: string | null
@@ -896,10 +968,14 @@ export type Database = {
           id?: string
           instance_id?: string | null
           payload?: Json | null
+          read_at?: string | null
           received_at?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
           tipo?: string | null
         }
         Update: {
+          assigned_to?: string | null
           contact_id?: string | null
           conteudo?: string | null
           from_name?: string | null
@@ -907,7 +983,10 @@ export type Database = {
           id?: string
           instance_id?: string | null
           payload?: Json | null
+          read_at?: string | null
           received_at?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
           tipo?: string | null
         }
         Relationships: [
