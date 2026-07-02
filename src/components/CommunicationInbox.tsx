@@ -82,7 +82,10 @@ export function CommunicationInbox() {
   });
 
   const list = listQ.data ?? [];
-  const selected = useMemo(() => list.find((c) => c.contact_id === selectedContactId) ?? null, [list, selectedContactId]);
+  const selected = useMemo(
+    () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
+    [list, selectedContactId, selectedConvId],
+  );
 
   const searchNewQ = useQuery({
     queryKey: ["comm-search-new", search],
@@ -90,10 +93,15 @@ export function CommunicationInbox() {
     enabled: search.trim().length >= 2,
   });
 
+  const convKey = selectedContactId ?? `conv:${selectedConvId ?? ""}`;
   const convQ = useQuery({
-    queryKey: ["comm-conv", selectedContactId],
-    queryFn: () => convFn({ data: { contact_id: selectedContactId! } }),
-    enabled: Boolean(selectedContactId),
+    queryKey: ["comm-conv", convKey],
+    queryFn: () => convFn({
+      data: selectedContactId
+        ? { contact_id: selectedContactId }
+        : { conversation_id: selectedConvId! },
+    }),
+    enabled: Boolean(selectedContactId || selectedConvId),
     refetchInterval: 15000,
   });
 
