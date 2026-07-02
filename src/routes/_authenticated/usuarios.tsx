@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { listUsers, inviteUser, deleteUser, setUserRole } from "@/lib/users.functions";
-import { UserPlus, Trash2, ShieldCheck } from "lucide-react";
+import { listUserScopes, addScope, removeScope } from "@/lib/territory.functions";
+import { UserPlus, Trash2, ShieldCheck, MapPin, Plus, X } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   head: () => ({ meta: [{ title: "Usuários — Campanha do Povo que Batalha" }] }),
