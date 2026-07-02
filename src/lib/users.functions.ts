@@ -52,7 +52,7 @@ export const listUsers = createServerFn({ method: "GET" })
 
 const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  role: z.enum(["admin", "operador", "leitor"]),
+  role: z.enum(["admin", "operador", "leitor", "vrm", "territorio"]),
   redirectOrigin: z.string().url(),
 });
 
