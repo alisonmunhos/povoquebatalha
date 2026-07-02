@@ -288,7 +288,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
 
     let contactsQuery = context.supabase
       .from("contacts")
-      .select("id,nome,cidade,bairro,phone_e164,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status", { count: "exact" });
+      .select("id,nome,cidade,bairro,uf,phone_e164,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status", { count: "exact" });
 
     if (c.audience_ids && Array.isArray(c.audience_ids) && (c.audience_ids as unknown[]).length) {
       contactsQuery = contactsQuery.in("id", c.audience_ids as string[]);
