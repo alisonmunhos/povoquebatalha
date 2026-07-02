@@ -389,19 +389,19 @@ export function CommunicationInbox() {
       </div>
 
       {/* RIGHT: contact panel */}
-      {selected && (
+      {active && (
         <div className={`${mobilePane === "info" ? "flex" : "hidden"} md:flex w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
           <div className="p-4 border-b flex items-start gap-2">
             <button className="md:hidden" onClick={() => setMobilePane("thread")}>
               <X className="h-5 w-5" />
             </button>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm truncate">{selected.nome ?? "Sem nome"}</div>
-              <div className="text-xs text-muted-foreground truncate">{selected.phone}</div>
-              {selected.cidade && <div className="text-xs text-muted-foreground truncate">{selected.cidade}/{selected.uf ?? ""}{selected.bairro ? ` · ${selected.bairro}` : ""}</div>}
-              {selected.contact_id && (
+              <div className="font-semibold text-sm truncate">{active.nome ?? "Sem nome"}</div>
+              <div className="text-xs text-muted-foreground truncate">{active.phone}</div>
+              {active.cidade && <div className="text-xs text-muted-foreground truncate">{active.cidade}/{active.uf ?? ""}{active.bairro ? ` · ${active.bairro}` : ""}</div>}
+              {active.contact_id && (
                 <Link
-                  to="/contatos/$id" params={{ id: selected.contact_id }} target="_blank"
+                  to="/contatos/$id" params={{ id: active.contact_id }} target="_blank"
                   className="text-xs text-primary inline-flex items-center gap-1 hover:underline mt-1"
                 >
                   <ExternalLink className="h-3 w-3" /> Ver ficha completa
