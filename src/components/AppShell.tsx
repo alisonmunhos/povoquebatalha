@@ -149,6 +149,7 @@ export function AppShell() {
                 {visibleItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.to);
+                  const badge = item.to === "/comunicacao/inbox" ? (badgeQ.data?.mine_unread ?? 0) : 0;
                   return (
                     <Link
                       key={item.to}
@@ -161,7 +162,12 @@ export function AppShell() {
                       }`}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate flex-1">{item.label}</span>
+                      {badge > 0 && (
+                        <span className="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                          {badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
