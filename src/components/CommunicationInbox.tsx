@@ -715,3 +715,18 @@ function MessageMedia({ path, mime, filename }: { path: string; mime: string; fi
     </a>
   );
 }
+
+// ---- Renderiza mídia recebida (Z-API entrega URL pública temporária).
+function InboundMedia({ url, mime, filename }: { url: string; mime: string; filename: string }) {
+  if (mime.startsWith("image/")) {
+    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
+  }
+  if (mime.startsWith("audio/")) {
+    return <audio controls src={url} className="mb-1 max-w-full" />;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
+      <FileText className="h-4 w-4" /> {filename}
+    </a>
+  );
+}
