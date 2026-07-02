@@ -123,16 +123,15 @@ function Page() {
         </table>
       </div>
 
-      {wizardOpen && (
-        <SendWhatsAppWizard
-          contactIds={Array.from(selected)}
-          onClose={() => setWizardOpen(false)}
-          onFinished={() => {
-            setWizardOpen(false);
-            setSelected(new Set());
-          }}
-        />
-      )}
+      <SendWhatsAppWizard
+        open={wizardOpen}
+        onOpenChange={(o) => {
+          setWizardOpen(o);
+          if (!o) setSelected(new Set());
+        }}
+        source={{ ids: Array.from(selected) }}
+        labelSelecao={`${selected.size} selecionado(s)`}
+      />
     </div>
   );
 }
