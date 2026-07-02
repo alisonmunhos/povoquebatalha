@@ -446,6 +446,12 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
                 <b>Mensagem (prévia):</b>
                 <div className="border rounded bg-background p-2 whitespace-pre-wrap mt-1">{previewText || mensagem}</div>
               </div>
+              {linkPreview && !linkPreview.error && (
+                <div className="mt-2">
+                  <b>Prévia do link:</b>
+                  <div className="mt-1"><LinkPreviewCard loading={false} preview={linkPreview} /></div>
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">Envios já executados não podem ser desfeitos. Você poderá pausar ou cancelar depois na tela da campanha.</p>
           </section>
