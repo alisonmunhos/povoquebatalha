@@ -356,5 +356,3 @@ export const listCommContactsForBulk = createServerFn({ method: "GET" })
     if (error) throw error;
     return rows ?? [];
   });
-
-  });
