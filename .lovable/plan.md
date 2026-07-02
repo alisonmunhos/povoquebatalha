@@ -1,49 +1,63 @@
-## Diagnóstico rápido
+# Consertar o Inbox de Comunicação
 
-1. **"Contato não migrou"** — na verdade migrou: a Marina (cadastrada em 01/07 20:24) está em `contacts` com `lifecycle_status=recadastro_concluido` e telefone normalizado. O que não aconteceu foi o **WhatsApp de confirmação**: `automation_deliveries` está sem nenhum registro para ela, mesmo com a automação `atualizacao_apoiador_concluida` ativa (sem consentimento obrigatório). Provável causa: falha silenciosa no bloco de disparo (log de erro só foi adicionado no turno anterior, depois do envio dela) ou a instância Z-API estava desconectada no momento — sem linha de erro para diagnosticar.
+## Diagnóstico
 
-2. **`?origem=whatsapp_grupo_antigo` no link** — é só um parâmetro de rastreio (UTM interno), validado no schema da rota. **Não atrapalha** o cadastro nem o envio da mensagem. É opcional. Vou deixar o módulo `/links` gerar também a versão "limpa" (sem `?origem`) e explicar isso na UI.
+Investiguei o banco e o código do Inbox. Encontrei **três causas** somadas:
 
-3. **Compositor de mensagem sem anexo/link/preview/teste** — o editor em `/mensagens` hoje só tem campos de texto para "link" e "URL de mídia" digitados, sem upload, sem prévia de como o contato verá e sem envio de teste por telefone digitado ali (o botão atual pergunta via `prompt()`).
+1. **A tabela `conversations` está vazia (0 linhas).** O Inbox (`/comunicacao/inbox`) lê dessa tabela — por isso nada aparece, nem o Faylon, nem ninguém.
+2. **As funções que deveriam alimentar `conversations` existem, mas nunca foram ligadas como gatilhos.** `conv_sync_from_inbound` e `conv_sync_from_direct` estão criadas no banco, mas sem `CREATE TRIGGER`. Resultado: quando chega uma mensagem inbound ou o operador envia uma direta, `conversations` não é atualizada.
+3. **A busca acha o contato, mas clicar não abre o chat.** No componente `CommunicationInbox`, o painel da direita usa `selected = list.find(c => c.contact_id === selectedContactId)`. Se o contato não está na lista de conversas (caso do Faylon, que só recebeu a mensagem de confirmação e ainda não respondeu no WhatsApp), `selected` fica `null` e o painel mostra "Selecione uma conversa".
 
-## Plano
+Além disso, a mensagem de **confirmação enviada** ao Faylon vai por `automation_deliveries` — hoje isso não cria conversa nenhuma. Para ficar igual ao WhatsApp Web, toda saída (direta, campanha ou automação) precisa abrir/atualizar a conversa.
 
-### 1. Garantir a confirmação por WhatsApp (crítico)
+## Escopo da correção
 
-- Em `src/lib/automations.server.ts`:
-  - Antes do `for` das automações, gravar uma linha `automation_deliveries` com `status='queued'` (upsert por `automation_id,contact_id`) para que **toda tentativa fique visível**, mesmo se algo quebrar no meio.
-  - Envolver a checagem inicial (fetch de automações, contato) em `try/catch` que grava `status='error'` numa linha síntese quando não há automação carregada.
-  - Registrar no `console.error` também o payload do Z-API (status HTTP, corpo) quando `sendText` falhar.
-- Em `src/integrations/zapi/client.server.ts`:
-  - `sendText` passa a enviar `{ phone, message, linkPreview: true }` (Z-API respeita a flag e o WhatsApp gera a prévia do link).
-- Em `src/routes/api/public/forms/recadastro.ts`:
-  - Se a instância estiver desconectada no momento do submit, ainda gravar um `automation_deliveries` com `status='error'` explicando "instância desconectada" (chamada rápida a `zapi.status()` antes do `triggerAutomationsForEvent`, sem bloquear resposta).
-- Retentativa manual: adicionar no painel de "Últimas entregas" (`/mensagens` → Automações) um botão **"Reenviar"** por linha que dispara a automação novamente para aquele contato (server-fn nova `retryAutomationDelivery`). Isso resolve Marina imediatamente.
+### 1. Banco — ligar triggers e cobrir todas as fontes de mensagem
 
-### 2. Links Públicos mais claros
+Migração nova com:
 
-Em `src/routes/_authenticated/links.tsx`:
-- Mostrar duas variações lado a lado para cada formulário:
-  - **Link limpo**: `/recadastro` e `/inscrever` (sem query).
-  - **Link com origem**: `/recadastro?origem=…` (o atual).
-- Bloco explicativo curto: o parâmetro `?origem=` é opcional, serve só para saber por onde a pessoa chegou, e **não interfere** no cadastro nem no envio da confirmação.
+- `CREATE TRIGGER trg_conv_from_inbound AFTER INSERT ON inbound_messages FOR EACH ROW EXECUTE FUNCTION conv_sync_from_inbound();`
+- `CREATE TRIGGER trg_conv_from_direct AFTER INSERT ON direct_messages FOR EACH ROW EXECUTE FUNCTION conv_sync_from_direct();`
+- Nova função `conv_sync_from_automation()` + trigger em `automation_deliveries` (dispara quando `status` vira `sent`), para que as mensagens automáticas (boas-vindas, confirmação de recadastro) também apareçam.
+- Nova função `conv_sync_from_campaign()` + trigger em `campaign_recipients` (dispara quando `sent_at` deixa de ser NULL), para envios em massa.
 
-### 3. Compositor de mensagem (templates em `/mensagens`)
+Todas usam `INSERT ... ON CONFLICT (contact_id) DO UPDATE`.
 
-Refazer o editor de template:
-- **Anexo real**: upload para o bucket `campaign-media` (mesma lógica do `SendWhatsAppWizard`), guardando `media_url` + `media_mime` + `media_filename` no template. Aceita imagem (JPG/PNG/WEBP) e PDF.
-- **Campo Link**: já existe; deixar claro que é opcional e que o WhatsApp gera prévia automática quando houver URL no corpo (com a flag `linkPreview:true` acima).
-- **Prévia estilo WhatsApp**: painel à direita renderizando bolha verde com quebras de linha preservadas, thumbnail da mídia anexada e cartão de prévia do link (título/descrição/imagem) obtido via nova rota server `api/public/link-preview?url=…` que faz fetch do HTML e extrai `og:title`, `og:description`, `og:image` (com timeout curto e cache em memória).
-- **Enviar teste**: substituir o `prompt()` por um input inline "WhatsApp de teste (com DDD)" + botão **"Enviar teste"** que chama `sendTestTemplate` já existente (estender para aceitar `media_url` do template, hoje só manda texto).
+### 2. Backfill — trazer o histórico já existente
+
+Na mesma migração, popular `conversations` a partir do que já existe hoje:
+
+- Para cada `contact_id` distinto em `inbound_messages`, `direct_messages`, `campaign_recipients` (com `sent_at`) e `automation_deliveries` (com `status='sent'`), criar/atualizar a linha em `conversations` com o `last_message_at`, `last_message_preview` e `last_message_direction` da mensagem mais recente.
+- Isso faz o Faylon (que recebeu a confirmação via automação) aparecer imediatamente no Inbox.
+
+### 3. UI — abrir chat de qualquer contato, estilo WhatsApp Web
+
+Alterações em `src/components/CommunicationInbox.tsx`:
+
+- Deixar de depender de `selected` (que vinha só da lista de conversas). O painel da direita passa a ser controlado por `convQ.data?.contact` — se o contato foi carregado, mostra o chat, mesmo sem `conversations` ainda.
+- Cabeçalho, `canSend` e o input passam a ler `contact` e `phone_whatsapp_candidate ?? phone_e164` do `convQ.data`.
+- Ao clicar em um resultado de "Iniciar nova conversa", chamar `openConversation(contactId, 0)` como já faz — mas o painel agora renderiza corretamente porque não exige linha em `conversations`.
+- Após o primeiro envio, o trigger de `direct_messages` cria a linha em `conversations` e o Realtime já invalida a lista.
+- Ajustar a busca da lista: hoje `listConversations` só olha `conversations`. Quando o usuário digita ≥ 2 caracteres, o bloco "Iniciar nova conversa" (que já existe) resolve o resto usando `searchContactsForNewChat`. Manter esse comportamento, só garantindo que ele apareça **sempre** que houver resultados novos, mesmo quando a lista principal também tem algo.
+
+### 4. Verificação
+
+Depois de aplicar:
+
+- Confirmar via `read_query` que `conversations` foi populado (Faylon deve estar lá).
+- Abrir `/comunicacao/inbox`, buscar "faylon", clicar e ver o chat abrindo com a mensagem de confirmação já no histórico.
+- Enviar uma mensagem de teste pelo próprio Inbox para checar que o `direct_messages` cria/atualiza a `conversations` e a lista reordena.
+
+## Fora do escopo (não vou mexer agora)
+
+- Redesign visual do Inbox — só as correções necessárias para o clique abrir o chat.
+- Anexos no Inbox (o botão já está desabilitado como "em breve").
+- Notas internas / atribuição — já funcionam quando a conversa existe.
 
 ## Detalhes técnicos
 
-- Arquivos alterados: `src/lib/automations.server.ts`, `src/integrations/zapi/client.server.ts`, `src/routes/api/public/forms/recadastro.ts`, `src/routes/api/public/forms/inscrever.ts`, `src/routes/_authenticated/links.tsx`, `src/routes/_authenticated/mensagens.tsx`, `src/lib/messages.functions.ts`.
-- Arquivos novos: `src/routes/api/public/link-preview.ts` (fetch + parse OG, retorna JSON `{title,description,image,url}`), `src/components/MessagePreview.tsx` (bolha WhatsApp).
-- Banco: adicionar colunas `media_mime text`, `media_filename text` em `message_templates` via migração; sem mudanças em RLS.
-- Sem alteração de esquema em `automation_deliveries` — só uso mais consistente do `upsert`.
-
-## Fora de escopo neste passo
-
-- Reenvio em lote de todas as automações "perdidas" do passado (só o botão manual por linha).
-- Delay configurado por automação (continua imediato).
+- Todas as funções `conv_sync_*` são `SECURITY DEFINER` para escrever em `conversations` mesmo quando o INSERT original veio via `supabaseAdmin` (webhook) ou via RLS de operador.
+- `automation_deliveries` só conta como "saída visível" quando `status = 'sent'` e há `contact_id`. A função ignora entregas em `queued`/`erro` para não poluir a lista.
+- `campaign_recipients` idem: só quando `sent_at IS NOT NULL`.
+- O trigger de `direct_messages` já mantém `assigned_to = COALESCE(existing, sent_by)`, então o operador que responder "assume" a conversa automaticamente.
+- A UI não muda o contrato dos server functions — só reorganiza a fonte da verdade do painel direito.

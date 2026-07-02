@@ -152,13 +152,28 @@ export function CommunicationInbox() {
   function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (selected?.contact_id && reply.trim()) sendMut.mutate({ contact_id: selected.contact_id, message: reply });
+      if (selectedContactId && reply.trim()) sendMut.mutate({ contact_id: selectedContactId, message: reply });
     }
   }
 
   const contact = convQ.data?.contact;
   const conv = convQ.data?.conversation;
   const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
+
+  // Contato ativo do painel direito: usa a conversa existente OU o contato carregado
+  // (caso de "iniciar nova conversa" antes da 1ª mensagem sair).
+  const active = selected ?? (contact
+    ? {
+        id: "",
+        contact_id: contact.id,
+        nome: contact.nome,
+        phone: contact.phone_e164 ?? contact.phone_whatsapp_candidate,
+        cidade: contact.cidade,
+        uf: contact.uf,
+        bairro: contact.bairro,
+        opt_out: Boolean(contact.opt_out_at),
+      }
+    : null);
 
   const timeline = useMemo(() => {
     const t: Array<{ id: string; kind: "in" | "out"; text: string; at: string; meta?: string }> = [];
@@ -261,11 +276,11 @@ export function CommunicationInbox() {
 
       {/* CENTER: thread */}
       <div className={`${mobilePane === "thread" ? "flex" : "hidden"} md:flex flex-1 flex-col min-w-0`}>
-        {!selected ? (
+        {!active ? (
           <div className="flex-1 grid place-items-center text-center text-sm text-muted-foreground p-8">
             <div>
               <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              Selecione uma conversa para começar.
+              {selectedContactId ? "Carregando conversa…" : "Selecione uma conversa para começar."}
             </div>
           </div>
         ) : (
@@ -275,11 +290,11 @@ export function CommunicationInbox() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold truncate">{selected.nome ?? selected.phone ?? "Sem nome"}</div>
+                <div className="font-semibold truncate">{active.nome ?? active.phone ?? "Sem nome"}</div>
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-2">
-                  <span>{selected.phone}</span>
-                  {selected.cidade && <span>· {selected.cidade}/{selected.uf ?? ""}</span>}
-                  {selected.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
+                  <span>{active.phone}</span>
+                  {active.cidade && <span>· {active.cidade}/{active.uf ?? ""}</span>}
+                  {active.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -360,7 +375,7 @@ export function CommunicationInbox() {
                   style={{ minHeight: "40px" }}
                 />
                 <button
-                  onClick={() => selected.contact_id && reply.trim() && sendMut.mutate({ contact_id: selected.contact_id, message: reply })}
+                  onClick={() => selectedContactId && reply.trim() && sendMut.mutate({ contact_id: selectedContactId, message: reply })}
                   disabled={!canSend || !reply.trim() || sendMut.isPending}
                   className="p-2.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
                   title="Enviar"
@@ -374,19 +389,19 @@ export function CommunicationInbox() {
       </div>
 
       {/* RIGHT: contact panel */}
-      {selected && (
+      {active && (
         <div className={`${mobilePane === "info" ? "flex" : "hidden"} md:flex w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
           <div className="p-4 border-b flex items-start gap-2">
             <button className="md:hidden" onClick={() => setMobilePane("thread")}>
               <X className="h-5 w-5" />
             </button>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm truncate">{selected.nome ?? "Sem nome"}</div>
-              <div className="text-xs text-muted-foreground truncate">{selected.phone}</div>
-              {selected.cidade && <div className="text-xs text-muted-foreground truncate">{selected.cidade}/{selected.uf ?? ""}{selected.bairro ? ` · ${selected.bairro}` : ""}</div>}
-              {selected.contact_id && (
+              <div className="font-semibold text-sm truncate">{active.nome ?? "Sem nome"}</div>
+              <div className="text-xs text-muted-foreground truncate">{active.phone}</div>
+              {active.cidade && <div className="text-xs text-muted-foreground truncate">{active.cidade}/{active.uf ?? ""}{active.bairro ? ` · ${active.bairro}` : ""}</div>}
+              {active.contact_id && (
                 <Link
-                  to="/contatos/$id" params={{ id: selected.contact_id }} target="_blank"
+                  to="/contatos/$id" params={{ id: active.contact_id }} target="_blank"
                   className="text-xs text-primary inline-flex items-center gap-1 hover:underline mt-1"
                 >
                   <ExternalLink className="h-3 w-3" /> Ver ficha completa
