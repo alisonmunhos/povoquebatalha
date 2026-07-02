@@ -118,34 +118,87 @@ export const searchContactsForNewChat = createServerFn({ method: "GET" })
 // ------- Load unified conversation thread -------
 export const getConversation = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ contact_id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => z.object({
+    contact_id: z.string().uuid().optional(),
+    conversation_id: z.string().uuid().optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: convRow } = await context.supabase
-      .from("conversations")
-      .select("id, status, assigned_to, unread_count, flagged, last_message_at")
-      .eq("contact_id", data.contact_id).maybeSingle();
+    // Descobre conversation (por contact ou por id direto — usado para não-vinculadas)
+    let convRow: {
+      id: string; contact_id: string | null; from_phone: string | null;
+      status: string; assigned_to: string | null; unread_count: number; flagged: boolean; last_message_at: string | null;
+    } | null = null;
+    if (data.conversation_id) {
+      const { data: c } = await context.supabase
+        .from("conversations")
+        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at")
+        .eq("id", data.conversation_id).maybeSingle();
+      convRow = c as typeof convRow;
+    } else if (data.contact_id) {
+      const { data: c } = await context.supabase
+        .from("conversations")
+        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at")
+        .eq("contact_id", data.contact_id).maybeSingle();
+      convRow = c as typeof convRow;
+    }
 
-    const { data: contact } = await context.supabase
-      .from("contacts")
-      .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status")
-      .eq("id", data.contact_id).maybeSingle();
+    const effectiveContactId = data.contact_id ?? convRow?.contact_id ?? null;
 
-    const [{ data: inbound }, { data: direct }, { data: campaign }] = await Promise.all([
-      context.supabase
-        .from("inbound_messages")
-        .select("id, conteudo, tipo, received_at, read_at")
-        .eq("contact_id", data.contact_id).order("received_at", { ascending: true }).limit(500),
-      context.supabase
-        .from("direct_messages")
-        .select("id, conteudo, created_at, sent_by, origem, status, erro, media_path, media_mime, media_filename")
-        .eq("contact_id", data.contact_id).order("created_at", { ascending: true }).limit(500),
-      context.supabase
-        .from("campaign_recipients")
-        .select("id, rendered_message, sent_at, status, campaigns:campaign_id(nome)")
-        .eq("contact_id", data.contact_id).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200),
+    type Contact = {
+      id: string; nome: string | null; phone_e164: string | null; phone_whatsapp_candidate: string | null;
+      cidade: string | null; uf: string | null; bairro: string | null; opt_out_at: string | null;
+      consentimento_whatsapp: boolean | null; whatsapp_status: string | null;
+      profissao: string | null; formas_ajuda: string[] | null;
+    };
+    let contact: Contact | null = null;
+    if (effectiveContactId) {
+      const { data: c } = await context.supabase
+        .from("contacts")
+        .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status,profissao,formas_ajuda")
+        .eq("id", effectiveContactId).maybeSingle();
+      contact = c as Contact | null;
+    }
+
+    const inboundQuery = effectiveContactId
+      ? context.supabase.from("inbound_messages")
+          .select("id, conteudo, tipo, received_at, read_at, media_url, media_mime, media_filename")
+          .eq("contact_id", effectiveContactId).order("received_at", { ascending: true }).limit(500)
+      : convRow?.from_phone
+        ? context.supabase.from("inbound_messages")
+            .select("id, conteudo, tipo, received_at, read_at, media_url, media_mime, media_filename")
+            .eq("from_phone", convRow.from_phone).is("contact_id", null).order("received_at", { ascending: true }).limit(500)
+        : null;
+
+    const directQuery = effectiveContactId
+      ? context.supabase.from("direct_messages")
+          .select("id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename")
+          .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(500)
+      : null;
+
+    const campaignQuery = effectiveContactId
+      ? context.supabase.from("campaign_recipients")
+          .select("id, rendered_message, sent_at, status, campaigns:campaign_id(nome)")
+          .eq("contact_id", effectiveContactId).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200)
+      : null;
+
+    const tagsQuery = effectiveContactId
+      ? context.supabase.from("contact_tags")
+          .select("tags:tag_id(id,nome,cor)")
+          .eq("contact_id", effectiveContactId)
+      : null;
+
+    const [inR, dR, cR, tR] = await Promise.all([
+      inboundQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null; media_url: string | null; media_mime: string | null; media_filename: string | null }[] }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null }[] }),
+      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; campaigns: { nome: string } | { nome: string }[] | null }[] }),
+      tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
     ]);
+    const inbound = inR.data ?? [];
+    const direct = dR.data ?? [];
+    const campaign = cR.data ?? [];
+    const tagRows = tR.data ?? [];
 
-    const senderIds = Array.from(new Set((direct ?? []).map((d) => d.sent_by).filter((x): x is string => Boolean(x))));
+    const senderIds = Array.from(new Set(direct.map((d) => d.sent_by).filter((x): x is string => Boolean(x))));
     const senderNames: Record<string, string> = {};
     if (senderIds.length > 0) {
       const { data: profs } = await context.supabase
@@ -176,12 +229,18 @@ export const getConversation = createServerFn({ method: "GET" })
       }));
     }
 
+    const tags = tagRows.map((r) => {
+      const raw = r.tags as { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null;
+      return Array.isArray(raw) ? raw[0] : raw;
+    }).filter((t): t is { id: string; nome: string; cor: string | null } => Boolean(t));
+
     return {
       conversation: convRow,
       contact,
-      inbound: inbound ?? [],
-      direct: (direct ?? []).map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
-      campaign: (campaign ?? []).map((r) => ({
+      tags,
+      inbound,
+      direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
+      campaign: campaign.map((r) => ({
         id: r.id as string,
         rendered_message: r.rendered_message as string | null,
         sent_at: r.sent_at as string | null,
@@ -190,6 +249,95 @@ export const getConversation = createServerFn({ method: "GET" })
       })),
       events,
     };
+  });
+
+// Vincula uma conversa não-vinculada a um contato existente
+export const linkConversationToContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    conversation_id: z.string().uuid(),
+    contact_id: z.string().uuid(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: role } = await context.supabase.from("user_roles")
+      .select("role").eq("user_id", context.userId).in("role", ["admin", "vrm"]).maybeSingle();
+    if (!role) throw new Error("Apenas admin/vrm podem vincular conversas.");
+
+    const { data: conv } = await context.supabase.from("conversations")
+      .select("id, from_phone, contact_id").eq("id", data.conversation_id).maybeSingle();
+    if (!conv) throw new Error("Conversa não encontrada.");
+    if (conv.contact_id) throw new Error("Esta conversa já está vinculada.");
+
+    // Se já existe conversa desse contato, funde: transfere as mensagens e apaga a não-vinculada
+    const { data: existing } = await context.supabase.from("conversations")
+      .select("id").eq("contact_id", data.contact_id).maybeSingle();
+
+    if (conv.from_phone) {
+      await context.supabase.from("inbound_messages")
+        .update({ contact_id: data.contact_id })
+        .eq("from_phone", conv.from_phone).is("contact_id", null);
+    }
+
+    if (existing) {
+      await context.supabase.from("conversations").delete().eq("id", conv.id);
+    } else {
+      await context.supabase.from("conversations")
+        .update({ contact_id: data.contact_id, from_phone: null })
+        .eq("id", conv.id);
+    }
+    await context.supabase.from("conversation_events").insert({
+      conversation_id: existing?.id ?? conv.id,
+      actor_id: context.userId,
+      event_type: "linked_contact",
+      payload: { contact_id: data.contact_id, from_phone: conv.from_phone } as never,
+    });
+    return { ok: true, conversation_id: existing?.id ?? conv.id };
+  });
+
+// Cria um contato rápido a partir de uma conversa não-vinculada
+export const createQuickContactFromConversation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    conversation_id: z.string().uuid(),
+    nome: z.string().trim().min(1).max(120),
+    cidade: z.string().trim().max(120).optional(),
+    uf: z.string().trim().length(2).optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: role } = await context.supabase.from("user_roles")
+      .select("role").eq("user_id", context.userId).in("role", ["admin", "vrm", "operador"]).maybeSingle();
+    if (!role) throw new Error("Apenas admin/vrm/operador podem criar contatos.");
+
+    const { data: conv } = await context.supabase.from("conversations")
+      .select("id, from_phone, contact_id").eq("id", data.conversation_id).maybeSingle();
+    if (!conv || !conv.from_phone || conv.contact_id) {
+      throw new Error("Conversa inválida ou já vinculada.");
+    }
+
+    const { data: novo, error } = await context.supabase.from("contacts").insert({
+      nome: data.nome,
+      phone_raw: conv.from_phone,
+      cidade: data.cidade ?? null,
+      uf: data.uf ?? null,
+      origem: "manual",
+      origem_detalhe: "inbox_quick_create",
+      consentimento_whatsapp: false,
+    }).select("id").single();
+    if (error || !novo) throw error ?? new Error("Falha ao criar contato.");
+
+    // Vincula histórico e conversa
+    await context.supabase.from("inbound_messages")
+      .update({ contact_id: novo.id })
+      .eq("from_phone", conv.from_phone).is("contact_id", null);
+    await context.supabase.from("conversations")
+      .update({ contact_id: novo.id, from_phone: null }).eq("id", conv.id);
+    await context.supabase.from("conversation_events").insert({
+      conversation_id: conv.id,
+      actor_id: context.userId,
+      event_type: "quick_contact_created",
+      payload: { contact_id: novo.id } as never,
+    });
+    return { ok: true, contact_id: novo.id, conversation_id: conv.id };
   });
 
 // Mark conversation read (zera unread + marca inbound_messages)
