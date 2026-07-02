@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -9,12 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Upload, FileText, Image as ImageIcon, X, Send, Save, Calendar, MessageSquareText, Users, ArrowRight, ArrowLeft } from "lucide-react";
+import {
+  Loader2, Upload, FileText, Image as ImageIcon, X, Send, Save, Calendar,
+  MessageSquareText, Users, ArrowRight, ArrowLeft,
+  Bold, Italic, Strikethrough, Code2, List, Link2, Smile,
+} from "lucide-react";
 import {
   getAudienceStats, signCampaignMediaUpload, createCampaignFromSelection,
   startCampaign, listCampaigns,
 } from "@/lib/campaigns.functions";
 import { listMessageTemplates } from "@/lib/messages.functions";
+import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { supabase } from "@/integrations/supabase/client";
 import type { CrmFilters } from "@/lib/crm-filters";
 
@@ -27,18 +32,37 @@ type Props = {
   labelSelecao: string; // e.g. "12 selecionados" ou "todos do filtro atual"
 };
 
-const VARIABLES = ["nome", "primeiro_nome", "cidade", "bairro", "link_atualizacao", "link_inscricao"];
+const VARIABLES = [
+  "saudacao", "primeiro_nome", "primeiro_nome_ou_ola", "nome",
+  "cidade", "bairro", "uf", "link_atualizacao", "link_inscricao",
+];
+const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️", "🔗", "📍", "⏰"];
 
-function personalize(tpl: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null }) {
-  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
-  return tpl
-    .replaceAll("{{nome}}", c.nome ?? "")
-    .replaceAll("{{primeiro_nome}}", primeiro)
-    .replaceAll("{{cidade}}", c.cidade ?? "")
-    .replaceAll("{{bairro}}", c.bairro ?? "")
-    .replaceAll("{{link_atualizacao}}", `${typeof window !== "undefined" ? window.location.origin : ""}/atualizacao`)
-    .replaceAll("{{link_inscricao}}", `${typeof window !== "undefined" ? window.location.origin : ""}/inscrever`);
+function saudacaoAgora(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Bom dia";
+  if (h >= 12 && h < 18) return "Boa tarde";
+  return "Boa noite";
 }
+
+function personalize(tpl: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null }) {
+  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
+  const values: Record<string, string> = {
+    nome: c.nome ?? "",
+    primeiro_nome: primeiro,
+    primeiro_nome_ou_ola: primeiro || "Olá",
+    cidade: c.cidade ?? "",
+    bairro: c.bairro ?? "",
+    uf: c.uf ?? "",
+    saudacao: saudacaoAgora(),
+    link_atualizacao: `${typeof window !== "undefined" ? window.location.origin : ""}/atualizacao`,
+    link_inscricao: `${typeof window !== "undefined" ? window.location.origin : ""}/inscrever`,
+  };
+  return tpl.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
+  );
+}
+
 
 export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }: Props) {
   const navigate = useNavigate();
