@@ -31,7 +31,8 @@ function UsuariosPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "operador" | "leitor">("operador");
+  const [role, setRole] = useState<"admin" | "operador" | "leitor" | "vrm" | "territorio">("operador");
+  const [expandedScopes, setExpandedScopes] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
