@@ -63,7 +63,7 @@ export const zapi = {
   sendText: (phone: string, message: string) =>
     zapiFetch<{ zaapId?: string; messageId?: string; id?: string }>("/send-text", {
       method: "POST",
-      body: JSON.stringify({ phone, message }),
+      body: JSON.stringify({ phone, message, linkPreview: true }),
     }),
   sendImage: (phone: string, image: string, caption?: string) =>
     zapiFetch<{ zaapId?: string; messageId?: string }>("/send-image", {
