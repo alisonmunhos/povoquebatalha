@@ -82,6 +82,7 @@ const updateSchema = z.object({
     .nullable()
     .optional(),
   formas_ajuda: z.array(z.string().max(60)).max(20).optional(),
+  formas_ajuda_outro: z.string().trim().max(240).nullable().optional(),
   consentimento_whatsapp: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(120).nullable().optional(),
   observacoes: z.string().trim().max(4000).nullable().optional(),
