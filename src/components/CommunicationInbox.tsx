@@ -16,6 +16,7 @@ import {
   listConversations, getConversation, markConversationRead, assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
+  linkConversationToContact, createQuickContactFromConversation,
 } from "@/lib/communication.functions";
 
 type Filter =
