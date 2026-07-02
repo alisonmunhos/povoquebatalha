@@ -101,7 +101,7 @@ export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
     } else {
       await supabaseAdmin
         .from("whatsapp_instances")
-        .insert({ provider: "zapi", inbound_to_inbox_enabled: data.enabled });
+        .insert({ provider: "zapi", nome: "Instância principal", inbound_to_inbox_enabled: data.enabled });
     }
     return { ok: true as const, enabled: data.enabled, actor: context.userId };
   });
