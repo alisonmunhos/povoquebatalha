@@ -120,14 +120,14 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tpl, error } = await supabaseAdmin
       .from("message_templates")
-      .select("body, media_path, media_mime, media_filename")
+      .select("body, link, media_path, media_mime, media_filename")
       .eq("id", data.templateId).single();
     if (error || !tpl) throw new Error("Template não encontrado");
     const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: data.phone });
     const phoneE164 = norm as string | null;
     if (!phoneE164) throw new Error("Telefone inválido");
     const { renderTemplate } = await import("@/lib/automations.server");
-    const rendered = renderTemplate(tpl.body, {
+    let rendered = renderTemplate(tpl.body, {
       contact: {
         id: "test",
         nome: "Teste",
@@ -139,6 +139,9 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
         opt_out_at: null,
       },
     });
+    if (tpl.link && !rendered.includes(tpl.link)) {
+      rendered = `${rendered}\n\n${tpl.link}`;
+    }
     const phone = phoneE164.replace(/^\+/, "");
     const { zapi } = await import("@/integrations/zapi/client.server");
     // Se houver anexo, envia como imagem/documento com legenda

@@ -116,7 +116,7 @@ export async function triggerAutomationsForEvent(params: {
       // Carrega template
       const { data: tpl } = await supabaseAdmin
         .from("message_templates")
-        .select("id,body,active,archived_at")
+        .select("id,body,link,active,archived_at")
         .eq("id", a.template_id)
         .maybeSingle();
       if (!tpl || !tpl.active || tpl.archived_at) {
@@ -127,7 +127,12 @@ export async function triggerAutomationsForEvent(params: {
         continue;
       }
 
-      const rendered = renderTemplate(tpl.body, { contact, origin });
+      let rendered = renderTemplate(tpl.body, { contact, origin });
+      // Anexa o link do template ao corpo (se ainda não estiver presente)
+      // para que o WhatsApp gere a prévia da postagem no cliente do contato.
+      if (tpl.link && !rendered.includes(tpl.link)) {
+        rendered = `${rendered}\n\n${tpl.link}`;
+      }
 
       // Envia via Z-API
       try {

@@ -520,13 +520,18 @@ function WhatsappPreview({ body, link, mediaMime, mediaFilename }: {
   body: string; link: string | null; mediaMime: string | null; mediaFilename: string | null;
 }) {
   // Substitui variáveis por exemplos amigáveis
-  const rendered = (body || "")
+  let rendered = (body || "")
     .replace(/\{\{\s*nome\s*\}\}/gi, "Marina")
     .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, "Marina")
     .replace(/\{\{\s*cidade\s*\}\}/gi, "Curitiba")
     .replace(/\{\{\s*bairro\s*\}\}/gi, "Centro")
     .replace(/\{\{\s*link_atualizacao\s*\}\}/gi, "https://povoquebatalha.lovable.app/recadastro?t=exemplo")
     .replace(/\{\{\s*link_inscricao\s*\}\}/gi, "https://povoquebatalha.lovable.app/inscrever");
+
+  // Anexa o link do campo (se ainda não estiver no corpo) — mesmo comportamento do envio real
+  if (link && !rendered.includes(link)) {
+    rendered = `${rendered}\n\n${link}`.trim();
+  }
 
   // Detecta primeiro link no corpo para mostrar cartão de prévia
   const urlMatch = rendered.match(/https?:\/\/[^\s]+/);
