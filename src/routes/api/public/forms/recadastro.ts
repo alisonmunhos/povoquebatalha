@@ -118,11 +118,9 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           if (data) target = data;
         }
 
-        const formasAjuda = d.formas_ajuda && d.formas_ajuda.length > 0
-          ? {
-              opcoes: d.formas_ajuda,
-              outro: d.formas_ajuda.includes("outro") ? (d.formas_ajuda_outro || null) : null,
-            }
+        const formasAjuda = d.formas_ajuda && d.formas_ajuda.length > 0 ? d.formas_ajuda : [];
+        const formasAjudaOutro = formasAjuda.includes("outro")
+          ? (d.formas_ajuda_outro || null)
           : null;
 
         const fields = {
@@ -144,6 +142,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           participa_movimento_social: d.participa_movimento_social ?? null,
           movimento_social_nome: d.movimento_social_nome || null,
           formas_ajuda: formasAjuda,
+          formas_ajuda_outro: formasAjudaOutro,
           consentimento_whatsapp: true,
           consentimento_at: new Date().toISOString(),
           origem: "recadastro" as const,
