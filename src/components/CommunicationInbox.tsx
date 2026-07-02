@@ -276,11 +276,11 @@ export function CommunicationInbox() {
 
       {/* CENTER: thread */}
       <div className={`${mobilePane === "thread" ? "flex" : "hidden"} md:flex flex-1 flex-col min-w-0`}>
-        {!selected ? (
+        {!active ? (
           <div className="flex-1 grid place-items-center text-center text-sm text-muted-foreground p-8">
             <div>
               <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              Selecione uma conversa para começar.
+              {selectedContactId ? "Carregando conversa…" : "Selecione uma conversa para começar."}
             </div>
           </div>
         ) : (
@@ -290,11 +290,11 @@ export function CommunicationInbox() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold truncate">{selected.nome ?? selected.phone ?? "Sem nome"}</div>
+                <div className="font-semibold truncate">{active.nome ?? active.phone ?? "Sem nome"}</div>
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-2">
-                  <span>{selected.phone}</span>
-                  {selected.cidade && <span>· {selected.cidade}/{selected.uf ?? ""}</span>}
-                  {selected.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
+                  <span>{active.phone}</span>
+                  {active.cidade && <span>· {active.cidade}/{active.uf ?? ""}</span>}
+                  {active.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
                 </div>
               </div>
               <div className="flex items-center gap-1">
