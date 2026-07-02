@@ -117,7 +117,7 @@ export const getConversation = createServerFn({ method: "GET" })
         .eq("contact_id", data.contact_id).order("received_at", { ascending: true }).limit(500),
       context.supabase
         .from("direct_messages")
-        .select("id, conteudo, created_at, sent_by, origem, status, erro")
+        .select("id, conteudo, created_at, sent_by, origem, status, erro, media_path, media_mime, media_filename")
         .eq("contact_id", data.contact_id).order("created_at", { ascending: true }).limit(500),
       context.supabase
         .from("campaign_recipients")

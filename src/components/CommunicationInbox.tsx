@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
-  Flag, ClipboardList, StickyNote, Clock, X,
+  Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
+import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
   listConversations, getConversation, markConversationRead, assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
@@ -37,6 +38,22 @@ export function CommunicationInbox() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
   const [mobilePane, setMobilePane] = useState<"list" | "thread" | "info">("list");
+  const [infoOpen, setInfoOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = window.localStorage.getItem("inbox.infoOpen");
+    if (v === null) return window.innerWidth >= 1024;
+    return v === "1";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("inbox.infoOpen", infoOpen ? "1" : "0");
+    }
+  }, [infoOpen]);
+
+  // Anexo pendente (upload feito, aguardando envio)
+  const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
@@ -49,6 +66,7 @@ export function CommunicationInbox() {
   const noteFn = useServerFn(addConversationNote);
   const staffFn = useServerFn(listCommunicationStaff);
   const searchNewFn = useServerFn(searchContactsForNewChat);
+  const signFn = useServerFn(signCampaignMediaUpload);
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", filter, search],
@@ -100,9 +118,14 @@ export function CommunicationInbox() {
   });
 
   const sendMut = useMutation({
-    mutationFn: (payload: { contact_id: string; message: string }) => sendFn({ data: { ...payload, origem: "inbox" } }),
+    mutationFn: (payload: {
+      contact_id: string; message: string;
+      media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+    }) => sendFn({ data: { ...payload, origem: "inbox" } }),
     onSuccess: () => {
       setReply("");
+      setAttachment(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Mensagem enviada");
@@ -149,11 +172,52 @@ export function CommunicationInbox() {
     if (unread > 0) readMut.mutate(contactId);
   }
 
+  function submitReply() {
+    if (!selectedContactId) return;
+    if (!reply.trim() && !attachment) return;
+    sendMut.mutate({
+      contact_id: selectedContactId,
+      message: reply,
+      media_path: attachment?.path ?? null,
+      media_mime: attachment?.mime ?? null,
+      media_filename: attachment?.filename ?? null,
+    });
+  }
+
   function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (selectedContactId && reply.trim()) sendMut.mutate({ contact_id: selectedContactId, message: reply });
+      submitReply();
     }
+  }
+
+  async function onPickFile(f: File | null) {
+    if (!f) return;
+    const okTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
+    if (!okTypes.includes(f.type)) { toast.error("Envie PNG, JPG, WEBP ou PDF."); return; }
+    if (f.size > 15 * 1024 * 1024) { toast.error("Máx. 15MB."); return; }
+    setUploading(true);
+    try {
+      const s = await signFn({ data: { filename: f.name, contentType: f.type } });
+      const up = await supabase.storage.from("campaign-media").uploadToSignedUrl(s.path, s.token, f, {
+        contentType: f.type, upsert: true,
+      });
+      if (up.error) throw up.error;
+      const previewUrl = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
+      setAttachment({ path: s.path, filename: s.filename, mime: f.type, previewUrl });
+      toast.success("Anexo pronto — clique enviar");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao anexar");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function clearAttachment() {
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const contact = convQ.data?.contact;
@@ -176,11 +240,18 @@ export function CommunicationInbox() {
     : null);
 
   const timeline = useMemo(() => {
-    const t: Array<{ id: string; kind: "in" | "out"; text: string; at: string; meta?: string }> = [];
+    type Msg = {
+      id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
+      media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+    };
+    const t: Msg[] = [];
     for (const m of convQ.data?.inbound ?? []) t.push({ id: `in-${m.id}`, kind: "in", text: m.conteudo ?? "", at: m.received_at as string });
     for (const m of convQ.data?.direct ?? []) t.push({
-      id: `d-${m.id}`, kind: "out", text: m.conteudo as string, at: m.created_at as string,
+      id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
       meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? " · erro" : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
+      media_path: (m as { media_path?: string | null }).media_path ?? null,
+      media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
+      media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
     });
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
@@ -311,6 +382,13 @@ export function CommunicationInbox() {
                 >
                   {conv?.status === "resolvida" ? <><RotateCcw className="h-3 w-3" /> Reabrir</> : <><CheckCircle2 className="h-3 w-3" /> Resolver</>}
                 </button>
+                <button
+                  onClick={() => setInfoOpen((v) => !v)}
+                  className="hidden md:inline-flex p-2 rounded-md hover:bg-muted"
+                  title={infoOpen ? "Ocultar detalhes do contato" : "Mostrar detalhes do contato"}
+                >
+                  {infoOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                </button>
                 <button className="md:hidden p-2 rounded-md hover:bg-muted" onClick={() => setMobilePane("info")}>
                   <MoreVertical className="h-4 w-4" />
                 </button>
@@ -327,7 +405,8 @@ export function CommunicationInbox() {
                   <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
                     m.kind === "out" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-background border rounded-bl-none"
                   }`}>
-                    <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                    {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
+                    {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
                     <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
                       {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
                     </div>
@@ -342,13 +421,38 @@ export function CommunicationInbox() {
                   {contact?.opt_out_at ? "Contato optou por sair (opt-out). Envio bloqueado." : "Contato sem WhatsApp válido."}
                 </div>
               )}
+              {attachment && (
+                <div className="flex items-center gap-2 border rounded-md p-2 bg-muted/40">
+                  {attachment.previewUrl ? (
+                    <img src={attachment.previewUrl} alt="" className="h-12 w-12 object-cover rounded" />
+                  ) : (
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                  )}
+                  <div className="flex-1 min-w-0 text-xs">
+                    <div className="truncate font-medium">{attachment.filename}</div>
+                    <div className="text-muted-foreground truncate">{attachment.mime}</div>
+                  </div>
+                  <button onClick={clearAttachment} className="p-1 rounded hover:bg-background" title="Remover anexo">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                  onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                />
                 <button
-                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0"
-                  title="Anexar (em breve)"
-                  disabled
+                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                  title="Anexar imagem ou PDF"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!canSend || uploading}
+                  type="button"
                 >
-                  <Paperclip className="h-4 w-4" />
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                 </button>
                 {tplsQ.data && tplsQ.data.length > 0 && (
                   <select
@@ -375,8 +479,8 @@ export function CommunicationInbox() {
                   style={{ minHeight: "40px" }}
                 />
                 <button
-                  onClick={() => selectedContactId && reply.trim() && sendMut.mutate({ contact_id: selectedContactId, message: reply })}
-                  disabled={!canSend || !reply.trim() || sendMut.isPending}
+                  onClick={submitReply}
+                  disabled={!canSend || (!reply.trim() && !attachment) || sendMut.isPending}
                   className="p-2.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
                   title="Enviar"
                 >
@@ -390,7 +494,7 @@ export function CommunicationInbox() {
 
       {/* RIGHT: contact panel */}
       {active && (
-        <div className={`${mobilePane === "info" ? "flex" : "hidden"} md:flex w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
+        <div className={`${mobilePane === "info" ? "flex" : "hidden"} ${infoOpen ? "md:flex" : "md:hidden"} w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
           <div className="p-4 border-b flex items-start gap-2">
             <button className="md:hidden" onClick={() => setMobilePane("thread")}>
               <X className="h-5 w-5" />
@@ -541,4 +645,33 @@ function fmtRel(iso: string | null) {
   try {
     return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   } catch { return `${d}d`; }
+}
+
+// ---- Renderiza anexo enviado (imagem/pdf/áudio) via URL assinada temporária.
+function MessageMedia({ path, mime, filename }: { path: string; mime: string; filename: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    supabase.storage.from("campaign-media").createSignedUrl(path, 60 * 60).then(({ data, error }) => {
+      if (!alive) return;
+      if (error || !data?.signedUrl) setErr(true); else setUrl(data.signedUrl);
+    });
+    return () => { alive = false; };
+  }, [path]);
+
+  if (err) return <div className="text-xs opacity-70 mb-1">[anexo indisponível]</div>;
+  if (!url) return <div className="text-xs opacity-70 mb-1">carregando anexo…</div>;
+
+  if (mime.startsWith("image/")) {
+    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
+  }
+  if (mime.startsWith("audio/")) {
+    return <audio controls src={url} className="mb-1 max-w-full" />;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
+      <FileText className="h-4 w-4" /> {filename}
+    </a>
+  );
 }

@@ -829,6 +829,9 @@ export type Database = {
           erro: string | null
           id: string
           inbound_id: string | null
+          media_filename: string | null
+          media_mime: string | null
+          media_path: string | null
           message_id: string | null
           origem: string
           sent_by: string | null
@@ -843,6 +846,9 @@ export type Database = {
           erro?: string | null
           id?: string
           inbound_id?: string | null
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
           message_id?: string | null
           origem: string
           sent_by?: string | null
@@ -857,6 +863,9 @@ export type Database = {
           erro?: string | null
           id?: string
           inbound_id?: string | null
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
           message_id?: string | null
           origem?: string
           sent_by?: string | null

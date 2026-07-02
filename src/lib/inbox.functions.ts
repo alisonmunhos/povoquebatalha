@@ -181,10 +181,13 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     contact_id: z.string().uuid(),
-    message: z.string().trim().min(1).max(4000),
+    message: z.string().trim().max(4000).default(""),
     template_id: z.string().uuid().optional(),
     origem: z.enum(["inbox", "mapa", "ficha"]).default("inbox"),
     inbound_id: z.string().uuid().optional(),
+    media_path: z.string().trim().max(500).optional().nullable(),
+    media_mime: z.string().trim().max(120).optional().nullable(),
+    media_filename: z.string().trim().max(200).optional().nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: role } = await context.supabase
@@ -205,17 +208,41 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       throw new Error("WhatsApp do contato indisponível para envio.");
     }
 
-    const rendered = renderVars(data.message, c);
+    const rendered = renderVars(data.message ?? "", c);
+    const hasMedia = Boolean(data.media_path);
+    if (!hasMedia && !rendered.trim()) throw new Error("Escreva uma mensagem ou anexe um arquivo.");
     const phoneDigits = phone.replace(/\D+/g, "");
 
     let zaap: { zaapId?: string; messageId?: string; id?: string } | null = null;
     let sendError: string | null = null;
     try {
       const { zapi } = await import("@/integrations/zapi/client.server");
-      zaap = await zapi.sendText(phoneDigits, rendered);
+      if (hasMedia && data.media_path) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: signed, error: sErr } = await supabaseAdmin
+          .storage.from("campaign-media").createSignedUrl(data.media_path, 60 * 60);
+        if (sErr || !signed?.signedUrl) throw new Error("Falha ao gerar URL do anexo.");
+        const mime = (data.media_mime ?? "").toLowerCase();
+        if (mime.startsWith("image/")) {
+          zaap = await zapi.sendImage(phoneDigits, signed.signedUrl, rendered || undefined);
+        } else if (mime.startsWith("audio/")) {
+          zaap = await zapi.sendAudio(phoneDigits, signed.signedUrl);
+          if (rendered.trim()) await zapi.sendText(phoneDigits, rendered);
+        } else {
+          // Documento (PDF, etc.): deriva extensão do filename
+          const ext = (data.media_filename ?? "").split(".").pop()?.toLowerCase() ?? "pdf";
+          zaap = await zapi.sendDocument(phoneDigits, signed.signedUrl, data.media_filename ?? "arquivo", ext);
+          if (rendered.trim()) await zapi.sendText(phoneDigits, rendered);
+        }
+      } else {
+        zaap = await zapi.sendText(phoneDigits, rendered);
+      }
     } catch (e) {
       sendError = e instanceof Error ? e.message : String(e);
     }
+
+    // Conteúdo salvo: se veio anexo sem texto, marca [anexo]
+    const conteudoSalvo = rendered.trim() || (hasMedia ? `[anexo: ${data.media_filename ?? "arquivo"}]` : "");
 
     const { data: row, error: insErr } = await context.supabase
       .from("direct_messages")
@@ -225,11 +252,14 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         origem: data.origem,
         template_id: data.template_id ?? null,
         inbound_id: data.inbound_id ?? null,
-        conteudo: rendered,
+        conteudo: conteudoSalvo,
         status: sendError ? "erro" : "enviado",
         erro: sendError,
         zaap_id: zaap?.zaapId ?? null,
         message_id: zaap?.messageId ?? zaap?.id ?? null,
+        media_path: data.media_path ?? null,
+        media_mime: data.media_mime ?? null,
+        media_filename: data.media_filename ?? null,
       })
       .select().single();
     if (insErr) throw insErr;
@@ -239,7 +269,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       contact_id: data.contact_id,
       user_id: context.userId,
       action: "mensagem_avulsa",
-      changes: { origem: data.origem, status: sendError ? "erro" : "enviado", erro: sendError } as never,
+      changes: { origem: data.origem, status: sendError ? "erro" : "enviado", erro: sendError, media: hasMedia } as never,
     });
 
     // If replying to an inbound: mark that inbound conversation as read

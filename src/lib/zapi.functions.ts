@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -104,5 +105,48 @@ export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
         .insert({ provider: "zapi", nome: "Instância principal", inbound_to_inbox_enabled: data.enabled });
     }
     return { ok: true as const, enabled: data.enabled, actor: context.userId };
+  });
+
+// Diagnóstico do webhook: mostra último evento recebido, último on-receive
+// e URLs prontas para colar no painel Z-API (com token embutido).
+export const getWebhookDiagnostics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: role } = await context.supabase
+      .from("user_roles").select("role").eq("user_id", context.userId)
+      .eq("role", "admin").maybeSingle();
+    if (!role) throw new Error("Apenas administradores podem ver o token de webhook.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: last }, { data: lastReceive }, { data: lastErr }, { data: inst }] = await Promise.all([
+      supabaseAdmin.from("webhook_log").select("evento, received_at").order("received_at", { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from("webhook_log").select("evento, received_at").eq("evento", "on-receive").order("received_at", { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from("webhook_log").select("evento, erro, received_at").not("erro", "is", null).order("received_at", { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from("whatsapp_instances").select("status, numero_conectado, last_ping").eq("provider", "zapi").maybeSingle(),
+    ]);
+
+    const secret = process.env.ZAPI_WEBHOOK_SECRET ?? "";
+    // Derive base URL da própria requisição (funciona em preview e produção).
+    let base = "https://<seu-projeto>.lovable.app";
+    try {
+      const req = getRequest();
+      const url = new URL(req.url);
+      base = `${url.protocol}//${url.host}`;
+    } catch { /* SSR/prerender: mantém placeholder */ }
+    const events = ["on-connect", "on-disconnect", "on-send", "on-delivery", "on-read", "on-receive", "on-message-status"];
+    const urls = events.map((ev) => ({
+      event: ev,
+      url: secret ? `${base}/api/public/zapi/${ev}?token=${secret}` : `${base}/api/public/zapi/${ev}?token=<ZAPI_WEBHOOK_SECRET>`,
+    }));
+
+    return {
+      base_url: base,
+      has_secret: Boolean(secret),
+      last_event: last ?? null,
+      last_receive: lastReceive ?? null,
+      last_error: lastErr ?? null,
+      instance: inst ?? null,
+      urls,
+    };
   });
 
