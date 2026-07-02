@@ -123,6 +123,8 @@ function UsuariosPage() {
           >
             <option value="admin">Admin</option>
             <option value="operador">Operador</option>
+            <option value="vrm">VRM (Relacionamento)</option>
+            <option value="territorio">Território</option>
             <option value="leitor">Leitor</option>
           </select>
           <button
