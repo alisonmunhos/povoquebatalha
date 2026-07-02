@@ -498,6 +498,7 @@ export function CommunicationInbox() {
                   </div>
                 </div>
               ))}
+              <div ref={threadEndRef} />
             </div>
 
             {conv && !conv.contact_id && (
