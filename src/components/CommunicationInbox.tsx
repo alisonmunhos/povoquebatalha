@@ -607,6 +607,69 @@ export function CommunicationInbox() {
             </div>
           </div>
 
+          {contact && (
+            <div className="p-4 border-b space-y-1.5 text-xs">
+              {contact.profissao && (
+                <div><span className="text-muted-foreground">Profissão:</span> {contact.profissao}</div>
+              )}
+              {contact.whatsapp_status && (
+                <div>
+                  <span className="text-muted-foreground">WhatsApp:</span>{" "}
+                  <span className={contact.whatsapp_status === "invalid" ? "text-destructive" : ""}>
+                    {contact.whatsapp_status}
+                  </span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Consentimento:</span>{" "}
+                {contact.consentimento_whatsapp
+                  ? <span className="text-emerald-700">sim</span>
+                  : <span className="text-amber-700">não</span>}
+              </div>
+              {contact.opt_out_at && (
+                <div className="text-destructive font-medium">Opt-out ativo desde {fmtDate(contact.opt_out_at)}</div>
+              )}
+              {Array.isArray(contact.formas_ajuda) && contact.formas_ajuda.length > 0 && (
+                <div>
+                  <div className="text-muted-foreground mb-1">Formas de ajuda:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {contact.formas_ajuda.map((f) => (
+                      <span key={f} className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{f}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(convQ.data?.tags?.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-muted-foreground mb-1">Tags:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {(convQ.data?.tags ?? []).map((t) => (
+                      <span
+                        key={t.id}
+                        className="px-1.5 py-0.5 rounded text-[10px] border"
+                        style={t.cor ? { borderColor: t.cor, color: t.cor } : undefined}
+                      >
+                        {t.nome}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(convQ.data?.campaign?.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-muted-foreground mb-1">Últimas campanhas:</div>
+                  <ul className="space-y-0.5">
+                    {(convQ.data?.campaign ?? []).slice(-3).reverse().map((c) => (
+                      <li key={c.id} className="truncate">
+                        · {c.campaign_name ?? "—"} {c.sent_at ? `(${fmtDate(c.sent_at)})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="p-4 border-b space-y-3">
             <div>
               <label className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1">
