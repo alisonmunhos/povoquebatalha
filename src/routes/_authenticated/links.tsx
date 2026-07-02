@@ -87,30 +87,11 @@ function LinksPage() {
 
 
       <section className="border rounded-xl p-5 bg-card space-y-4">
-        <h2 className="font-semibold text-sm">Origem do link</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Preset</label>
-            <select
-              value={origemPreset}
-              onChange={(e) => setOrigemPreset(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {ORIGEM_PRESETS.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Origem personalizada (sobrescreve)</label>
-            <input
-              value={origemCustom}
-              onChange={(e) => setOrigemCustom(e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase().slice(0, 60))}
-              placeholder="ex: panfleto_outubro"
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
+        <h2 className="font-semibold text-sm">Origem do link (opcional)</h2>
         <p className="text-xs text-muted-foreground">
-          A origem é gravada em cada cadastro e permite filtrar depois quem veio de cada canal.
+          Se preencher a origem, cada cadastro feito por esse link fica marcado com essa etiqueta —
+          útil para saber depois de qual canal a pessoa veio (grupo antigo, panfleto, etc.).
+          <strong> Se não quiser rastrear, deixe em branco e use o link limpo.</strong>
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -120,6 +101,7 @@ function LinksPage() {
               onChange={(e) => setOrigemPreset(e.target.value)}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
+              <option value="">— nenhuma —</option>
               {ORIGEM_PRESETS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
@@ -136,20 +118,43 @@ function LinksPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {links.map((l) => {
+            const cleanUrl = `${baseUrl}${l.path.split("?")[0]}`;
             const fullUrl = `${baseUrl}${l.path}`;
+            const hasOrigem = fullUrl !== cleanUrl;
             return (
-              <div key={l.key} className="rounded-md border p-4 space-y-2 bg-background">
-                <div className="font-medium text-sm">{l.label}</div>
-                <div className="text-xs text-muted-foreground">{l.desc}</div>
-                <div className="font-mono text-xs break-all bg-muted/40 rounded p-2">{fullUrl}</div>
-                <div className="flex gap-2">
-                  <button onClick={() => copy(fullUrl)} className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
-                    <Copy className="h-3 w-3" /> Copiar
-                  </button>
-                  <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
-                    <ExternalLink className="h-3 w-3" /> Abrir
-                  </a>
+              <div key={l.key} className="rounded-md border p-4 space-y-3 bg-background">
+                <div>
+                  <div className="font-medium text-sm">{l.label}</div>
+                  <div className="text-xs text-muted-foreground">{l.desc}</div>
                 </div>
+
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide font-medium text-emerald-700">Link limpo (recomendado)</div>
+                  <div className="font-mono text-xs break-all bg-emerald-50 border border-emerald-200 rounded p-2">{cleanUrl}</div>
+                  <div className="flex gap-2">
+                    <button onClick={() => copy(cleanUrl)} className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
+                      <Copy className="h-3 w-3" /> Copiar
+                    </button>
+                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
+                      <ExternalLink className="h-3 w-3" /> Abrir
+                    </a>
+                  </div>
+                </div>
+
+                {hasOrigem && (
+                  <div className="space-y-1">
+                    <div className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">Com rastreamento de origem</div>
+                    <div className="font-mono text-xs break-all bg-muted/40 rounded p-2">{fullUrl}</div>
+                    <div className="flex gap-2">
+                      <button onClick={() => copy(fullUrl)} className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
+                        <Copy className="h-3 w-3" /> Copiar
+                      </button>
+                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-muted">
+                        <ExternalLink className="h-3 w-3" /> Abrir
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
