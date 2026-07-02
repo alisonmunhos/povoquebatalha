@@ -118,11 +118,9 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           if (data) target = data;
         }
 
-        const formasAjuda = d.formas_ajuda && d.formas_ajuda.length > 0
-          ? {
-              opcoes: d.formas_ajuda,
-              outro: d.formas_ajuda.includes("outro") ? (d.formas_ajuda_outro || null) : null,
-            }
+        const formasAjuda = d.formas_ajuda && d.formas_ajuda.length > 0 ? d.formas_ajuda : [];
+        const formasAjudaOutro = formasAjuda.includes("outro")
+          ? (d.formas_ajuda_outro || null)
           : null;
 
         const fields = {
@@ -144,6 +142,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           participa_movimento_social: d.participa_movimento_social ?? null,
           movimento_social_nome: d.movimento_social_nome || null,
           formas_ajuda: formasAjuda,
+          formas_ajuda_outro: formasAjudaOutro,
           consentimento_whatsapp: true,
           consentimento_at: new Date().toISOString(),
           origem: "recadastro" as const,
@@ -192,6 +191,27 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
             } else {
               await supabaseAdmin.from("contacts").update({ geocoding_status: g ? "erro" : "pendente" }).eq("id", savedId);
             }
+          } catch { /* ignore */ }
+        }
+
+        // Registra no histórico do contato
+        if (savedId) {
+          try {
+            await supabaseAdmin.from("contact_audit_log").insert({
+              contact_id: savedId,
+              action: "atualizacao_apoiador_recebida",
+              changes: {
+                origem_detalhe: d.origem_detalhe || null,
+                coletivo_alicerce: d.coletivo_alicerce ?? null,
+                participa_movimento_social: d.participa_movimento_social ?? null,
+                movimento_social_nome: d.movimento_social_nome || null,
+                profissao: d.profissao || null,
+                formas_ajuda: formasAjuda,
+                formas_ajuda_outro: formasAjudaOutro,
+                consentimento_whatsapp: true,
+                cidade: d.cidade || null, bairro: d.bairro || null, uf: d.uf || null,
+              },
+            });
           } catch { /* ignore */ }
         }
 

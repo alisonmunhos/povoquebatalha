@@ -71,6 +71,7 @@ const SEARCH_COLS = [
   "cidade",
   "origem_detalhe",
   "movimento_social_nome",
+  "formas_ajuda_outro",
 ];
 
 export function applyCrmFilters<T extends {
@@ -124,7 +125,17 @@ export function applyCrmFilters<T extends {
   }
 
   // Participação
-  if (f.formas_ajuda?.length) q = q.contains("formas_ajuda", f.formas_ajuda);
+  if (f.formas_ajuda?.length) {
+    // Cada opção selecionada vira uma cláusula OR (`formas_ajuda @> [slug]`),
+    // expandindo `panfletagem_banquinha` para casar também com o valor legado `panfletagem`.
+    const clauses: string[] = [];
+    for (const slug of f.formas_ajuda) {
+      const variants =
+        slug === "panfletagem_banquinha" ? ["panfletagem_banquinha", "panfletagem"] : [slug];
+      for (const v of variants) clauses.push(`formas_ajuda.cs.["${v.replace(/"/g, "")}"]`);
+    }
+    if (clauses.length) q = q.or(clauses.join(","));
+  }
   if (f.origem) q = q.eq("origem", f.origem);
   if (f.origens?.length) q = q.in("origem", f.origens);
   if (f.origem_detalhe) q = q.ilike("origem_detalhe", `%${safe(f.origem_detalhe)}%`);

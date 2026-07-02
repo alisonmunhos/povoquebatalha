@@ -55,11 +55,31 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,movimento_social_nome",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome",
       )
       .is("arquivado_at", null)
       .limit(20000);
     if (error) throw error;
+
+    // Rótulos amigáveis das formas de ajuda; valores legados consolidados
+    const FA_LABELS: Record<string, string> = {
+      panfletagem_banquinha: "Panfletagem / Banquinha",
+      panfletagem: "Panfletagem / Banquinha",
+      compartilhar_whatsapp: "Compartilhar material no WhatsApp",
+      compartilhar_redes: "Compartilhar nas redes sociais",
+      participar_eventos: "Participar de eventos",
+      ajudar_organizacao: "Ajudar na organização",
+      mobilizar_bairro: "Mobilizar pessoas do bairro",
+      adesivar_carro: "Adesivar o carro",
+      plaquinha_casa: "Plaquinha na frente de casa",
+      receber_panfletos: "Receber panfletos e adesivos",
+      outro: "Outro",
+    };
+    const FA_VALUE_MAP: Record<string, string> = {
+      panfletagem: "panfletagem_banquinha",
+      "Panfletagem (legado)": "panfletagem_banquinha",
+      Panfletagem: "panfletagem_banquinha",
+    };
 
     const cidades: Counter = new Map();
     const bairros: Counter = new Map();
@@ -82,7 +102,14 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bump(movimentos_sociais, c.movimento_social_nome);
       const arr = c.formas_ajuda as unknown;
       if (Array.isArray(arr)) {
-        for (const item of arr) if (typeof item === "string") bump(formas_ajuda, item, (s) => s);
+        for (const item of arr) {
+          if (typeof item !== "string" || !item) continue;
+          const canonical = FA_VALUE_MAP[item] ?? item;
+          const label = FA_LABELS[canonical] ?? canonical;
+          const cur = formas_ajuda.get(canonical);
+          if (cur) cur.count += 1;
+          else formas_ajuda.set(canonical, { label, count: 1 });
+        }
       }
     }
 
@@ -158,7 +185,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       tipos_contato: toOptions(tipos_contato),
       origens: toOptions(origens),
       origem_detalhes: toOptions(origem_detalhes),
-      formas_ajuda: toOptions(formas_ajuda),
+      formas_ajuda: [...formas_ajuda.entries()]
+        .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
       movimentos_sociais: toOptions(movimentos_sociais),
       tags: tagsOpts,
       segmentos: segmentsOpts,

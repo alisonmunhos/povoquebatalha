@@ -545,6 +545,7 @@ export type Database = {
           endereco: string | null
           endereco_completo: string | null
           formas_ajuda: Json
+          formas_ajuda_outro: string | null
           geocoded_at: string | null
           geocoding_provider: string | null
           geocoding_status:
@@ -610,6 +611,7 @@ export type Database = {
           endereco?: string | null
           endereco_completo?: string | null
           formas_ajuda?: Json
+          formas_ajuda_outro?: string | null
           geocoded_at?: string | null
           geocoding_provider?: string | null
           geocoding_status?:
@@ -677,6 +679,7 @@ export type Database = {
           endereco?: string | null
           endereco_completo?: string | null
           formas_ajuda?: Json
+          formas_ajuda_outro?: string | null
           geocoded_at?: string | null
           geocoding_provider?: string | null
           geocoding_status?:

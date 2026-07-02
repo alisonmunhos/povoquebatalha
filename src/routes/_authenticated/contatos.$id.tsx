@@ -20,7 +20,6 @@ const TIPO_OPTIONS = [
 
 const FORMAS_AJUDA = [
   { v: "panfletagem_banquinha", l: "Panfletagem / Banquinha" },
-  { v: "panfletagem", l: "Panfletagem (legado)" },
   { v: "compartilhar_whatsapp", l: "Compartilhar material no WhatsApp" },
   { v: "compartilhar_redes", l: "Compartilhar nas redes sociais" },
   { v: "participar_eventos", l: "Participar de eventos" },
@@ -71,6 +70,7 @@ function ContatoFicha() {
         movimento_social_nome: c.movimento_social_nome ?? "",
         tipo_contato: c.tipo_contato ?? "apoiador",
         formas_ajuda: Array.isArray(c.formas_ajuda) ? c.formas_ajuda : [],
+        formas_ajuda_outro: (c as { formas_ajuda_outro?: string | null }).formas_ajuda_outro ?? "",
         consentimento_whatsapp: c.consentimento_whatsapp,
         origem_detalhe: c.origem_detalhe ?? "",
         observacoes: c.observacoes ?? "",
@@ -218,6 +218,17 @@ function ContatoFicha() {
                   </label>
                 ))}
               </div>
+              {((form.formas_ajuda as string[]) ?? []).includes("outro") && (
+                <div className="mt-3">
+                  <Field
+                    label='Descreva a opção "Outro"'
+                    value={form.formas_ajuda_outro}
+                    onChange={(v) => set("formas_ajuda_outro", v)}
+                    maxLength={240}
+                    placeholder="Ex.: motorista voluntário, tradução, etc."
+                  />
+                </div>
+              )}
             </div>
           </Section>
 
