@@ -83,7 +83,7 @@ function UsuariosPage() {
     }
   }
 
-  async function onRoleChange(id: string, newRole: "admin" | "operador" | "leitor") {
+  async function onRoleChange(id: string, newRole: "admin" | "operador" | "leitor" | "vrm" | "territorio") {
     try {
       await updateRole({ data: { userId: id, role: newRole } });
       await load();
