@@ -7,8 +7,10 @@ import {
   listMessageTemplates, upsertMessageTemplate, archiveMessageTemplate,
   duplicateMessageTemplate, sendTestTemplate,
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
+  retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
-import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2 } from "lucide-react";
+import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
+import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, Paperclip, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/mensagens")({
@@ -19,7 +21,9 @@ export const Route = createFileRoute("/_authenticated/mensagens")({
 type Tpl = {
   id: string; kind: "system" | "quick_reply"; event_key: string | null; shortcut: string | null;
   title: string; category: string | null; body: string; variables: unknown;
-  link: string | null; media_url: string | null; active: boolean; updated_at: string;
+  link: string | null; media_url: string | null;
+  media_path: string | null; media_mime: string | null; media_filename: string | null;
+  active: boolean; updated_at: string;
 };
 
 const SYSTEM_EVENTS = [
@@ -85,6 +89,10 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     setEditing({ kind, active: true, variables: VARIAVEIS });
   }
 
+  const signUpload = useServerFn(signCampaignMediaUpload);
+  const [testPhone, setTestPhone] = useState("");
+  const [uploading, setUploading] = useState(false);
+
   async function save() {
     if (!editing?.title || !editing.body) return toast.error("Título e mensagem são obrigatórios");
     try {
@@ -99,6 +107,9 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
         variables: Array.isArray(editing.variables) ? editing.variables as string[] : VARIAVEIS,
         link: (editing.link as string | null) ?? null,
         media_url: (editing.media_url as string | null) ?? null,
+        media_path: (editing.media_path as string | null) ?? null,
+        media_mime: (editing.media_mime as string | null) ?? null,
+        media_filename: (editing.media_filename as string | null) ?? null,
         active: editing.active ?? true,
       }});
       toast.success("Salvo");
@@ -119,12 +130,31 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     qc.invalidateQueries({ queryKey: ["message-templates"] });
   }
   async function onTest(id: string) {
-    const phone = prompt("Enviar teste para qual WhatsApp? (com DDD)");
-    if (!phone) return;
+    const phone = testPhone.trim();
+    if (!phone) return toast.error("Informe um WhatsApp de teste (com DDD)");
     try {
       await testFn({ data: { templateId: id, phone } });
-      toast.success("Teste enviado");
+      toast.success(`Teste enviado para ${phone}`);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+  }
+
+  async function onAttach(file: File) {
+    if (!editing) return;
+    if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
+    setUploading(true);
+    try {
+      const sig = await signUpload({ data: { filename: file.name, contentType: file.type } });
+      const up = await fetch(sig.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": sig.contentType, "x-upsert": "true" },
+        body: file,
+      });
+      if (!up.ok) throw new Error(`Falha upload (${up.status})`);
+      setEditing({ ...editing, media_path: sig.path, media_mime: sig.contentType, media_filename: sig.filename });
+      toast.success("Anexo carregado");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro upload");
+    } finally { setUploading(false); }
   }
 
   return (
@@ -196,32 +226,69 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
                   Variáveis: {VARIAVEIS.map((v) => `{{${v}}}`).join(" · ")}
                 </div>
               </div>
-              {kind === "quick_reply" && (
-                <>
-                  <div>
-                    <label className="text-xs font-medium">Link (opcional)</label>
-                    <input value={editing.link ?? ""} onChange={(e) => setEditing({ ...editing, link: e.target.value })} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background" />
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-xs font-medium">Link (aparece com prévia no WhatsApp)</label>
+                <input
+                  value={editing.link ?? ""}
+                  onChange={(e) => setEditing({ ...editing, link: e.target.value })}
+                  placeholder="https://instagram.com/p/..."
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Se o link estiver no corpo da mensagem, o WhatsApp gera automaticamente a prévia da postagem.</p>
+              </div>
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-xs font-medium">Anexo (imagem ou PDF, até 8MB)</label>
+                {editing.media_path ? (
+                  <div className="mt-1 flex items-center gap-2 rounded-md border px-3 py-2 text-xs bg-muted/30">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    <span className="flex-1 truncate">{editing.media_filename ?? editing.media_path}</span>
+                    <button
+                      onClick={() => setEditing({ ...editing, media_path: null, media_mime: null, media_filename: null })}
+                      className="text-destructive hover:underline"
+                    ><X className="h-3.5 w-3.5" /></button>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium">Mídia (URL)</label>
-                    <input value={editing.media_url ?? ""} onChange={(e) => setEditing({ ...editing, media_url: e.target.value })} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background" />
-                  </div>
-                </>
-              )}
+                ) : (
+                  <label className="mt-1 flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs cursor-pointer hover:bg-muted/40">
+                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+                    <span>{uploading ? "Enviando…" : "Escolher arquivo"}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) onAttach(f); }}
+                    />
+                  </label>
+                )}
+              </div>
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={editing.active ?? true} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
                 Ativa
               </label>
+
+              <div className="col-span-2 border rounded-md bg-[#e5ddd5] p-4">
+                <div className="text-[10px] font-medium text-muted-foreground uppercase mb-2">Pré-visualização (como o contato verá)</div>
+                <WhatsappPreview body={editing.body ?? ""} link={editing.link ?? null} mediaMime={editing.media_mime ?? null} mediaFilename={editing.media_filename ?? null} />
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 border-t pt-3">
+
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
               <button onClick={save} className="inline-flex items-center gap-1 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm">
                 <Save className="h-4 w-4" /> Salvar
               </button>
               {editing.id && (
                 <>
-                  <button onClick={() => onTest(editing.id!)} className="inline-flex items-center gap-1 rounded-md border px-4 py-2 text-sm hover:bg-muted">
-                    <Send className="h-4 w-4" /> Enviar teste
-                  </button>
+                  <div className="flex items-center gap-1 border rounded-md px-2 py-1">
+                    <span className="text-[10px] text-muted-foreground">Teste:</span>
+                    <input
+                      value={testPhone}
+                      onChange={(e) => setTestPhone(e.target.value)}
+                      placeholder="(11) 9…"
+                      className="w-32 text-xs bg-transparent outline-none"
+                    />
+                    <button onClick={() => onTest(editing.id!)} className="inline-flex items-center gap-1 rounded bg-primary/10 text-primary px-2 py-1 text-xs hover:bg-primary/20">
+                      <Send className="h-3 w-3" /> Enviar teste
+                    </button>
+                  </div>
                   <button onClick={() => onDup(editing.id!)} className="inline-flex items-center gap-1 rounded-md border px-4 py-2 text-sm hover:bg-muted">
                     <Copy className="h-4 w-4" /> Duplicar
                   </button>
@@ -341,17 +408,18 @@ function AutomationsPanel() {
       </div>
 
       <div className="border rounded-xl bg-card">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
+        <div className="px-4 py-3 border-b flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-sm font-semibold">Últimas entregas</h2>
             <p className="text-xs text-muted-foreground">Registro das mensagens automáticas disparadas — útil para checar se a confirmação de cadastro está saindo.</p>
           </div>
-          <button
-            onClick={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })}
-            className="text-xs rounded border px-2 py-1 hover:bg-muted"
-          >
-            Atualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <ManualTrigger onDone={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })} />
+            <button
+              onClick={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })}
+              className="text-xs rounded border px-2 py-1 hover:bg-muted"
+            >Atualizar</button>
+          </div>
         </div>
         <div className="max-h-80 overflow-auto">
           <table className="w-full text-sm">
@@ -362,6 +430,7 @@ function AutomationsPanel() {
                 <th className="text-left px-4 py-2">Evento</th>
                 <th className="text-left px-4 py-2">Status</th>
                 <th className="text-left px-4 py-2">Detalhe</th>
+                <th className="text-left px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -375,6 +444,7 @@ function AutomationsPanel() {
                 const color = row.status === "sent" ? "bg-emerald-100 text-emerald-700"
                   : row.status === "error" ? "bg-red-100 text-red-700"
                   : "bg-slate-200 text-slate-600";
+                const canRetry = row.status !== "sent";
                 return (
                   <tr key={row.id} className="border-t">
                     <td className="px-4 py-2 whitespace-nowrap text-xs">{when}</td>
@@ -382,11 +452,14 @@ function AutomationsPanel() {
                     <td className="px-4 py-2 font-mono text-xs">{row.automation?.event_key ?? "—"}</td>
                     <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${color}`}>{row.status}</span></td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">{row.error ?? ""}</td>
+                    <td className="px-4 py-2 text-right">
+                      {canRetry && <RetryButton id={row.id} onDone={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })} />}
+                    </td>
                   </tr>
                 );
               })}
               {(deliveries.data ?? []).length === 0 && !deliveries.isLoading && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground text-sm">Nenhuma entrega ainda. Faça uma atualização cadastral de teste para conferir.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground text-sm">Nenhuma entrega ainda. Faça uma atualização cadastral de teste para conferir.</td></tr>
               )}
             </tbody>
           </table>
@@ -438,6 +511,119 @@ function AutomationsPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============= Pré-visualização estilo WhatsApp =============
+function WhatsappPreview({ body, link, mediaMime, mediaFilename }: {
+  body: string; link: string | null; mediaMime: string | null; mediaFilename: string | null;
+}) {
+  // Substitui variáveis por exemplos amigáveis
+  const rendered = (body || "")
+    .replace(/\{\{\s*nome\s*\}\}/gi, "Marina")
+    .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, "Marina")
+    .replace(/\{\{\s*cidade\s*\}\}/gi, "Curitiba")
+    .replace(/\{\{\s*bairro\s*\}\}/gi, "Centro")
+    .replace(/\{\{\s*link_atualizacao\s*\}\}/gi, "https://povoquebatalha.lovable.app/recadastro?t=exemplo")
+    .replace(/\{\{\s*link_inscricao\s*\}\}/gi, "https://povoquebatalha.lovable.app/inscrever");
+
+  // Detecta primeiro link no corpo para mostrar cartão de prévia
+  const urlMatch = rendered.match(/https?:\/\/[^\s]+/);
+  const previewUrl = link || (urlMatch ? urlMatch[0] : null);
+  const host = previewUrl ? (() => { try { return new URL(previewUrl).hostname.replace("www.", ""); } catch { return null; } })() : null;
+
+  // Formatação básica *negrito* e _itálico_
+  const html = rendered
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\*(.+?)\*/g, "<strong>$1</strong>")
+    .replace(/_(.+?)_/g, "<em>$1</em>")
+    .replace(/(https?:\/\/[^\s]+)/g, '<a class="text-sky-700 underline break-all" href="$1" target="_blank" rel="noopener">$1</a>')
+    .replace(/\n/g, "<br/>");
+
+  return (
+    <div className="max-w-sm ml-auto">
+      <div className="rounded-lg bg-[#dcf8c6] shadow-sm p-2 text-[13px] text-slate-800">
+        {mediaMime && mediaMime.startsWith("image/") && (
+          <div className="mb-2 aspect-video rounded bg-slate-300/60 flex items-center justify-center text-[11px] text-slate-600">
+            🖼️ {mediaFilename ?? "imagem anexada"}
+          </div>
+        )}
+        {mediaMime === "application/pdf" && (
+          <div className="mb-2 rounded border border-slate-300 bg-white/60 p-2 text-[11px] text-slate-700 flex items-center gap-2">
+            📄 {mediaFilename ?? "documento.pdf"}
+          </div>
+        )}
+        {host && (
+          <div className="mb-2 rounded-md overflow-hidden border border-black/5 bg-white/70">
+            <div className="aspect-video bg-slate-200 flex items-center justify-center text-[10px] text-slate-500">
+              Prévia gerada pelo WhatsApp
+            </div>
+            <div className="px-2 py-1.5">
+              <div className="text-[11px] font-medium truncate">{host}</div>
+              <div className="text-[10px] text-slate-500 truncate">{previewUrl}</div>
+            </div>
+          </div>
+        )}
+        <div dangerouslySetInnerHTML={{ __html: html || "<span class='text-slate-400'>(mensagem vazia)</span>" }} />
+        <div className="text-[10px] text-slate-500 text-right mt-1">agora ✓✓</div>
+      </div>
+    </div>
+  );
+}
+
+function RetryButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const retryFn = useServerFn(retryAutomationDelivery);
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    try {
+      await retryFn({ data: { deliveryId: id } });
+      toast.success("Reenviado");
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <button onClick={run} disabled={busy} className="inline-flex items-center gap-1 text-xs rounded border px-2 py-0.5 hover:bg-muted disabled:opacity-50">
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Reenviar
+    </button>
+  );
+}
+
+function ManualTrigger({ onDone }: { onDone: () => void }) {
+  const fn = useServerFn(triggerAutomationForContact);
+  const [open, setOpen] = useState(false);
+  const [eventKey, setEventKey] = useState("atualizacao_apoiador_concluida");
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    if (!query.trim()) return toast.error("Informe telefone, nome ou id");
+    setBusy(true);
+    try {
+      const r = await fn({ data: { eventKey, contactQuery: query.trim() } });
+      toast.success(`Disparado para ${r.nome ?? r.contact_id}`);
+      setOpen(false); setQuery("");
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(false); }
+  }
+  if (!open) return (
+    <button onClick={() => setOpen(true)} className="text-xs rounded border px-2 py-1 hover:bg-muted">
+      Disparar por contato
+    </button>
+  );
+  return (
+    <div className="flex items-center gap-1 border rounded-md px-2 py-1 bg-muted/30">
+      <select value={eventKey} onChange={(e) => setEventKey(e.target.value)} className="text-xs bg-transparent outline-none">
+        <option value="atualizacao_apoiador_concluida">Atualização concluída</option>
+        <option value="inscricao_concluida">Inscrição concluída</option>
+      </select>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="nome, telefone ou id" className="w-40 text-xs bg-transparent outline-none" />
+      <button onClick={run} disabled={busy} className="inline-flex items-center gap-1 rounded bg-primary/10 text-primary px-2 py-0.5 text-xs hover:bg-primary/20 disabled:opacity-50">
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Disparar
+      </button>
+      <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
     </div>
   );
 }

@@ -13,6 +13,9 @@ const templateSchema = z.object({
   variables: z.array(z.string()).max(20).default([]),
   link: z.string().trim().max(500).optional().nullable(),
   media_url: z.string().trim().max(500).optional().nullable(),
+  media_path: z.string().trim().max(500).optional().nullable(),
+  media_mime: z.string().trim().max(120).optional().nullable(),
+  media_filename: z.string().trim().max(200).optional().nullable(),
   active: z.boolean().default(true),
 });
 
@@ -43,6 +46,9 @@ export const upsertMessageTemplate = createServerFn({ method: "POST" })
       variables: data.variables,
       link: data.link || null,
       media_url: data.media_url || null,
+      media_path: data.media_path || null,
+      media_mime: data.media_mime || null,
+      media_filename: data.media_filename || null,
       active: data.active,
       updated_by: context.userId,
     };
@@ -110,11 +116,13 @@ const testSchema = z.object({
 export const sendTestTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => testSchema.parse(d))
-  .handler(async ({ data, context }) => {
-    const { data: tpl, error } = await context.supabase
-      .from("message_templates").select("body").eq("id", data.templateId).single();
-    if (error || !tpl) throw new Error("Template não encontrado");
+  .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tpl, error } = await supabaseAdmin
+      .from("message_templates")
+      .select("body, media_path, media_mime, media_filename")
+      .eq("id", data.templateId).single();
+    if (error || !tpl) throw new Error("Template não encontrado");
     const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: data.phone });
     const phoneE164 = norm as string | null;
     if (!phoneE164) throw new Error("Telefone inválido");
@@ -131,9 +139,88 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
         opt_out_at: null,
       },
     });
+    const phone = phoneE164.replace(/^\+/, "");
     const { zapi } = await import("@/integrations/zapi/client.server");
-    const res = await zapi.sendText(phoneE164.replace(/^\+/, ""), `[TESTE] ${rendered}`);
+    // Se houver anexo, envia como imagem/documento com legenda
+    if (tpl.media_path) {
+      const { data: signed } = await supabaseAdmin
+        .storage.from("campaign-media").createSignedUrl(tpl.media_path, 60 * 15);
+      if (signed?.signedUrl) {
+        const caption = `[TESTE] ${rendered}`;
+        if (tpl.media_mime && tpl.media_mime.startsWith("image/")) {
+          const res = await zapi.sendImage(phone, signed.signedUrl, caption);
+          return { ok: true, id: res.messageId ?? res.zaapId ?? null };
+        }
+        // PDF/documento: envia texto separado + mensagem sinalizando anexo
+        // (Z-API tem endpoint próprio para documento; nesta versão simplificada mandamos como imagem cai em erro
+        // então mandamos só o texto com o link assinado embutido para o teste.)
+        const res = await zapi.sendText(phone, `${caption}\n\n📎 ${tpl.media_filename ?? "anexo"}: ${signed.signedUrl}`);
+        return { ok: true, id: res.messageId ?? res.zaapId ?? res.id ?? null };
+      }
+    }
+    const res = await zapi.sendText(phone, `[TESTE] ${rendered}`);
     return { ok: true, id: res.messageId ?? res.zaapId ?? res.id ?? null };
+  });
+
+// Reenvia manualmente uma automação para um contato específico
+export const retryAutomationDelivery = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ deliveryId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: del, error } = await supabaseAdmin
+      .from("automation_deliveries")
+      .select("automation_id, contact_id, automation:automations(event_key)")
+      .eq("id", data.deliveryId).single();
+    if (error || !del) throw new Error("Entrega não encontrada");
+    const { data: contact, error: cErr } = await supabaseAdmin
+      .from("contacts")
+      .select("id, nome, phone_e164, cidade, bairro, recad_token, consentimento_whatsapp, opt_out_at, arquivado_at")
+      .eq("id", del.contact_id).single();
+    if (cErr || !contact) throw new Error("Contato não encontrado");
+    // Zera o registro para permitir novo envio
+    await supabaseAdmin.from("automation_deliveries")
+      .update({ status: "queued", error: null }).eq("id", data.deliveryId);
+    const eventKey = (del.automation as { event_key: string } | null)?.event_key;
+    if (!eventKey) throw new Error("Evento da automação não encontrado");
+    const { triggerAutomationsForEvent } = await import("@/lib/automations.server");
+    await triggerAutomationsForEvent({ eventKey, contact });
+    return { ok: true };
+  });
+
+// Dispara manualmente uma automação (por event_key) para um contato específico —
+// útil quando o disparo original falhou e não gerou nenhuma linha em automation_deliveries.
+export const triggerAutomationForContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    eventKey: z.string().trim().min(2).max(80),
+    contactQuery: z.string().trim().min(3).max(80), // nome, telefone ou id
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const q = data.contactQuery.trim();
+    let contact: any = null;
+    // tenta por id UUID
+    if (/^[0-9a-f-]{36}$/i.test(q)) {
+      const { data: c } = await supabaseAdmin.from("contacts").select("*").eq("id", q).maybeSingle();
+      contact = c;
+    }
+    if (!contact) {
+      const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: q });
+      if (norm) {
+        const { data: c } = await supabaseAdmin.from("contacts").select("*").eq("phone_e164", norm).maybeSingle();
+        contact = c;
+      }
+    }
+    if (!contact) {
+      const { data: c } = await supabaseAdmin.from("contacts")
+        .select("*").ilike("nome", `%${q}%`).limit(1).maybeSingle();
+      contact = c;
+    }
+    if (!contact) throw new Error("Contato não encontrado");
+    const { triggerAutomationsForEvent } = await import("@/lib/automations.server");
+    await triggerAutomationsForEvent({ eventKey: data.eventKey, contact });
+    return { ok: true, contact_id: contact.id, nome: contact.nome };
   });
 
 // AUTOMATIONS
