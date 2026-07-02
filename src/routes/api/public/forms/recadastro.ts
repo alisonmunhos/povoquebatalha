@@ -194,6 +194,27 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           } catch { /* ignore */ }
         }
 
+        // Registra no histórico do contato
+        if (savedId) {
+          try {
+            await supabaseAdmin.from("contact_audit_log").insert({
+              contact_id: savedId,
+              action: "atualizacao_apoiador_recebida",
+              changes: {
+                origem_detalhe: d.origem_detalhe || null,
+                coletivo_alicerce: d.coletivo_alicerce ?? null,
+                participa_movimento_social: d.participa_movimento_social ?? null,
+                movimento_social_nome: d.movimento_social_nome || null,
+                profissao: d.profissao || null,
+                formas_ajuda: formasAjuda,
+                formas_ajuda_outro: formasAjudaOutro,
+                consentimento_whatsapp: true,
+                cidade: d.cidade || null, bairro: d.bairro || null, uf: d.uf || null,
+              },
+            });
+          } catch { /* ignore */ }
+        }
+
         // Dispara automações (se houver)
         if (savedId) {
           try {
