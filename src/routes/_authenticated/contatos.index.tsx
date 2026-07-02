@@ -351,17 +351,49 @@ function Contatos() {
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-3 py-3 w-8"><Checkbox checked={allChecked} onCheckedChange={togglePage} /></th>
-              <th className="text-left px-3 py-3">Nome</th>
+              <th className="text-left px-3 py-3">
+                <ColumnSortHeader label="Nome" state={nameSortState} onCycle={cycleNameSort} />
+              </th>
               <th className="text-left px-3 py-3">WhatsApp</th>
-              <th className="text-left px-3 py-3">Cidade/Bairro</th>
-              <th className="text-left px-3 py-3">Tags</th>
-              <th className="text-left px-3 py-3">Status</th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Cidade"
+                  options={cidadesOpts}
+                  selected={filters.cidades ?? []}
+                  onChange={(v) => setListFilter("cidades", v)}
+                />
+              </th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Bairro"
+                  options={bairrosOpts}
+                  selected={filters.bairros ?? []}
+                  onChange={(v) => setListFilter("bairros", v)}
+                />
+              </th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Tags"
+                  options={tagsOpts}
+                  selected={filters.tag_ids ?? []}
+                  onChange={(v) => setListFilter("tag_ids", v)}
+                />
+              </th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Status"
+                  options={statusOpts}
+                  selected={filters.lifecycle_statuses ?? []}
+                  onChange={(v) => setListFilter("lifecycle_statuses", v)}
+                  align="end"
+                />
+              </th>
               <th className="text-right px-3 py-3">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {q.isLoading && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Carregando…</td></tr>}
-            {q.data?.rows.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Nenhum contato encontrado.</td></tr>}
+            {q.isLoading && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Carregando…</td></tr>}
+            {q.data?.rows.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Nenhum contato encontrado.</td></tr>}
             {q.data?.rows.map((c) => {
               const digits = (c.phone_e164 ?? "").replace(/\D/g, "");
               return (
@@ -371,7 +403,8 @@ function Contatos() {
                     <Link to="/contatos/$id" params={{ id: c.id }} className="hover:underline">{c.nome}</Link>
                   </td>
                   <td className="px-3 py-3 tabular-nums text-muted-foreground">{formatPhoneBR(c.phone_e164)}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{[c.cidade, c.bairro].filter(Boolean).join(" / ") || "—"}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{c.cidade || "—"}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{c.bairro || "—"}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-1">
                       {c.tags.map((t) => (
