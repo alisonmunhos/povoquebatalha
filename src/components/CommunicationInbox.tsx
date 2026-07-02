@@ -375,7 +375,7 @@ export function CommunicationInbox() {
                   style={{ minHeight: "40px" }}
                 />
                 <button
-                  onClick={() => selected.contact_id && reply.trim() && sendMut.mutate({ contact_id: selected.contact_id, message: reply })}
+                  onClick={() => selectedContactId && reply.trim() && sendMut.mutate({ contact_id: selectedContactId, message: reply })}
                   disabled={!canSend || !reply.trim() || sendMut.isPending}
                   className="p-2.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
                   title="Enviar"
