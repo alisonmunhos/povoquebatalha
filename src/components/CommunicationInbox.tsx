@@ -115,10 +115,10 @@ export function CommunicationInbox() {
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
         qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
         qc.invalidateQueries({ queryKey: ["comm-badge"] });
-        if (selectedContactId) qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+        qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "inbound_messages" }, () => {
-        if (selectedContactId) qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+        qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -141,7 +141,7 @@ export function CommunicationInbox() {
       setReply("");
       setAttachment(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Mensagem enviada");
     },
@@ -151,7 +151,7 @@ export function CommunicationInbox() {
   const assignMut = useMutation({
     mutationFn: (v: { conversation_id: string; assigned_to: string | null }) => assignFn({ data: v }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
       toast.success("Atribuição atualizada");
@@ -161,7 +161,7 @@ export function CommunicationInbox() {
   const statusMut = useMutation({
     mutationFn: (v: { conversation_id: string; status: "aberta" | "aguardando" | "resolvida" }) => statusFn({ data: v }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Status atualizado");
     },
@@ -176,7 +176,7 @@ export function CommunicationInbox() {
     mutationFn: (v: { conversation_id: string; body: string; mention_user_id?: string }) => noteFn({ data: v }),
     onSuccess: () => {
       setNote("");
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       toast.success("Nota adicionada");
     },
   });
