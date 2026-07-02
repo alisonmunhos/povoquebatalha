@@ -62,6 +62,7 @@ export function CommunicationInbox() {
   const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
 
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
