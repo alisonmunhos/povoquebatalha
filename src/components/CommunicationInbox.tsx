@@ -38,6 +38,22 @@ export function CommunicationInbox() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
   const [mobilePane, setMobilePane] = useState<"list" | "thread" | "info">("list");
+  const [infoOpen, setInfoOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = window.localStorage.getItem("inbox.infoOpen");
+    if (v === null) return window.innerWidth >= 1024;
+    return v === "1";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("inbox.infoOpen", infoOpen ? "1" : "0");
+    }
+  }, [infoOpen]);
+
+  // Anexo pendente (upload feito, aguardando envio)
+  const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
@@ -50,6 +66,7 @@ export function CommunicationInbox() {
   const noteFn = useServerFn(addConversationNote);
   const staffFn = useServerFn(listCommunicationStaff);
   const searchNewFn = useServerFn(searchContactsForNewChat);
+  const signFn = useServerFn(signCampaignMediaUpload);
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", filter, search],
