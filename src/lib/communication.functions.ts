@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+type ConvEventPayload = Record<string, string | number | boolean | null>;
+
 // ------- List conversations (WhatsApp Web style: only contacts with exchanged messages) -------
 export const listConversations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -26,12 +28,13 @@ export const listConversations = createServerFn({ method: "GET" })
     const { data: rows, error } = await q;
     if (error) throw error;
 
-    type Row = typeof rows extends (infer T)[] | null ? T : never;
-    let list = (rows ?? []).map((r: Row) => {
-      const c = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+    type ContactShape = { id: string; nome: string | null; phone_e164: string | null; cidade: string | null; uf: string | null; bairro: string | null; opt_out_at: string | null; whatsapp_status: string | null };
+    let list = (rows ?? []).map((r) => {
+      const raw = r.contacts as ContactShape | ContactShape[] | null;
+      const c = Array.isArray(raw) ? raw[0] : raw;
       return {
-        id: r.id,
-        contact_id: r.contact_id,
+        id: r.id as string,
+        contact_id: r.contact_id as string,
         nome: c?.nome ?? null,
         phone: c?.phone_e164 ?? null,
         cidade: c?.cidade ?? null,
@@ -68,10 +71,11 @@ export const searchContactsForNewChat = createServerFn({ method: "GET" })
     const digits = data.q.replace(/\D+/g, "");
     let q = context.supabase
       .from("contacts")
-      .select("id, nome, phone_e164, cidade, uf, whatsapp_status, opt_out_at, conversations:conversations!left(id)")
+      .select("id, nome, phone_e164, cidade, uf, whatsapp_status")
+      .in("whatsapp_status", ["confirmado", "desconhecido"])
       .is("opt_out_at", null)
       .is("arquivado_at", null)
-      .limit(20);
+      .limit(30);
 
     if (digits.length >= 4) {
       q = q.or(`phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,nome.ilike.%${data.q}%`);
@@ -80,16 +84,20 @@ export const searchContactsForNewChat = createServerFn({ method: "GET" })
     }
     const { data: rows, error } = await q;
     if (error) throw error;
-    type Row = typeof rows extends (infer T)[] | null ? T : never;
+    const ids = (rows ?? []).map((r) => r.id as string);
+    if (ids.length === 0) return [];
+    const { data: existing } = await context.supabase
+      .from("conversations").select("contact_id").in("contact_id", ids);
+    const withConv = new Set((existing ?? []).map((e) => e.contact_id as string));
     return (rows ?? [])
-      .filter((r: Row) => !r.conversations || (Array.isArray(r.conversations) && r.conversations.length === 0))
-      .map((r: Row) => ({
+      .filter((r) => !withConv.has(r.id as string))
+      .slice(0, 20)
+      .map((r) => ({
         id: r.id as string,
         nome: r.nome as string | null,
         phone: r.phone_e164 as string | null,
         cidade: r.cidade as string | null,
         uf: r.uf as string | null,
-        whatsapp_status: r.whatsapp_status as string | null,
       }));
   });
 
@@ -105,7 +113,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const { data: contact } = await context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status,tags:contact_tags(tag:tags(id,name,color))")
+      .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status")
       .eq("id", data.contact_id).maybeSingle();
 
     const [{ data: inbound }, { data: direct }, { data: campaign }] = await Promise.all([
@@ -115,7 +123,7 @@ export const getConversation = createServerFn({ method: "GET" })
         .eq("contact_id", data.contact_id).order("received_at", { ascending: true }).limit(500),
       context.supabase
         .from("direct_messages")
-        .select("id, conteudo, created_at, sent_by, origem, status, erro, sender:sent_by(id)")
+        .select("id, conteudo, created_at, sent_by, origem, status, erro")
         .eq("contact_id", data.contact_id).order("created_at", { ascending: true }).limit(500),
       context.supabase
         .from("campaign_recipients")
@@ -123,16 +131,15 @@ export const getConversation = createServerFn({ method: "GET" })
         .eq("contact_id", data.contact_id).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200),
     ]);
 
-    // Nomes dos remetentes (opcional) - fetch pelo endpoint de profiles
     const senderIds = Array.from(new Set((direct ?? []).map((d) => d.sent_by).filter((x): x is string => Boolean(x))));
     const senderNames: Record<string, string> = {};
     if (senderIds.length > 0) {
       const { data: profs } = await context.supabase
-        .from("profiles").select("id, full_name, email").in("id", senderIds);
-      (profs ?? []).forEach((p) => { senderNames[p.id as string] = (p.full_name as string) || (p.email as string) || "Usuário"; });
+        .from("profiles").select("id, full_name").in("id", senderIds);
+      (profs ?? []).forEach((p) => { senderNames[p.id as string] = (p.full_name as string | null) ?? "Usuário"; });
     }
 
-    let events: Array<{ id: string; created_at: string; actor_id: string | null; actor_name: string | null; event_type: string; payload: Record<string, unknown> }> = [];
+    let events: Array<{ id: string; created_at: string; actor_id: string | null; actor_name: string | null; event_type: string; payload: ConvEventPayload }> = [];
     if (convRow?.id) {
       const { data: evts } = await context.supabase
         .from("conversation_events")
@@ -142,15 +149,15 @@ export const getConversation = createServerFn({ method: "GET" })
       const actorNames: Record<string, string> = {};
       if (actorIds.length > 0) {
         const { data: profs } = await context.supabase
-          .from("profiles").select("id, full_name, email").in("id", actorIds);
-        (profs ?? []).forEach((p) => { actorNames[p.id as string] = (p.full_name as string) || (p.email as string) || "Usuário"; });
+          .from("profiles").select("id, full_name").in("id", actorIds);
+        (profs ?? []).forEach((p) => { actorNames[p.id as string] = (p.full_name as string | null) ?? "Usuário"; });
       }
       events = (evts ?? []).map((e) => ({
         id: e.id as string,
         actor_id: e.actor_id as string | null,
         actor_name: e.actor_id ? (actorNames[e.actor_id as string] ?? null) : null,
         event_type: e.event_type as string,
-        payload: (e.payload ?? {}) as Record<string, unknown>,
+        payload: (e.payload ?? {}) as ConvEventPayload,
         created_at: e.created_at as string,
       }));
     }
@@ -161,10 +168,10 @@ export const getConversation = createServerFn({ method: "GET" })
       inbound: inbound ?? [],
       direct: (direct ?? []).map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: (campaign ?? []).map((r) => ({
-        id: r.id,
-        rendered_message: r.rendered_message,
-        sent_at: r.sent_at,
-        status: r.status,
+        id: r.id as string,
+        rendered_message: r.rendered_message as string | null,
+        sent_at: r.sent_at as string | null,
+        status: r.status as string,
         campaign_name: (Array.isArray(r.campaigns) ? r.campaigns[0]?.nome : (r.campaigns as { nome?: string } | null)?.nome) ?? null,
       })),
       events,
@@ -183,7 +190,6 @@ export const markConversationRead = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Assign to user
 export const assignConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
@@ -194,16 +200,16 @@ export const assignConversation = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("conversations")
       .update({ assigned_to: data.assigned_to }).eq("id", data.conversation_id);
     if (error) throw error;
+    const payload: ConvEventPayload = { assigned_to: data.assigned_to };
     await context.supabase.from("conversation_events").insert({
       conversation_id: data.conversation_id,
       actor_id: context.userId,
       event_type: data.assigned_to ? "assigned" : "unassigned",
-      payload: { assigned_to: data.assigned_to },
+      payload,
     });
     return { ok: true };
   });
 
-// Change status
 export const setConversationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
@@ -211,24 +217,21 @@ export const setConversationStatus = createServerFn({ method: "POST" })
     status: z.enum(["aberta", "aguardando", "resolvida"]),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: prev } = await context.supabase.from("conversations").select("status").eq("id", data.conversation_id).single();
+    const { data: prev } = await context.supabase.from("conversations").select("status, contact_id").eq("id", data.conversation_id).single();
     const { error } = await context.supabase.from("conversations")
       .update({ status: data.status }).eq("id", data.conversation_id);
     if (error) throw error;
+    const payload: ConvEventPayload = { from: prev?.status ?? null, to: data.status };
     await context.supabase.from("conversation_events").insert({
       conversation_id: data.conversation_id,
       actor_id: context.userId,
       event_type: "status_changed",
-      payload: { from: prev?.status ?? null, to: data.status },
+      payload,
     });
-    // Se resolvida, marcar inbound como resolved_at para compat
-    if (data.status === "resolvida") {
-      const { data: conv } = await context.supabase.from("conversations").select("contact_id").eq("id", data.conversation_id).single();
-      if (conv?.contact_id) {
-        await context.supabase.from("inbound_messages")
-          .update({ resolved_at: new Date().toISOString(), resolved_by: context.userId })
-          .eq("contact_id", conv.contact_id).is("resolved_at", null);
-      }
+    if (data.status === "resolvida" && prev?.contact_id) {
+      await context.supabase.from("inbound_messages")
+        .update({ resolved_at: new Date().toISOString(), resolved_by: context.userId })
+        .eq("contact_id", prev.contact_id).is("resolved_at", null);
     }
     return { ok: true };
   });
@@ -249,7 +252,6 @@ export const toggleConversationFlag = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Notes (internal, do not send via WhatsApp)
 export const addConversationNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
@@ -258,47 +260,59 @@ export const addConversationNote = createServerFn({ method: "POST" })
     mention_user_id: z.string().uuid().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
+    const payload: ConvEventPayload = { body: data.body, mention_user_id: data.mention_user_id ?? null };
     const { error } = await context.supabase.from("conversation_events").insert({
       conversation_id: data.conversation_id,
       actor_id: context.userId,
       event_type: "note",
-      payload: { body: data.body, mention_user_id: data.mention_user_id ?? null },
+      payload,
     });
     if (error) throw error;
     if (data.mention_user_id) {
+      const mentionPayload: ConvEventPayload = { mentioned: data.mention_user_id, snippet: data.body.slice(0, 200) };
       await context.supabase.from("conversation_events").insert({
         conversation_id: data.conversation_id,
         actor_id: context.userId,
         event_type: "mention",
-        payload: { mentioned: data.mention_user_id, snippet: data.body.slice(0, 200) },
+        payload: mentionPayload,
       });
     }
     return { ok: true };
   });
 
-// Staff users eligible for assignment
 export const listCommunicationStaff = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: rows, error } = await context.supabase
+    const { data: roles, error } = await context.supabase
       .from("user_roles")
-      .select("user_id, role, profiles:user_id(id, full_name, email, status)")
+      .select("user_id, role")
       .in("role", ["admin", "operador", "vrm", "comunicacao"]);
     if (error) throw error;
-    type Row = { user_id: string; role: string; profiles: { id: string; full_name: string | null; email: string | null; status: string | null } | { id: string; full_name: string | null; email: string | null; status: string | null }[] | null };
-    const map = new Map<string, { id: string; name: string; role: string }>();
-    (rows as Row[] ?? []).forEach((r) => {
-      const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-      if (!p || p.status === "revoked" || p.status === "suspended") return;
-      if (!map.has(r.user_id)) {
-        map.set(r.user_id, {
-          id: r.user_id,
-          name: p.full_name || p.email || "Usuário",
-          role: r.role,
-        });
-      }
+    const ids = Array.from(new Set((roles ?? []).map((r) => r.user_id as string)));
+    if (ids.length === 0) return [];
+    const { data: profs } = await context.supabase
+      .from("profiles").select("id, full_name, status").in("id", ids);
+    const byId = new Map<string, { id: string; name: string; status: string | null }>();
+    (profs ?? []).forEach((p) => {
+      byId.set(p.id as string, {
+        id: p.id as string,
+        name: (p.full_name as string | null) ?? "Usuário",
+        status: p.status as string | null,
+      });
     });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const roleById = new Map<string, string>();
+    (roles ?? []).forEach((r) => {
+      const cur = roleById.get(r.user_id as string);
+      if (!cur || r.role === "admin") roleById.set(r.user_id as string, r.role as string);
+    });
+    return ids
+      .map((id) => {
+        const p = byId.get(id);
+        if (!p || p.status === "revoked" || p.status === "suspended") return null;
+        return { id, name: p.name, role: roleById.get(id) ?? "comunicacao" };
+      })
+      .filter((x): x is { id: string; name: string; role: string } => x !== null)
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
 // Badge global — quantas conversas atribuídas a mim ainda têm mensagens não lidas
@@ -328,14 +342,17 @@ export const listCommContactsForBulk = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("contacts")
       .select("id, nome, phone_e164, cidade, uf, bairro, whatsapp_status, consentimento_whatsapp")
-      .in("whatsapp_status", ["valido", "presumido"])
+      .in("whatsapp_status", ["confirmado", "desconhecido"])
       .is("opt_out_at", null)
       .is("arquivado_at", null)
       .order("nome", { ascending: true })
       .limit(data.limit);
     if (data.search) {
       const s = data.search;
-      q = q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${s.replace(/\D+/g, "")}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`);
+      const digits = s.replace(/\D+/g, "");
+      q = digits.length >= 4
+        ? q.or(`nome.ilike.%${s}%,phone_e164.ilike.%${digits}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`)
+        : q.or(`nome.ilike.%${s}%,cidade.ilike.%${s}%,bairro.ilike.%${s}%`);
     }
     const { data: rows, error } = await q;
     if (error) throw error;
