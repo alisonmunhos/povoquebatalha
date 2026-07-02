@@ -41,9 +41,15 @@ export function Recadastro() {
   const [error, setError] = useState<string | null>(null);
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [uf, setUf] = useState("");
+  // 'idle' — nada consultado ainda; 'ok' — lookup OK e usuário não alterou;
+  // 'edited' — lookup OK mas usuário editou algum campo (rua/bairro/cidade/UF);
+  // 'not_found' — CEP não retornou; 'manual' — usuário optou por preencher sem CEP.
+  const [cepStatus, setCepStatus] = useState<"idle" | "ok" | "edited" | "not_found" | "manual">("idle");
   const [formasAjuda, setFormasAjuda] = useState<string[]>([]);
   const [coletivoAlicerce, setColetivoAlicerce] = useState<"sim" | "nao" | "">("");
   const [movSocial, setMovSocial] = useState<"sim" | "nao" | "">("");
@@ -54,17 +60,28 @@ export function Recadastro() {
     const formatted = formatCep(v);
     setCep(formatted);
     const digits = formatted.replace(/\D/g, "");
-    if (digits.length === 8) {
-      const res = await cepHook.lookup(digits);
-      if (res) {
-        if (res.endereco) setEndereco(res.endereco);
-        if (res.bairro) setBairro(res.bairro);
-        if (res.cidade) setCidade(res.cidade);
-        if (res.uf) setUf(res.uf);
-        numeroRef.current?.focus();
-      }
+    if (digits.length !== 8) {
+      if (cepStatus !== "manual") setCepStatus("idle");
+      return;
+    }
+    const res = await cepHook.lookup(digits);
+    if (res) {
+      if (res.endereco) setEndereco(res.endereco);
+      if (res.bairro) setBairro(res.bairro);
+      if (res.cidade) setCidade(res.cidade);
+      if (res.uf) setUf(res.uf);
+      setCepStatus("ok");
+      numeroRef.current?.focus();
+    } else {
+      setCepStatus("not_found");
     }
   }
+
+  // Marca como "edited" se o usuário mexer nos campos após um lookup OK.
+  function markEdited() {
+    if (cepStatus === "ok") setCepStatus("edited");
+  }
+
 
   function toggleForma(v: string) {
     setFormasAjuda((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
