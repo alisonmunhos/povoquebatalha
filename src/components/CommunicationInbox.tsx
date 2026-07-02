@@ -40,6 +40,7 @@ export function CommunicationInbox() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
