@@ -71,6 +71,7 @@ const SEARCH_COLS = [
   "cidade",
   "origem_detalhe",
   "movimento_social_nome",
+  "formas_ajuda_outro",
 ];
 
 export function applyCrmFilters<T extends {
