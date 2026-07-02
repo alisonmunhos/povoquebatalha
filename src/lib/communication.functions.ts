@@ -63,39 +63,32 @@ export const listConversations = createServerFn({ method: "GET" })
     return list;
   });
 
-// Contatos com WhatsApp válido que ainda NÃO têm conversa — usado para iniciar novo chat pela busca.
+// Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
+// que bata com nome/telefone/cidade, independente de status do WhatsApp.
+// Contatos que já tenham conversa também podem aparecer; a UI decide como agrupar.
 export const searchContactsForNewChat = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ q: z.string().trim().min(1).max(80) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ q: z.string().trim().min(1).max(120) }).parse(d))
   .handler(async ({ data, context }) => {
-    const digits = data.q.replace(/\D+/g, "");
     let q = context.supabase
       .from("contacts")
       .select("id, nome, phone_e164, cidade, uf, whatsapp_status")
-      .in("whatsapp_status", ["confirmado", "desconhecido"])
       .is("opt_out_at", null)
       .is("arquivado_at", null)
+      .order("nome", { ascending: true })
       .limit(30);
-
+    const digits = data.q.replace(/\D+/g, "");
     if (digits.length >= 4) {
-      q = q.or(`phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,nome.ilike.%${data.q}%`);
+      q = q.or(`phone_e164.ilike.%${digits}%,phone_digits.ilike.%${digits}%,nome.ilike.%${data.q}%,cidade.ilike.%${data.q}%`);
     } else {
-      q = q.ilike("nome", `%${data.q}%`);
+      q = q.or(`nome.ilike.%${data.q}%,cidade.ilike.%${data.q}%`);
     }
     const { data: rows, error } = await q;
     if (error) throw error;
-    const ids = (rows ?? []).map((r) => r.id as string);
-    if (ids.length === 0) return [];
-    const { data: existing } = await context.supabase
-      .from("conversations").select("contact_id").in("contact_id", ids);
-    const withConv = new Set((existing ?? []).map((e) => e.contact_id as string));
-    return (rows ?? [])
-      .filter((r) => !withConv.has(r.id as string))
-      .slice(0, 20)
-      .map((r) => ({
-        id: r.id as string,
-        nome: r.nome as string | null,
-        phone: r.phone_e164 as string | null,
+    return (rows ?? []).map((r) => ({
+      id: r.id as string,
+      nome: r.nome as string | null,
+      phone: (r.phone_e164 as string | null) ?? null,
         cidade: r.cidade as string | null,
         uf: r.uf as string | null,
       }));
