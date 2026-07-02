@@ -1,63 +1,70 @@
-# Consertar o Inbox de Comunicação
+## Objetivo
 
-## Diagnóstico
+Resolver três pontos do Módulo Comunicação → Inbox:
 
-Investiguei o banco e o código do Inbox. Encontrei **três causas** somadas:
+1. Botão de anexo funcional (imagem/documento) no chat.
+2. Recebimento de mensagens da Z-API chegando ao Inbox.
+3. Painel lateral direito (informações do contato) retrátil para ampliar o chat.
 
-1. **A tabela `conversations` está vazia (0 linhas).** O Inbox (`/comunicacao/inbox`) lê dessa tabela — por isso nada aparece, nem o Faylon, nem ninguém.
-2. **As funções que deveriam alimentar `conversations` existem, mas nunca foram ligadas como gatilhos.** `conv_sync_from_inbound` e `conv_sync_from_direct` estão criadas no banco, mas sem `CREATE TRIGGER`. Resultado: quando chega uma mensagem inbound ou o operador envia uma direta, `conversations` não é atualizada.
-3. **A busca acha o contato, mas clicar não abre o chat.** No componente `CommunicationInbox`, o painel da direita usa `selected = list.find(c => c.contact_id === selectedContactId)`. Se o contato não está na lista de conversas (caso do Faylon, que só recebeu a mensagem de confirmação e ainda não respondeu no WhatsApp), `selected` fica `null` e o painel mostra "Selecione uma conversa".
+---
 
-Além disso, a mensagem de **confirmação enviada** ao Faylon vai por `automation_deliveries` — hoje isso não cria conversa nenhuma. Para ficar igual ao WhatsApp Web, toda saída (direta, campanha ou automação) precisa abrir/atualizar a conversa.
+## 1. Anexos no chat do Inbox
 
-## Escopo da correção
+Hoje o clip (`Paperclip`) está `disabled`. Vamos habilitar upload igual ao que já existe no editor de mensagens.
 
-### 1. Banco — ligar triggers e cobrir todas as fontes de mensagem
+- Reutilizar o bucket `campaign-media` (já configurado, só staff).
+- Novo helper server no cliente Z-API: `sendDocument(phone, url, filename)` além do `sendImage` já existente.
+- Estender `sendDirectMessage` (`src/lib/inbox.functions.ts`) para aceitar `media_path`, `media_mime`, `media_filename` opcionais. Gera URL assinada (curta duração para envio, longa para exibição no timeline), chama `sendImage` ou `sendDocument` conforme mime, e persiste os campos em `direct_messages`.
+- Adicionar colunas `media_path`, `media_mime`, `media_filename` em `direct_messages` (migration).
+- UI no `CommunicationInbox`:
+  - Botão de clip abre file picker (imagem/PDF/áudio até ~15MB).
+  - Prévia inline do anexo escolhido acima do textarea, com botão “remover”.
+  - Envio dispara upload → `sendDirectMessage` com o arquivo → limpa estado.
+  - Timeline renderiza miniatura de imagem ou linha de arquivo (nome + link).
 
-Migração nova com:
+---
 
-- `CREATE TRIGGER trg_conv_from_inbound AFTER INSERT ON inbound_messages FOR EACH ROW EXECUTE FUNCTION conv_sync_from_inbound();`
-- `CREATE TRIGGER trg_conv_from_direct AFTER INSERT ON direct_messages FOR EACH ROW EXECUTE FUNCTION conv_sync_from_direct();`
-- Nova função `conv_sync_from_automation()` + trigger em `automation_deliveries` (dispara quando `status` vira `sent`), para que as mensagens automáticas (boas-vindas, confirmação de recadastro) também apareçam.
-- Nova função `conv_sync_from_campaign()` + trigger em `campaign_recipients` (dispara quando `sent_at` deixa de ser NULL), para envios em massa.
+## 2. Recebimento de mensagens (webhook Z-API)
 
-Todas usam `INSERT ... ON CONFLICT (contact_id) DO UPDATE`.
+Diagnóstico atual: `webhook_log` está vazio e `whatsapp_instances.last_ping` nulo → a Z-API não está chamando os endpoints. O handler `/api/public/zapi/{evento}` está correto e o toggle `inbound_to_inbox_enabled` está ligado. Falta configuração dos webhooks no painel da Z-API.
 
-### 2. Backfill — trazer o histórico já existente
+Ações:
 
-Na mesma migração, popular `conversations` a partir do que já existe hoje:
+- Reformular a tela `/whatsapp` para mostrar de forma bem clara **as URLs completas prontas para colar no painel Z-API**, uma por evento (`on-connect`, `on-disconnect`, `on-send`, `on-delivery`, `on-read`, `on-receive`, `on-message-status`), já com o parâmetro `?token=…` (usando o segredo existente `ZAPI_WEBHOOK_SECRET`).
+- Botão “Copiar” em cada URL e passo a passo curto (Painel Z-API → Webhooks → colar em cada evento → salvar).
+- Card de diagnóstico com: último `webhook_log` recebido (evento + horário), última `on-receive`, status atual da instância e alerta em vermelho quando não houver evento algum nas últimas 24 h.
+- Endpoint utilitário server (`getWebhookDiagnostics`) que devolve esses dados para a UI.
+- Sem mudança no handler em si — ele já cria contato/insere `inbound_messages` corretamente quando o `on-receive` chega.
 
-- Para cada `contact_id` distinto em `inbound_messages`, `direct_messages`, `campaign_recipients` (com `sent_at`) e `automation_deliveries` (com `status='sent'`), criar/atualizar a linha em `conversations` com o `last_message_at`, `last_message_preview` e `last_message_direction` da mensagem mais recente.
-- Isso faz o Faylon (que recebeu a confirmação via automação) aparecer imediatamente no Inbox.
+Observação: nada aqui expõe segredos ao usuário final — a URL só é visível ao admin logado dentro do painel.
 
-### 3. UI — abrir chat de qualquer contato, estilo WhatsApp Web
+---
 
-Alterações em `src/components/CommunicationInbox.tsx`:
+## 3. Painel de contato retrátil
 
-- Deixar de depender de `selected` (que vinha só da lista de conversas). O painel da direita passa a ser controlado por `convQ.data?.contact` — se o contato foi carregado, mostra o chat, mesmo sem `conversations` ainda.
-- Cabeçalho, `canSend` e o input passam a ler `contact` e `phone_whatsapp_candidate ?? phone_e164` do `convQ.data`.
-- Ao clicar em um resultado de "Iniciar nova conversa", chamar `openConversation(contactId, 0)` como já faz — mas o painel agora renderiza corretamente porque não exige linha em `conversations`.
-- Após o primeiro envio, o trigger de `direct_messages` cria a linha em `conversations` e o Realtime já invalida a lista.
-- Ajustar a busca da lista: hoje `listConversations` só olha `conversations`. Quando o usuário digita ≥ 2 caracteres, o bloco "Iniciar nova conversa" (que já existe) resolve o resto usando `searchContactsForNewChat`. Manter esse comportamento, só garantindo que ele apareça **sempre** que houver resultados novos, mesmo quando a lista principal também tem algo.
+No `CommunicationInbox`, a coluna direita com dados do contato/notas ocupa espaço fixo. Vamos:
 
-### 4. Verificação
+- Adicionar estado `infoOpen` (default `true` em telas ≥ lg, fechado em telas menores) persistido em `localStorage`.
+- Botão no header do chat (ícone painel/`PanelRightClose`/`PanelRightOpen`) que alterna a visibilidade do painel direito.
+- Quando fechado, o chat expande para ocupar toda a largura restante. Transição suave (`transition-all`).
+- No mobile, mantém o comportamento atual de tabs (`list`/`thread`/`info`).
 
-Depois de aplicar:
-
-- Confirmar via `read_query` que `conversations` foi populado (Faylon deve estar lá).
-- Abrir `/comunicacao/inbox`, buscar "faylon", clicar e ver o chat abrindo com a mensagem de confirmação já no histórico.
-- Enviar uma mensagem de teste pelo próprio Inbox para checar que o `direct_messages` cria/atualiza a `conversations` e a lista reordena.
-
-## Fora do escopo (não vou mexer agora)
-
-- Redesign visual do Inbox — só as correções necessárias para o clique abrir o chat.
-- Anexos no Inbox (o botão já está desabilitado como "em breve").
-- Notas internas / atribuição — já funcionam quando a conversa existe.
+---
 
 ## Detalhes técnicos
 
-- Todas as funções `conv_sync_*` são `SECURITY DEFINER` para escrever em `conversations` mesmo quando o INSERT original veio via `supabaseAdmin` (webhook) ou via RLS de operador.
-- `automation_deliveries` só conta como "saída visível" quando `status = 'sent'` e há `contact_id`. A função ignora entregas em `queued`/`erro` para não poluir a lista.
-- `campaign_recipients` idem: só quando `sent_at IS NOT NULL`.
-- O trigger de `direct_messages` já mantém `assigned_to = COALESCE(existing, sent_by)`, então o operador que responder "assume" a conversa automaticamente.
-- A UI não muda o contrato dos server functions — só reorganiza a fonte da verdade do painel direito.
+Arquivos afetados:
+
+- `src/integrations/zapi/client.server.ts` — adicionar `sendDocument`.
+- `src/lib/inbox.functions.ts` — aceitar anexos em `sendDirectMessage`, novo `getWebhookDiagnostics`.
+- `src/components/CommunicationInbox.tsx` — anexos + painel retrátil.
+- `src/routes/_authenticated/whatsapp.tsx` (ou componente equivalente) — URLs de webhook + diagnóstico.
+- Migration: colunas de mídia em `direct_messages` + grants já herdados.
+
+Sem alteração em RLS existente, sem mexer em auth, sem mudar rotas públicas.
+
+## Fora de escopo
+
+- Envio de áudio gravado no navegador.
+- Reprocessar `webhook_log` antigo (não há nenhum ainda).
+- Redesign visual do Inbox além da coluna retrátil.
