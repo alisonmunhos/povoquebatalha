@@ -142,14 +142,16 @@ export function CommunicationInbox() {
       media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
     }) => sendFn({ data: { ...payload, origem: "inbox" } }),
     onSuccess: () => {
-      setReply("");
-      setAttachment(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      // Input já foi limpo otimisticamente em submitReply(); aqui só sincronizamos as queries.
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Mensagem enviada");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao enviar"),
+    onError: (e, vars) => {
+      // Rollback: se falhou, devolve o texto pro input para o usuário reenviar/corrigir.
+      setReply((prev) => prev.length > 0 ? prev : (vars?.message ?? ""));
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar");
+    },
   });
 
   const assignMut = useMutation({
