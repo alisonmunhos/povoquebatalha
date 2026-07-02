@@ -25,9 +25,10 @@ async function loadScopes(ctx: Ctx, userId: string) {
 }
 
 /** Applies scope filter on a contacts query when role is territorio/leitor and has scopes. */
-function applyScopeFilter<Q>(query: Q, scopes: { uf: string | null; cidade: string | null; bairro: string | null }[]): Q {
+type Scope = { uf: string | null; cidade: string | null; bairro: string | null };
+function applyScopeFilter<Q>(query: Q, scopes: Scope[]): Q {
   if (!scopes.length) return query;
-  const parts = scopes.map((s) => {
+  const parts = scopes.map((s: Scope) => {
     const conds: string[] = [];
     if (s.uf) conds.push(`uf.eq.${s.uf}`);
     if (s.cidade) conds.push(`cidade.ilike.${s.cidade}`);
