@@ -382,6 +382,13 @@ export function CommunicationInbox() {
                 >
                   {conv?.status === "resolvida" ? <><RotateCcw className="h-3 w-3" /> Reabrir</> : <><CheckCircle2 className="h-3 w-3" /> Resolver</>}
                 </button>
+                <button
+                  onClick={() => setInfoOpen((v) => !v)}
+                  className="hidden md:inline-flex p-2 rounded-md hover:bg-muted"
+                  title={infoOpen ? "Ocultar detalhes do contato" : "Mostrar detalhes do contato"}
+                >
+                  {infoOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                </button>
                 <button className="md:hidden p-2 rounded-md hover:bg-muted" onClick={() => setMobilePane("info")}>
                   <MoreVertical className="h-4 w-4" />
                 </button>
