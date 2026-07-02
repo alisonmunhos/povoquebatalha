@@ -1,11 +1,14 @@
 import { Link, Outlet, useRouter } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
-  MapPin, MessageSquareText, Send, Calendar, Inbox as InboxIcon, Heart,
-  Link as LinkIcon, MessageCircle, ShieldCheck, LogOut, Megaphone, Compass,
+  MapPin, LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
+  MessageCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
+import { getMyCommunicationBadge } from "@/lib/communication.functions";
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
