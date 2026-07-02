@@ -59,39 +59,52 @@ export async function triggerAutomationsForEvent(params: {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: automations } = await supabaseAdmin
+    const { data: automations, error: fetchErr } = await supabaseAdmin
       .from("automations")
       .select("id,template_id,active,delay_seconds,require_consent")
       .eq("event_key", eventKey)
       .eq("active", true);
 
-    if (!automations || automations.length === 0) return;
+    if (fetchErr) {
+      console.error("[automations] falha ao buscar automações", { eventKey, error: fetchErr.message });
+      return;
+    }
+    if (!automations || automations.length === 0) {
+      console.log("[automations] nenhuma automação ativa para evento", eventKey);
+      return;
+    }
 
     for (const a of automations) {
+      // Grava linha "queued" imediatamente para que toda tentativa fique visível
+      await supabaseAdmin.from("automation_deliveries").upsert({
+        automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
+        status: "queued", error: null,
+      }, { onConflict: "automation_id,contact_id" });
+
       // Consentimento / opt-out / arquivado
       if (a.require_consent && !contact.consentimento_whatsapp) {
-        await supabaseAdmin.from("automation_deliveries").insert({
+        await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Sem consentimento WhatsApp",
-        });
+        }, { onConflict: "automation_id,contact_id" });
         continue;
       }
       if (contact.opt_out_at || contact.arquivado_at) {
-        await supabaseAdmin.from("automation_deliveries").insert({
+        await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Contato opt-out/arquivado",
-        });
+        }, { onConflict: "automation_id,contact_id" });
         continue;
       }
       if (!contact.phone_e164) {
-        await supabaseAdmin.from("automation_deliveries").insert({
+        await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Sem telefone normalizado",
-        });
+        }, { onConflict: "automation_id,contact_id" });
         continue;
       }
 
-      // Idempotência via unique index (automation_id, contact_id)
+      // Idempotência: se já foi enviado, não reenvia
       const { data: existing } = await supabaseAdmin
         .from("automation_deliveries")
         .select("id,status")
@@ -107,10 +120,10 @@ export async function triggerAutomationsForEvent(params: {
         .eq("id", a.template_id)
         .maybeSingle();
       if (!tpl || !tpl.active || tpl.archived_at) {
-        await supabaseAdmin.from("automation_deliveries").insert({
+        await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Template inativo/arquivado",
-        });
+        }, { onConflict: "automation_id,contact_id" });
         continue;
       }
 
@@ -129,6 +142,9 @@ export async function triggerAutomationsForEvent(params: {
         }, { onConflict: "automation_id,contact_id" });
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
+        console.error("[automations] falha ao enviar Z-API", {
+          eventKey, contactId: contact.id, automationId: a.id, error: err,
+        });
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: tpl.id,
           status: "error", error: err, rendered_body: rendered,
