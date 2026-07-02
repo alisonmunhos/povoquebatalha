@@ -75,6 +75,8 @@ export function CommunicationInbox() {
   const staffFn = useServerFn(listCommunicationStaff);
   const searchNewFn = useServerFn(searchContactsForNewChat);
   const signFn = useServerFn(signCampaignMediaUpload);
+  const linkFn = useServerFn(linkConversationToContact);
+  const quickCreateFn = useServerFn(createQuickContactFromConversation);
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", filter, search],
