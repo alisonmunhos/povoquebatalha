@@ -210,7 +210,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     const { data: c, error } = await context.supabase
       .from("contacts")
-      .select("id,nome,cidade,bairro,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
+      .select("id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
       .eq("id", data.contact_id).single();
     if (error || !c) throw new Error("Contato não encontrado.");
 
