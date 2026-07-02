@@ -6,7 +6,7 @@ import { useState } from "react";
 import {
   listMessageTemplates, upsertMessageTemplate, archiveMessageTemplate,
   duplicateMessageTemplate, sendTestTemplate,
-  listAutomations, upsertAutomation, deleteAutomation,
+  listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
 } from "@/lib/messages.functions";
 import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
