@@ -494,7 +494,7 @@ export function CommunicationInbox() {
 
       {/* RIGHT: contact panel */}
       {active && (
-        <div className={`${mobilePane === "info" ? "flex" : "hidden"} md:flex w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
+        <div className={`${mobilePane === "info" ? "flex" : "hidden"} ${infoOpen ? "md:flex" : "md:hidden"} w-full md:w-72 lg:w-80 flex-col border-l bg-background`}>
           <div className="p-4 border-b flex items-start gap-2">
             <button className="md:hidden" onClick={() => setMobilePane("thread")}>
               <X className="h-5 w-5" />
