@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CommunicationTabs } from "@/components/CommunicationTabs";
-import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { useSuspenseQuery, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled } from "@/lib/zapi.functions";
-import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
+import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics } from "@/lib/zapi.functions";
+import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle, Copy, Inbox as InboxIcon } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
   head: () => ({ meta: [{ title: "WhatsApp — Conexão Z-API" }] }),
