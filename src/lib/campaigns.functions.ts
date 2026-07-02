@@ -360,7 +360,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,cidade,bairro,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
       .in("id", audience.slice(0, 20000));
 
     const elegiveis = (contatos ?? []).filter((c2) =>
