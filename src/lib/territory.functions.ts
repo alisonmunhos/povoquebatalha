@@ -96,7 +96,7 @@ export const getTerritoryOverview = createServerFn({ method: "GET" })
     const restrict = !roles.includes("admin") && !roles.includes("operador") && !roles.includes("vrm");
 
     const scopeLabel = scopes.length
-      ? scopes.map((s) => [s.bairro, s.cidade, s.uf].filter(Boolean).join(" / ")).join(" • ")
+      ? scopes.map((s: Scope) => [s.bairro, s.cidade, s.uf].filter(Boolean).join(" / ")).join(" • ")
       : (restrict ? "(sem escopo definido)" : "Todo o território");
 
     let baseQ = context.supabase
@@ -107,13 +107,22 @@ export const getTerritoryOverview = createServerFn({ method: "GET" })
     const { count: total } = await baseQ;
 
     const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
-    let engQ = context.supabase
-      .from("contacts")
-      .select("id", { count: "exact", head: true })
-      .is("arquivado_at", null)
-      .gte("last_engagement_at", since30);
-    if (restrict) engQ = applyScopeFilter(engQ, scopes);
-    const { count: engajados } = await engQ;
+    // "Engajados" = contatos com mensagens recebidas nos últimos 30 dias
+    const { data: recentInbound } = await context.supabase
+      .from("inbound_messages")
+      .select("contact_id")
+      .gte("received_at", since30)
+      .not("contact_id", "is", null);
+    let engajados = new Set((recentInbound ?? []).map((r: { contact_id: string }) => r.contact_id)).size;
+    if (restrict && scopes.length && engajados > 0) {
+      // Rough filter: intersect with scope by fetching those contacts
+      const ids = Array.from(new Set((recentInbound ?? []).map((r: { contact_id: string }) => r.contact_id)));
+      let filtQ = context.supabase.from("contacts").select("id").in("id", ids);
+      filtQ = applyScopeFilter(filtQ, scopes);
+      const { data: filt } = await filtQ;
+      engajados = (filt ?? []).length;
+    }
+
 
     let optQ = context.supabase
       .from("contacts")
