@@ -93,7 +93,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
-      { name: "theme-color", content: "#0f172a" } as unknown as { rel: string; href: string },
     ],
   }),
   shellComponent: RootShell,
