@@ -218,13 +218,20 @@ export function CommunicationInbox() {
   function submitReply() {
     if (!selectedContactId) return;
     if (!reply.trim() && !attachment) return;
-    sendMut.mutate({
+    // Optimistic clear: input limpa e anexo some assim que o usuário confirma o envio,
+    // evitando cliques repetidos enquanto a mutation ainda está em voo.
+    const payload = {
       contact_id: selectedContactId,
       message: reply,
       media_path: attachment?.path ?? null,
       media_mime: attachment?.mime ?? null,
       media_filename: attachment?.filename ?? null,
-    });
+    };
+    setReply("");
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    sendMut.mutate(payload);
   }
 
   function handleSendKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
