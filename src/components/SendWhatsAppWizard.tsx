@@ -85,6 +85,11 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   const [delayMin, setDelayMin] = useState(3000);
   const [delayMax, setDelayMax] = useState(8000);
   const [submitting, setSubmitting] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previewFn = useServerFn(fetchLinkPreview);
 
   const audienceQ = useQuery({
     queryKey: ["audience-stats", source],
@@ -100,8 +105,65 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
       setSaveAsTemplate({ enabled: false, title: "" });
       setFile(null); setUploadInfo(null); setSchedule("");
       setDelayMin(3000); setDelayMax(8000);
+      setLinkUrl(""); setLinkPreview(null); setLinkLoading(false);
     }
   }, [open]);
+
+  // Debounced link preview fetch
+  useEffect(() => {
+    const raw = linkUrl.trim();
+    if (!raw) { setLinkPreview(null); setLinkLoading(false); return; }
+    let url = raw;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    try { new URL(url); } catch { setLinkPreview(null); return; }
+    setLinkLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await previewFn({ data: { url } });
+        setLinkPreview(r);
+      } catch (e) {
+        setLinkPreview({ url, title: null, description: null, image: null, siteName: null, error: (e as Error).message });
+      } finally { setLinkLoading(false); }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [linkUrl, previewFn]);
+
+  function wrapSelection(before: string, after: string = before) {
+    const ta = textareaRef.current;
+    if (!ta) { setMensagem((m) => m + before + after); return; }
+    const start = ta.selectionStart ?? mensagem.length;
+    const end = ta.selectionEnd ?? mensagem.length;
+    const sel = mensagem.slice(start, end);
+    const next = mensagem.slice(0, start) + before + sel + after + mensagem.slice(end);
+    setMensagem(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + before.length + sel.length + after.length;
+      ta.setSelectionRange(sel ? pos : start + before.length, pos);
+    });
+  }
+  function insertAtCursor(text: string) {
+    const ta = textareaRef.current;
+    if (!ta) { setMensagem((m) => m + text); return; }
+    const start = ta.selectionStart ?? mensagem.length;
+    const end = ta.selectionEnd ?? mensagem.length;
+    const next = mensagem.slice(0, start) + text + mensagem.slice(end);
+    setMensagem(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + text.length;
+      ta.setSelectionRange(pos, pos);
+    });
+  }
+  function insertLinkIntoMessage() {
+    let url = linkUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const needsSpace = mensagem.length > 0 && !/\s$/.test(mensagem);
+    insertAtCursor(`${needsSpace ? " " : ""}${url}`);
+    toast.success("Link inserido na mensagem");
+  }
+
 
   const tipo: "text" | "image" | "document" = useMemo(() => {
     if (!uploadInfo) return "text";
