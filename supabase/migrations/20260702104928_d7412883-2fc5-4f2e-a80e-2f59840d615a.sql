@@ -1,0 +1,1 @@
+CREATE POLICY "inbound staff update" ON public.inbound_messages FOR UPDATE TO authenticated USING (private.is_staff(auth.uid())) WITH CHECK (private.is_staff(auth.uid()));
