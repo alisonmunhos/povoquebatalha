@@ -32,11 +32,15 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
+import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
+import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
+import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
@@ -160,6 +164,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComunicacaoRoute =
+  AuthenticatedComunicacaoRouteImport.update({
+    id: '/comunicacao',
+    path: '/comunicacao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
   id: '/calendario',
   path: '/calendario',
@@ -170,6 +180,12 @@ const AuthenticatedContatosIndexRoute =
     id: '/contatos/',
     path: '/contatos/',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComunicacaoIndexRoute =
+  AuthenticatedComunicacaoIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
   } as any)
 const AuthenticatedCampanhasIndexRoute =
   AuthenticatedCampanhasIndexRouteImport.update({
@@ -187,6 +203,18 @@ const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   path: '/contatos/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComunicacaoInboxRoute =
+  AuthenticatedComunicacaoInboxRouteImport.update({
+    id: '/inbox',
+    path: '/inbox',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
+  } as any)
+const AuthenticatedComunicacaoContatosRoute =
+  AuthenticatedComunicacaoContatosRouteImport.update({
+    id: '/contatos',
+    path: '/contatos',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
+  } as any)
 const AuthenticatedCampanhasIdRoute =
   AuthenticatedCampanhasIdRouteImport.update({
     id: '/campanhas/$id',
@@ -230,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
+  '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
@@ -245,9 +274,12 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
+  '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
+  '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
+  '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -280,9 +312,12 @@ export interface FileRoutesByTo {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
+  '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
+  '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
+  '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -302,6 +337,7 @@ export interface FileRoutesById {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
+  '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
@@ -317,9 +353,12 @@ export interface FileRoutesById {
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
+  '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
+  '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
+  '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -339,6 +378,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/calendario'
+    | '/comunicacao'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
@@ -354,9 +394,12 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/opt-out/$token'
     | '/campanhas/$id'
+    | '/comunicacao/contatos'
+    | '/comunicacao/inbox'
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/campanhas/'
+    | '/comunicacao/'
     | '/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -389,9 +432,12 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/opt-out/$token'
     | '/campanhas/$id'
+    | '/comunicacao/contatos'
+    | '/comunicacao/inbox'
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/campanhas'
+    | '/comunicacao'
     | '/contatos'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -410,6 +456,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/_authenticated/calendario'
+    | '/_authenticated/comunicacao'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
@@ -425,9 +472,12 @@ export interface FileRouteTypes {
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
     | '/_authenticated/campanhas/$id'
+    | '/_authenticated/comunicacao/contatos'
+    | '/_authenticated/comunicacao/inbox'
     | '/_authenticated/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/_authenticated/campanhas/'
+    | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -618,6 +668,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comunicacao': {
+      id: '/_authenticated/comunicacao'
+      path: '/comunicacao'
+      fullPath: '/comunicacao'
+      preLoaderRoute: typeof AuthenticatedComunicacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/calendario': {
       id: '/_authenticated/calendario'
       path: '/calendario'
@@ -631,6 +688,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/contatos/'
       preLoaderRoute: typeof AuthenticatedContatosIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comunicacao/': {
+      id: '/_authenticated/comunicacao/'
+      path: '/'
+      fullPath: '/comunicacao/'
+      preLoaderRoute: typeof AuthenticatedComunicacaoIndexRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
     }
     '/_authenticated/campanhas/': {
       id: '/_authenticated/campanhas/'
@@ -652,6 +716,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/contatos/$id'
       preLoaderRoute: typeof AuthenticatedContatosIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comunicacao/inbox': {
+      id: '/_authenticated/comunicacao/inbox'
+      path: '/inbox'
+      fullPath: '/comunicacao/inbox'
+      preLoaderRoute: typeof AuthenticatedComunicacaoInboxRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
+    }
+    '/_authenticated/comunicacao/contatos': {
+      id: '/_authenticated/comunicacao/contatos'
+      path: '/contatos'
+      fullPath: '/comunicacao/contatos'
+      preLoaderRoute: typeof AuthenticatedComunicacaoContatosRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
     }
     '/_authenticated/campanhas/$id': {
       id: '/_authenticated/campanhas/$id'
@@ -698,8 +776,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedComunicacaoRouteChildren {
+  AuthenticatedComunicacaoContatosRoute: typeof AuthenticatedComunicacaoContatosRoute
+  AuthenticatedComunicacaoInboxRoute: typeof AuthenticatedComunicacaoInboxRoute
+  AuthenticatedComunicacaoIndexRoute: typeof AuthenticatedComunicacaoIndexRoute
+}
+
+const AuthenticatedComunicacaoRouteChildren: AuthenticatedComunicacaoRouteChildren =
+  {
+    AuthenticatedComunicacaoContatosRoute:
+      AuthenticatedComunicacaoContatosRoute,
+    AuthenticatedComunicacaoInboxRoute: AuthenticatedComunicacaoInboxRoute,
+    AuthenticatedComunicacaoIndexRoute: AuthenticatedComunicacaoIndexRoute,
+  }
+
+const AuthenticatedComunicacaoRouteWithChildren =
+  AuthenticatedComunicacaoRoute._addFileChildren(
+    AuthenticatedComunicacaoRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
+  AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
@@ -721,6 +819,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
+  AuthenticatedComunicacaoRoute: AuthenticatedComunicacaoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
@@ -764,13 +863,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -1,11 +1,14 @@
 import { Link, Outlet, useRouter } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
-  MapPin, MessageSquareText, Send, Calendar, Inbox as InboxIcon, Heart,
-  Link as LinkIcon, MessageCircle, ShieldCheck, LogOut, Megaphone, Compass,
+  MapPin, LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
+  MessageCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
+import { getMyCommunicationBadge } from "@/lib/communication.functions";
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
@@ -37,18 +40,13 @@ const groups: NavGroup[] = [
   {
     label: "Comunicação",
     items: [
-      { to: "/mensagens", label: "Mensagens", icon: MessageSquareText, roles: ["admin", "operador", "vrm"] },
-      { to: "/campanhas", label: "Campanhas", icon: Send, roles: ["admin", "operador"] },
-      { to: "/calendario", label: "Calendário", icon: Calendar, roles: ["admin", "operador", "vrm"] },
-      { to: "/relacionamento", label: "Relacionamento", icon: Heart, roles: ["admin", "operador", "vrm"] },
-      { to: "/inbox", label: "Inbox", icon: InboxIcon, roles: ["admin", "operador", "vrm"] },
+      { to: "/comunicacao/inbox", label: "Módulo Comunicação", icon: MessageCircle, hint: "Inbox, campanhas, mensagens, contatos.", roles: ["admin", "operador", "vrm", "comunicacao"] },
     ],
   },
   {
     label: "Sistema",
     items: [
       { to: "/links", label: "Links públicos", icon: LinkIcon, roles: ["admin", "operador"] },
-      { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle, roles: ["admin"] },
       { to: "/usuarios", label: "Usuários", icon: ShieldCheck, roles: ["admin"] },
     ],
   },
@@ -73,8 +71,21 @@ export function AppShell() {
     return item.roles.some((r) => roles.includes(r));
   }
 
+  const badgeFn = useServerFn(getMyCommunicationBadge);
+  const badgeQ = useQuery({
+    queryKey: ["comm-badge"],
+    queryFn: () => badgeFn(),
+    enabled: Boolean(user),
+    refetchInterval: 30000,
+  });
+
+  // Comunicação abrange várias rotas (o app dedicado): destaca no menu quando estiver em qualquer uma delas.
+  const COMM_PATHS = ["/comunicacao", "/campanhas", "/mensagens", "/calendario", "/relacionamento", "/whatsapp", "/inbox"];
   function isActive(to: string) {
     if (to === "/dashboard") return currentPath === "/dashboard" || currentPath === "/";
+    if (to === "/comunicacao/inbox") {
+      return COMM_PATHS.some((p) => currentPath === p || currentPath.startsWith(p + "/"));
+    }
     return currentPath === to || currentPath.startsWith(to + "/");
   }
 
@@ -137,6 +148,7 @@ export function AppShell() {
                 {visibleItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.to);
+                  const badge = item.to === "/comunicacao/inbox" ? (badgeQ.data?.mine_unread ?? 0) : 0;
                   return (
                     <Link
                       key={item.to}
@@ -149,7 +161,12 @@ export function AppShell() {
                       }`}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate flex-1">{item.label}</span>
+                      {badge > 0 && (
+                        <span className="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                          {badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

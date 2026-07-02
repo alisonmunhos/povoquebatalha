@@ -736,6 +736,91 @@ export type Database = {
           },
         ]
       }
+      conversation_events: {
+        Row: {
+          actor_id: string | null
+          conversation_id: string
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          conversation_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          conversation_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          assigned_to: string | null
+          contact_id: string
+          created_at: string
+          flagged: boolean
+          id: string
+          last_message_at: string | null
+          last_message_direction: string | null
+          last_message_preview: string | null
+          status: string
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          contact_id: string
+          created_at?: string
+          flagged?: boolean
+          id?: string
+          last_message_at?: string | null
+          last_message_direction?: string | null
+          last_message_preview?: string | null
+          status?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          contact_id?: string
+          created_at?: string
+          flagged?: boolean
+          id?: string
+          last_message_at?: string | null
+          last_message_direction?: string | null
+          last_message_preview?: string | null
+          status?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       direct_messages: {
         Row: {
           contact_id: string
@@ -1420,7 +1505,13 @@ export type Database = {
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
-      app_role: "admin" | "operador" | "leitor" | "vrm" | "territorio"
+      app_role:
+        | "admin"
+        | "operador"
+        | "leitor"
+        | "vrm"
+        | "territorio"
+        | "comunicacao"
       campaign_status:
         | "draft"
         | "scheduled"
@@ -1624,7 +1715,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "operador", "leitor", "vrm", "territorio"],
+      app_role: [
+        "admin",
+        "operador",
+        "leitor",
+        "vrm",
+        "territorio",
+        "comunicacao",
+      ],
       campaign_status: [
         "draft",
         "scheduled",
