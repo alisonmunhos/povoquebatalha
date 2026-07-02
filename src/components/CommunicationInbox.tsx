@@ -270,10 +270,21 @@ export function CommunicationInbox() {
   const timeline = useMemo(() => {
     type Msg = {
       id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
-      media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+      media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
     };
     const t: Msg[] = [];
-    for (const m of convQ.data?.inbound ?? []) t.push({ id: `in-${m.id}`, kind: "in", text: m.conteudo ?? "", at: m.received_at as string });
+    for (const m of convQ.data?.inbound ?? []) {
+      const inb = m as {
+        id: string; conteudo: string | null; received_at: string;
+        media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+      };
+      t.push({
+        id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
+        media_url: inb.media_url ?? null,
+        media_mime: inb.media_mime ?? null,
+        media_filename: inb.media_filename ?? null,
+      });
+    }
     for (const m of convQ.data?.direct ?? []) t.push({
       id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
       meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? " · erro" : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
