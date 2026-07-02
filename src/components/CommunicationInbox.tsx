@@ -613,7 +613,7 @@ export function CommunicationInbox() {
             </button>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm truncate">{active.nome ?? "Sem nome"}</div>
-              <div className="text-xs text-muted-foreground truncate">{active.phone}</div>
+              <div className="text-xs text-muted-foreground truncate">{active.phone ?? conv?.from_phone ?? "Sem telefone"}</div>
               {active.cidade && <div className="text-xs text-muted-foreground truncate">{active.cidade}/{active.uf ?? ""}{active.bairro ? ` · ${active.bairro}` : ""}</div>}
               {active.contact_id && (
                 <Link
