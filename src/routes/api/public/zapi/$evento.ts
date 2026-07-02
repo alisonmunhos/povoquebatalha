@@ -233,8 +233,7 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
                 erro?: string | null;
               };
               type DirectPatch = {
-                status?: "enviado" | "entregue" | "lido" | "erro";
-                sent_at?: string;
+                status?: string;
                 delivered_at?: string;
                 read_at?: string;
                 failed_at?: string;
@@ -245,7 +244,7 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
 
               if (evento === "on-send" || status === "sent" || status === "sent-by-server") {
                 rPatch = { status: "sent", sent_at: now };
-                dPatch = { status: "enviado", sent_at: now };
+                dPatch = { status: "enviado" };
               } else if (evento === "on-delivery" || status === "received" || status === "delivered") {
                 rPatch = { status: "delivered", delivered_at: now };
                 dPatch = { status: "entregue", delivered_at: now };
