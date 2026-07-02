@@ -408,17 +408,18 @@ function AutomationsPanel() {
       </div>
 
       <div className="border rounded-xl bg-card">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
+        <div className="px-4 py-3 border-b flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-sm font-semibold">Últimas entregas</h2>
             <p className="text-xs text-muted-foreground">Registro das mensagens automáticas disparadas — útil para checar se a confirmação de cadastro está saindo.</p>
           </div>
-          <button
-            onClick={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })}
-            className="text-xs rounded border px-2 py-1 hover:bg-muted"
-          >
-            Atualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <ManualTrigger onDone={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })} />
+            <button
+              onClick={() => qc.invalidateQueries({ queryKey: ["automation-deliveries-recent"] })}
+              className="text-xs rounded border px-2 py-1 hover:bg-muted"
+            >Atualizar</button>
+          </div>
         </div>
         <div className="max-h-80 overflow-auto">
           <table className="w-full text-sm">
