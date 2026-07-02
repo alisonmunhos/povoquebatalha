@@ -498,7 +498,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "ok"
   );
 }
 
-function FmtBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+function FmtBtn({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
