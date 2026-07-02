@@ -336,6 +336,14 @@ export function CommunicationInbox() {
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [convQ.data]);
 
+  // Auto-scroll: quando chega mensagem nova (in ou out), rolar thread até o fim.
+  useEffect(() => {
+    if (!threadEndRef.current) return;
+    threadEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [timeline.length, selectedContactId, selectedConvId]);
+
+
+
   return (
     <div className="flex h-full min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
