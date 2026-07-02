@@ -8,13 +8,16 @@ type ConvEventPayload = Record<string, string | number | boolean | null>;
 export const listConversations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
-    filter: z.enum(["all", "mine", "unread", "flagged", "resolved"]).default("all"),
+    filter: z.enum([
+      "all", "mine", "unread", "flagged", "resolved",
+      "in_service", "unlinked", "with_error", "opt_out",
+    ]).default("all"),
     search: z.string().trim().max(120).optional(),
   }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("conversations")
-      .select("id, contact_id, status, assigned_to, last_message_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)")
+      .select("id, contact_id, from_phone, status, assigned_to, last_message_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)")
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .limit(500);
 
@@ -24,6 +27,8 @@ export const listConversations = createServerFn({ method: "GET" })
     if (data.filter === "mine") q = q.eq("assigned_to", context.userId);
     if (data.filter === "unread") q = q.gt("unread_count", 0);
     if (data.filter === "flagged") q = q.eq("flagged", true);
+    if (data.filter === "in_service") q = q.not("assigned_to", "is", null);
+    if (data.filter === "unlinked") q = q.is("contact_id", null);
 
     const { data: rows, error } = await q;
     if (error) throw error;
@@ -34,9 +39,10 @@ export const listConversations = createServerFn({ method: "GET" })
       const c = Array.isArray(raw) ? raw[0] : raw;
       return {
         id: r.id as string,
-        contact_id: r.contact_id as string,
+        contact_id: r.contact_id as string | null,
+        from_phone: (r as { from_phone?: string | null }).from_phone ?? null,
         nome: c?.nome ?? null,
-        phone: c?.phone_e164 ?? null,
+        phone: c?.phone_e164 ?? (r as { from_phone?: string | null }).from_phone ?? null,
         cidade: c?.cidade ?? null,
         uf: c?.uf ?? null,
         bairro: c?.bairro ?? null,
@@ -51,6 +57,20 @@ export const listConversations = createServerFn({ method: "GET" })
         flagged: r.flagged as boolean,
       };
     });
+
+    // Filtros que exigem cruzamento local
+    if (data.filter === "opt_out") list = list.filter((c) => c.opt_out);
+    if (data.filter === "with_error") {
+      const contactIds = list.map((l) => l.contact_id).filter((x): x is string => Boolean(x));
+      if (contactIds.length > 0) {
+        const { data: err } = await context.supabase
+          .from("direct_messages").select("contact_id").eq("status", "erro").in("contact_id", contactIds).limit(1000);
+        const set = new Set((err ?? []).map((e) => e.contact_id as string));
+        list = list.filter((l) => l.contact_id && set.has(l.contact_id));
+      } else {
+        list = [];
+      }
+    }
 
     if (data.search) {
       const s = data.search.toLowerCase();
