@@ -89,10 +89,11 @@ export const searchContactsForNewChat = createServerFn({ method: "GET" })
       id: r.id as string,
       nome: r.nome as string | null,
       phone: (r.phone_e164 as string | null) ?? null,
-        cidade: r.cidade as string | null,
-        uf: r.uf as string | null,
-      }));
+      cidade: r.cidade as string | null,
+      uf: r.uf as string | null,
+    }));
   });
+
 
 // ------- Load unified conversation thread -------
 export const getConversation = createServerFn({ method: "GET" })
