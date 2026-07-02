@@ -182,6 +182,48 @@ function Contatos() {
       return v !== undefined && v !== null && v !== "";
     }).length;
 
+  // Opções para filtros no cabeçalho — reusa o bundle já carregado em filterOptions.
+  const cidadesOpts: ColumnFilterOption[] = (filterOptions?.cidades ?? []).map((o) => ({ value: o.value, label: o.label, count: o.count }));
+  // Bairros: se houver cidades selecionadas, filtra bairros por elas seria ideal, mas o bundle
+  // é global; mantemos todos e a busca interna resolve o resto.
+  const bairrosOpts: ColumnFilterOption[] = (filterOptions?.bairros ?? []).map((o) => ({ value: o.value, label: o.label, count: o.count }));
+  const tagsOpts: ColumnFilterOption[] = (filterOptions?.tags ?? []).map((t) => ({
+    value: t.value,
+    label: t.label,
+    count: t.count,
+    color: (t as { cor?: string | null }).cor ?? null,
+  }));
+  const LIFECYCLE_LABELS: Record<string, string> = {
+    importado_aguardando_recadastro: "Importado (aguardando)",
+    link_enviado: "Link enviado",
+    recadastro_iniciado: "Cadastro iniciado",
+    recadastro_concluido: "Cadastro concluído",
+    nao_respondeu: "Não respondeu",
+    telefone_invalido: "Telefone inválido",
+    precisa_revisao: "Precisa revisão",
+    duplicado_possivel: "Possível duplicado",
+    duplicado_mesclado: "Mesclado",
+    nao_enviar: "Não enviar",
+  };
+  const statusOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({ value: v, label: LIFECYCLE_LABELS[v] ?? v }));
+
+  const nameSortState = sort === "name" ? "asc" : sort === "name-desc" ? "desc" : "none";
+  function cycleNameSort() {
+    setSort((s) => (s === "name" ? "name-desc" : s === "name-desc" ? "recent" : "name"));
+    setPage(1);
+  }
+  function setListFilter(key: "cidades" | "bairros" | "tag_ids" | "lifecycle_statuses", values: string[]) {
+    setFilters((f) => {
+      const next = { ...f } as CrmFilters;
+      if (values.length === 0) delete (next as Record<string, unknown>)[key];
+      else (next as Record<string, unknown>)[key] = values;
+      return next;
+    });
+    setPage(1);
+  }
+
+
+
   return (
     <TooltipProvider delayDuration={150}>
     <div className="p-6 md:p-10 space-y-4">
