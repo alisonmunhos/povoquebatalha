@@ -105,6 +105,20 @@ function CampanhaDetail() {
   const inSending = c.status === "running";
   const canCancel = ["running", "paused", "scheduled", "draft"].includes(c.status);
 
+  const statusLabel: Record<string, string> = {
+    draft: "Rascunho",
+    scheduled: "Agendada",
+    running: "Em envio",
+    paused: "Pausada",
+    done: "Concluída",
+    canceled: "Cancelada",
+  };
+  const total = c.total_destinatarios ?? 0;
+  const enviados = c.total_enviados ?? 0;
+  const falhas = c.total_falhas ?? 0;
+  const restantes = Math.max(0, total - enviados - falhas);
+  const progresso = total > 0 ? Math.round(((enviados + falhas) / total) * 100) : 0;
+
   return (
     <div className="p-6 md:p-10 max-w-5xl">
       <Link to="/campanhas" className="text-sm text-muted-foreground flex items-center gap-1 mb-3"><ArrowLeft className="h-3 w-3" /> Voltar</Link>
@@ -113,16 +127,26 @@ function CampanhaDetail() {
         <div>
           <h1 className="text-2xl font-semibold">{c.nome}</h1>
           <div className="mt-2 flex items-center gap-2">
-            <Badge className={statusColors[c.status] ?? ""}>{c.status}</Badge>
+            <Badge className={statusColors[c.status] ?? ""}>{statusLabel[c.status] ?? c.status}</Badge>
             <span className="text-xs text-muted-foreground">Tipo: {c.tipo}</span>
           </div>
         </div>
         <div className="text-right text-xs text-muted-foreground">
-          <div>Público: <b>{c.total_destinatarios ?? 0}</b></div>
-          <div>Enviados: <b className="text-emerald-600">{c.total_enviados ?? 0}</b></div>
-          <div>Falhas: <b className="text-red-600">{c.total_falhas ?? 0}</b></div>
+          <div>Público: <b>{total}</b></div>
+          <div>Enviados: <b className="text-emerald-600">{enviados}</b></div>
+          <div>Falhas: <b className="text-red-600">{falhas}</b></div>
+          <div>Faltam: <b>{restantes}</b></div>
         </div>
       </div>
+
+      {total > 0 && (
+        <div className="mb-6">
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progresso}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{progresso}% concluído · {enviados} enviados de {total}</p>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
         <section className="border rounded-xl p-5 bg-card">
@@ -134,33 +158,37 @@ function CampanhaDetail() {
         </section>
 
         <section className="border rounded-xl p-5 bg-card">
-          <h2 className="font-semibold mb-3">Ações</h2>
+          <h2 className="font-semibold mb-1">Ações</h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Fluxo: <b>1)</b> Preparar destinatários → <b>2)</b> Iniciar envio. Depois o sistema envia sozinho a cada minuto.
+          </p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => preview.mutate()} disabled={preview.isPending}>
-              <Eye className="h-4 w-4 mr-1" /> Prévia
+            <Button variant="outline" onClick={() => preview.mutate()} disabled={preview.isPending} title="Simula a lista final aplicando filtros e opt-out, sem enviar nada.">
+              <Eye className="h-4 w-4 mr-1" /> Ver prévia
             </Button>
-            <Button variant="outline" onClick={() => prepare.mutate()} disabled={prepare.isPending || c.status === "running"}>
-              <Package className="h-4 w-4 mr-1" /> Preparar fila
+            <Button variant="outline" onClick={() => prepare.mutate()} disabled={prepare.isPending || c.status === "running"} title="Monta a fila de destinatários. Faça isso antes de iniciar o envio.">
+              <Package className="h-4 w-4 mr-1" /> 1. Preparar destinatários
             </Button>
             {c.status !== "running" && c.status !== "done" && c.status !== "canceled" && (
-              <Button onClick={() => start.mutate()} disabled={start.isPending}>
-                <Play className="h-4 w-4 mr-1" /> Iniciar envio
+              <Button onClick={() => start.mutate()} disabled={start.isPending} title="Inicia o envio. O sistema processa lotes automaticamente a cada minuto.">
+                <Play className="h-4 w-4 mr-1" /> 2. Iniciar envio
               </Button>
             )}
             {inSending && (
               <>
-                <Button variant="secondary" onClick={() => setAutoRun((v) => !v)}>
-                  <Send className="h-4 w-4 mr-1" /> {autoRun ? "Parar auto-envio" : "Auto-processar lotes"}
+                <Button variant="secondary" onClick={() => batch.mutate()} disabled={batch.isPending} title="Força o envio do próximo lote agora, sem esperar o próximo minuto.">
+                  <Send className="h-4 w-4 mr-1" /> Enviar próximo lote agora
                 </Button>
-                <Button variant="outline" onClick={() => batch.mutate()} disabled={batch.isPending}>
-                  Processar 1 lote
+                <Button variant="outline" onClick={() => setAutoRun((v) => !v)} title="Envia lotes seguidos direto do seu navegador. Deixe desligado — o servidor já processa sozinho.">
+                  {autoRun ? "Parar auto-envio (navegador)" : "Auto-envio (navegador)"}
                 </Button>
-                <Button variant="outline" onClick={() => pause.mutate()}>
-                  <Pause className="h-4 w-4 mr-1" /> Pausar
+                <Button variant="outline" onClick={() => pause.mutate()} title="Pausa o envio. Nenhuma nova mensagem sai até você retomar.">
+                  <Pause className="h-4 w-4 mr-1" /> Pausar envio
                 </Button>
               </>
             )}
           </div>
+
 
           {canCancel && (
             <div className="mt-4 border-t pt-4">
