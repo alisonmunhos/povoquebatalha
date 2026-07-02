@@ -230,9 +230,11 @@ export const setUserStatus = createServerFn({ method: "POST" })
       throw new Error("Você não pode alterar seu próprio status.");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = { status: data.status };
-    patch.suspended_at = data.status === "suspenso" ? new Date().toISOString() : null;
-    patch.revoked_at = data.status === "revogado" ? new Date().toISOString() : null;
+    const patch = {
+      status: data.status,
+      suspended_at: data.status === "suspenso" ? new Date().toISOString() : null,
+      revoked_at: data.status === "revogado" ? new Date().toISOString() : null,
+    };
     const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", data.userId);
     if (error) throw new Error(error.message);
     if (data.status === "revogado") {
