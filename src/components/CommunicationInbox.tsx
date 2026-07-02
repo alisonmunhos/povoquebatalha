@@ -184,6 +184,30 @@ export function CommunicationInbox() {
     },
   });
 
+  const linkMut = useMutation({
+    mutationFn: (v: { conversation_id: string; contact_id: string }) => linkFn({ data: v }),
+    onSuccess: (res) => {
+      toast.success("Conversa vinculada");
+      setSelectedContactId(null);
+      setSelectedConvId(res.conversation_id);
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const quickCreateMut = useMutation({
+    mutationFn: (v: { conversation_id: string; nome: string; cidade?: string; uf?: string }) =>
+      quickCreateFn({ data: v }),
+    onSuccess: (res) => {
+      toast.success("Contato criado");
+      setSelectedContactId(res.contact_id);
+      setSelectedConvId(null);
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   function openConversation(contactId: string | null, convId: string | null, unread: number) {
     setSelectedContactId(contactId);
     setSelectedConvId(contactId ? null : convId);
