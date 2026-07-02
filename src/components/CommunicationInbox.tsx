@@ -421,13 +421,38 @@ export function CommunicationInbox() {
                   {contact?.opt_out_at ? "Contato optou por sair (opt-out). Envio bloqueado." : "Contato sem WhatsApp válido."}
                 </div>
               )}
+              {attachment && (
+                <div className="flex items-center gap-2 border rounded-md p-2 bg-muted/40">
+                  {attachment.previewUrl ? (
+                    <img src={attachment.previewUrl} alt="" className="h-12 w-12 object-cover rounded" />
+                  ) : (
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                  )}
+                  <div className="flex-1 min-w-0 text-xs">
+                    <div className="truncate font-medium">{attachment.filename}</div>
+                    <div className="text-muted-foreground truncate">{attachment.mime}</div>
+                  </div>
+                  <button onClick={clearAttachment} className="p-1 rounded hover:bg-background" title="Remover anexo">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                  onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                />
                 <button
-                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0"
-                  title="Anexar (em breve)"
-                  disabled
+                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                  title="Anexar imagem ou PDF"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!canSend || uploading}
+                  type="button"
                 >
-                  <Paperclip className="h-4 w-4" />
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                 </button>
                 {tplsQ.data && tplsQ.data.length > 0 && (
                   <select
@@ -454,8 +479,8 @@ export function CommunicationInbox() {
                   style={{ minHeight: "40px" }}
                 />
                 <button
-                  onClick={() => selectedContactId && reply.trim() && sendMut.mutate({ contact_id: selectedContactId, message: reply })}
-                  disabled={!canSend || !reply.trim() || sendMut.isPending}
+                  onClick={submitReply}
+                  disabled={!canSend || (!reply.trim() && !attachment) || sendMut.isPending}
                   className="p-2.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
                   title="Enviar"
                 >
