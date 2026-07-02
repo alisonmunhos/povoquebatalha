@@ -23,9 +23,11 @@ import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
+import { Route as AuthenticatedRelacionamentoRouteImport } from './routes/_authenticated/relacionamento'
 import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
+import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -110,6 +112,12 @@ const AuthenticatedSegmentosRoute = AuthenticatedSegmentosRouteImport.update({
   path: '/segmentos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRelacionamentoRoute =
+  AuthenticatedRelacionamentoRouteImport.update({
+    id: '/relacionamento',
+    path: '/relacionamento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMensagensRoute = AuthenticatedMensagensRouteImport.update({
   id: '/mensagens',
   path: '/mensagens',
@@ -123,6 +131,11 @@ const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
 const AuthenticatedLinksRoute = AuthenticatedLinksRouteImport.update({
   id: '/links',
   path: '/links',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedImportarRoute = AuthenticatedImportarRouteImport.update({
@@ -214,9 +227,11 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
+  '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -246,9 +261,11 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
+  '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -280,9 +297,11 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
+  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
+  '/_authenticated/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
@@ -314,9 +333,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
+    | '/inbox'
     | '/links'
     | '/mapa'
     | '/mensagens'
+    | '/relacionamento'
     | '/segmentos'
     | '/tags'
     | '/usuarios'
@@ -346,9 +367,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
+    | '/inbox'
     | '/links'
     | '/mapa'
     | '/mensagens'
+    | '/relacionamento'
     | '/segmentos'
     | '/tags'
     | '/usuarios'
@@ -379,9 +402,11 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
+    | '/_authenticated/inbox'
     | '/_authenticated/links'
     | '/_authenticated/mapa'
     | '/_authenticated/mensagens'
+    | '/_authenticated/relacionamento'
     | '/_authenticated/segmentos'
     | '/_authenticated/tags'
     | '/_authenticated/usuarios'
@@ -518,6 +543,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSegmentosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/relacionamento': {
+      id: '/_authenticated/relacionamento'
+      path: '/relacionamento'
+      fullPath: '/relacionamento'
+      preLoaderRoute: typeof AuthenticatedRelacionamentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/mensagens': {
       id: '/_authenticated/mensagens'
       path: '/mensagens'
@@ -537,6 +569,13 @@ declare module '@tanstack/react-router' {
       path: '/links'
       fullPath: '/links'
       preLoaderRoute: typeof AuthenticatedLinksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inbox': {
+      id: '/_authenticated/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthenticatedInboxRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/importar': {
@@ -645,9 +684,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
+  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
+  AuthenticatedRelacionamentoRoute: typeof AuthenticatedRelacionamentoRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
   AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
@@ -663,9 +704,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
+  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
+  AuthenticatedRelacionamentoRoute: AuthenticatedRelacionamentoRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
   AuthenticatedTagsRoute: AuthenticatedTagsRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
