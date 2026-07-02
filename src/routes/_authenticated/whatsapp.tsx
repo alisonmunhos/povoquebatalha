@@ -17,6 +17,13 @@ function WhatsAppPage() {
   const qrFn = useServerFn(getZapiQr);
   const disconnectFn = useServerFn(disconnectZapi);
   const testFn = useServerFn(testSendWhatsApp);
+  const settingsFn = useServerFn(getInstanceSettings);
+  const setInboundFn = useServerFn(setInstanceInboundEnabled);
+
+  const settings = useSuspenseQuery({
+    queryKey: ["zapi-instance-settings"],
+    queryFn: () => settingsFn(),
+  });
 
   const status = useSuspenseQuery({
     queryKey: ["zapi-status"],
