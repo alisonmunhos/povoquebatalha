@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { CommunicationTabs } from "@/components/CommunicationTabs";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
