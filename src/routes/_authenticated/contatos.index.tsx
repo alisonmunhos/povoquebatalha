@@ -19,6 +19,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/comp
 import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
 import { ContactFiltersPanel, type FilterOptionsBundle } from "@/components/ContactFiltersPanel";
 import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
+import { ColumnFilterHeader, ColumnSortHeader, type ColumnFilterOption } from "@/components/ColumnFilterHeader";
 import type { CrmFilters } from "@/lib/crm-filters";
 
 const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
