@@ -498,3 +498,63 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "ok"
   );
 }
 
+function FmtBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+    >
+      {children}
+    </button>
+  );
+}
+
+function LinkPreviewCard({ loading, preview }: { loading: boolean; preview: LinkPreview | null }) {
+  if (loading) {
+    return (
+      <div className="border rounded-lg p-3 flex items-center gap-3 bg-muted/30">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span className="text-xs text-muted-foreground">Carregando prévia do link…</span>
+      </div>
+    );
+  }
+  if (!preview) return null;
+  if (preview.error || (!preview.title && !preview.description && !preview.image)) {
+    return (
+      <div className="border rounded-lg p-3 bg-amber-50 border-amber-200 text-xs text-amber-800">
+        Sem prévia disponível para este link{preview.error ? ` (${preview.error})` : ""}. O link será enviado mesmo assim.
+      </div>
+    );
+  }
+  return (
+    <a
+      href={preview.url}
+      target="_blank"
+      rel="noreferrer"
+      className="border rounded-lg overflow-hidden flex bg-background hover:bg-muted/40 transition"
+    >
+      {preview.image && (
+        <img
+          src={preview.image}
+          alt=""
+          className="w-24 h-24 object-cover flex-shrink-0 bg-muted"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        />
+      )}
+      <div className="p-3 min-w-0 flex-1">
+        {preview.siteName && (
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{preview.siteName}</div>
+        )}
+        {preview.title && (
+          <div className="text-sm font-medium leading-tight line-clamp-2">{preview.title}</div>
+        )}
+        {preview.description && (
+          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{preview.description}</div>
+        )}
+      </div>
+    </a>
+  );
+}
+
