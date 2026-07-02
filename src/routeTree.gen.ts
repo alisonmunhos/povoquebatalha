@@ -32,8 +32,10 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
+import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
@@ -160,6 +162,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComunicacaoRoute =
+  AuthenticatedComunicacaoRouteImport.update({
+    id: '/comunicacao',
+    path: '/comunicacao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
   id: '/calendario',
   path: '/calendario',
@@ -170,6 +178,12 @@ const AuthenticatedContatosIndexRoute =
     id: '/contatos/',
     path: '/contatos/',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComunicacaoIndexRoute =
+  AuthenticatedComunicacaoIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
   } as any)
 const AuthenticatedCampanhasIndexRoute =
   AuthenticatedCampanhasIndexRouteImport.update({
@@ -230,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
+  '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
@@ -248,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
+  '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -283,6 +299,7 @@ export interface FileRoutesByTo {
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
+  '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -302,6 +319,7 @@ export interface FileRoutesById {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
+  '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
@@ -320,6 +338,7 @@ export interface FileRoutesById {
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
+  '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -339,6 +358,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/calendario'
+    | '/comunicacao'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
@@ -357,6 +377,7 @@ export interface FileRouteTypes {
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/campanhas/'
+    | '/comunicacao/'
     | '/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -392,6 +413,7 @@ export interface FileRouteTypes {
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/campanhas'
+    | '/comunicacao'
     | '/contatos'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -410,6 +432,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/_authenticated/calendario'
+    | '/_authenticated/comunicacao'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
@@ -428,6 +451,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/_authenticated/campanhas/'
+    | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/inscrever'
@@ -618,6 +642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comunicacao': {
+      id: '/_authenticated/comunicacao'
+      path: '/comunicacao'
+      fullPath: '/comunicacao'
+      preLoaderRoute: typeof AuthenticatedComunicacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/calendario': {
       id: '/_authenticated/calendario'
       path: '/calendario'
@@ -631,6 +662,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/contatos/'
       preLoaderRoute: typeof AuthenticatedContatosIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comunicacao/': {
+      id: '/_authenticated/comunicacao/'
+      path: '/'
+      fullPath: '/comunicacao/'
+      preLoaderRoute: typeof AuthenticatedComunicacaoIndexRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
     }
     '/_authenticated/campanhas/': {
       id: '/_authenticated/campanhas/'
@@ -698,8 +736,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedComunicacaoRouteChildren {
+  AuthenticatedComunicacaoIndexRoute: typeof AuthenticatedComunicacaoIndexRoute
+}
+
+const AuthenticatedComunicacaoRouteChildren: AuthenticatedComunicacaoRouteChildren =
+  {
+    AuthenticatedComunicacaoIndexRoute: AuthenticatedComunicacaoIndexRoute,
+  }
+
+const AuthenticatedComunicacaoRouteWithChildren =
+  AuthenticatedComunicacaoRoute._addFileChildren(
+    AuthenticatedComunicacaoRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
+  AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
@@ -721,6 +774,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
+  AuthenticatedComunicacaoRoute: AuthenticatedComunicacaoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
