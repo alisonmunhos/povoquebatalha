@@ -236,3 +236,87 @@ function UsuariosPage() {
     </div>
   );
 }
+
+type Scope = { id: string; uf: string | null; cidade: string | null; bairro: string | null };
+
+function ScopesEditor({ userId }: { userId: string }) {
+  const listFn = useServerFn(listUserScopes);
+  const addFn = useServerFn(addScope);
+  const removeFn = useServerFn(removeScope);
+  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [uf, setUf] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const r = await listFn({ data: { userId } });
+      setScopes(r as Scope[]);
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [userId]);
+
+  async function add() {
+    if (!uf && !cidade && !bairro) return alert("Informe ao menos UF, cidade ou bairro.");
+    setSaving(true);
+    try {
+      await addFn({ data: { userId, uf: uf.trim().toUpperCase() || null, cidade: cidade.trim() || null, bairro: bairro.trim() || null } });
+      setUf(""); setCidade(""); setBairro("");
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao adicionar.");
+    } finally { setSaving(false); }
+  }
+
+  async function del(id: string) {
+    try { await removeFn({ data: { id } }); await load(); }
+    catch (e) { alert(e instanceof Error ? e.message : "Erro ao remover."); }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Escopos territoriais deste usuário
+      </div>
+      {loading ? (
+        <div className="text-xs text-muted-foreground">Carregando…</div>
+      ) : scopes.length === 0 ? (
+        <div className="text-xs text-muted-foreground">Sem escopos — o usuário não verá nenhum contato.</div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {scopes.map((s) => (
+            <span key={s.id} className="inline-flex items-center gap-2 rounded-full bg-background border px-2 py-1 text-xs">
+              {[s.bairro, s.cidade, s.uf].filter(Boolean).join(" / ") || "(vazio)"}
+              <button onClick={() => del(s.id)} className="text-destructive hover:opacity-70" title="Remover">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-[70px_1fr_1fr_auto] gap-2 items-center">
+        <input value={uf} onChange={(e) => setUf(e.target.value)} maxLength={2} placeholder="UF"
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs uppercase" />
+        <input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Cidade"
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
+        <input value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder="Bairro"
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
+        <button
+          onClick={add}
+          disabled={saving}
+          className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Adicionar
+        </button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Deixe campos em branco para "todos". Ex.: só UF = todo o estado; UF + cidade = cidade toda.
+      </p>
+    </div>
+  );
+}
+
