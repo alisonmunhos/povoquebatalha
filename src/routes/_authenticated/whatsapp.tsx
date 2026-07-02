@@ -228,14 +228,41 @@ function WebhookDiagnosticsSection() {
   const staleReceive =
     d?.last_receive && Date.now() - new Date(d.last_receive.received_at).getTime() > 24 * 3600 * 1000;
 
+  const testUrl = d?.urls.find((u) => u.event === "on-receive")?.url.replace("/on-receive?", "/on-test?");
+  async function runTest() {
+    if (!testUrl) return;
+    try {
+      const r = await fetch(testUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ __diagnostic: true, at: new Date().toISOString() }),
+      });
+      if (r.ok) {
+        toast.success("Endpoint respondeu OK — o token está correto.");
+        q.refetch();
+      } else {
+        toast.error(`Endpoint retornou HTTP ${r.status} — verifique o token.`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao testar endpoint");
+    }
+  }
+
   return (
     <section className="mt-8 border rounded-xl p-6 bg-card">
       <div className="flex items-center gap-2">
         <InboxIcon className="h-5 w-5 text-primary" />
         <h2 className="font-semibold">Webhooks Z-API — configuração e diagnóstico</h2>
+        <button
+          onClick={runTest}
+          disabled={!testUrl}
+          className="ml-auto text-xs px-2 py-1 border rounded-md hover:bg-muted disabled:opacity-40"
+        >
+          Testar endpoint
+        </button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Cole cada URL abaixo no evento correspondente do painel da Z-API (menu Webhooks). Sem isso, o Inbox não recebe mensagens.
+        Cole cada URL abaixo <b>inteira</b> (incluindo <code>?token=…</code>) no evento correspondente do painel da Z-API. Sem isso, o Inbox não recebe mensagens.
       </p>
 
       {q.isLoading && <p className="mt-4 text-sm text-muted-foreground">Carregando diagnóstico…</p>}

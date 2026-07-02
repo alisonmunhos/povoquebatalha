@@ -1,70 +1,147 @@
-## Objetivo
+# Fase — Consolidação do Inbox
 
-Resolver três pontos do Módulo Comunicação → Inbox:
+Objetivo: tornar `/comunicacao/inbox` a única experiência de Inbox, com permissões corretas, diagnóstico de webhooks útil, status real das mensagens avulsas, tratamento de conversas não vinculadas, filtros e painel do contato completos, anexos recebidos, e atribuição simples.
 
-1. Botão de anexo funcional (imagem/documento) no chat.
-2. Recebimento de mensagens da Z-API chegando ao Inbox.
-3. Painel lateral direito (informações do contato) retrátil para ampliar o chat.
+Vou executar em blocos pequenos, sem tocar em Campanhas, CRM, Importação, Território ou VRM além do necessário para expor indicadores.
 
 ---
 
-## 1. Anexos no chat do Inbox
+## Bloco 1 — Rota canônica e menu
 
-Hoje o clip (`Paperclip`) está `disabled`. Vamos habilitar upload igual ao que já existe no editor de mensagens.
+- `/inbox` (`src/routes/_authenticated/inbox.tsx`) vira redirect para `/comunicacao/inbox` via `beforeLoad`.
+- Remover link antigo do menu lateral (`AppShell`) e manter apenas o item "Inbox" apontando para `/comunicacao/inbox`.
+- Marcar `listInboxConversations` / `getInboxConversation` / `markInboxRead` / `resolveInbox` como legado; se não houver mais uso, remover do bundle. `sendDirectMessage` fica (é usado pelo Wizard e pelo Inbox novo).
 
-- Reutilizar o bucket `campaign-media` (já configurado, só staff).
-- Novo helper server no cliente Z-API: `sendDocument(phone, url, filename)` além do `sendImage` já existente.
-- Estender `sendDirectMessage` (`src/lib/inbox.functions.ts`) para aceitar `media_path`, `media_mime`, `media_filename` opcionais. Gera URL assinada (curta duração para envio, longa para exibição no timeline), chama `sendImage` ou `sendDocument` conforme mime, e persiste os campos em `direct_messages`.
-- Adicionar colunas `media_path`, `media_mime`, `media_filename` em `direct_messages` (migration).
-- UI no `CommunicationInbox`:
-  - Botão de clip abre file picker (imagem/PDF/áudio até ~15MB).
-  - Prévia inline do anexo escolhido acima do textarea, com botão “remover”.
-  - Envio dispara upload → `sendDirectMessage` com o arquivo → limpa estado.
-  - Timeline renderiza miniatura de imagem ou linha de arquivo (nome + link).
+## Bloco 2 — Permissões
 
----
+Fonte da verdade: `user_roles`.
 
-## 2. Recebimento de mensagens (webhook Z-API)
+- Guard no route file `/comunicacao/inbox` e `/comunicacao/*`: apenas `admin` e `vrm` entram. `territorio`/`leitor`/sem papel → redirect para `/` com toast "Acesso não permitido".
+- Reforço server-side em toda função de escrita do Inbox (`sendDirectMessage`, `assignConversation`, `resolveConversation`, `addConversationNote`, `flagConversation`): checar papel do `context.userId` e recusar se não for `admin`/`vrm`.
 
-Diagnóstico atual: `webhook_log` está vazio e `whatsapp_instances.last_ping` nulo → a Z-API não está chamando os endpoints. O handler `/api/public/zapi/{evento}` está correto e o toggle `inbound_to_inbox_enabled` está ligado. Falta configuração dos webhooks no painel da Z-API.
+## Bloco 3 — Diagnóstico de webhooks (/whatsapp)
 
-Ações:
+Ampliar `getWebhookDiagnostics` + `WebhookDiagnosticsSection`:
 
-- Reformular a tela `/whatsapp` para mostrar de forma bem clara **as URLs completas prontas para colar no painel Z-API**, uma por evento (`on-connect`, `on-disconnect`, `on-send`, `on-delivery`, `on-read`, `on-receive`, `on-message-status`), já com o parâmetro `?token=…` (usando o segredo existente `ZAPI_WEBHOOK_SECRET`).
-- Botão “Copiar” em cada URL e passo a passo curto (Painel Z-API → Webhooks → colar em cada evento → salvar).
-- Card de diagnóstico com: último `webhook_log` recebido (evento + horário), última `on-receive`, status atual da instância e alerta em vermelho quando não houver evento algum nas últimas 24 h.
-- Endpoint utilitário server (`getWebhookDiagnostics`) que devolve esses dados para a UI.
-- Sem mudança no handler em si — ele já cria contato/insere `inbound_messages` corretamente quando o `on-receive` chega.
+- Banner vermelho quando `webhook_log` está vazio: "Nenhum webhook recebido. Verifique se as URLs foram coladas no painel da Z-API com `?token=…` incluso."
+- Para cada evento (`on-send`, `on-receive`, `on-message-status`, `on-connect`, `on-disconnect`, `on-delivery`, `on-read`): URL completa + botão "Copiar URL completa".
+- Mostrar: domínio atual, último evento recebido (data + tipo), último `on-receive`, último `on-message-status`, último erro (`processado=false` com `erro`), contador total nas últimas 24h.
+- Botão "Testar endpoint": chama `POST /api/public/zapi/on-test?token=…` no próprio domínio, insere `webhook_log` marcado como teste (`evento='on-test'`), sem criar inbound. Handler novo adicionado à rota.
 
-Observação: nada aqui expõe segredos ao usuário final — a URL só é visível ao admin logado dentro do painel.
+## Bloco 4 — Status de `direct_messages` via webhook
 
----
+No handler `/api/public/zapi/$evento.ts`, além do update em `campaign_recipients`, tentar mesmo patch em `direct_messages` por `zaap_id` ou `message_id`:
 
-## 3. Painel de contato retrátil
+- `on-send` → `status='enviado'`, `sent_at`
+- `on-delivery` → `status='entregue'`, `delivered_at`
+- `on-read` → `status='lido'`, `read_at`
+- status `failed`/`error` → `status='erro'`, `erro`
 
-No `CommunicationInbox`, a coluna direita com dados do contato/notas ocupa espaço fixo. Vamos:
+Adicionar colunas em `direct_messages`: `delivered_at timestamptz`, `read_at timestamptz`, `failed_at timestamptz` (via migration). `zaap_id` e `message_id` já existem.
 
-- Adicionar estado `infoOpen` (default `true` em telas ≥ lg, fechado em telas menores) persistido em `localStorage`.
-- Botão no header do chat (ícone painel/`PanelRightClose`/`PanelRightOpen`) que alterna a visibilidade do painel direito.
-- Quando fechado, o chat expande para ocupar toda a largura restante. Transição suave (`transition-all`).
-- No mobile, mantém o comportamento atual de tabs (`list`/`thread`/`info`).
+Timeline do chat mostra ✓/✓✓/✓✓ azul via status.
 
----
+## Bloco 5 — Conversas não vinculadas
 
-## Detalhes técnicos
+Migration:
+- `inbound_messages.contact_id` já é nullable — confirmar.
+- `conversations`: adicionar `from_phone text` para conversas sem contato, tornar `contact_id` nullable, unique parcial em (`contact_id`) onde não nulo e em (`from_phone`) onde `contact_id` nulo.
 
-Arquivos afetados:
+Webhook `on-receive`:
+- Se acha contato pelo `phone_last8` → vincula normalmente (mantém comportamento).
+- Se não acha → NÃO cria contato. Insere `inbound_messages` com `contact_id=null` e cria/atualiza `conversations` por `from_phone`.
 
-- `src/integrations/zapi/client.server.ts` — adicionar `sendDocument`.
-- `src/lib/inbox.functions.ts` — aceitar anexos em `sendDirectMessage`, novo `getWebhookDiagnostics`.
-- `src/components/CommunicationInbox.tsx` — anexos + painel retrátil.
-- `src/routes/_authenticated/whatsapp.tsx` (ou componente equivalente) — URLs de webhook + diagnóstico.
-- Migration: colunas de mídia em `direct_messages` + grants já herdados.
+Trigger `conv_sync_from_inbound`: aceitar `NEW.contact_id IS NULL` e usar `from_phone` como chave.
 
-Sem alteração em RLS existente, sem mexer em auth, sem mudar rotas públicas.
+UI:
+- Filtro "Não vinculadas" (mostra conversations sem `contact_id`).
+- Cabeçalho mostra telefone destacado + badge "Não vinculada".
+- Ações: "Criar contato rápido" (modal com nome + cidade → cria contato e liga ao thread), "Vincular a contato existente" (busca contato e faz update em `inbound_messages` + `conversations`).
 
-## Fora de escopo
+## Bloco 6 — Filtros extra na coluna esquerda
 
-- Envio de áudio gravado no navegador.
-- Reprocessar `webhook_log` antigo (não há nenhum ainda).
-- Redesign visual do Inbox além da coluna retrátil.
+Além dos existentes, adicionar em `listConversations`:
+- "Em atendimento" → `assigned_to IS NOT NULL AND status='aberta'`.
+- "Não vinculadas" → `contact_id IS NULL`.
+- "Com erro de envio" → contact tem `direct_messages.status='erro'` recente.
+- "Opt-out" → `contacts.opt_out_at IS NOT NULL`.
+
+## Bloco 7 — Painel direito
+
+Estender `getConversation` para retornar: `profissao`, `tags[]`, `formas_ajuda`, `whatsapp_status`, últimas 5 campanhas recebidas (nome + data), últimas 5 interações agregadas.
+
+`CommunicationInbox` renderiza esses campos, avisos fortes de opt-out e "sem consentimento", botão "Ver ficha completa" → `/contatos/$id`, botão "Aplicar tag" reusa `applyTagToContacts` se já existir (senão, marca como pendência visível).
+
+## Bloco 8 — Avisos pré-envio
+
+Em `submitReply` (client) e `sendDirectMessage` (server):
+- Hard block: opt-out, sem telefone, `whatsapp_status ∈ {invalido, erro_envio, opt_out}`, conversa bloqueada.
+- Soft confirm: `consentimento_whatsapp != true`, `whatsapp_status='desconhecido'`, `assigned_to` diferente do usuário atual.
+
+Já existe boa parte do hard block; padronizar mensagens em PT-BR e adicionar dialog de confirmação para soft.
+
+## Bloco 9 — Anexos recebidos
+
+Migration: `inbound_messages` ganha `media_url text`, `media_mime text`, `media_filename text`, `media_size int`.
+
+Handler `on-receive`:
+- Se `body.image`/`body.document`/`body.audio` presentes, extrair URL/mime/filename e persistir.
+- Não fazer download no worker por enquanto (evita explodir bundle). Guardar URL da Z-API como referência; UI marca "link temporário Z-API".
+
+Timeline: renderizar imagem inline, PDF/documento como card clicável, áudio como `<audio controls>`.
+
+## Bloco 10 — Anexos enviados (revisão)
+
+Já funciona. Confirmar TTL da URL assinada = 1h, bucket privado, metadados persistidos. Registrar TODO: bucket `inbox-media` separado (não implementar nesta fase).
+
+## Bloco 11 — Atribuição
+
+Se `assignConversation`/`resolveConversation`/`releaseConversation` não existem, criar. Botões no cabeçalho do chat:
+- "Assumir" (grava `assigned_to`).
+- "Liberar" (se dono).
+- "Resolver" (grava `resolved_at`).
+- Badge "Em atendimento por [nome]".
+- Soft lock: se outro operador tentar responder, dialog de confirmação. Admin sempre passa.
+- Cada ação insere em `conversation_events`.
+
+## Bloco 12 — Histórico
+
+Garantir que `conversation_events` recebe: `mensagem_enviada`, `mensagem_recebida`, `anexo_enviado`, `anexo_recebido`, `assumida`, `liberada`, `resolvida`, `sinalizada`, `erro_envio`, `nota_adicionada`. Maioria já existe via triggers; complementar onde faltar.
+
+Não alterar filtro "Mensagem" do VRM (mensagens avulsas continuam fora).
+
+## Bloco 13 — Mobile
+
+Ajustes CSS no `CommunicationInbox`:
+- Em `< md`: mostrar só uma coluna por vez com tabs (Lista / Chat / Info) e botão "Voltar".
+- `sticky bottom` no compositor, `min-h-0` nos flex containers, `overflow-hidden` nas colunas, garantir teclado não esconde `Enviar`.
+- Testar 360/390/768.
+
+## Bloco 14 — Migrations necessárias
+
+Uma única migration:
+1. `ALTER TABLE direct_messages ADD delivered_at/read_at/failed_at`.
+2. `ALTER TABLE inbound_messages ADD media_url/media_mime/media_filename/media_size`.
+3. `ALTER TABLE conversations ADD from_phone text`, tornar `contact_id` nullable, ajustar unique.
+4. Atualizar trigger `conv_sync_from_inbound` para o novo caminho.
+
+## Ordem de execução
+
+1. Migration (Bloco 14).
+2. Webhook: status em `direct_messages` + inbound sem criar contato + mídia recebida (Blocos 4, 5, 9).
+3. Redirect e menu (Bloco 1).
+4. Permissões cliente/servidor (Bloco 2).
+5. `getWebhookDiagnostics` + rota `on-test` + UI `/whatsapp` (Bloco 3).
+6. Server functions de conversa: filtros novos, `getConversation` enriquecido, vincular/criar-rápido, atribuição (Blocos 5 UI, 6, 7, 11).
+7. `CommunicationInbox`: painel, avisos, timeline com status/anexos recebidos, tabs mobile (Blocos 7, 8, 9, 13).
+
+## Riscos e cuidados
+
+- Não quebrar `campaign_recipients` no handler de status: patch em `direct_messages` é aditivo, num `try/catch` isolado.
+- Trigger `conv_sync_from_inbound` alterado: rodar backfill se necessário para conversas antigas.
+- Não expor `ZAPI_WEBHOOK_SECRET` além das URLs já mostradas.
+- `campaign-media` bucket continua servindo Inbox por enquanto — anotado como débito.
+
+## Fora do escopo
+
+Bot/IA, múltiplas instâncias, HSM, grupos, chamadas, refatoração de Campanhas, bucket separado `inbox-media`, atribuição hard-lock, download de mídia para storage próprio.

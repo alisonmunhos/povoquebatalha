@@ -192,8 +192,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: role } = await context.supabase
       .from("user_roles").select("role").eq("user_id", context.userId)
-      .in("role", ["admin", "operador"]).maybeSingle();
-    if (!role) throw new Error("Apenas admin/operador podem enviar mensagens.");
+      .in("role", ["admin", "vrm", "operador"]).maybeSingle();
+    if (!role) throw new Error("Apenas admin/vrm/operador podem enviar mensagens.");
 
     const { data: c, error } = await context.supabase
       .from("contacts")

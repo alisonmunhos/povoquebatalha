@@ -774,9 +774,10 @@ export type Database = {
       conversations: {
         Row: {
           assigned_to: string | null
-          contact_id: string
+          contact_id: string | null
           created_at: string
           flagged: boolean
+          from_phone: string | null
           id: string
           last_message_at: string | null
           last_message_direction: string | null
@@ -787,9 +788,10 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
-          contact_id: string
+          contact_id?: string | null
           created_at?: string
           flagged?: boolean
+          from_phone?: string | null
           id?: string
           last_message_at?: string | null
           last_message_direction?: string | null
@@ -800,9 +802,10 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
-          contact_id?: string
+          contact_id?: string | null
           created_at?: string
           flagged?: boolean
+          from_phone?: string | null
           id?: string
           last_message_at?: string | null
           last_message_direction?: string | null
@@ -815,7 +818,7 @@ export type Database = {
           {
             foreignKeyName: "conversations_contact_id_fkey"
             columns: ["contact_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
@@ -826,7 +829,9 @@ export type Database = {
           contact_id: string
           conteudo: string
           created_at: string
+          delivered_at: string | null
           erro: string | null
+          failed_at: string | null
           id: string
           inbound_id: string | null
           media_filename: string | null
@@ -834,6 +839,7 @@ export type Database = {
           media_path: string | null
           message_id: string | null
           origem: string
+          read_at: string | null
           sent_by: string | null
           status: string
           template_id: string | null
@@ -843,7 +849,9 @@ export type Database = {
           contact_id: string
           conteudo: string
           created_at?: string
+          delivered_at?: string | null
           erro?: string | null
+          failed_at?: string | null
           id?: string
           inbound_id?: string | null
           media_filename?: string | null
@@ -851,6 +859,7 @@ export type Database = {
           media_path?: string | null
           message_id?: string | null
           origem: string
+          read_at?: string | null
           sent_by?: string | null
           status?: string
           template_id?: string | null
@@ -860,7 +869,9 @@ export type Database = {
           contact_id?: string
           conteudo?: string
           created_at?: string
+          delivered_at?: string | null
           erro?: string | null
+          failed_at?: string | null
           id?: string
           inbound_id?: string | null
           media_filename?: string | null
@@ -868,6 +879,7 @@ export type Database = {
           media_path?: string | null
           message_id?: string | null
           origem?: string
+          read_at?: string | null
           sent_by?: string | null
           status?: string
           template_id?: string | null
@@ -1073,6 +1085,10 @@ export type Database = {
           from_phone: string | null
           id: string
           instance_id: string | null
+          media_filename: string | null
+          media_mime: string | null
+          media_size: number | null
+          media_url: string | null
           payload: Json | null
           read_at: string | null
           received_at: string
@@ -1088,6 +1104,10 @@ export type Database = {
           from_phone?: string | null
           id?: string
           instance_id?: string | null
+          media_filename?: string | null
+          media_mime?: string | null
+          media_size?: number | null
+          media_url?: string | null
           payload?: Json | null
           read_at?: string | null
           received_at?: string
@@ -1103,6 +1123,10 @@ export type Database = {
           from_phone?: string | null
           id?: string
           instance_id?: string | null
+          media_filename?: string | null
+          media_mime?: string | null
+          media_size?: number | null
+          media_url?: string | null
           payload?: Json | null
           read_at?: string | null
           received_at?: string

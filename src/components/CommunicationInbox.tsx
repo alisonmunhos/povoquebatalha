@@ -16,15 +16,22 @@ import {
   listConversations, getConversation, markConversationRead, assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
+  linkConversationToContact, createQuickContactFromConversation,
 } from "@/lib/communication.functions";
 
-type Filter = "all" | "mine" | "unread" | "flagged" | "resolved";
+type Filter =
+  | "all" | "mine" | "unread" | "flagged" | "resolved"
+  | "in_service" | "unlinked" | "with_error" | "opt_out";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "Todas" },
   { key: "mine", label: "Minhas" },
   { key: "unread", label: "Não lidas" },
   { key: "flagged", label: "Sinalizadas" },
+  { key: "in_service", label: "Em atendimento" },
+  { key: "unlinked", label: "Não vinculadas" },
+  { key: "with_error", label: "Com erro" },
+  { key: "opt_out", label: "Opt-out" },
   { key: "resolved", label: "Resolvidas" },
 ];
 
@@ -34,6 +41,7 @@ export function CommunicationInbox() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -67,6 +75,8 @@ export function CommunicationInbox() {
   const staffFn = useServerFn(listCommunicationStaff);
   const searchNewFn = useServerFn(searchContactsForNewChat);
   const signFn = useServerFn(signCampaignMediaUpload);
+  const linkFn = useServerFn(linkConversationToContact);
+  const quickCreateFn = useServerFn(createQuickContactFromConversation);
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", filter, search],
@@ -75,7 +85,10 @@ export function CommunicationInbox() {
   });
 
   const list = listQ.data ?? [];
-  const selected = useMemo(() => list.find((c) => c.contact_id === selectedContactId) ?? null, [list, selectedContactId]);
+  const selected = useMemo(
+    () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
+    [list, selectedContactId, selectedConvId],
+  );
 
   const searchNewQ = useQuery({
     queryKey: ["comm-search-new", search],
@@ -83,10 +96,15 @@ export function CommunicationInbox() {
     enabled: search.trim().length >= 2,
   });
 
+  const convKey = selectedContactId ?? `conv:${selectedConvId ?? ""}`;
   const convQ = useQuery({
-    queryKey: ["comm-conv", selectedContactId],
-    queryFn: () => convFn({ data: { contact_id: selectedContactId! } }),
-    enabled: Boolean(selectedContactId),
+    queryKey: ["comm-conv", convKey],
+    queryFn: () => convFn({
+      data: selectedContactId
+        ? { contact_id: selectedContactId }
+        : { conversation_id: selectedConvId! },
+    }),
+    enabled: Boolean(selectedContactId || selectedConvId),
     refetchInterval: 15000,
   });
 
@@ -100,14 +118,14 @@ export function CommunicationInbox() {
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
         qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
         qc.invalidateQueries({ queryKey: ["comm-badge"] });
-        if (selectedContactId) qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+        qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "inbound_messages" }, () => {
-        if (selectedContactId) qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+        qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [qc, selectedContactId]);
+  }, [qc, selectedContactId, selectedConvId, convKey]);
 
   const readMut = useMutation({
     mutationFn: (contact_id: string) => readFn({ data: { contact_id } }),
@@ -126,7 +144,7 @@ export function CommunicationInbox() {
       setReply("");
       setAttachment(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Mensagem enviada");
     },
@@ -136,7 +154,7 @@ export function CommunicationInbox() {
   const assignMut = useMutation({
     mutationFn: (v: { conversation_id: string; assigned_to: string | null }) => assignFn({ data: v }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
       toast.success("Atribuição atualizada");
@@ -146,7 +164,7 @@ export function CommunicationInbox() {
   const statusMut = useMutation({
     mutationFn: (v: { conversation_id: string; status: "aberta" | "aguardando" | "resolvida" }) => statusFn({ data: v }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       toast.success("Status atualizado");
     },
@@ -161,15 +179,40 @@ export function CommunicationInbox() {
     mutationFn: (v: { conversation_id: string; body: string; mention_user_id?: string }) => noteFn({ data: v }),
     onSuccess: () => {
       setNote("");
-      qc.invalidateQueries({ queryKey: ["comm-conv", selectedContactId] });
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       toast.success("Nota adicionada");
     },
   });
 
-  function openConversation(contactId: string, unread: number) {
+  const linkMut = useMutation({
+    mutationFn: (v: { conversation_id: string; contact_id: string }) => linkFn({ data: v }),
+    onSuccess: (res) => {
+      toast.success("Conversa vinculada");
+      setSelectedContactId(null);
+      setSelectedConvId(res.conversation_id);
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const quickCreateMut = useMutation({
+    mutationFn: (v: { conversation_id: string; nome: string; cidade?: string; uf?: string }) =>
+      quickCreateFn({ data: v }),
+    onSuccess: (res) => {
+      toast.success("Contato criado");
+      setSelectedContactId(res.contact_id);
+      setSelectedConvId(null);
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  function openConversation(contactId: string | null, convId: string | null, unread: number) {
     setSelectedContactId(contactId);
+    setSelectedConvId(contactId ? null : convId);
     setMobilePane("thread");
-    if (unread > 0) readMut.mutate(contactId);
+    if (contactId && unread > 0) readMut.mutate(contactId);
   }
 
   function submitReply() {
@@ -226,7 +269,18 @@ export function CommunicationInbox() {
 
   // Contato ativo do painel direito: usa a conversa existente OU o contato carregado
   // (caso de "iniciar nova conversa" antes da 1ª mensagem sair).
-  const active = selected ?? (contact
+  type ActiveShape = {
+    id: string;
+    contact_id: string | null;
+    nome: string | null;
+    phone: string | null;
+    cidade: string | null;
+    uf: string | null;
+    bairro: string | null;
+    opt_out: boolean;
+    whatsapp_status?: string | null;
+  };
+  const active: ActiveShape | null = selected ?? (contact
     ? {
         id: "",
         contact_id: contact.id,
@@ -236,16 +290,28 @@ export function CommunicationInbox() {
         uf: contact.uf,
         bairro: contact.bairro,
         opt_out: Boolean(contact.opt_out_at),
+        whatsapp_status: contact.whatsapp_status ?? null,
       }
     : null);
 
   const timeline = useMemo(() => {
     type Msg = {
       id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
-      media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+      media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
     };
     const t: Msg[] = [];
-    for (const m of convQ.data?.inbound ?? []) t.push({ id: `in-${m.id}`, kind: "in", text: m.conteudo ?? "", at: m.received_at as string });
+    for (const m of convQ.data?.inbound ?? []) {
+      const inb = m as {
+        id: string; conteudo: string | null; received_at: string;
+        media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+      };
+      t.push({
+        id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
+        media_url: inb.media_url ?? null,
+        media_mime: inb.media_mime ?? null,
+        media_filename: inb.media_filename ?? null,
+      });
+    }
     for (const m of convQ.data?.direct ?? []) t.push({
       id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
       meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? " · erro" : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
@@ -296,9 +362,9 @@ export function CommunicationInbox() {
           {list.map((c) => (
             <button
               key={c.id}
-              onClick={() => openConversation(c.contact_id, c.unread)}
+              onClick={() => openConversation(c.contact_id, c.id, c.unread)}
               className={`w-full text-left px-3 py-2.5 border-b hover:bg-muted/40 transition-colors ${
-                selectedContactId === c.contact_id ? "bg-muted/60" : ""
+                (selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id) ? "bg-muted/60" : ""
               }`}
             >
               <div className="flex justify-between items-baseline gap-2">
@@ -333,7 +399,7 @@ export function CommunicationInbox() {
               {(searchNewQ.data ?? []).map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => openConversation(c.id, 0)}
+                  onClick={() => openConversation(c.id, null, 0)}
                   className="w-full text-left px-3 py-2 border-b hover:bg-background/50"
                 >
                   <div className="text-sm font-medium truncate">{c.nome ?? "Sem nome"}</div>
@@ -406,6 +472,7 @@ export function CommunicationInbox() {
                     m.kind === "out" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-background border rounded-bl-none"
                   }`}>
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
+                    {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
                     <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
                       {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
@@ -415,10 +482,36 @@ export function CommunicationInbox() {
               ))}
             </div>
 
+            {conv && !conv.contact_id && (
+              <UnlinkedBanner
+                phone={conv.from_phone ?? ""}
+                onQuick={(nome, cidade, uf) =>
+                  quickCreateMut.mutate({ conversation_id: conv.id, nome, cidade, uf })
+                }
+                onLink={(contact_id) =>
+                  linkMut.mutate({ conversation_id: conv.id, contact_id })
+                }
+              />
+            )}
+
             <div className="border-t p-3 bg-background space-y-2">
               {!canSend && (
                 <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
-                  {contact?.opt_out_at ? "Contato optou por sair (opt-out). Envio bloqueado." : "Contato sem WhatsApp válido."}
+                  {contact?.opt_out_at
+                    ? "Contato optou por sair (opt-out). Envio bloqueado."
+                    : conv && !conv.contact_id
+                      ? "Vincule esta conversa a um contato antes de responder."
+                      : "Contato sem WhatsApp válido."}
+                </div>
+              )}
+              {canSend && contact && !contact.consentimento_whatsapp && (
+                <div className="text-[11px] text-amber-700 bg-amber-50/60 border border-amber-200/70 rounded-md p-1.5">
+                  ⚠ Contato sem consentimento WhatsApp explícito. Envie apenas se houver base legal.
+                </div>
+              )}
+              {canSend && conv?.assigned_to && conv.assigned_to !== user?.id && (
+                <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-md p-1.5">
+                  Em atendimento por outro operador. Cuidado ao responder.
                 </div>
               )}
               {attachment && (
@@ -513,6 +606,69 @@ export function CommunicationInbox() {
               )}
             </div>
           </div>
+
+          {contact && (
+            <div className="p-4 border-b space-y-1.5 text-xs">
+              {contact.profissao && (
+                <div><span className="text-muted-foreground">Profissão:</span> {contact.profissao}</div>
+              )}
+              {contact.whatsapp_status && (
+                <div>
+                  <span className="text-muted-foreground">WhatsApp:</span>{" "}
+                  <span className={contact.whatsapp_status === "invalid" ? "text-destructive" : ""}>
+                    {contact.whatsapp_status}
+                  </span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Consentimento:</span>{" "}
+                {contact.consentimento_whatsapp
+                  ? <span className="text-emerald-700">sim</span>
+                  : <span className="text-amber-700">não</span>}
+              </div>
+              {contact.opt_out_at && (
+                <div className="text-destructive font-medium">Opt-out ativo desde {fmtDate(contact.opt_out_at)}</div>
+              )}
+              {Array.isArray(contact.formas_ajuda) && contact.formas_ajuda.length > 0 && (
+                <div>
+                  <div className="text-muted-foreground mb-1">Formas de ajuda:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {contact.formas_ajuda.map((f) => (
+                      <span key={f} className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{f}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(convQ.data?.tags?.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-muted-foreground mb-1">Tags:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {(convQ.data?.tags ?? []).map((t) => (
+                      <span
+                        key={t.id}
+                        className="px-1.5 py-0.5 rounded text-[10px] border"
+                        style={t.cor ? { borderColor: t.cor, color: t.cor } : undefined}
+                      >
+                        {t.nome}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(convQ.data?.campaign?.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-muted-foreground mb-1">Últimas campanhas:</div>
+                  <ul className="space-y-0.5">
+                    {(convQ.data?.campaign ?? []).slice(-3).reverse().map((c) => (
+                      <li key={c.id} className="truncate">
+                        · {c.campaign_name ?? "—"} {c.sent_at ? `(${fmtDate(c.sent_at)})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="p-4 border-b space-y-3">
             <div>
@@ -673,5 +829,107 @@ function MessageMedia({ path, mime, filename }: { path: string; mime: string; fi
     <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
       <FileText className="h-4 w-4" /> {filename}
     </a>
+  );
+}
+
+// ---- Renderiza mídia recebida (Z-API entrega URL pública temporária).
+function InboundMedia({ url, mime, filename }: { url: string; mime: string; filename: string }) {
+  if (mime.startsWith("image/")) {
+    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
+  }
+  if (mime.startsWith("audio/")) {
+    return <audio controls src={url} className="mb-1 max-w-full" />;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
+      <FileText className="h-4 w-4" /> {filename}
+    </a>
+  );
+}
+
+// ---- Banner de conversa "não vinculada": criar rápido OU vincular a contato existente.
+function UnlinkedBanner({
+  phone,
+  onQuick,
+  onLink,
+}: {
+  phone: string;
+  onQuick: (nome: string, cidade?: string, uf?: string) => void;
+  onLink: (contact_id: string) => void;
+}) {
+  const [mode, setMode] = useState<"none" | "quick" | "link">("none");
+  const [nome, setNome] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [uf, setUf] = useState("");
+  const [q, setQ] = useState("");
+  const searchFn = useServerFn(searchContactsForNewChat);
+  const searchQ = useQuery({
+    queryKey: ["comm-unlinked-search", q],
+    queryFn: () => searchFn({ data: { q } }),
+    enabled: mode === "link" && q.trim().length >= 2,
+  });
+
+  return (
+    <div className="border-b bg-amber-50/60 p-3 text-xs space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="font-medium text-amber-900">Conversa não vinculada</div>
+          <div className="text-amber-800/80">Número de origem: <span className="font-mono">{phone || "—"}</span></div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button
+            onClick={() => setMode(mode === "quick" ? "none" : "quick")}
+            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100"
+          >
+            Criar contato rápido
+          </button>
+          <button
+            onClick={() => setMode(mode === "link" ? "none" : "link")}
+            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100"
+          >
+            Vincular existente
+          </button>
+        </div>
+      </div>
+      {mode === "quick" && (
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            className="col-span-2 px-2 py-1.5 rounded border bg-background"
+            placeholder="Nome do contato"
+            value={nome} onChange={(e) => setNome(e.target.value)}
+          />
+          <input className="px-2 py-1.5 rounded border bg-background" placeholder="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+          <input className="px-2 py-1.5 rounded border bg-background" placeholder="UF" maxLength={2} value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} />
+          <button
+            disabled={!nome.trim()}
+            onClick={() => onQuick(nome.trim(), cidade || undefined, uf || undefined)}
+            className="col-span-2 px-2 py-1.5 rounded bg-primary text-primary-foreground disabled:opacity-40"
+          >
+            Criar contato e vincular
+          </button>
+        </div>
+      )}
+      {mode === "link" && (
+        <div className="space-y-2">
+          <input
+            className="w-full px-2 py-1.5 rounded border bg-background"
+            placeholder="Buscar contato por nome ou telefone…"
+            value={q} onChange={(e) => setQ(e.target.value)}
+          />
+          <div className="max-h-40 overflow-y-auto rounded border bg-background">
+            {(searchQ.data ?? []).map((c) => (
+              <button key={c.id} onClick={() => onLink(c.id)}
+                className="w-full text-left px-2 py-1.5 border-b hover:bg-muted text-xs">
+                <div className="font-medium truncate">{c.nome ?? "Sem nome"}</div>
+                <div className="text-muted-foreground truncate">{c.phone}</div>
+              </button>
+            ))}
+            {q.trim().length >= 2 && (searchQ.data ?? []).length === 0 && (
+              <div className="text-center text-muted-foreground p-3">Nenhum contato encontrado.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
