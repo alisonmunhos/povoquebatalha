@@ -263,6 +263,8 @@ function ContatoFicha() {
               </div>
             )}
           </Section>
+
+          <TerritorioLogsSection contactId={id} />
         </aside>
       </div>
     </div>
