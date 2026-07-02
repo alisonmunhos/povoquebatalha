@@ -590,3 +590,40 @@ function RetryButton({ id, onDone }: { id: string; onDone: () => void }) {
     </button>
   );
 }
+
+function ManualTrigger({ onDone }: { onDone: () => void }) {
+  const fn = useServerFn(triggerAutomationForContact);
+  const [open, setOpen] = useState(false);
+  const [eventKey, setEventKey] = useState("atualizacao_apoiador_concluida");
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    if (!query.trim()) return toast.error("Informe telefone, nome ou id");
+    setBusy(true);
+    try {
+      const r = await fn({ data: { eventKey, contactQuery: query.trim() } });
+      toast.success(`Disparado para ${r.nome ?? r.contact_id}`);
+      setOpen(false); setQuery("");
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(false); }
+  }
+  if (!open) return (
+    <button onClick={() => setOpen(true)} className="text-xs rounded border px-2 py-1 hover:bg-muted">
+      Disparar por contato
+    </button>
+  );
+  return (
+    <div className="flex items-center gap-1 border rounded-md px-2 py-1 bg-muted/30">
+      <select value={eventKey} onChange={(e) => setEventKey(e.target.value)} className="text-xs bg-transparent outline-none">
+        <option value="atualizacao_apoiador_concluida">Atualização concluída</option>
+        <option value="inscricao_concluida">Inscrição concluída</option>
+      </select>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="nome, telefone ou id" className="w-40 text-xs bg-transparent outline-none" />
+      <button onClick={run} disabled={busy} className="inline-flex items-center gap-1 rounded bg-primary/10 text-primary px-2 py-0.5 text-xs hover:bg-primary/20 disabled:opacity-50">
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Disparar
+      </button>
+      <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">×</button>
+    </div>
+  );
+}
