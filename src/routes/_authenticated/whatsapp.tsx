@@ -210,22 +210,121 @@ function WhatsAppPage() {
         </p>
       </section>
 
-      <section className="mt-8 border rounded-xl p-6 bg-muted/30">
-
-        <h2 className="font-semibold text-sm">Configuração de webhooks</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          No painel Z-API, configure cada evento apontando para a URL abaixo (substituindo o evento)
-          com o token em query string. O token está salvo como secret <code>ZAPI_WEBHOOK_SECRET</code>.
-        </p>
-        <pre className="mt-3 text-xs bg-background border rounded p-3 overflow-x-auto">
-{`https://<seu-projeto>.lovable.app/api/public/zapi/on-send?token=<ZAPI_WEBHOOK_SECRET>
-                                               /on-delivery
-                                               /on-read
-                                               /on-receive
-                                               /on-connect
-                                               /on-disconnect`}
-        </pre>
-      </section>
+      <WebhookDiagnosticsSection />
     </div>
   );
+}
+
+function WebhookDiagnosticsSection() {
+  const diagFn = useServerFn(getWebhookDiagnostics);
+  const q = useQuery({
+    queryKey: ["zapi-webhook-diag"],
+    queryFn: () => diagFn(),
+    refetchInterval: 20000,
+  });
+
+  const d = q.data;
+  const noEvents = d && !d.last_event;
+  const staleReceive =
+    d?.last_receive && Date.now() - new Date(d.last_receive.received_at).getTime() > 24 * 3600 * 1000;
+
+  return (
+    <section className="mt-8 border rounded-xl p-6 bg-card">
+      <div className="flex items-center gap-2">
+        <InboxIcon className="h-5 w-5 text-primary" />
+        <h2 className="font-semibold">Webhooks Z-API — configuração e diagnóstico</h2>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Cole cada URL abaixo no evento correspondente do painel da Z-API (menu Webhooks). Sem isso, o Inbox não recebe mensagens.
+      </p>
+
+      {q.isLoading && <p className="mt-4 text-sm text-muted-foreground">Carregando diagnóstico…</p>}
+
+      {d && (
+        <>
+          <div className="mt-4 grid gap-2">
+            {d.urls.map((u) => (
+              <div key={u.event} className="flex items-center gap-2 border rounded-md p-2 bg-background">
+                <div className="w-40 shrink-0 text-xs font-mono text-muted-foreground">{u.event}</div>
+                <input
+                  readOnly
+                  value={u.url}
+                  className="flex-1 text-xs font-mono px-2 py-1 rounded border bg-muted/40"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(u.url);
+                      toast.success("URL copiada");
+                    } catch { toast.error("Não foi possível copiar"); }
+                  }}
+                  className="text-xs inline-flex items-center gap-1 px-2 py-1 border rounded-md hover:bg-muted"
+                >
+                  <Copy className="h-3 w-3" /> Copiar
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {!d.has_secret && (
+            <p className="mt-3 text-xs text-destructive">Secret <code>ZAPI_WEBHOOK_SECRET</code> ausente — defina em Segredos.</p>
+          )}
+
+          <div className="mt-5 grid md:grid-cols-3 gap-3 text-xs">
+            <div className="border rounded-md p-3 bg-background">
+              <div className="font-semibold mb-1">Último evento recebido</div>
+              {d.last_event ? (
+                <>
+                  <div className="font-mono">{d.last_event.evento}</div>
+                  <div className="text-muted-foreground">{fmt(d.last_event.received_at)}</div>
+                </>
+              ) : (
+                <div className="text-destructive">Nenhum ainda — webhooks não configurados na Z-API.</div>
+              )}
+            </div>
+            <div className="border rounded-md p-3 bg-background">
+              <div className="font-semibold mb-1">Última mensagem recebida (on-receive)</div>
+              {d.last_receive ? (
+                <>
+                  <div className="text-muted-foreground">{fmt(d.last_receive.received_at)}</div>
+                  {staleReceive && <div className="text-amber-700 mt-1">Nenhuma nas últimas 24 h.</div>}
+                </>
+              ) : (
+                <div className="text-amber-700">Nenhuma recebida ainda.</div>
+              )}
+            </div>
+            <div className="border rounded-md p-3 bg-background">
+              <div className="font-semibold mb-1">Instância</div>
+              <div className="text-muted-foreground">Status: {d.instance?.status ?? "—"}</div>
+              <div className="text-muted-foreground">Número: {d.instance?.numero_conectado ?? "—"}</div>
+              <div className="text-muted-foreground">Último ping: {d.instance?.last_ping ? fmt(d.instance.last_ping) : "—"}</div>
+            </div>
+          </div>
+
+          {d.last_error && (
+            <div className="mt-3 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded p-2">
+              Último erro: <b>{d.last_error.evento}</b> — {d.last_error.erro} <span className="text-muted-foreground">({fmt(d.last_error.received_at)})</span>
+            </div>
+          )}
+
+          {noEvents && (
+            <div className="mt-4 text-xs bg-amber-50 border border-amber-200 rounded p-3 text-amber-900">
+              <b>Nenhum webhook chegou ainda.</b> Passo a passo:
+              <ol className="list-decimal ml-5 mt-1 space-y-0.5">
+                <li>Abra o painel da Z-API → sua instância → menu <b>Webhooks</b>.</li>
+                <li>Cole cada URL acima no evento correspondente e salve.</li>
+                <li>Envie uma mensagem do seu celular pareado para o número conectado.</li>
+                <li>Volte aqui e clique em <i>Atualizar</i>.</li>
+              </ol>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function fmt(iso: string) {
+  try { return new Date(iso).toLocaleString("pt-BR"); } catch { return iso; }
 }
