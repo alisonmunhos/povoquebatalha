@@ -126,13 +126,10 @@ export const getWebhookDiagnostics = createServerFn({ method: "GET" })
     ]);
 
     const secret = process.env.ZAPI_WEBHOOK_SECRET ?? "";
-    // Derive base URL da própria requisição (funciona em preview e produção).
-    let base = "https://<seu-projeto>.lovable.app";
-    try {
-      const req = getRequest();
-      const url = new URL(req.url);
-      base = `${url.protocol}//${url.host}`;
-    } catch { /* SSR/prerender: mantém placeholder */ }
+    // SEMPRE usa a URL estável de produção — nunca a de preview (que muda a cada build).
+    // Fallback: domínio project--<id> (imutável mesmo se o projeto for renomeado).
+    const base = "https://povoquebatalha.lovable.app";
+
     const events = ["on-connect", "on-disconnect", "on-send", "on-delivery", "on-read", "on-receive", "on-message-status"];
     const urls = events.map((ev) => ({
       event: ev,
