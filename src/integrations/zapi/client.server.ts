@@ -70,6 +70,17 @@ export const zapi = {
       method: "POST",
       body: JSON.stringify({ phone, image, caption }),
     }),
+  // Envio de documento (PDF etc). Z-API espera /send-document/{extension}
+  sendDocument: (phone: string, documentUrl: string, filename: string, extension: string) =>
+    zapiFetch<{ zaapId?: string; messageId?: string }>(`/send-document/${extension}`, {
+      method: "POST",
+      body: JSON.stringify({ phone, document: documentUrl, fileName: filename }),
+    }),
+  sendAudio: (phone: string, audioUrl: string) =>
+    zapiFetch<{ zaapId?: string; messageId?: string }>("/send-audio", {
+      method: "POST",
+      body: JSON.stringify({ phone, audio: audioUrl }),
+    }),
 };
 
 export function hasZapiEnv(): boolean {
