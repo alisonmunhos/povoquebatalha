@@ -846,3 +846,90 @@ function InboundMedia({ url, mime, filename }: { url: string; mime: string; file
     </a>
   );
 }
+
+// ---- Banner de conversa "não vinculada": criar rápido OU vincular a contato existente.
+function UnlinkedBanner({
+  phone,
+  onQuick,
+  onLink,
+}: {
+  phone: string;
+  onQuick: (nome: string, cidade?: string, uf?: string) => void;
+  onLink: (contact_id: string) => void;
+}) {
+  const [mode, setMode] = useState<"none" | "quick" | "link">("none");
+  const [nome, setNome] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [uf, setUf] = useState("");
+  const [q, setQ] = useState("");
+  const searchFn = useServerFn(searchContactsForNewChat);
+  const searchQ = useQuery({
+    queryKey: ["comm-unlinked-search", q],
+    queryFn: () => searchFn({ data: { q } }),
+    enabled: mode === "link" && q.trim().length >= 2,
+  });
+
+  return (
+    <div className="border-b bg-amber-50/60 p-3 text-xs space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="font-medium text-amber-900">Conversa não vinculada</div>
+          <div className="text-amber-800/80">Número de origem: <span className="font-mono">{phone || "—"}</span></div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button
+            onClick={() => setMode(mode === "quick" ? "none" : "quick")}
+            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100"
+          >
+            Criar contato rápido
+          </button>
+          <button
+            onClick={() => setMode(mode === "link" ? "none" : "link")}
+            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100"
+          >
+            Vincular existente
+          </button>
+        </div>
+      </div>
+      {mode === "quick" && (
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            className="col-span-2 px-2 py-1.5 rounded border bg-background"
+            placeholder="Nome do contato"
+            value={nome} onChange={(e) => setNome(e.target.value)}
+          />
+          <input className="px-2 py-1.5 rounded border bg-background" placeholder="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+          <input className="px-2 py-1.5 rounded border bg-background" placeholder="UF" maxLength={2} value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} />
+          <button
+            disabled={!nome.trim()}
+            onClick={() => onQuick(nome.trim(), cidade || undefined, uf || undefined)}
+            className="col-span-2 px-2 py-1.5 rounded bg-primary text-primary-foreground disabled:opacity-40"
+          >
+            Criar contato e vincular
+          </button>
+        </div>
+      )}
+      {mode === "link" && (
+        <div className="space-y-2">
+          <input
+            className="w-full px-2 py-1.5 rounded border bg-background"
+            placeholder="Buscar contato por nome ou telefone…"
+            value={q} onChange={(e) => setQ(e.target.value)}
+          />
+          <div className="max-h-40 overflow-y-auto rounded border bg-background">
+            {(searchQ.data ?? []).map((c) => (
+              <button key={c.id} onClick={() => onLink(c.id)}
+                className="w-full text-left px-2 py-1.5 border-b hover:bg-muted text-xs">
+                <div className="font-medium truncate">{c.nome ?? "Sem nome"}</div>
+                <div className="text-muted-foreground truncate">{c.phone}</div>
+              </button>
+            ))}
+            {q.trim().length >= 2 && (searchQ.data ?? []).length === 0 && (
+              <div className="text-center text-muted-foreground p-3">Nenhum contato encontrado.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
