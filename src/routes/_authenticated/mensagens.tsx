@@ -252,6 +252,12 @@ function AutomationsPanel() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["automations"], queryFn: () => listFn() });
   const tpls = useQuery({ queryKey: ["message-templates"], queryFn: () => tplFn() });
+  const deliveriesFn = useServerFn(listRecentAutomationDeliveries);
+  const deliveries = useQuery({
+    queryKey: ["automation-deliveries-recent"],
+    queryFn: () => deliveriesFn({ data: { limit: 30 } }),
+    refetchInterval: 15_000,
+  });
   const systemTpls = (tpls.data ?? []).filter((t) => t.kind === "system" && t.active);
 
   const [editing, setEditing] = useState<Partial<Automation> | null>(null);
