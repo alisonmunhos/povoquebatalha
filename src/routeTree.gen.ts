@@ -39,6 +39,8 @@ import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
+import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
+import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
@@ -201,6 +203,18 @@ const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   path: '/contatos/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComunicacaoInboxRoute =
+  AuthenticatedComunicacaoInboxRouteImport.update({
+    id: '/inbox',
+    path: '/inbox',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
+  } as any)
+const AuthenticatedComunicacaoContatosRoute =
+  AuthenticatedComunicacaoContatosRouteImport.update({
+    id: '/contatos',
+    path: '/contatos',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
+  } as any)
 const AuthenticatedCampanhasIdRoute =
   AuthenticatedCampanhasIdRouteImport.update({
     id: '/campanhas/$id',
@@ -260,6 +274,8 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
+  '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
+  '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
@@ -296,6 +312,8 @@ export interface FileRoutesByTo {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
+  '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
+  '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
@@ -335,6 +353,8 @@ export interface FileRoutesById {
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
+  '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
+  '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
@@ -374,6 +394,8 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/opt-out/$token'
     | '/campanhas/$id'
+    | '/comunicacao/contatos'
+    | '/comunicacao/inbox'
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/campanhas/'
@@ -410,6 +432,8 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/opt-out/$token'
     | '/campanhas/$id'
+    | '/comunicacao/contatos'
+    | '/comunicacao/inbox'
     | '/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/campanhas'
@@ -448,6 +472,8 @@ export interface FileRouteTypes {
     | '/_authenticated/whatsapp'
     | '/opt-out/$token'
     | '/_authenticated/campanhas/$id'
+    | '/_authenticated/comunicacao/contatos'
+    | '/_authenticated/comunicacao/inbox'
     | '/_authenticated/contatos/$id'
     | '/api/public/bootstrap-admin'
     | '/_authenticated/campanhas/'
@@ -691,6 +717,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedContatosIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comunicacao/inbox': {
+      id: '/_authenticated/comunicacao/inbox'
+      path: '/inbox'
+      fullPath: '/comunicacao/inbox'
+      preLoaderRoute: typeof AuthenticatedComunicacaoInboxRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
+    }
+    '/_authenticated/comunicacao/contatos': {
+      id: '/_authenticated/comunicacao/contatos'
+      path: '/contatos'
+      fullPath: '/comunicacao/contatos'
+      preLoaderRoute: typeof AuthenticatedComunicacaoContatosRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
+    }
     '/_authenticated/campanhas/$id': {
       id: '/_authenticated/campanhas/$id'
       path: '/campanhas/$id'
@@ -737,11 +777,16 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedComunicacaoRouteChildren {
+  AuthenticatedComunicacaoContatosRoute: typeof AuthenticatedComunicacaoContatosRoute
+  AuthenticatedComunicacaoInboxRoute: typeof AuthenticatedComunicacaoInboxRoute
   AuthenticatedComunicacaoIndexRoute: typeof AuthenticatedComunicacaoIndexRoute
 }
 
 const AuthenticatedComunicacaoRouteChildren: AuthenticatedComunicacaoRouteChildren =
   {
+    AuthenticatedComunicacaoContatosRoute:
+      AuthenticatedComunicacaoContatosRoute,
+    AuthenticatedComunicacaoInboxRoute: AuthenticatedComunicacaoInboxRoute,
     AuthenticatedComunicacaoIndexRoute: AuthenticatedComunicacaoIndexRoute,
   }
 
