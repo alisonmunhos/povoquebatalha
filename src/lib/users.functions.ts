@@ -110,7 +110,7 @@ export const deleteUser = createServerFn({ method: "POST" })
 
 const setRoleSchema = z.object({
   userId: z.string().uuid(),
-  role: z.enum(["admin", "operador", "leitor"]),
+  role: z.enum(["admin", "operador", "leitor", "vrm", "territorio"]),
 });
 
 export const setUserRole = createServerFn({ method: "POST" })
@@ -126,3 +126,4 @@ export const setUserRole = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
