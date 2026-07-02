@@ -206,3 +206,18 @@ export const listContactAutomationDeliveries = createServerFn({ method: "GET" })
     if (error) throw error;
     return rows ?? [];
   });
+
+// Últimas entregas globais (para o painel de automações)
+export const listRecentAutomationDeliveries = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ limit: z.number().int().min(1).max(200).default(50) }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("automation_deliveries")
+      .select("id, status, error, sent_at, created_at, contact:contacts(id, nome, phone_e164), automation:automations(event_key), template:message_templates(title)")
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (error) throw error;
+    return rows ?? [];
+  });
+
