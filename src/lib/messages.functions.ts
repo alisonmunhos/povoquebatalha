@@ -13,6 +13,9 @@ const templateSchema = z.object({
   variables: z.array(z.string()).max(20).default([]),
   link: z.string().trim().max(500).optional().nullable(),
   media_url: z.string().trim().max(500).optional().nullable(),
+  media_path: z.string().trim().max(500).optional().nullable(),
+  media_mime: z.string().trim().max(120).optional().nullable(),
+  media_filename: z.string().trim().max(200).optional().nullable(),
   active: z.boolean().default(true),
 });
 
