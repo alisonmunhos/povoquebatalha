@@ -497,7 +497,21 @@ export function CommunicationInbox() {
             <div className="border-t p-3 bg-background space-y-2">
               {!canSend && (
                 <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
-                  {contact?.opt_out_at ? "Contato optou por sair (opt-out). Envio bloqueado." : "Contato sem WhatsApp válido."}
+                  {contact?.opt_out_at
+                    ? "Contato optou por sair (opt-out). Envio bloqueado."
+                    : conv && !conv.contact_id
+                      ? "Vincule esta conversa a um contato antes de responder."
+                      : "Contato sem WhatsApp válido."}
+                </div>
+              )}
+              {canSend && contact && !contact.consentimento_whatsapp && (
+                <div className="text-[11px] text-amber-700 bg-amber-50/60 border border-amber-200/70 rounded-md p-1.5">
+                  ⚠ Contato sem consentimento WhatsApp explícito. Envie apenas se houver base legal.
+                </div>
+              )}
+              {canSend && conv?.assigned_to && conv.assigned_to !== user?.id && (
+                <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-md p-1.5">
+                  Em atendimento por outro operador. Cuidado ao responder.
                 </div>
               )}
               {attachment && (
