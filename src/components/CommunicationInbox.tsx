@@ -122,7 +122,7 @@ export function CommunicationInbox() {
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [qc, selectedContactId]);
+  }, [qc, selectedContactId, selectedConvId, convKey]);
 
   const readMut = useMutation({
     mutationFn: (contact_id: string) => readFn({ data: { contact_id } }),
