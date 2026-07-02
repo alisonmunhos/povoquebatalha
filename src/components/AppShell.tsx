@@ -10,7 +10,6 @@ import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
 
-// roles undefined = visível para todos os autenticados
 const groups: NavGroup[] = [
   {
     label: "",
@@ -31,8 +30,8 @@ const groups: NavGroup[] = [
   {
     label: "Território",
     items: [
-      { to: "/territorio", label: "Território", icon: Compass, hint: "Visão do meu território (mobile-first).", roles: ["admin", "operador", "vrm", "territorio"] },
-      { to: "/mapa", label: "Mapa", icon: MapPin, hint: "Visualize contatos e públicos filtrados por território.", roles: ["admin", "operador", "vrm", "territorio"] },
+      { to: "/territorio", label: "Território", icon: Compass, hint: "Mini-app mobile-first.", roles: ["admin", "operador", "vrm", "territorio"] },
+      { to: "/mapa", label: "Mapa", icon: MapPin, hint: "Visualize contatos geolocalizados.", roles: ["admin", "operador", "vrm"] },
     ],
   },
   {
@@ -41,7 +40,7 @@ const groups: NavGroup[] = [
       { to: "/mensagens", label: "Mensagens", icon: MessageSquareText, roles: ["admin", "operador", "vrm"] },
       { to: "/campanhas", label: "Campanhas", icon: Send, roles: ["admin", "operador"] },
       { to: "/calendario", label: "Calendário", icon: Calendar, roles: ["admin", "operador", "vrm"] },
-      { to: "/relacionamento", label: "Relacionamento", icon: Heart, hint: "Acompanhe comportamento, mensagens, respostas, erros e reenvios.", roles: ["admin", "operador", "vrm"] },
+      { to: "/relacionamento", label: "Relacionamento", icon: Heart, roles: ["admin", "operador", "vrm"] },
       { to: "/inbox", label: "Inbox", icon: InboxIcon, roles: ["admin", "operador", "vrm"] },
     ],
   },
@@ -58,14 +57,19 @@ const groups: NavGroup[] = [
 export function AppShell() {
   const router = useRouter();
   const { user } = useAuth();
-  const roles = useRoles(user?.id) ?? [];
+  const rolesRaw = useRoles(user?.id);
+  const roles = rolesRaw ?? [];
   const currentPath = router.state.location.pathname;
 
-  // Se ainda não há papel definido, mostra tudo (admin inicial) — depois filtra
+  const isTerritorioOnly =
+    !!rolesRaw &&
+    roles.includes("territorio") &&
+    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm");
+
   const hasRoles = roles.length > 0;
   function canSee(item: NavItem) {
     if (!item.roles) return true;
-    if (!hasRoles) return roles.includes("admin"); // sem papéis carregados ainda
+    if (!hasRoles) return roles.includes("admin");
     return item.roles.some((r) => roles.includes(r));
   }
 
@@ -77,6 +81,35 @@ export function AppShell() {
   async function handleLogout() {
     await supabase.auth.signOut();
     router.navigate({ to: "/auth" });
+  }
+
+  // Territorio-only: mini-app shell (no sidebar, no top nav)
+  if (isTerritorioOnly) {
+    return (
+      <div className="min-h-dvh bg-background flex flex-col">
+        <header className="border-b bg-card sticky top-0 z-10">
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Compass className="h-5 w-5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground leading-tight">Modo Território</div>
+                <div className="text-sm font-semibold truncate">Povo que Batalha</div>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+              aria-label="Sair"
+            >
+              <LogOut className="h-4 w-4" /> Sair
+            </button>
+          </div>
+        </header>
+        <main className="flex-1 min-w-0">
+          <Outlet />
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -91,34 +124,38 @@ export function AppShell() {
           </div>
         </div>
         <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
-          {groups.map((group, gi) => (
-            <div key={gi} className="space-y-1">
-              {group.label && (
-                <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                  {group.label}
-                </div>
-              )}
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.to);
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    title={item.hint}
-                    className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
-                      active
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+          {groups.map((group, gi) => {
+            const visibleItems = group.items.filter(canSee);
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={gi} className="space-y-1">
+                {group.label && (
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                    {group.label}
+                  </div>
+                )}
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.to);
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      title={item.hint}
+                      className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
+                        active
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                          : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
         <div className="border-t border-sidebar-border p-3 space-y-2">
           <div className="text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>
