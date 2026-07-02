@@ -51,6 +51,8 @@ function Contatos() {
   const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
+  // Ordenação: nome A→Z é o padrão pedido; ciclo asc → desc → recent
+  const [sort, setSort] = useState<"name" | "name-desc" | "recent">("name");
   const pageSize = 25;
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
