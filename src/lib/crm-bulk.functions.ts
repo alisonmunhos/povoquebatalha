@@ -8,7 +8,7 @@ const listSchema = z.object({
   filters: crmFilterSchema.partial().default({}),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(25),
-  sort: z.enum(["recent", "name"]).default("recent"),
+  sort: z.enum(["recent", "name", "name-desc"]).default("recent"),
 });
 
 export const listContactsRich = createServerFn({ method: "POST" })
@@ -25,6 +25,7 @@ export const listContactsRich = createServerFn({ method: "POST" })
       )
       .range(from, to);
     if (data.sort === "name") q = q.order("nome", { ascending: true });
+    else if (data.sort === "name-desc") q = q.order("nome", { ascending: false });
     else q = q.order("created_at", { ascending: false });
     q = applyCrmFilters(q as never, data.filters as CrmFilters);
 
