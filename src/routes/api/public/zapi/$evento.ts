@@ -114,7 +114,8 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
                     .insert({
                       nome: senderName ?? `WhatsApp ${digits.slice(-4)}`,
                       phone_raw: phone,
-                      origem: "inbound_whatsapp",
+                      origem: "manual",
+                      origem_detalhe: "inbound_whatsapp",
                       consentimento_whatsapp: true,
                     })
                     .select("id")
