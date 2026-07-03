@@ -7,7 +7,7 @@ import { getTerritoryOverview, listTerritoryContacts, getMyFieldSummaryToday } f
 import { logTerritoryAction, undoLastTerritoryLog, resetTerritoryContact } from "@/lib/territory-logs.functions";
 import {
   Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2,
-  StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle, RotateCcw, History,
+  StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle, RotateCcw, History, FileText,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
