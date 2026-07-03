@@ -476,6 +476,12 @@ function FieldAction() {
           >Próxima</button>
         </div>
       )}
+
+      <TerritoryContactLogDrawer
+        contact={drawerContact}
+        open={!!drawerContact}
+        onOpenChange={(o) => { if (!o) setDrawerContact(null); }}
+      />
     </div>
   );
 }
