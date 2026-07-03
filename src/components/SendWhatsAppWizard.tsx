@@ -178,6 +178,18 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
     return personalize(mensagem, first);
   }, [mensagem, audienceQ.data]);
 
+  const plannedEndpoint: PlannedEndpoint = useMemo(() => {
+    if (uploadInfo) {
+      if (uploadInfo.mime === "application/pdf") return "send-document";
+      if (uploadInfo.mime.startsWith("image/")) return "send-image";
+      if (uploadInfo.mime.startsWith("audio/")) return "send-audio";
+      return "send-document";
+    }
+    const hasUrl = /https?:\/\/\S+/i.test(mensagem) || linkUrl.trim().length > 0;
+    // send-link só quando UI/instância confirmarem — nesta fase, mantemos send-text.
+    return hasUrl ? "send-text" : "send-text";
+  }, [uploadInfo, mensagem, linkUrl]);
+
   function applyTemplate(id: string) {
     setTemplateId(id);
     const t = (templatesQ.data ?? []).find((x) => x.id === id) as { id: string; body: string; title: string; link?: string | null } | undefined;
