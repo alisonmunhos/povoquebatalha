@@ -92,8 +92,23 @@ function FieldAction() {
   const overviewFn = useServerFn(getTerritoryOverview);
   const listFn = useServerFn(listTerritoryContacts);
   const logFn = useServerFn(logTerritoryAction);
+  const undoFn = useServerFn(undoLastTerritoryLog);
   const summaryFn = useServerFn(getMyFieldSummaryToday);
   const qc = useQueryClient();
+
+  const undoMut = useMutation({
+    mutationFn: (v: { contactId: string }) => undoFn({ data: v }),
+    onSuccess: (res) => {
+      if (res?.ok) {
+        toast.success("Ação desfeita");
+        qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+        qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
+      } else {
+        toast.info("Nada recente para desfazer");
+      }
+    },
+    onError: (e) => toast.error("Não foi possível desfazer", { description: e instanceof Error ? e.message : undefined }),
+  });
 
   const overview = useSuspenseQuery({
     queryKey: ["territory-overview"],
