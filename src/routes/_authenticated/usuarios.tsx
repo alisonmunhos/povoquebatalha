@@ -291,13 +291,7 @@ function UsuariosPage() {
                             onClick={() => {
                               const first = prompt(`REJEITAR o cadastro de ${p.full_name ?? p.email}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`);
                               if (first !== "REJEITAR") return;
-                              act(async () => {
-                                await remove({ data: { userId: p.id } });
-                                // Marcador de auditoria específico do rejeito
-                                try {
-                                  await fetch("/api/public/forms/cadastro-agitador", { method: "OPTIONS" });
-                                } catch { /* noop */ }
-                              }, "Cadastro rejeitado.");
+                              act(() => reject({ data: { userId: p.id } }), "Cadastro rejeitado.");
                             }}
                             className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
                           >
