@@ -44,6 +44,7 @@ export const runGeocodingBatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => runSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { geocodeAddress } = await import("@/lib/cep.server");
 
