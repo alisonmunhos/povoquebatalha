@@ -272,7 +272,7 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
     // 5) Create queued recipients with rendered messages (com link ao final quando houver)
     const rows = elegiveis.map((c) => ({
       campaign_id: ins.id, contact_id: c.id,
-      rendered_message: ensureLinkInBody(personalize(data.mensagem_template, c), data.link_url),
+      rendered_message: ensureLinkInBody(renderVars(data.mensagem_template, c), data.link_url),
       status: "queued" as const,
     }));
     for (let i = 0; i < rows.length; i += 500) {
@@ -324,7 +324,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
     }
     const exemplos = elegiveis.slice(0, 3).map((r) => ({
       nome: r.nome, cidade: r.cidade, phone: r.phone_e164,
-      preview: ensureLinkInBody(personalize(c.mensagem_template, r), c.link_url),
+      preview: ensureLinkInBody(renderVars(c.mensagem_template, r), c.link_url),
     }));
 
     return {
@@ -388,7 +388,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const rows = elegiveis.map((c2) => ({
       campaign_id: data.id, contact_id: c2.id,
-      rendered_message: ensureLinkInBody(personalize(c.mensagem_template, c2), c.link_url),
+      rendered_message: ensureLinkInBody(renderVars(c.mensagem_template, c2), c.link_url),
       status: "queued" as const,
     }));
 
