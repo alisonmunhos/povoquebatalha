@@ -328,8 +328,7 @@ function UsuariosPage() {
                   </thead>
                   <tbody>
                     {ativos.map((u) => {
-                      const currentRole = (u.roles[0] ?? "leitor") as
-                        | "admin" | "operador" | "leitor" | "vrm" | "territorio";
+                      const currentRole = (u.roles[0] ?? "leitor") as InviteRole;
                       return (
                         <tr key={u.id} className="border-t">
                           <td className="px-4 py-2 max-w-[220px] truncate" title={u.email}>{u.email}</td>
