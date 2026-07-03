@@ -1,21 +1,21 @@
-## Ajuste de texto na Central de Acesso
+## Corrigir botão "Minha localização" no navegador web
 
-O usuário apontou uma contradição na descrição de "Excluir conta" em `/usuarios`: dizemos que é possível convidar o mesmo e-mail do zero, mas também que "não é reversível".
+**Sintoma:** no desktop / navegador, o botão de GPS no mapa (`/territorio` → aba Mapa) não faz nada — o navegador nem chega a pedir autorização de localização.
 
-Na verdade são duas coisas diferentes:
-- **Reversível** = recuperar a conta antiga com histórico, papéis e vínculos preservados (isso não dá).
-- **Convidar de novo** = criar uma conta nova, do zero, para o mesmo e-mail (isso dá, mas é outra conta).
+**Causa provável:**
+1. No preview do Lovable (iframe), a Geolocation API é bloqueada silenciosamente quando o iframe pai não tem `allow="geolocation"`. Nesse caso `getCurrentPosition` dispara `PERMISSION_DENIED` sem exibir o popup do navegador — usuário percebe como "não acontece nada" (o toast atual só diz "Permissão negada", sem explicar).
+2. Se o usuário já negou uma vez no domínio, o navegador não pergunta de novo até ele reabilitar manualmente nas configurações do site.
 
-### Alteração proposta
+O código atual já chama `navigator.geolocation.getCurrentPosition` diretamente dentro do handler de clique, então a "gesture chain" está correta — o problema é de permissão/contexto, não de código.
 
-Arquivo: `src/routes/_authenticated/usuarios.tsx` (linha ~206)
+### Alterações em `src/components/TerritoryMapView.tsx` (função `handleLocate`)
 
-Trocar:
+1. **Detectar iframe** (`window.self !== window.top`) antes de chamar a API. Se estiver em iframe, mostrar toast com botão "Abrir em nova aba" apontando para a URL atual (`window.open(window.location.href, "_blank")`) — o preview do Lovable roda em iframe e não permite geolocalização.
+2. **Consultar `navigator.permissions.query({ name: "geolocation" })`** (quando disponível) antes de disparar:
+   - `granted` → segue direto.
+   - `prompt` → segue direto (o navegador vai perguntar).
+   - `denied` → mostra toast explicando como reabilitar (ícone de cadeado na barra de endereço → Permissões → Localização → Permitir) sem chamar a API.
+3. **Mensagens de erro mais claras** no callback de erro do `getCurrentPosition`, diferenciando `PERMISSION_DENIED`, `POSITION_UNAVAILABLE` e `TIMEOUT`, com instrução prática em cada uma.
+4. **Aumentar `timeout`** de 10s para 15s e permitir `maximumAge` maior (30s) para reduzir falha em desktops sem GPS que dependem de Wi-Fi.
 
-> **Excluir conta** — apaga o usuário do sistema. Permite convidar o mesmo e-mail do zero. Não é reversível.
-
-Por:
-
-> **Excluir conta** — remove permanentemente o usuário, seus papéis e o histórico de acesso. A ação não pode ser desfeita: você pode convidar o mesmo e-mail novamente, mas será uma conta nova, sem o histórico anterior.
-
-Sem mudanças de lógica, banco ou permissões — apenas texto explicativo.
+Sem mudanças no fluxo assíncrono principal nem em backend — apenas guardas e mensagens no handler do botão.
