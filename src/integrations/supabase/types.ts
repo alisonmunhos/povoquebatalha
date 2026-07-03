@@ -158,8 +158,10 @@ export type Database = {
           contact_id: string
           created_at: string
           delivered_at: string | null
+          endpoint_used: string | null
           erro: string | null
           failed_at: string | null
+          fallback_reason: string | null
           id: string
           message_id: string | null
           read_at: string | null
@@ -175,8 +177,10 @@ export type Database = {
           contact_id: string
           created_at?: string
           delivered_at?: string | null
+          endpoint_used?: string | null
           erro?: string | null
           failed_at?: string | null
+          fallback_reason?: string | null
           id?: string
           message_id?: string | null
           read_at?: string | null
@@ -192,8 +196,10 @@ export type Database = {
           contact_id?: string
           created_at?: string
           delivered_at?: string | null
+          endpoint_used?: string | null
           erro?: string | null
           failed_at?: string | null
+          fallback_reason?: string | null
           id?: string
           message_id?: string | null
           read_at?: string | null
@@ -845,15 +851,22 @@ export type Database = {
           conteudo: string
           created_at: string
           delivered_at: string | null
+          endpoint_used: string | null
           erro: string | null
           failed_at: string | null
+          fallback_reason: string | null
           id: string
           inbound_id: string | null
+          link_description: string | null
+          link_image: string | null
+          link_title: string | null
+          link_url: string | null
           media_filename: string | null
           media_mime: string | null
           media_path: string | null
           message_id: string | null
           origem: string
+          preview_status: string | null
           read_at: string | null
           sent_by: string | null
           status: string
@@ -865,15 +878,22 @@ export type Database = {
           conteudo: string
           created_at?: string
           delivered_at?: string | null
+          endpoint_used?: string | null
           erro?: string | null
           failed_at?: string | null
+          fallback_reason?: string | null
           id?: string
           inbound_id?: string | null
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
           media_filename?: string | null
           media_mime?: string | null
           media_path?: string | null
           message_id?: string | null
           origem: string
+          preview_status?: string | null
           read_at?: string | null
           sent_by?: string | null
           status?: string
@@ -885,15 +905,22 @@ export type Database = {
           conteudo?: string
           created_at?: string
           delivered_at?: string | null
+          endpoint_used?: string | null
           erro?: string | null
           failed_at?: string | null
+          fallback_reason?: string | null
           id?: string
           inbound_id?: string | null
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
           media_filename?: string | null
           media_mime?: string | null
           media_path?: string | null
           message_id?: string | null
           origem?: string
+          preview_status?: string | null
           read_at?: string | null
           sent_by?: string | null
           status?: string
