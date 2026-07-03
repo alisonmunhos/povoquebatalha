@@ -309,15 +309,49 @@ function FieldAction() {
             const isNoteOpen = openNote === c.id;
             const isPending = pendingContactId === c.id;
             const la = c.last_action;
+            const pending = c.pending_count ?? 0;
+            const openDrawer = () => setDrawerContact(c);
+            const stop = (e: React.MouseEvent | React.KeyboardEvent) => e.stopPropagation();
             return (
-              <li key={c.id} className="p-3 space-y-2">
+              <li
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={openDrawer}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openDrawer();
+                  }
+                }}
+                className="p-3 space-y-2 cursor-pointer hover:bg-accent/40 focus:outline-none focus:bg-accent/40 transition-colors"
+                title="Clique para ver o histórico completo"
+              >
                 <div>
-                  <div className="font-medium truncate">{c.nome ?? "(sem nome)"}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {[c.bairro, c.cidade, c.uf].filter(Boolean).join(" • ") || "sem endereço"}
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{c.nome ?? "(sem nome)"}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {[c.bairro, c.cidade, c.uf].filter(Boolean).join(" • ") || "sem endereço"}
+                      </div>
+                    </div>
+                    {pending > 0 && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold">
+                        {pending} pendente{pending === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    <History className="h-4 w-4 text-muted-foreground shrink-0" />
                   </div>
                   <div className="text-[11px] mt-1 flex flex-wrap gap-1 items-center">
-                    {la && <LastActionBadge action={la.action} at={la.created_at} />}
+                    {la && (
+                      <button
+                        onClick={(e) => { stop(e); openDrawer(); }}
+                        className="inline-flex items-center hover:opacity-80"
+                        title="Ver histórico"
+                      >
+                        <LastActionBadge action={la.action} at={la.created_at} />
+                      </button>
+                    )}
                     {c.opt_out_at && <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">opt-out</span>}
                     {c.consentimento_whatsapp && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">WhatsApp</span>}
                     {c.lifecycle_status === "importado_aguardando_recadastro" && (
@@ -326,10 +360,13 @@ function FieldAction() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2" onClick={stop}>
                   <a
                     href={canWa ? waHref(c.phone_e164 as string, c.nome) : undefined}
-                    onClick={() => canWa && logMut.mutate({ contactId: c.id, action: "whatsapp_aberto" })}
+                    onClick={(e) => {
+                      stop(e);
+                      if (canWa) logMut.mutate({ contactId: c.id, action: "whatsapp_aberto" });
+                    }}
                     target="_blank"
                     rel="noreferrer"
                     aria-disabled={!canWa}
@@ -343,7 +380,7 @@ function FieldAction() {
                   </a>
                   <button
                     disabled={isPending}
-                    onClick={() => logMut.mutate({ contactId: c.id, action: "contato_realizado" })}
+                    onClick={(e) => { stop(e); logMut.mutate({ contactId: c.id, action: "contato_realizado" }); }}
                     className="h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium border hover:bg-accent disabled:opacity-60"
                   >
                     {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -351,13 +388,13 @@ function FieldAction() {
                   </button>
                   <button
                     disabled={isPending}
-                    onClick={() => logMut.mutate({ contactId: c.id, action: "nao_encontrado" })}
+                    onClick={(e) => { stop(e); logMut.mutate({ contactId: c.id, action: "nao_encontrado" }); }}
                     className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent disabled:opacity-60"
                   >
                     <UserX className="h-3.5 w-3.5" /> Não encontrado
                   </button>
                   <button
-                    onClick={() => { setOpenNote(isNoteOpen ? null : c.id); setNoteText(""); }}
+                    onClick={(e) => { stop(e); setOpenNote(isNoteOpen ? null : c.id); setNoteText(""); }}
                     className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent"
                   >
                     <StickyNote className="h-3.5 w-3.5" /> {isNoteOpen ? "Cancelar" : "Observação"}
@@ -367,7 +404,8 @@ function FieldAction() {
                 {la && (
                   <button
                     disabled={resetMut.isPending && resetMut.variables?.contactId === c.id}
-                    onClick={() => {
+                    onClick={(e) => {
+                      stop(e);
                       if (window.confirm("Voltar este contato para 'Ainda não abordado'? Isso apaga o histórico de campo dele.")) {
                         resetMut.mutate({ contactId: c.id });
                       }
@@ -378,14 +416,8 @@ function FieldAction() {
                   </button>
                 )}
 
-                {la?.note && !isNoteOpen && (
-                  <div className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1 border">
-                    <span className="font-medium text-foreground">Última obs.:</span> {la.note}
-                  </div>
-                )}
-
                 {isNoteOpen && (
-                  <div className="space-y-2">
+                  <div className="space-y-2" onClick={stop}>
                     <textarea
                       value={noteText}
                       onChange={(e) => setNoteText(e.target.value)}
