@@ -8,7 +8,7 @@ export const Route = createFileRoute("/aceitar-convite")({
   head: () => ({
     meta: [{ title: "Criar sua conta — Campanha do Povo que Batalha" }],
   }),
-  component: AceitarConvite;
+  component: AceitarConvite,
 });
 
 type State =
