@@ -5,12 +5,15 @@ import { useState, useEffect } from "react";
 import {
   getContact, updateContact, archiveContact, setOptOut,
   getContactHistory, listAllTags, createTag, setContactTag,
+  deleteContact,
 } from "@/lib/contacts.functions";
 import { listContactTerritoryLogs } from "@/lib/territory-logs.functions";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
-import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
+import { useCurrentUserRole } from "@/hooks/use-current-role";
 
 const TIPO_OPTIONS = [
   { v: "apoiador", l: "Apoiador" }, { v: "voluntario", l: "Voluntário" },
@@ -47,6 +50,10 @@ function ContatoFicha() {
   const tagsFn = useServerFn(listAllTags);
   const createTagFn = useServerFn(createTag);
   const setTagFn = useServerFn(setContactTag);
+  const deleteFn = useServerFn(deleteContact);
+  const role = useCurrentUserRole();
+  const isAdmin = role === "admin";
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const q = useQuery({ queryKey: ["contact", id], queryFn: () => getFn({ data: { id } }) });
   const hist = useQuery({ queryKey: ["contact-history", id], queryFn: () => historyFn({ data: { id } }) });
