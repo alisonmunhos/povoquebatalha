@@ -59,12 +59,20 @@ export type SendInput = {
   text: string;
   /** Se o chamador já resolveu as variáveis, marcar true para pular render. */
   textAlreadyRendered?: boolean;
+  /** Opções de render (origin usado para montar link_atualizacao/recadastro/inscricao). */
+  renderOptions?: RenderOptions;
   /** Link estruturado (com metadados OG opcionais). Se omitido, motor detecta URL no texto. */
   link?: SendLinkMeta | null;
   attachment?: SendAttachment | null;
   origin: SendOrigin;
   /** Feature flag por instância. Se false, nunca usa POST /send-link. */
   useSendLink?: boolean;
+  /**
+   * Se true, sendMessage NÃO executa as validações internas de opt-out/consentimento/whatsapp_status
+   * (usado quando o chamador já fez pré-check e não quer duplicidade). A checagem de telefone
+   * continua sendo feita — sem telefone não há como enviar.
+   */
+  skipValidations?: boolean;
 };
 
 export type SendResult = {
