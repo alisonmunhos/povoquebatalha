@@ -786,6 +786,22 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Botão "Voltar" do celular fecha o painel em vez de sair da tela
+  useEffect(() => {
+    if (!overlay) return;
+    const state = { __territoryPanel: true, ts: Date.now() };
+    try { window.history.pushState(state, ""); } catch { /* noop */ }
+    const onPop = () => { onClose(); };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // Se ainda estamos no state que empurramos, desfazemos para não poluir o histórico
+      if (window.history.state && (window.history.state as { __territoryPanel?: boolean }).__territoryPanel) {
+        try { window.history.back(); } catch { /* noop */ }
+      }
+    };
+  }, [overlay, onClose]);
+
   // Swipe-down para fechar (mobile)
   const sheetRef = useRef<HTMLElement>(null);
   const dragStartY = useRef<number | null>(null);
