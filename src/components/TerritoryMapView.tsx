@@ -714,7 +714,7 @@ function escapeHtml(s: string) {
 }
 
 // ---------- Contact detail panel ----------
-function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: () => void }) {
+export function MapDetailPanel({ contactId, onClose, overlay = false }: { contactId: string; onClose: () => void; overlay?: boolean }) {
   const detailFn = useServerFn(getMapContactDetail);
   const quickFn = useServerFn(listQuickReplies);
   const sendFn = useServerFn(sendDirectMessage);
