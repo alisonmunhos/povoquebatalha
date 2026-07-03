@@ -7,7 +7,7 @@
 // Import típico:  const { sendMessage } = await import("@/lib/wa-send.server");
 
 type ContactCtx = {
-  id: string;
+  id?: string;
   nome?: string | null;
   cidade?: string | null;
   bairro?: string | null;
