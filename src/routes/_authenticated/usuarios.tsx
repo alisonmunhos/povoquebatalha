@@ -204,13 +204,15 @@ function UsuariosPage() {
             className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
           />
           <select
-            value={role} onChange={(e) => setRole(e.target.value as typeof role)}
+            value={role} onChange={(e) => setRole(e.target.value as InviteRole)}
             className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
           >
             <option value="admin">Admin</option>
             <option value="operador">Operador</option>
             <option value="vrm">VRM (Relacionamento)</option>
+            <option value="comunicacao">Comunicação</option>
             <option value="territorio">Território</option>
+            <option value="agitador">Agitador</option>
             <option value="leitor">Leitor</option>
           </select>
           <button type="submit" disabled={submitting}
