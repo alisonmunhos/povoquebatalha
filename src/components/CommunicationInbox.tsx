@@ -16,8 +16,20 @@ import {
   listConversations, getConversation, markConversationRead, assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
-  linkConversationToContact, createQuickContactFromConversation,
+  linkConversationToContact,
 } from "@/lib/communication.functions";
+import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
+
+// LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
+// Ex.: "217879546974326@lid".
+function isLidPhone(v?: string | null): boolean {
+  return Boolean(v && /@lid$/i.test(v));
+}
+function displayPhone(v?: string | null): string {
+  if (!v) return "—";
+  if (isLidPhone(v)) return "Contato anônimo (WhatsApp)";
+  return v;
+}
 
 type Filter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
