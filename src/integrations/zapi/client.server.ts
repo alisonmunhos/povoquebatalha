@@ -81,6 +81,29 @@ export const zapi = {
       method: "POST",
       body: JSON.stringify({ phone, audio: audioUrl }),
     }),
+  // Envio de link com preview forçado (título/descrição/imagem controlados).
+  // Payload conforme Z-API: message, linkUrl, title, linkDescription, image, linkType.
+  sendLink: (payload: {
+    phone: string;
+    message: string;
+    linkUrl: string;
+    title?: string;
+    linkDescription?: string;
+    image?: string;
+    linkType?: string;
+  }) =>
+    zapiFetch<{ zaapId?: string; messageId?: string; id?: string }>("/send-link", {
+      method: "POST",
+      body: JSON.stringify({
+        phone: payload.phone,
+        message: payload.message,
+        linkUrl: payload.linkUrl,
+        title: payload.title ?? "",
+        linkDescription: payload.linkDescription ?? "",
+        image: payload.image ?? "",
+        linkType: payload.linkType ?? "LARGE",
+      }),
+    }),
 };
 
 export function hasZapiEnv(): boolean {
