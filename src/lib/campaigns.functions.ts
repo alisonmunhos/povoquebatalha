@@ -329,19 +329,28 @@ export const previewCampaign = createServerFn({ method: "POST" })
     } else if (c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length) {
       contactsQuery = applyCrmFilters(contactsQuery as never, c.filtro_adhoc as CrmFilters) as typeof contactsQuery;
     } else {
-      return { totalBruto: 0, elegíveis: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
+      return { totalBruto: 0, elegíveis: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
     }
 
-    const { data: all, count } = await contactsQuery.limit(5);
-    const elegiveis = (all ?? []).filter((r) => r.consentimento_whatsapp && !r.opt_out_at && !r.arquivado_at && r.phone_e164);
+    const { data: all, count } = await contactsQuery.limit(20000);
+    let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
+    const elegiveis: NonNullable<typeof all> = [];
+    for (const r of all ?? []) {
+      if (r.arquivado_at) { arquivados++; continue; }
+      if (r.opt_out_at) { optOut++; continue; }
+      if (!r.consentimento_whatsapp) { semConsent++; continue; }
+      if (!r.phone_e164) { semTelefone++; continue; }
+      elegiveis.push(r);
+    }
     const exemplos = elegiveis.slice(0, 3).map((r) => ({
       nome: r.nome, cidade: r.cidade, phone: r.phone_e164,
-      preview: personalize(c.mensagem_template, r),
+      preview: ensureLinkInBody(personalize(c.mensagem_template, r), c.link_url),
     }));
 
     return {
-      totalBruto: count ?? 0,
+      totalBruto: count ?? (all?.length ?? 0),
       elegíveis: elegiveis.length,
+      semConsent, optOut, arquivados, semTelefone,
       exemplos,
       mensagemExemplo: exemplos[0]?.preview ?? c.mensagem_template,
     };
