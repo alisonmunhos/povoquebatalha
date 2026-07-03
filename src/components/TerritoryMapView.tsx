@@ -39,10 +39,16 @@ export function TerritoryMapView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const activeFilterCount =
+    (filters.cidades?.length ?? 0) +
+    (filters.bairros?.length ?? 0) +
+    (filters.tipo_contato ? 1 : 0) +
+    (filters.consent ? 1 : 0);
+
   return (
-    <div className="flex w-full">
+    <div className="flex flex-col md:flex-row w-full">
       <div className="flex-1 min-w-0">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-3">
           <Stat label="Com coordenada" value={stats.data.comCoordenada} />
           <Stat label="Pendente" value={stats.data.pendente} />
           <Stat label="Aproximado" value={stats.data.aproximado} />
@@ -51,54 +57,65 @@ export function TerritoryMapView() {
         </div>
 
         {stats.data.pendente + stats.data.erro > 0 && (
-          <div className="mb-4 p-3 border rounded-md bg-amber-50 text-amber-900 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 mt-0.5" />
-            <div className="flex-1 text-sm">
-              {stats.data.pendente + stats.data.erro} contato(s) sem coordenada. O mapa exibe apenas os geocodificados.
+          <div className="mb-3 p-3 border rounded-md bg-amber-50 text-amber-900 flex flex-col sm:flex-row sm:items-start gap-2">
+            <div className="flex items-start gap-2 flex-1 text-sm">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>{stats.data.pendente + stats.data.erro} contato(s) sem coordenada. O mapa exibe apenas os geocodificados.</div>
             </div>
-            <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending}>
+            <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending} className="shrink-0">
               <RefreshCw className={`h-3 w-3 mr-1 ${runBatch.isPending ? "animate-spin" : ""}`} />
-              Atualizar geolocalização (lote)
+              Atualizar geolocalização
             </Button>
           </div>
         )}
 
-        <div className="grid md:grid-cols-4 gap-3 mb-4">
-          <MultiSelectFilter
-            options={
-              filters.cidades?.length
-                ? filters.cidades.flatMap((c) => facets.data.bairrosPorCidade[c] ?? [])
-                : facets.data.bairros
-            }
-            value={filters.bairros ?? []}
-            onChange={(v) => setFilters((f) => ({ ...f, bairros: v.length ? v : undefined }))}
-            placeholder="Bairro (todos)"
-            emptyText="Sem bairros."
-          />
-          <MultiSelectFilter
-            options={facets.data.cidades}
-            value={filters.cidades ?? []}
-            onChange={(v) => setFilters((f) => ({ ...f, cidades: v.length ? v : undefined, bairros: undefined }))}
-            placeholder="Cidade (todas)"
-            emptyText="Sem cidades."
-          />
-          <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.tipo_contato ?? ""} onChange={(e) => setFilters((f) => ({ ...f, tipo_contato: e.target.value || undefined }))}>
-            <option value="">Todos os tipos</option>
-            <option value="apoiador">Apoiador</option>
-            <option value="militante">Militante</option>
-            <option value="lideranca">Liderança</option>
-            <option value="eleitor">Eleitor</option>
-          </select>
-          <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.consent ?? ""} onChange={(e) => setFilters((f) => ({ ...f, consent: (e.target.value || undefined) as "sim" | "nao" | undefined }))}>
-            <option value="">Todos os consentimentos</option>
-            <option value="sim">Com consentimento</option>
-            <option value="nao">Sem consentimento</option>
-          </select>
-        </div>
+        <details className="mb-3 rounded-lg border bg-card group" open={typeof window !== "undefined" && window.innerWidth >= 768}>
+          <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between text-sm font-medium select-none">
+            <span className="inline-flex items-center gap-2">
+              Filtros
+              {activeFilterCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>
+              )}
+            </span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 p-3 pt-0">
+            <MultiSelectFilter
+              options={
+                filters.cidades?.length
+                  ? filters.cidades.flatMap((c) => facets.data.bairrosPorCidade[c] ?? [])
+                  : facets.data.bairros
+              }
+              value={filters.bairros ?? []}
+              onChange={(v) => setFilters((f) => ({ ...f, bairros: v.length ? v : undefined }))}
+              placeholder="Bairro (todos)"
+              emptyText="Sem bairros."
+            />
+            <MultiSelectFilter
+              options={facets.data.cidades}
+              value={filters.cidades ?? []}
+              onChange={(v) => setFilters((f) => ({ ...f, cidades: v.length ? v : undefined, bairros: undefined }))}
+              placeholder="Cidade (todas)"
+              emptyText="Sem cidades."
+            />
+            <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.tipo_contato ?? ""} onChange={(e) => setFilters((f) => ({ ...f, tipo_contato: e.target.value || undefined }))}>
+              <option value="">Todos os tipos</option>
+              <option value="apoiador">Apoiador</option>
+              <option value="militante">Militante</option>
+              <option value="lideranca">Liderança</option>
+              <option value="eleitor">Eleitor</option>
+            </select>
+            <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.consent ?? ""} onChange={(e) => setFilters((f) => ({ ...f, consent: (e.target.value || undefined) as "sim" | "nao" | undefined }))}>
+              <option value="">Todos os consentimentos</option>
+              <option value="sim">Com consentimento</option>
+              <option value="nao">Sem consentimento</option>
+            </select>
+          </div>
+        </details>
 
 
         <div className="text-xs text-muted-foreground mb-2">
-          {contacts.data.rows.length} pin(s) no mapa • Clique num pin para abrir o painel lateral
+          {contacts.data.rows.length} pin(s) no mapa • Toque num pin para abrir os detalhes
         </div>
 
         <LeafletMap rows={contacts.data.rows} onSelect={setSelectedId} />
