@@ -8,6 +8,7 @@ export const Route = createFileRoute("/atualizacao")({
   validateSearch: z.object({
     origem: z.string().max(80).optional(),
     t: z.string().uuid().optional(),
+    ref: z.string().min(8).max(48).optional(),
   }),
   head: () => ({
     meta: [

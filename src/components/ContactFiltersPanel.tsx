@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, MapPin, User, Users, MessageCircle, History, FileUp, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronRight, MapPin, User, Users, MessageCircle, History, FileUp, SlidersHorizontal, Zap } from "lucide-react";
 import { MultiSelectFilter, SingleSelectFilter, type MultiOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
@@ -203,6 +203,54 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         </Field>
         <Field label="NÃO recebeu mensagem salva">
           <SingleSelectFilter options={opts.mensagens} value={filters.nao_recebeu_template_id} onChange={(v) => set("nao_recebeu_template_id", v)} placeholder="Escolher mensagem" />
+        </Field>
+      </Section>
+
+      <Section icon={<Zap className="h-4 w-4" />} title="Origem e captação">
+        <Field label="Módulo de origem">
+          <MultiSelectFilter
+            options={[
+              { value: "gestao_base", label: "Gestão da Base" },
+              { value: "territorio", label: "Território" },
+              { value: "agitacao", label: "Agitação" },
+              { value: "mapa", label: "Mapa" },
+              { value: "inbox", label: "Inbox" },
+              { value: "ficha_contato", label: "Ficha do contato" },
+              { value: "relacionamento", label: "Relacionamento" },
+              { value: "link_publico", label: "Links públicos" },
+            ]}
+            value={filters.source_modules ?? []}
+            onChange={(v) => set("source_modules", v)}
+            placeholder="Qualquer módulo"
+          />
+        </Field>
+        <Field label="Tipo de formulário">
+          <MultiSelectFilter
+            options={[
+              { value: "cadastro_completo", label: "Cadastro completo" },
+              { value: "receber_informacoes", label: "Receber informações" },
+            ]}
+            value={filters.source_form_types ?? []}
+            onChange={(v) => set("source_form_types", v)}
+            placeholder="Qualquer tipo"
+          />
+        </Field>
+        <Field label="Sem origem rastreada">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.sem_origem_rastreada === undefined ? undefined : filters.sem_origem_rastreada ? "sim" : "nao"}
+            onChange={(v) => set("sem_origem_rastreada", v === undefined ? undefined : v === "sim")}
+            placeholder="Qualquer"
+          />
+        </Field>
+        <Field label="Captado desde">
+          <Input type="date" value={filters.captado_desde ?? ""} onChange={(e) => set("captado_desde", e.target.value || undefined)} />
+        </Field>
+        <Field label="Captado até">
+          <Input type="date" value={filters.captado_ate ?? ""} onChange={(e) => set("captado_ate", e.target.value || undefined)} />
+        </Field>
+        <Field label="ID do captador (UUID)" hint="Cole o ID do usuário para filtrar quem captou">
+          <Input value={filters.source_user_id ?? ""} onChange={(e) => set("source_user_id", e.target.value || undefined)} placeholder="uuid do usuário" />
         </Field>
       </Section>
 

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import {
   getContact, updateContact, archiveContact, setOptOut,
   getContactHistory, listAllTags, createTag, setContactTag,
-  deleteContact,
+  deleteContact, getContactSourceEvents,
 } from "@/lib/contacts.functions";
 import { listContactTerritoryLogs } from "@/lib/territory-logs.functions";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
@@ -277,6 +277,9 @@ function ContatoFicha() {
             <textarea value={String(form.observacoes ?? "")} onChange={(e) => set("observacoes", e.target.value)} rows={5} maxLength={4000} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
           </Section>
 
+          <OrigemCaptacaoSection contactId={id} contact={c as ContactSourceLike} />
+
+
           <div className="sticky bottom-4 flex justify-end">
             <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 shadow-lg">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -425,6 +428,71 @@ function TerritorioLogsSection({ contactId }: { contactId: string }) {
           ))}
         </ul>
       )}
+    </Section>
+  );
+}
+
+// ===== Bloco C: Origem e captação =====
+type ContactSourceLike = {
+  primary_source_module?: string | null;
+  last_source_module?: string | null;
+  source_form_type?: string | null;
+  source_captured_at?: string | null;
+  created_by_source_user_id?: string | null;
+  last_source_user_id?: string | null;
+  source_link_id?: string | null;
+  is_system_user?: boolean | null;
+};
+
+const MODULE_LABEL: Record<string, string> = {
+  gestao_base: "Gestão da Base",
+  territorio: "Território",
+  agitacao: "Agitação",
+  mapa: "Mapa",
+  inbox: "Inbox",
+  ficha_contato: "Ficha do contato",
+  relacionamento: "Relacionamento",
+  link_publico: "Links públicos",
+};
+
+function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; contact: ContactSourceLike }) {
+  const fn = useServerFn(getContactSourceEvents);
+  const q = useQuery({ queryKey: ["contact-source", contactId], queryFn: () => fn({ data: { id: contactId } }) });
+  return (
+    <Section title="Origem e captação">
+      <dl className="grid grid-cols-2 gap-y-1 gap-x-3 text-xs">
+        <dt className="text-muted-foreground">Origem principal</dt>
+        <dd>{contact.primary_source_module ? (MODULE_LABEL[contact.primary_source_module] ?? contact.primary_source_module) : "—"}</dd>
+        <dt className="text-muted-foreground">Última origem</dt>
+        <dd>{contact.last_source_module ? (MODULE_LABEL[contact.last_source_module] ?? contact.last_source_module) : "—"}</dd>
+        <dt className="text-muted-foreground">Tipo de formulário</dt>
+        <dd>{contact.source_form_type === "cadastro_completo" ? "Cadastro completo" : contact.source_form_type === "receber_informacoes" ? "Receber informações" : "—"}</dd>
+        <dt className="text-muted-foreground">Captado em</dt>
+        <dd>{contact.source_captured_at ? new Date(contact.source_captured_at).toLocaleString("pt-BR") : "—"}</dd>
+        {contact.is_system_user && (
+          <>
+            <dt className="text-muted-foreground">Usuário do sistema</dt>
+            <dd>Sim (vinculado a login)</dd>
+          </>
+        )}
+      </dl>
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground mb-1">Histórico de captação</div>
+        {q.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
+        {q.data && q.data.events.length === 0 && <p className="text-xs text-muted-foreground">Sem eventos rastreados.</p>}
+        {q.data && q.data.events.length > 0 && (
+          <ul className="space-y-1 text-xs">
+            {q.data.events.map((e) => (
+              <li key={e.id} className="border-l-2 border-muted pl-2">
+                <span className="text-muted-foreground">{new Date(e.created_at).toLocaleString("pt-BR")}</span>
+                {" · "}<span className="font-medium">{MODULE_LABEL[e.source_module] ?? e.source_module}</span>
+                {" · "}{e.event_type}
+                {e.source_user_name && <span className="text-muted-foreground"> · por {e.source_user_name}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </Section>
   );
 }

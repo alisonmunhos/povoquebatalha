@@ -39,6 +39,7 @@ const schema = z.object({
   formas_ajuda_outro: z.string().trim().max(240).optional().or(z.literal("")),
   origem_detalhe: z.string().trim().max(80).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
+  ref_token: z.string().trim().min(8).max(48).optional().or(z.literal("")),
   consentimento_whatsapp: z.literal(true, {
     errorMap: () => ({ message: "É preciso autorizar o contato por WhatsApp." }),
   }),
@@ -173,6 +174,30 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           const { data: newRow } = await supabaseAdmin.from("contacts").insert(fields).select("id").single();
           savedId = newRow?.id ?? null;
         }
+
+        // Registrar origem/captação via tracked link (Bloco B)
+        if (savedId && d.ref_token) {
+          try {
+            const { data: link } = await supabaseAdmin
+              .from("tracked_form_links")
+              .select("id, created_by_user_id, source_module, source_form_type, is_active, expires_at")
+              .eq("token", d.ref_token)
+              .maybeSingle();
+            const linkExpired = link?.expires_at ? new Date(link.expires_at).getTime() < Date.now() : false;
+            if (link && link.is_active && !linkExpired) {
+              await supabaseAdmin.rpc("apply_contact_source", {
+                _contact_id: savedId,
+                _source_user_id: link.created_by_user_id,
+                _source_module: link.source_module,
+                _source_form_type: link.source_form_type,
+                _source_link_id: link.id,
+                _event_type: "cadastro_completo",
+                _metadata: { via: "recadastro_form" },
+              });
+            }
+          } catch { /* ignore */ }
+        }
+
 
         if (savedId && (d.cidade || d.cep)) {
           try {

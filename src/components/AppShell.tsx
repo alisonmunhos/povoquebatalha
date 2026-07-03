@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
-  MessageCircle, Menu, X,
+  MessageCircle, Menu, X, Zap,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
+import { AddContactButton } from "@/components/AddContactButton";
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
@@ -36,8 +37,10 @@ const groups: NavGroup[] = [
     label: "Território",
     items: [
       { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm", "territorio"] },
+      { to: "/agitacao", label: "Agitação", icon: Zap, hint: "Captação rápida por WhatsApp.", roles: ["admin", "vrm", "agitador"] },
     ],
   },
+
 
   {
     label: "Comunicação",
@@ -64,7 +67,14 @@ export function AppShell() {
   const isTerritorioOnly =
     !!rolesRaw &&
     roles.includes("territorio") &&
-    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm");
+    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador");
+
+  const isAgitadorOnly =
+    !!rolesRaw &&
+    roles.includes("agitador") &&
+    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "territorio" || r === "comunicacao");
+
+  const canAddContact = roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "territorio" || r === "agitador");
 
   const hasRoles = roles.length > 0;
   function canSee(item: NavItem) {
@@ -109,13 +119,48 @@ export function AppShell() {
                 <div className="text-sm font-semibold truncate">Povo que Batalha</div>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-              aria-label="Sair"
-            >
-              <LogOut className="h-4 w-4" /> Sair
-            </button>
+            <div className="flex items-center gap-2">
+              <AddContactButton compact userName={user?.email ?? null} />
+              <button
+                onClick={handleLogout}
+                className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                aria-label="Sair"
+              >
+                <LogOut className="h-4 w-4" /> Sair
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="flex-1 min-w-0">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
+
+  // Agitador-only: mini-app shell (só Agitação)
+  if (isAgitadorOnly) {
+    return (
+      <div className="min-h-dvh bg-background flex flex-col">
+        <header className="border-b bg-card sticky top-0 z-10">
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Zap className="h-5 w-5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground leading-tight">Modo Agitação</div>
+                <div className="text-sm font-semibold truncate">Povo que Batalha</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <AddContactButton compact userName={user?.email ?? null} />
+              <button
+                onClick={handleLogout}
+                className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                aria-label="Sair"
+              >
+                <LogOut className="h-4 w-4" /> Sair
+              </button>
+            </div>
           </div>
         </header>
         <main className="flex-1 min-w-0">
@@ -228,11 +273,18 @@ export function AppShell() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <Megaphone className="h-4 w-4 text-primary shrink-0" />
             <span className="text-sm font-semibold truncate">Povo que Batalha</span>
           </div>
+          {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </header>
+        {/* Desktop top bar */}
+        {canAddContact && (
+          <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center justify-end px-4">
+            <AddContactButton compact userName={user?.email ?? null} />
+          </div>
+        )}
         <main className="flex-1 min-w-0">
           <Outlet />
         </main>

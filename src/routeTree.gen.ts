@@ -35,6 +35,7 @@ import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authent
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
+import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
@@ -183,6 +184,11 @@ const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAgitacaoRoute = AuthenticatedAgitacaoRouteImport.update({
+  id: '/agitacao',
+  path: '/agitacao',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedContatosIndexRoute =
   AuthenticatedContatosIndexRouteImport.update({
     id: '/contatos/',
@@ -278,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -320,6 +327,7 @@ export interface FileRoutesByTo {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
@@ -363,6 +371,7 @@ export interface FileRoutesById {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/_authenticated/agitacao': typeof AuthenticatedAgitacaoRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -407,6 +416,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/agitacao'
     | '/calendario'
     | '/comunicacao'
     | '/dashboard'
@@ -449,6 +459,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/agitacao'
     | '/calendario'
     | '/dashboard'
     | '/duplicidades'
@@ -491,6 +502,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/_authenticated/agitacao'
     | '/_authenticated/calendario'
     | '/_authenticated/comunicacao'
     | '/_authenticated/dashboard'
@@ -729,6 +741,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agitacao': {
+      id: '/_authenticated/agitacao'
+      path: '/agitacao'
+      fullPath: '/agitacao'
+      preLoaderRoute: typeof AuthenticatedAgitacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/contatos/': {
       id: '/_authenticated/contatos/'
       path: '/contatos'
@@ -870,6 +889,7 @@ const AuthenticatedUsuariosRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAgitacaoRoute: typeof AuthenticatedAgitacaoRoute
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -892,6 +912,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAgitacaoRoute: AuthenticatedAgitacaoRoute,
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
   AuthenticatedComunicacaoRoute: AuthenticatedComunicacaoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
@@ -940,13 +961,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

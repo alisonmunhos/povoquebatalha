@@ -28,7 +28,7 @@ async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Rec
   }
 }
 
-const RoleEnum = z.enum(["admin", "operador", "leitor", "vrm", "territorio"]);
+const RoleEnum = z.enum(["admin", "operador", "leitor", "vrm", "territorio", "agitador"]);
 
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

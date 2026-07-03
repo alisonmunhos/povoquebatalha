@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Megaphone, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/inscrever")({
-  validateSearch: z.object({ origem: z.string().max(80).optional() }),
+  validateSearch: z.object({ origem: z.string().max(80).optional(), ref: z.string().min(8).max(48).optional() }),
   head: () => ({
     meta: [
       { title: "Quero receber informações da campanha" },
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/inscrever")({
 
 function Inscrever() {
   const navigate = useNavigate();
-  const { origem } = Route.useSearch();
+  const { origem, ref } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +32,7 @@ function Inscrever() {
       uf: String(fd.get("uf") ?? ""),
       consentimento_whatsapp: fd.get("consentimento_whatsapp") === "on",
       origem_detalhe: origem ?? "",
+      ref_token: ref ?? "",
       hp: String(fd.get("hp") ?? ""),
     };
     setSubmitting(true);
