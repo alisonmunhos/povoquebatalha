@@ -146,6 +146,9 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
         },
       }).finally(() => clearTimeout(timer));
 
+      if (res.status >= 300 && res.status < 400) {
+        return { ...empty, error: "Redirecionamento não suportado" } as LinkPreview;
+      }
       if (!res.ok) {
         const out: LinkPreview = { ...empty, error: `HTTP ${res.status}` };
         return out;
