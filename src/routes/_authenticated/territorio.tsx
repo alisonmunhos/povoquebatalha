@@ -357,6 +357,20 @@ function FieldAction() {
                   </button>
                 </div>
 
+                {la && (
+                  <button
+                    disabled={resetMut.isPending && resetMut.variables?.contactId === c.id}
+                    onClick={() => {
+                      if (window.confirm("Voltar este contato para 'Ainda não abordado'? Isso apaga o histórico de campo dele.")) {
+                        resetMut.mutate({ contactId: c.id });
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline disabled:opacity-60"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Voltar para "Ainda não abordado"
+                  </button>
+                )}
+
                 {la?.note && !isNoteOpen && (
                   <div className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1 border">
                     <span className="font-medium text-foreground">Última obs.:</span> {la.note}
