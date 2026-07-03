@@ -284,7 +284,6 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
         scrollWheelZoom: false, // ativado sob demanda com Ctrl/pinça
         doubleClickZoom: true,
         touchZoom: true,
-        tap: true,
         tapTolerance: 25,
         bounceAtZoomLimits: false,
         worldCopyJump: true,
