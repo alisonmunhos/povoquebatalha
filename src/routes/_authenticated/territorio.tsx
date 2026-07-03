@@ -111,6 +111,16 @@ function FieldAction() {
     onError: (e) => toast.error("Não foi possível desfazer", { description: e instanceof Error ? e.message : undefined }),
   });
 
+  const resetMut = useMutation({
+    mutationFn: (v: { contactId: string }) => resetFn({ data: v }),
+    onSuccess: () => {
+      toast.success("Contato voltou para 'Ainda não abordado'");
+      qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+      qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
+    },
+    onError: (e) => toast.error("Não foi possível voltar o contato", { description: e instanceof Error ? e.message : undefined }),
+  });
+
   const overview = useSuspenseQuery({
     queryKey: ["territory-overview"],
     queryFn: () => overviewFn(),
