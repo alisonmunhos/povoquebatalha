@@ -895,9 +895,13 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
                     <Navigation className="h-3.5 w-3.5" /> Rota
                   </a>
                 </div>
+                <PrecisionBadge
+                  precision={(c as { geocoding_precision?: Precision | null }).geocoding_precision ?? null}
+                  onRefine={() => regeocodeMut.mutate()}
+                  loading={regeocodeMut.isPending}
+                  hasFullAddress={!!(c.endereco && c.numero && c.cidade)}
+                />
               </div>
-
-              {/* Ações de campo */}
               <div className="space-y-2">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ação de campo</div>
                 <div className="grid grid-cols-2 gap-2">
