@@ -63,7 +63,14 @@ function CampanhaDetail() {
   });
   const prepare = useMutation({
     mutationFn: () => prepareFn({ data: { id } }),
-    onSuccess: (r) => { toast.success(`Fila preparada: ${r.total} destinatários`); qc.invalidateQueries({ queryKey: ["campaign", id] }); },
+    onSuccess: (r) => {
+      if (r.ok) {
+        toast.success(`Fila preparada: ${r.total} destinatários${r.ignorados ? ` · ${r.ignorados} ignorados` : ""}`);
+        qc.invalidateQueries({ queryKey: ["campaign", id] });
+      } else {
+        toast.error(r.message ?? "Não foi possível preparar.");
+      }
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const start = useMutation({
