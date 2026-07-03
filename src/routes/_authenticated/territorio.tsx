@@ -4,10 +4,10 @@ import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { getTerritoryOverview, listTerritoryContacts, getMyFieldSummaryToday } from "@/lib/territory.functions";
-import { logTerritoryAction, undoLastTerritoryLog } from "@/lib/territory-logs.functions";
+import { logTerritoryAction, undoLastTerritoryLog, resetTerritoryContact } from "@/lib/territory-logs.functions";
 import {
   Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2,
-  StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle,
+  StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle, RotateCcw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -93,6 +93,7 @@ function FieldAction() {
   const listFn = useServerFn(listTerritoryContacts);
   const logFn = useServerFn(logTerritoryAction);
   const undoFn = useServerFn(undoLastTerritoryLog);
+  const resetFn = useServerFn(resetTerritoryContact);
   const summaryFn = useServerFn(getMyFieldSummaryToday);
   const qc = useQueryClient();
 
@@ -108,6 +109,16 @@ function FieldAction() {
       }
     },
     onError: (e) => toast.error("Não foi possível desfazer", { description: e instanceof Error ? e.message : undefined }),
+  });
+
+  const resetMut = useMutation({
+    mutationFn: (v: { contactId: string }) => resetFn({ data: v }),
+    onSuccess: () => {
+      toast.success("Contato voltou para 'Ainda não abordado'");
+      qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+      qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
+    },
+    onError: (e) => toast.error("Não foi possível voltar o contato", { description: e instanceof Error ? e.message : undefined }),
   });
 
   const overview = useSuspenseQuery({
@@ -277,7 +288,7 @@ function FieldAction() {
           <Smartphone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
           <div className="text-[11px] text-muted-foreground leading-tight space-y-1">
             <p>Adicione à tela inicial pelo menu do navegador para usar como app.</p>
-            <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso se marcar por engano.</p>
+            <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso ou o botão <b>Voltar para não abordado</b> no card para reverter.</p>
           </div>
         </div>
 
@@ -345,6 +356,20 @@ function FieldAction() {
                     <StickyNote className="h-3.5 w-3.5" /> {isNoteOpen ? "Cancelar" : "Observação"}
                   </button>
                 </div>
+
+                {la && (
+                  <button
+                    disabled={resetMut.isPending && resetMut.variables?.contactId === c.id}
+                    onClick={() => {
+                      if (window.confirm("Voltar este contato para 'Ainda não abordado'? Isso apaga o histórico de campo dele.")) {
+                        resetMut.mutate({ contactId: c.id });
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline disabled:opacity-60"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Voltar para "Ainda não abordado"
+                  </button>
+                )}
 
                 {la?.note && !isNoteOpen && (
                   <div className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1 border">
