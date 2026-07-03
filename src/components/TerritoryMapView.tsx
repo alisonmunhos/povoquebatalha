@@ -813,15 +813,19 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
 
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Backdrop: sempre no mobile; também no desktop quando em modo overlay */}
       <div
-        className="md:hidden fixed inset-0 bg-black/40 z-[1100]"
+        className={`${overlay ? "" : "md:hidden "}fixed inset-0 bg-black/40 z-[1100]`}
         onClick={onClose}
         aria-hidden
       />
       <aside
         ref={sheetRef}
-        className="fixed md:static bottom-0 inset-x-0 md:inset-auto z-[1101] md:z-auto w-full md:w-[400px] shrink-0 border-t md:border-t-0 md:border-l bg-card overflow-hidden max-h-[85vh] md:max-h-none rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none animate-in slide-in-from-bottom md:slide-in-from-right md:flex md:flex-col md:h-full transition-transform"
+        className={
+          overlay
+            ? "fixed bottom-0 inset-x-0 md:inset-y-0 md:right-0 md:left-auto md:top-0 md:bottom-0 z-[1101] w-full md:w-[440px] shrink-0 border-t md:border-t-0 md:border-l bg-card overflow-hidden max-h-[85vh] md:max-h-none rounded-t-2xl md:rounded-none shadow-2xl animate-in slide-in-from-bottom md:slide-in-from-right md:flex md:flex-col md:h-full transition-transform"
+            : "fixed md:static bottom-0 inset-x-0 md:inset-auto z-[1101] md:z-auto w-full md:w-[400px] shrink-0 border-t md:border-t-0 md:border-l bg-card overflow-hidden max-h-[85vh] md:max-h-none rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none animate-in slide-in-from-bottom md:slide-in-from-right md:flex md:flex-col md:h-full transition-transform"
+        }
         style={{ willChange: "transform" }}
       >
         {/* Handle mobile */}
