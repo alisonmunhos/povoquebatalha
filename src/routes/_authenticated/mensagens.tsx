@@ -9,9 +9,9 @@ import {
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
   retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
-import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
-import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, Paperclip, RefreshCw, X } from "lucide-react";
+import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
+import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue } from "@/components/MessageComposer";
 
 export const Route = createFileRoute("/_authenticated/mensagens")({
   head: () => ({ meta: [{ title: "Mensagens e automações" }] }),
@@ -36,7 +36,7 @@ const CATEGORIAS_QR = [
   "evento", "mobilizacao_rua", "duvida_frequente", "salvar_contato", "boas_vindas",
 ];
 
-const VARIAVEIS = ["nome", "primeiro_nome", "cidade", "bairro", "link_atualizacao", "link_inscricao"];
+const VARIAVEIS = [...COMPOSER_VARIABLES];
 
 function MensagensPage() {
   const [tab, setTab] = useState<"system" | "quick_reply" | "automations">("system");
@@ -44,7 +44,7 @@ function MensagensPage() {
     <div className="p-6 md:p-10 max-w-6xl">
     <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
       
-      <header className="flex items-center gap-3 mb-6">
+      <header className="flex items-center gap-3 mb-3">
         <MessageSquareText className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-2xl font-semibold">Mensagens e automações</h1>
@@ -53,6 +53,13 @@ function MensagensPage() {
           </p>
         </div>
       </header>
+      <div className="rounded-md border bg-primary/5 text-primary/90 text-xs p-3 flex gap-2 mb-4">
+        <Info className="h-4 w-4 shrink-0 mt-0.5" />
+        <div>
+          Mensagem e campanha usam o mesmo editor. Uma <b>mensagem salva</b> vira modelo reutilizável.
+          Uma <b>campanha</b> dispara essa mensagem para um público-alvo, agora ou agendada.
+        </div>
+      </div>
       <div className="border-b mb-4 flex gap-1">
         <TabBtn active={tab === "system"} onClick={() => setTab("system")} icon={<Zap className="h-4 w-4" />}>Mensagens do sistema</TabBtn>
         <TabBtn active={tab === "quick_reply"} onClick={() => setTab("quick_reply")} icon={<Reply className="h-4 w-4" />}>Respostas prontas</TabBtn>
@@ -89,9 +96,8 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     setEditing({ kind, active: true, variables: VARIAVEIS });
   }
 
-  const signUpload = useServerFn(signCampaignMediaUpload);
   const [testPhone, setTestPhone] = useState("");
-  const [uploading, setUploading] = useState(false);
+
 
   async function save() {
     if (!editing?.title || !editing.body) return toast.error("Título e mensagem são obrigatórios");
@@ -138,24 +144,7 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
   }
 
-  async function onAttach(file: File) {
-    if (!editing) return;
-    if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
-    setUploading(true);
-    try {
-      const sig = await signUpload({ data: { filename: file.name, contentType: file.type } });
-      const up = await fetch(sig.signedUrl, {
-        method: "PUT",
-        headers: { "Content-Type": sig.contentType, "x-upsert": "true" },
-        body: file,
-      });
-      if (!up.ok) throw new Error(`Falha upload (${up.status})`);
-      setEditing({ ...editing, media_path: sig.path, media_mime: sig.contentType, media_filename: sig.filename });
-      toast.success("Anexo carregado");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro upload");
-    } finally { setUploading(false); }
-  }
+
 
   return (
     <div className="grid md:grid-cols-[380px_1fr] gap-4">
@@ -220,55 +209,31 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
                 )}
               </div>
               <div className="col-span-2">
-                <label className="text-xs font-medium">Mensagem</label>
-                <textarea value={editing.body ?? ""} onChange={(e) => setEditing({ ...editing, body: e.target.value })} rows={9} className="mt-1 w-full rounded-md border px-3 py-2 text-sm font-mono bg-background" />
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Variáveis: {VARIAVEIS.map((v) => `{{${v}}}`).join(" · ")}
-                </div>
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="text-xs font-medium">Link (aparece com prévia no WhatsApp)</label>
-                <input
-                  value={editing.link ?? ""}
-                  onChange={(e) => setEditing({ ...editing, link: e.target.value })}
-                  placeholder="https://instagram.com/p/..."
-                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background"
+                <MessageComposer
+                  value={{
+                    body: editing.body ?? "",
+                    link_url: (editing.link as string | null) ?? null,
+                    link_title: null,
+                    link_description: null,
+                    link_image: null,
+                    media_path: (editing.media_path as string | null) ?? null,
+                    media_mime: (editing.media_mime as string | null) ?? null,
+                    media_filename: (editing.media_filename as string | null) ?? null,
+                  } satisfies ComposerValue}
+                  onChange={(v) => setEditing({
+                    ...editing,
+                    body: v.body,
+                    link: v.link_url,
+                    media_path: v.media_path,
+                    media_mime: v.media_mime,
+                    media_filename: v.media_filename,
+                  })}
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">Se o link estiver no corpo da mensagem, o WhatsApp gera automaticamente a prévia da postagem.</p>
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="text-xs font-medium">Anexo (imagem ou PDF, até 8MB)</label>
-                {editing.media_path ? (
-                  <div className="mt-1 flex items-center gap-2 rounded-md border px-3 py-2 text-xs bg-muted/30">
-                    <Paperclip className="h-3.5 w-3.5" />
-                    <span className="flex-1 truncate">{editing.media_filename ?? editing.media_path}</span>
-                    <button
-                      onClick={() => setEditing({ ...editing, media_path: null, media_mime: null, media_filename: null })}
-                      className="text-destructive hover:underline"
-                    ><X className="h-3.5 w-3.5" /></button>
-                  </div>
-                ) : (
-                  <label className="mt-1 flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs cursor-pointer hover:bg-muted/40">
-                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
-                    <span>{uploading ? "Enviando…" : "Escolher arquivo"}</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
-                      className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) onAttach(f); }}
-                    />
-                  </label>
-                )}
               </div>
               <label className="col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={editing.active ?? true} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
                 Ativa
               </label>
-
-              <div className="col-span-2 border rounded-md bg-[#e5ddd5] p-4">
-                <div className="text-[10px] font-medium text-muted-foreground uppercase mb-2">Pré-visualização (como o contato verá)</div>
-                <WhatsappPreview body={editing.body ?? ""} link={editing.link ?? null} mediaMime={editing.media_mime ?? null} mediaFilename={editing.media_filename ?? null} />
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
