@@ -36,7 +36,7 @@ const CATEGORIAS_QR = [
   "evento", "mobilizacao_rua", "duvida_frequente", "salvar_contato", "boas_vindas",
 ];
 
-const VARIAVEIS = ["nome", "primeiro_nome", "cidade", "bairro", "link_atualizacao", "link_inscricao"];
+const VARIAVEIS = [...COMPOSER_VARIABLES];
 
 function MensagensPage() {
   const [tab, setTab] = useState<"system" | "quick_reply" | "automations">("system");
