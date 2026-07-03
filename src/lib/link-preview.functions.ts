@@ -113,8 +113,17 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ url: z.string().trim().url().max(2000) }).parse(d),
   )
-  .handler(async ({ data }) => {
-    const url = data.url;
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
+    let url: string;
+    try {
+      url = await assertPublicUrl(data.url);
+    } catch (e) {
+      return {
+        url: data.url, title: null, description: null, image: null, siteName: null,
+        error: e instanceof Error ? e.message : "URL inválida",
+      } as LinkPreview;
+    }
     const cached = cache.get(url);
     if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
 
@@ -126,7 +135,7 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 5000);
       const res = await fetch(url, {
-        redirect: "follow",
+        redirect: "manual",
         signal: ctl.signal,
         headers: {
           // UA que costuma servir OG tags completas
