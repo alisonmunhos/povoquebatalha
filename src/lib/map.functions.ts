@@ -54,6 +54,39 @@ export const listUnmappedContacts = createServerFn({ method: "POST" })
     return { rows: rows ?? [] };
   });
 
+export const listMapFacets = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("contacts")
+      .select("cidade,bairro")
+      .is("arquivado_at", null)
+      .limit(20000);
+    if (error) throw error;
+    const cidCount = new Map<string, number>();
+    const baiCount = new Map<string, number>();
+    const baiByCid = new Map<string, Map<string, number>>();
+    for (const r of data ?? []) {
+      const c = (r.cidade ?? "").trim();
+      const b = (r.bairro ?? "").trim();
+      if (c) cidCount.set(c, (cidCount.get(c) ?? 0) + 1);
+      if (b) baiCount.set(b, (baiCount.get(b) ?? 0) + 1);
+      if (c && b) {
+        if (!baiByCid.has(c)) baiByCid.set(c, new Map());
+        const m = baiByCid.get(c)!;
+        m.set(b, (m.get(b) ?? 0) + 1);
+      }
+    }
+    const cmp = (a: [string, number], b: [string, number]) => a[0].localeCompare(b[0], "pt-BR");
+    const cidades = [...cidCount.entries()].sort(cmp).map(([value, count]) => ({ value, label: value, count }));
+    const bairros = [...baiCount.entries()].sort(cmp).map(([value, count]) => ({ value, label: value, count }));
+    const bairrosPorCidade: Record<string, { value: string; label: string; count: number }[]> = {};
+    for (const [cid, m] of baiByCid.entries()) {
+      bairrosPorCidade[cid] = [...m.entries()].sort(cmp).map(([value, count]) => ({ value, label: value, count }));
+    }
+    return { cidades, bairros, bairrosPorCidade };
+  });
+
 export const getMapContactDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
