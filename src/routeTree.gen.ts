@@ -50,6 +50,7 @@ import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
 import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
+import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
@@ -268,6 +269,12 @@ const ApiPublicFormsInscreverRoute = ApiPublicFormsInscreverRouteImport.update({
   path: '/api/public/forms/inscrever',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicFormsCadastroAgitadorRoute =
+  ApiPublicFormsCadastroAgitadorRouteImport.update({
+    id: '/api/public/forms/cadastro-agitador',
+    path: '/api/public/forms/cadastro-agitador',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   id: '/api/public/cep/$cep',
   path: '/api/public/cep/$cep',
@@ -311,6 +318,7 @@ export interface FileRoutesByFullPath {
   '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -353,6 +361,7 @@ export interface FileRoutesByTo {
   '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -398,6 +407,7 @@ export interface FileRoutesById {
   '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -443,6 +453,7 @@ export interface FileRouteTypes {
     | '/comunicacao/'
     | '/contatos/'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -485,6 +496,7 @@ export interface FileRouteTypes {
     | '/comunicacao'
     | '/contatos'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -529,6 +541,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -550,6 +563,7 @@ export interface RootRouteChildren {
   OptOutTokenRoute: typeof OptOutTokenRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
+  ApiPublicFormsCadastroAgitadorRoute: typeof ApiPublicFormsCadastroAgitadorRoute
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
@@ -846,6 +860,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormsInscreverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/forms/cadastro-agitador': {
+      id: '/api/public/forms/cadastro-agitador'
+      path: '/api/public/forms/cadastro-agitador'
+      fullPath: '/api/public/forms/cadastro-agitador'
+      preLoaderRoute: typeof ApiPublicFormsCadastroAgitadorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cep/$cep': {
       id: '/api/public/cep/$cep'
       path: '/api/public/cep/$cep'
@@ -951,6 +972,7 @@ const rootRouteChildren: RootRouteChildren = {
   OptOutTokenRoute: OptOutTokenRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
+  ApiPublicFormsCadastroAgitadorRoute: ApiPublicFormsCadastroAgitadorRoute,
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
   ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
