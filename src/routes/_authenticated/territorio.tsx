@@ -323,21 +323,22 @@ function FieldAction() {
             const la = c.last_action;
             const pending = c.pending_count ?? 0;
             const openDrawer = () => setDrawerContact(c);
+            const openDetail = () => setDetailContactId(c.id);
             const stop = (e: React.MouseEvent | React.KeyboardEvent) => e.stopPropagation();
             return (
               <li
                 key={c.id}
                 role="button"
                 tabIndex={0}
-                onClick={openDrawer}
+                onClick={openDetail}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    openDrawer();
+                    openDetail();
                   }
                 }}
                 className="p-3 space-y-2 cursor-pointer hover:bg-accent/40 focus:outline-none focus:bg-accent/40 transition-colors"
-                title="Clique para ver o histórico completo"
+                title="Clique para abrir a ficha completa"
               >
                 <div>
                   <div className="flex items-start gap-2">
@@ -352,7 +353,14 @@ function FieldAction() {
                         {pending} pendente{pending === 1 ? "" : "s"}
                       </span>
                     )}
-                    <History className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <button
+                      onClick={(e) => { stop(e); openDrawer(); }}
+                      className="shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                      title="Ver só o histórico"
+                      aria-label="Ver histórico"
+                    >
+                      <History className="h-4 w-4" />
+                    </button>
                   </div>
                   <div className="text-[11px] mt-1 flex flex-wrap gap-1 items-center">
                     {la && (
