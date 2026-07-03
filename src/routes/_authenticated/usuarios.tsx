@@ -12,6 +12,9 @@ import {
   generatePasswordResetLink,
   sendPasswordResetEmail,
   listAccessAudit,
+  listPendingApprovals,
+  approvePendingAgitador,
+  rejectPendingAgitador,
 } from "@/lib/users.functions";
 import {
   UserPlus,
@@ -43,23 +46,29 @@ type Row = {
   confirmed_at: string | null;
   invited_at: string | null;
   roles: string[];
-  status: "ativo" | "suspenso" | "revogado";
+  status: "ativo" | "suspenso" | "revogado" | "pendente_aprovacao";
   derived_status:
     | "ativo"
     | "convite_pendente"
     | "convite_expirado"
     | "suspenso"
-    | "revogado";
+    | "revogado"
+    | "pendente_aprovacao";
 };
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Admin",
   operador: "Operador",
   vrm: "VRM",
+  comunicacao: "Comunicação",
   territorio: "Território",
   agitador: "Agitador",
   leitor: "Leitor",
 };
+
+type InviteRole = "admin" | "operador" | "leitor" | "vrm" | "territorio" | "agitador" | "comunicacao";
+
+type PendingRow = { id: string; email: string; full_name: string | null; created_at: string; phone: string | null };
 
 type InviteModal = { email: string; role: string; link: string | null };
 type ResetModal = { email: string; userId: string };
@@ -75,12 +84,16 @@ function UsuariosPage() {
   const genResetLink = useServerFn(generatePasswordResetLink);
   const emailReset = useServerFn(sendPasswordResetEmail);
   const audit = useServerFn(listAccessAudit);
+  const fetchPending = useServerFn(listPendingApprovals);
+  const approve = useServerFn(approvePendingAgitador);
+  const reject = useServerFn(rejectPendingAgitador);
 
   const [rows, setRows] = useState<Row[]>([]);
+  const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "operador" | "leitor" | "vrm" | "territorio">("operador");
+  const [role, setRole] = useState<InviteRole>("operador");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [inviteModal, setInviteModal] = useState<InviteModal | null>(null);
@@ -97,6 +110,8 @@ function UsuariosPage() {
       setRows(r.users as Row[]);
       const a = await audit();
       setAuditRows(a.rows as typeof auditRows);
+      const p = await fetchPending();
+      setPendingRows(p.rows as PendingRow[]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao carregar usuários.");
     } finally {
@@ -159,6 +174,7 @@ function UsuariosPage() {
 
   const ativos = rows.filter((r) => r.derived_status === "ativo" || r.derived_status === "suspenso" || r.derived_status === "revogado");
   const pendentes = rows.filter((r) => r.derived_status === "convite_pendente" || r.derived_status === "convite_expirado");
+  const aprovacaoPendente = pendingRows.length;
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
@@ -190,13 +206,15 @@ function UsuariosPage() {
             className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
           />
           <select
-            value={role} onChange={(e) => setRole(e.target.value as typeof role)}
+            value={role} onChange={(e) => setRole(e.target.value as InviteRole)}
             className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
           >
             <option value="admin">Admin</option>
             <option value="operador">Operador</option>
             <option value="vrm">VRM (Relacionamento)</option>
+            <option value="comunicacao">Comunicação</option>
             <option value="territorio">Território</option>
+            <option value="agitador">Agitador</option>
             <option value="leitor">Leitor</option>
           </select>
           <button type="submit" disabled={submitting}
@@ -225,9 +243,69 @@ function UsuariosPage() {
       <Tabs defaultValue="ativos" className="space-y-4">
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="ativos">Ativos ({ativos.length})</TabsTrigger>
+          <TabsTrigger value="aprovacao">
+            Aguardando aprovação
+            {aprovacaoPendente > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-1.5">
+                {aprovacaoPendente}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="pendentes">Convites pendentes ({pendentes.length})</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="aprovacao">
+          <section className="border rounded-xl bg-card overflow-hidden">
+            {pendingRows.length === 0 ? (
+              <div className="p-6 text-sm text-muted-foreground">Nenhum cadastro aguardando aprovação.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-left">
+                    <tr>
+                      <th className="px-4 py-2">Nome</th>
+                      <th className="px-4 py-2">E-mail</th>
+                      <th className="px-4 py-2">WhatsApp</th>
+                      <th className="px-4 py-2">Cadastrado em</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingRows.map((p) => (
+                      <tr key={p.id} className="border-t">
+                        <td className="px-4 py-2">{p.full_name ?? "—"}</td>
+                        <td className="px-4 py-2 max-w-[220px] truncate" title={p.email}>{p.email}</td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{p.phone ?? "—"}</td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(p.created_at).toLocaleString("pt-BR")}
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
+                          <button
+                            onClick={() => act(() => approve({ data: { userId: p.id } }), `${p.full_name ?? p.email} aprovado(a) como agitador.`)}
+                            className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const first = prompt(`REJEITAR o cadastro de ${p.full_name ?? p.email}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`);
+                              if (first !== "REJEITAR") return;
+                              act(() => reject({ data: { userId: p.id } }), "Cadastro rejeitado.");
+                            }}
+                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Rejeitar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </TabsContent>
 
         <TabsContent value="ativos">
           <section className="border rounded-xl bg-card overflow-hidden">
@@ -250,8 +328,7 @@ function UsuariosPage() {
                   </thead>
                   <tbody>
                     {ativos.map((u) => {
-                      const currentRole = (u.roles[0] ?? "leitor") as
-                        | "admin" | "operador" | "leitor" | "vrm" | "territorio";
+                      const currentRole = (u.roles[0] ?? "leitor") as InviteRole;
                       return (
                         <tr key={u.id} className="border-t">
                           <td className="px-4 py-2 max-w-[220px] truncate" title={u.email}>{u.email}</td>
@@ -497,6 +574,7 @@ function StatusPill({ status }: { status: Row["derived_status"] }) {
     convite_expirado: { label: "Convite expirado", cls: "bg-orange-100 text-orange-800" },
     suspenso: { label: "Suspenso", cls: "bg-yellow-100 text-yellow-800" },
     revogado: { label: "Revogado", cls: "bg-rose-100 text-rose-800" },
+    pendente_aprovacao: { label: "Aguardando aprovação", cls: "bg-amber-100 text-amber-800" },
   };
   const s = map[status];
   return <span className={`text-xs px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;

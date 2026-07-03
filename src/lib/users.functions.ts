@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "@/lib/authz";
+import type { AppRole } from "@/lib/roles";
 
 type Ctx = { supabase: { from: (t: string) => any }; userId: string };
 
@@ -20,7 +21,16 @@ async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Rec
   }
 }
 
-const RoleEnum = z.enum(["admin", "operador", "leitor", "vrm", "territorio", "agitador"]);
+const ALL_ROLES = [
+  "admin",
+  "operador",
+  "leitor",
+  "vrm",
+  "territorio",
+  "agitador",
+  "comunicacao",
+] as const satisfies readonly AppRole[];
+const RoleEnum = z.enum(ALL_ROLES);
 
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -59,14 +69,16 @@ export const listUsers = createServerFn({ method: "GET" })
         const confirmed = u.email_confirmed_at ?? u.confirmed_at ?? null;
         const invited = u.invited_at ?? null;
         const lastSignIn = u.last_sign_in_at ?? null;
-        const status = (prof?.status ?? "ativo") as "ativo" | "suspenso" | "revogado";
+        const status = (prof?.status ?? "ativo") as "ativo" | "suspenso" | "revogado" | "pendente_aprovacao";
         let derived:
           | "ativo"
           | "convite_pendente"
           | "convite_expirado"
           | "suspenso"
-          | "revogado";
-        if (status === "suspenso") derived = "suspenso";
+          | "revogado"
+          | "pendente_aprovacao";
+        if (status === "pendente_aprovacao") derived = "pendente_aprovacao";
+        else if (status === "suspenso") derived = "suspenso";
         else if (status === "revogado") derived = "revogado";
         else if (!confirmed && invited) {
           const invitedMs = new Date(invited).getTime();
@@ -398,3 +410,92 @@ export const linkCurrentUserContact = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { contact_id: contactId as string | null };
   });
+
+// Aprovação de auto-cadastros de agitador
+export const listPendingApprovals = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profs, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, created_at, contact_id")
+      .eq("status", "pendente_aprovacao")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const ids = (profs ?? []).map((p) => p.id);
+    if (ids.length === 0) return { rows: [] as Array<{ id: string; email: string; full_name: string | null; created_at: string; phone: string | null }> };
+    const { data: users } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const emailById = new Map<string, string>();
+    (users?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
+    const contactIds = (profs ?? []).map((p) => p.contact_id).filter((x): x is string => Boolean(x));
+    const phoneById = new Map<string, string | null>();
+    if (contactIds.length) {
+      const { data: cs } = await supabaseAdmin
+        .from("contacts")
+        .select("id, phone_e164")
+        .in("id", contactIds);
+      (cs ?? []).forEach((c) => phoneById.set(c.id, c.phone_e164));
+    }
+    return {
+      rows: (profs ?? []).map((p) => ({
+        id: p.id,
+        email: emailById.get(p.id) ?? "",
+        full_name: p.full_name,
+        created_at: p.created_at,
+        phone: p.contact_id ? phoneById.get(p.contact_id) ?? null : null,
+      })),
+    };
+  });
+
+export const approvePendingAgitador = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("status")
+      .eq("id", data.userId)
+      .maybeSingle();
+    if (!prof || prof.status !== "pendente_aprovacao") {
+      throw new Error("Este usuário não está aguardando aprovação.");
+    }
+    // Insere role agitador (idempotente)
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: data.userId, role: "agitador" }, { onConflict: "user_id,role" });
+    const { error: upErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ status: "ativo" })
+      .eq("id", data.userId);
+    if (upErr) throw new Error(upErr.message);
+    await audit(context, data.userId, "agitador_aprovado", {});
+    return { ok: true as const };
+  });
+
+export const rejectPendingAgitador = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    if (data.userId === context.userId) {
+      throw new Error("Você não pode rejeitar a si mesmo.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("status")
+      .eq("id", data.userId)
+      .maybeSingle();
+    if (!prof || prof.status !== "pendente_aprovacao") {
+      throw new Error("Este usuário não está aguardando aprovação.");
+    }
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+    if (error) throw new Error(error.message);
+    await audit(context, data.userId, "agitador_rejeitado", {});
+    return { ok: true as const };
+  });
+
+

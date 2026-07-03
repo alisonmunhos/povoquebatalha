@@ -14,6 +14,7 @@ import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as InscreverRouteImport } from './routes/inscrever'
+import { Route as CadastroAgitadorRouteImport } from './routes/cadastro-agitador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AtualizacaoRouteImport } from './routes/atualizacao'
 import { Route as AceitarConviteRouteImport } from './routes/aceitar-convite'
@@ -50,6 +51,7 @@ import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
 import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
+import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
@@ -75,6 +77,11 @@ const ObrigadoRoute = ObrigadoRouteImport.update({
 const InscreverRoute = InscreverRouteImport.update({
   id: '/inscrever',
   path: '/inscrever',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CadastroAgitadorRoute = CadastroAgitadorRouteImport.update({
+  id: '/cadastro-agitador',
+  path: '/cadastro-agitador',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -268,6 +275,12 @@ const ApiPublicFormsInscreverRoute = ApiPublicFormsInscreverRouteImport.update({
   path: '/api/public/forms/inscrever',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicFormsCadastroAgitadorRoute =
+  ApiPublicFormsCadastroAgitadorRouteImport.update({
+    id: '/api/public/forms/cadastro-agitador',
+    path: '/api/public/forms/cadastro-agitador',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   id: '/api/public/cep/$cep',
   path: '/api/public/cep/$cep',
@@ -279,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/aceitar-convite': typeof AceitarConviteRoute
   '/atualizacao': typeof AtualizacaoRoute
   '/auth': typeof AuthRoute
+  '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -311,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -322,6 +337,7 @@ export interface FileRoutesByTo {
   '/aceitar-convite': typeof AceitarConviteRoute
   '/atualizacao': typeof AtualizacaoRoute
   '/auth': typeof AuthRoute
+  '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -353,6 +369,7 @@ export interface FileRoutesByTo {
   '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -366,6 +383,7 @@ export interface FileRoutesById {
   '/aceitar-convite': typeof AceitarConviteRoute
   '/atualizacao': typeof AtualizacaoRoute
   '/auth': typeof AuthRoute
+  '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -398,6 +416,7 @@ export interface FileRoutesById {
   '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
@@ -411,6 +430,7 @@ export interface FileRouteTypes {
     | '/aceitar-convite'
     | '/atualizacao'
     | '/auth'
+    | '/cadastro-agitador'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -443,6 +463,7 @@ export interface FileRouteTypes {
     | '/comunicacao/'
     | '/contatos/'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -454,6 +475,7 @@ export interface FileRouteTypes {
     | '/aceitar-convite'
     | '/atualizacao'
     | '/auth'
+    | '/cadastro-agitador'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -485,6 +507,7 @@ export interface FileRouteTypes {
     | '/comunicacao'
     | '/contatos'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -497,6 +520,7 @@ export interface FileRouteTypes {
     | '/aceitar-convite'
     | '/atualizacao'
     | '/auth'
+    | '/cadastro-agitador'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -529,6 +553,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
@@ -542,6 +567,7 @@ export interface RootRouteChildren {
   AceitarConviteRoute: typeof AceitarConviteRoute
   AtualizacaoRoute: typeof AtualizacaoRoute
   AuthRoute: typeof AuthRoute
+  CadastroAgitadorRoute: typeof CadastroAgitadorRoute
   InscreverRoute: typeof InscreverRoute
   ObrigadoRoute: typeof ObrigadoRoute
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
@@ -550,6 +576,7 @@ export interface RootRouteChildren {
   OptOutTokenRoute: typeof OptOutTokenRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
+  ApiPublicFormsCadastroAgitadorRoute: typeof ApiPublicFormsCadastroAgitadorRoute
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
@@ -592,6 +619,13 @@ declare module '@tanstack/react-router' {
       path: '/inscrever'
       fullPath: '/inscrever'
       preLoaderRoute: typeof InscreverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cadastro-agitador': {
+      id: '/cadastro-agitador'
+      path: '/cadastro-agitador'
+      fullPath: '/cadastro-agitador'
+      preLoaderRoute: typeof CadastroAgitadorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -846,6 +880,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormsInscreverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/forms/cadastro-agitador': {
+      id: '/api/public/forms/cadastro-agitador'
+      path: '/api/public/forms/cadastro-agitador'
+      fullPath: '/api/public/forms/cadastro-agitador'
+      preLoaderRoute: typeof ApiPublicFormsCadastroAgitadorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cep/$cep': {
       id: '/api/public/cep/$cep'
       path: '/api/public/cep/$cep'
@@ -943,6 +984,7 @@ const rootRouteChildren: RootRouteChildren = {
   AceitarConviteRoute: AceitarConviteRoute,
   AtualizacaoRoute: AtualizacaoRoute,
   AuthRoute: AuthRoute,
+  CadastroAgitadorRoute: CadastroAgitadorRoute,
   InscreverRoute: InscreverRoute,
   ObrigadoRoute: ObrigadoRoute,
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
@@ -951,6 +993,7 @@ const rootRouteChildren: RootRouteChildren = {
   OptOutTokenRoute: OptOutTokenRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
+  ApiPublicFormsCadastroAgitadorRoute: ApiPublicFormsCadastroAgitadorRoute,
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
   ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
