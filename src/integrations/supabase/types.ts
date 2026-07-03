@@ -547,6 +547,10 @@ export type Database = {
           formas_ajuda: Json
           formas_ajuda_outro: string | null
           geocoded_at: string | null
+          geocoding_match_score: number | null
+          geocoding_precision:
+            | Database["public"]["Enums"]["geocoding_precision"]
+            | null
           geocoding_provider: string | null
           geocoding_status:
             | Database["public"]["Enums"]["geocoding_status"]
@@ -613,6 +617,10 @@ export type Database = {
           formas_ajuda?: Json
           formas_ajuda_outro?: string | null
           geocoded_at?: string | null
+          geocoding_match_score?: number | null
+          geocoding_precision?:
+            | Database["public"]["Enums"]["geocoding_precision"]
+            | null
           geocoding_provider?: string | null
           geocoding_status?:
             | Database["public"]["Enums"]["geocoding_status"]
@@ -681,6 +689,10 @@ export type Database = {
           formas_ajuda?: Json
           formas_ajuda_outro?: string | null
           geocoded_at?: string | null
+          geocoding_match_score?: number | null
+          geocoding_precision?:
+            | Database["public"]["Enums"]["geocoding_precision"]
+            | null
           geocoding_provider?: string | null
           geocoding_status?:
             | Database["public"]["Enums"]["geocoding_status"]
@@ -916,6 +928,10 @@ export type Database = {
         Row: {
           created_at: string
           endereco_completo: string
+          geocoding_match_score: number | null
+          geocoding_precision:
+            | Database["public"]["Enums"]["geocoding_precision"]
+            | null
           latitude: number | null
           longitude: number | null
           provider: string | null
@@ -924,6 +940,10 @@ export type Database = {
         Insert: {
           created_at?: string
           endereco_completo: string
+          geocoding_match_score?: number | null
+          geocoding_precision?:
+            | Database["public"]["Enums"]["geocoding_precision"]
+            | null
           latitude?: number | null
           longitude?: number | null
           provider?: string | null
@@ -932,6 +952,10 @@ export type Database = {
         Update: {
           created_at?: string
           endereco_completo?: string
+          geocoding_match_score?: number | null
+          geocoding_precision?:
+            | Database["public"]["Enums"]["geocoding_precision"]
+            | null
           latitude?: number | null
           longitude?: number | null
           provider?: string | null
@@ -1602,6 +1626,7 @@ export type Database = {
         | "sem_ddd"
         | "sem_nono_digito"
         | "duplicado_possivel"
+      geocoding_precision: "exato" | "rua" | "cep" | "cidade"
       geocoding_status:
         | "pendente"
         | "localizado"
@@ -1816,6 +1841,7 @@ export const Constants = {
         "sem_nono_digito",
         "duplicado_possivel",
       ],
+      geocoding_precision: ["exato", "rua", "cep", "cidade"],
       geocoding_status: [
         "pendente",
         "localizado",

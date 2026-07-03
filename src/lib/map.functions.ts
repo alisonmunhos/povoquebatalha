@@ -10,7 +10,7 @@ export const listMapContacts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,bairro,cidade,uf,profissao,tipo_contato,formas_ajuda,consentimento_whatsapp,lifecycle_status,latitude,longitude")
+      .select("id,nome,phone_e164,bairro,cidade,uf,profissao,tipo_contato,formas_ajuda,consentimento_whatsapp,lifecycle_status,latitude,longitude,geocoding_precision")
       .not("latitude", "is", null)
       .not("longitude", "is", null)
       .limit(5000);
@@ -120,7 +120,7 @@ export const getMapContactDetail = createServerFn({ method: "POST" })
     const { data: c, error } = await context.supabase
       .from("contacts")
       .select(
-        "id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,cep,endereco,numero,complemento,endereco_completo,latitude,longitude,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda",
+        "id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,cep,endereco,numero,complemento,endereco_completo,latitude,longitude,geocoding_precision,geocoding_status,geocoding_provider,geocoding_match_score,geocoded_at,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda",
       )
       .eq("id", data.id)
       .maybeSingle();

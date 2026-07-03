@@ -3,7 +3,7 @@ import { useSuspenseQuery, useMutation, useQueryClient, useQuery } from "@tansta
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listMapContacts, getMapContactDetail, listMapFacets } from "@/lib/map.functions";
-import { getGeocodingStats, runGeocodingBatch } from "@/lib/geocoding.functions";
+import { getGeocodingStats, runGeocodingBatch, regeocodeOne } from "@/lib/geocoding.functions";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { logTerritoryAction, resetTerritoryContact } from "@/lib/territory-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
@@ -14,8 +14,16 @@ import { toast } from "sonner";
 import {
   RefreshCw, AlertTriangle, X, Send, ExternalLink, LocateFixed, ChevronDown,
   Copy, Navigation, MessageCircle, CheckCircle2, UserX, StickyNote, RotateCcw,
-  History, Plus, Minus, Maximize2, Minimize2, Phone, MapPin,
+  History, Plus, Minus, Maximize2, Minimize2, Phone, MapPin, Crosshair,
 } from "lucide-react";
+
+type Precision = "exato" | "rua" | "cep" | "cidade";
+const PRECISION_LABEL: Record<Precision, string> = {
+  exato: "Endereço exato",
+  rua: "Na rua (número não confirmado)",
+  cep: "Aproximado pelo CEP",
+  cidade: "Só cidade/bairro",
+};
 
 // ---------- Deep links / helpers ----------
 function isMobile() {
@@ -73,12 +81,27 @@ const ACTION_COLORS: Record<string, { bg: string; ring: string; label: string }>
 };
 const DEFAULT_PIN = { bg: "#64748b", ring: "#1e293b", label: "Não abordado" };
 
-function pinSvg(color: { bg: string; ring: string }): string {
+function pinSvg(color: { bg: string; ring: string }, precision: Precision | null): string {
+  // Camada 2 (precisão): borda branca / tracejada / opacidade / ? sobreposto
+  const isExact = precision === "exato";
+  const isStreet = precision === "rua";
+  const isCep = precision === "cep";
+  const isCity = precision === "cidade" || precision == null;
+  const fillOpacity = isCity ? 0.55 : 1;
+  const outerStroke = isExact ? "#ffffff" : isStreet ? "#ffffff" : "#ffffff";
+  const outerWidth = isExact ? 2.5 : 1.8;
+  const dash = isExact ? "" : `stroke-dasharray="2.5 2"`;
+  const questionMark = (isCep || isCity)
+    ? `<circle cx="22" cy="6" r="5" fill="#f59e0b" stroke="#ffffff" stroke-width="1"/><text x="22" y="9" text-anchor="middle" font-size="8" font-weight="700" fill="#ffffff" font-family="system-ui">?</text>`
+    : "";
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-  <path fill="${color.bg}" stroke="${color.ring}" stroke-width="1.5"
+  <path fill="${color.bg}" fill-opacity="${fillOpacity}" stroke="${outerStroke}" stroke-width="${outerWidth}" ${dash}
     d="M14 1.5C7.4 1.5 2 6.7 2 13.1c0 8.9 11 20.4 11.5 20.9.3.3.7.3 1 0C15 33.5 26 22 26 13.1 26 6.7 20.6 1.5 14 1.5z"/>
-  <circle cx="14" cy="13" r="4.5" fill="#ffffff" fill-opacity="0.9"/>
+  <path fill="none" stroke="${color.ring}" stroke-width="0.8" fill-opacity="${fillOpacity}"
+    d="M14 1.5C7.4 1.5 2 6.7 2 13.1c0 8.9 11 20.4 11.5 20.9.3.3.7.3 1 0C15 33.5 26 22 26 13.1 26 6.7 20.6 1.5 14 1.5z"/>
+  <circle cx="14" cy="13" r="4.5" fill="#ffffff" fill-opacity="${isCity ? 0.6 : 0.9}"/>
+  ${questionMark}
 </svg>`.trim();
 }
 
@@ -90,20 +113,30 @@ export function TerritoryMapView() {
   const runFn = useServerFn(runGeocodingBatch);
   const qc = useQueryClient();
 
-  const [filters, setFilters] = useState<{ cidades?: string[]; bairros?: string[]; tipo_contato?: string; consent?: "sim" | "nao" }>({});
+  const [filters, setFilters] = useState<{ cidades?: string[]; bairros?: string[]; tipo_contato?: string; consent?: "sim" | "nao"; onlyExact?: boolean }>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const stats = useSuspenseQuery({ queryKey: ["geocode-stats"], queryFn: () => statsFn() });
   const facets = useSuspenseQuery({ queryKey: ["map-facets"], queryFn: () => facetsFn() });
   const contacts = useSuspenseQuery({
     queryKey: ["map-contacts", filters],
-    queryFn: () => listFn({ data: filters }),
+    queryFn: () => listFn({ data: { cidades: filters.cidades, bairros: filters.bairros, tipo_contato: filters.tipo_contato, consent: filters.consent } }),
   });
 
   const runBatch = useMutation({
     mutationFn: () => runFn({ data: { limit: 15 } }),
     onSuccess: (r) => {
-      toast.success(`Geocode: ${r.ok} localizados, ${r.aprox} aproximados, ${r.fail} falha (${r.cached} em cache)`);
+      toast.success(`Geocode: ${r.ok} exatos, ${r.aprox} aproximados, ${r.fail} sem sucesso (${r.cached} em cache).`);
+      qc.invalidateQueries({ queryKey: ["geocode-stats"] });
+      qc.invalidateQueries({ queryKey: ["map-contacts"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const runImprecise = useMutation({
+    mutationFn: () => runFn({ data: { limit: 20, onlyImprecise: true } }),
+    onSuccess: (r) => {
+      toast.success(`Refino: ${r.ok} agora exatos, ${r.aprox} ainda aproximados, ${r.fail} sem sucesso.`);
       qc.invalidateQueries({ queryKey: ["geocode-stats"] });
       qc.invalidateQueries({ queryKey: ["map-contacts"] });
     },
@@ -114,32 +147,58 @@ export function TerritoryMapView() {
     (filters.cidades?.length ?? 0) +
     (filters.bairros?.length ?? 0) +
     (filters.tipo_contato ? 1 : 0) +
-    (filters.consent ? 1 : 0);
+    (filters.consent ? 1 : 0) +
+    (filters.onlyExact ? 1 : 0);
 
-  const pinCount = contacts.data.rows.length;
+  const visibleRows = useMemo(
+    () => filters.onlyExact
+      ? contacts.data.rows.filter((r) => r.geocoding_precision === "exato")
+      : contacts.data.rows,
+    [contacts.data.rows, filters.onlyExact],
+  );
+  const pinCount = visibleRows.length;
   const semCoord = stats.data.pendente + stats.data.erro + stats.data.semEndereco;
+  const imprecisos = stats.data.rua + stats.data.cep + stats.data.cidade;
 
   return (
     <div className="flex flex-col md:flex-row w-full">
       <div className="flex-1 min-w-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-3">
-          <Stat label="Com coordenada" value={stats.data.comCoordenada} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mb-3">
+          <Stat label="Exatos" value={stats.data.exato} tone="ok" />
+          <Stat label="Na rua" value={stats.data.rua} tone="warn" />
+          <Stat label="Aprox. (CEP)" value={stats.data.cep} tone="warn" />
+          <Stat label="Só cidade" value={stats.data.cidade} tone="warn" />
           <Stat label="Pendente" value={stats.data.pendente} />
-          <Stat label="Aproximado" value={stats.data.aproximado} />
-          <Stat label="Erro" value={stats.data.erro} />
           <Stat label="Sem endereço" value={stats.data.semEndereco} />
         </div>
 
-        {stats.data.pendente + stats.data.erro > 0 && (
+        {(stats.data.pendente + stats.data.erro > 0 || imprecisos > 0) && (
           <div className="mb-3 p-3 border rounded-md bg-amber-50 text-amber-900 flex flex-col sm:flex-row sm:items-start gap-2">
             <div className="flex items-start gap-2 flex-1 text-sm">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <div>{stats.data.pendente + stats.data.erro} contato(s) sem coordenada. O mapa exibe apenas os geocodificados.</div>
+              <div>
+                {stats.data.pendente + stats.data.erro > 0 && (
+                  <div>{stats.data.pendente + stats.data.erro} sem coordenada — o mapa só mostra quem já foi geolocalizado.</div>
+                )}
+                {imprecisos > 0 && (
+                  <div>{imprecisos} contato(s) com endereço completo, mas pin ainda impreciso. Rode o refino para tentar achar a casa exata.</div>
+                )}
+              </div>
             </div>
-            <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending} className="shrink-0">
-              <RefreshCw className={`h-3 w-3 mr-1 ${runBatch.isPending ? "animate-spin" : ""}`} />
-              Atualizar geolocalização
-            </Button>
+            <div className="flex gap-2 shrink-0 flex-wrap">
+              {stats.data.pendente + stats.data.erro > 0 && (
+                <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending}>
+                  <RefreshCw className={`h-3 w-3 mr-1 ${runBatch.isPending ? "animate-spin" : ""}`} />
+                  Geocodificar pendentes
+                </Button>
+              )}
+              {imprecisos > 0 && (
+                <Button size="sm" variant="outline" onClick={() => runImprecise.mutate()} disabled={runImprecise.isPending}>
+                  <Crosshair className={`h-3 w-3 mr-1 ${runImprecise.isPending ? "animate-spin" : ""}`} />
+                  Refinar imprecisos
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
@@ -184,6 +243,15 @@ export function TerritoryMapView() {
               <option value="sim">Com consentimento</option>
               <option value="nao">Sem consentimento</option>
             </select>
+            <label className="col-span-full sm:col-span-2 md:col-span-4 inline-flex items-center gap-2 text-sm px-1 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!filters.onlyExact}
+                onChange={(e) => setFilters((f) => ({ ...f, onlyExact: e.target.checked || undefined }))}
+                className="h-4 w-4"
+              />
+              <span>Mostrar apenas endereços <b>exatos</b> (ideal para entrega de material)</span>
+            </label>
           </div>
         </details>
 
@@ -196,7 +264,7 @@ export function TerritoryMapView() {
           <span className="md:hidden">Toque num pin</span>
         </div>
 
-        <LeafletMap rows={contacts.data.rows} selectedId={selectedId} onSelect={setSelectedId} hasPanel={!!selectedId} />
+        <LeafletMap rows={visibleRows} selectedId={selectedId} onSelect={setSelectedId} hasPanel={!!selectedId} />
       </div>
 
       {selectedId && (
@@ -206,20 +274,61 @@ export function TerritoryMapView() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, tone }: { label: string; value: number; tone?: "ok" | "warn" }) {
+  const toneClass = tone === "ok" ? "border-emerald-300 bg-emerald-50/60"
+    : tone === "warn" ? "border-amber-300 bg-amber-50/60" : "bg-card";
   return (
-    <div className="border rounded-lg p-3 bg-card">
+    <div className={`border rounded-lg p-3 ${toneClass}`}>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
 
+function PrecisionBadge({
+  precision, onRefine, loading, hasFullAddress,
+}: { precision: Precision | null; onRefine: () => void; loading: boolean; hasFullAddress: boolean }) {
+  const isExact = precision === "exato";
+  const isKnown = !!precision;
+  const tone = isExact
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : isKnown
+      ? "border-amber-300 bg-amber-50 text-amber-800"
+      : "border-slate-300 bg-slate-50 text-slate-700";
+  const label = precision ? PRECISION_LABEL[precision] : "Ainda não geocodificado";
+  return (
+    <div className={`mt-2 rounded-md border p-2 flex items-start gap-2 text-xs ${tone}`}>
+      <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium">{label}</div>
+        {!isExact && (
+          <div className="opacity-80 mt-0.5">
+            {hasFullAddress
+              ? "Endereço completo cadastrado — clique em Refinar para tentar achar a casa exata."
+              : "Complete rua, número e cidade para permitir localização exata."}
+          </div>
+        )}
+      </div>
+      {hasFullAddress && !isExact && (
+        <button
+          onClick={onRefine}
+          disabled={loading}
+          className="h-7 px-2 rounded border bg-background text-[11px] font-medium inline-flex items-center gap-1 hover:bg-muted disabled:opacity-60"
+        >
+          <Crosshair className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refinar
+        </button>
+      )}
+    </div>
+  );
+}
+
+
 type Row = {
   id: string; nome: string | null; phone_e164: string | null; bairro: string | null;
   cidade: string | null; profissao: string | null; tipo_contato: string | null;
   formas_ajuda: unknown; consentimento_whatsapp: boolean | null; latitude: number | null; longitude: number | null;
   tags: string[]; last_action: { action: string; created_at: string } | null;
+  geocoding_precision: Precision | null;
 };
 
 // ---------- Leaflet Map ----------
@@ -348,7 +457,7 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
       if (!mapRef.current || !clusterRef.current || !ready) return;
       const L = (await import("leaflet")).default;
       const withCoord = rows.filter((r) => r.latitude != null && r.longitude != null);
-      const signature = withCoord.map((r) => `${r.id}:${r.latitude},${r.longitude}:${r.last_action?.action ?? ""}`).join("|");
+      const signature = withCoord.map((r) => `${r.id}:${r.latitude},${r.longitude}:${r.last_action?.action ?? ""}:${r.geocoding_precision ?? ""}`).join("|");
       if (signature === rowsSignatureRef.current) return;
       rowsSignatureRef.current = signature;
 
@@ -362,7 +471,7 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
       const markers = withCoord.map((r) => {
         const color = r.last_action ? (ACTION_COLORS[r.last_action.action] ?? DEFAULT_PIN) : DEFAULT_PIN;
         const icon = L.divIcon({
-          html: pinSvg(color),
+          html: pinSvg(color, r.geocoding_precision),
           className: "custom-pin",
           iconSize: [28, 36],
           iconAnchor: [14, 34],
@@ -370,7 +479,9 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
         });
         const m = L.marker([r.latitude!, r.longitude!], { icon });
         const bairroTxt = r.bairro ? ` — ${r.bairro}` : "";
-        m.bindTooltip(`<b>${escapeHtml(r.nome ?? "(sem nome)")}</b>${escapeHtml(bairroTxt)}`, { direction: "top", offset: [0, -28], className: "leaflet-tooltip-pin" });
+        const precTxt = r.geocoding_precision && r.geocoding_precision !== "exato"
+          ? `<br/><span style="opacity:.75">${PRECISION_LABEL[r.geocoding_precision]}</span>` : "";
+        m.bindTooltip(`<b>${escapeHtml(r.nome ?? "(sem nome)")}</b>${escapeHtml(bairroTxt)}${precTxt}`, { direction: "top", offset: [0, -28], className: "leaflet-tooltip-pin" });
         m.on("click", () => onSelect(r.id));
         markerByIdRef.current.set(r.id, m);
         return m;
@@ -657,6 +768,17 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const regeocodeFn = useServerFn(regeocodeOne);
+  const regeocodeMut = useMutation({
+    mutationFn: () => regeocodeFn({ data: { contactId } }),
+    onSuccess: (r) => {
+      const label = r.precision ? PRECISION_LABEL[r.precision as Precision] : "sem sucesso";
+      toast.success(`Refino concluído: ${label}.`);
+      invalidateAfterField();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // ESC fecha (desktop)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -811,9 +933,13 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
                     <Navigation className="h-3.5 w-3.5" /> Rota
                   </a>
                 </div>
+                <PrecisionBadge
+                  precision={(c as { geocoding_precision?: Precision | null }).geocoding_precision ?? null}
+                  onRefine={() => regeocodeMut.mutate()}
+                  loading={regeocodeMut.isPending}
+                  hasFullAddress={!!(c.endereco && c.numero && c.cidade)}
+                />
               </div>
-
-              {/* Ações de campo */}
               <div className="space-y-2">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ação de campo</div>
                 <div className="grid grid-cols-2 gap-2">
