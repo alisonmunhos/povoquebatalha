@@ -202,7 +202,8 @@ export const triggerAutomationForContact = createServerFn({ method: "POST" })
     eventKey: z.string().trim().min(2).max(80),
     contactQuery: z.string().trim().min(3).max(80), // nome, telefone ou id
   }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const q = data.contactQuery.trim();
     let contact: any = null;
