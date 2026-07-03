@@ -6,9 +6,11 @@ import { z } from "zod";
 import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
-import { setOptOut, archiveContact } from "@/lib/contacts.functions";
+import { setOptOut, archiveContact, deleteContactsBulk } from "@/lib/contacts.functions";
 import { formatPhoneBR } from "@/lib/phone";
-import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send } from "lucide-react";
+import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2 } from "lucide-react";
+import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
+import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,6 +48,10 @@ function Contatos() {
   const exportFn = useServerFn(exportContactsCsv);
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
+  const deleteBulkFn = useServerFn(deleteContactsBulk);
+  const role = useCurrentUserRole();
+  const isAdmin = role === "admin";
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Default: mostra todos os contatos (ativos + arquivados) para não "sumir" registros mesclados/arquivados
   const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
@@ -325,6 +331,16 @@ function Contatos() {
               <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setConfirmDelete(true)}
+                  title="Excluir definitivamente (apenas admin)"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" /> Excluir
+                </Button>
+              )}
             </div>
 
             <div className="h-6 w-px bg-primary-foreground/30" />
@@ -496,6 +512,22 @@ function Contatos() {
         onOpenChange={(o) => setSendDlg({ ...sendDlg, open: o })}
         source={sendDlg.mode === "selection" ? { ids: [...selected] } : { filters }}
         labelSelecao={sendDlg.mode === "selection" ? `${selected.size} contato(s) selecionado(s)` : "todos os contatos do filtro atual"}
+      />
+
+      <ConfirmDeleteContactDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        bulkCount={selected.size}
+        onConfirm={async (typed) => {
+          try {
+            const r = await deleteBulkFn({ data: { ids: [...selected], confirmation: typed } });
+            toast.success(`${r.deleted} contato(s) excluído(s) definitivamente.`);
+            setSelected(new Set());
+            q.refetch();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Erro ao excluir.");
+          }
+        }}
       />
     </div>
     </TooltipProvider>

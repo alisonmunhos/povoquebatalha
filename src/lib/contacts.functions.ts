@@ -212,6 +212,106 @@ export const archiveContact = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+// =========== EXCLUSÃO DEFINITIVA (só admin) ===========
+async function assertAdmin(ctx: { supabase: { from: (t: string) => unknown }; userId: string }) {
+  const client = ctx.supabase as unknown as {
+    from: (t: string) => {
+      select: (c: string) => {
+        eq: (c: string, v: unknown) => {
+          eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+        };
+      };
+    };
+  };
+  const { data, error } = await client
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", ctx.userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (error) throw error as Error;
+  if (!data) throw new Error("Apenas administradores podem excluir contatos definitivamente.");
+}
+
+async function auditHardDelete(
+  ctx: { supabase: { from: (t: string) => unknown }; userId: string },
+  contact: Record<string, unknown>,
+) {
+  try {
+    const client = ctx.supabase as unknown as {
+      from: (t: string) => { insert: (v: unknown) => Promise<unknown> };
+    };
+    await client.from("access_audit_log").insert({
+      actor_id: ctx.userId,
+      target_user_id: null,
+      event: "contact_hard_delete",
+      meta: {
+        contact_id: contact.id,
+        nome: contact.nome,
+        phone_e164: contact.phone_e164,
+        email: contact.email,
+        cidade: contact.cidade,
+        uf: contact.uf,
+        origem: contact.origem,
+        deleted_at: new Date().toISOString(),
+      },
+    });
+  } catch {
+    /* non-blocking */
+  }
+}
+
+export const deleteContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), confirmation: z.string() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.confirmation !== "EXCLUIR") {
+      throw new Error("Confirmação inválida. Digite EXCLUIR para prosseguir.");
+    }
+    await assertAdmin(context);
+    const { data: contact, error: getErr } = await context.supabase
+      .from("contacts")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+    if (getErr) throw getErr;
+    await auditHardDelete(context, contact as Record<string, unknown>);
+    const { error } = await context.supabase.from("contacts").delete().eq("id", data.id);
+    if (error) throw error;
+    return { ok: true as const, id: data.id };
+  });
+
+export const deleteContactsBulk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        ids: z.array(z.string().uuid()).min(1).max(500),
+        confirmation: z.string(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const expected = String(data.ids.length);
+    if (data.confirmation !== expected) {
+      throw new Error(`Confirmação inválida. Digite o número exato de contatos (${expected}).`);
+    }
+    await assertAdmin(context);
+    const { data: contacts, error: getErr } = await context.supabase
+      .from("contacts")
+      .select("id,nome,phone_e164,email,cidade,uf,origem")
+      .in("id", data.ids);
+    if (getErr) throw getErr;
+    for (const c of contacts ?? []) {
+      await auditHardDelete(context, c as Record<string, unknown>);
+    }
+    const { error } = await context.supabase.from("contacts").delete().in("id", data.ids);
+    if (error) throw error;
+    return { ok: true as const, deleted: (contacts ?? []).length };
+  });
+
 export const setOptOut = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>

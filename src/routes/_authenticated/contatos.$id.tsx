@@ -5,12 +5,15 @@ import { useState, useEffect } from "react";
 import {
   getContact, updateContact, archiveContact, setOptOut,
   getContactHistory, listAllTags, createTag, setContactTag,
+  deleteContact,
 } from "@/lib/contacts.functions";
 import { listContactTerritoryLogs } from "@/lib/territory-logs.functions";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
-import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
+import { useCurrentUserRole } from "@/hooks/use-current-role";
 
 const TIPO_OPTIONS = [
   { v: "apoiador", l: "Apoiador" }, { v: "voluntario", l: "Voluntário" },
@@ -47,6 +50,10 @@ function ContatoFicha() {
   const tagsFn = useServerFn(listAllTags);
   const createTagFn = useServerFn(createTag);
   const setTagFn = useServerFn(setContactTag);
+  const deleteFn = useServerFn(deleteContact);
+  const role = useCurrentUserRole();
+  const isAdmin = role === "admin";
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const q = useQuery({ queryKey: ["contact", id], queryFn: () => getFn({ data: { id } }) });
   const hist = useQuery({ queryKey: ["contact-history", id], queryFn: () => historyFn({ data: { id } }) });
@@ -138,8 +145,32 @@ function ContatoFicha() {
           <button onClick={async () => { await archiveFn({ data: { id, archived: !c.arquivado_at } }); q.refetch(); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md">
             {c.arquivado_at ? <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</> : <><Archive className="h-3.5 w-3.5" /> Arquivar</>}
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border border-destructive/40 rounded-md text-destructive hover:bg-destructive/10"
+              title="Excluir definitivamente (admin)"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Excluir
+            </button>
+          )}
         </div>
       </div>
+
+      <ConfirmDeleteContactDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        contactName={c.nome}
+        onConfirm={async (typed) => {
+          try {
+            await deleteFn({ data: { id, confirmation: typed } });
+            toast.success("Contato excluído definitivamente.");
+            navigate({ to: "/contatos" });
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Erro ao excluir.");
+          }
+        }}
+      />
 
       <div className="flex items-baseline gap-3 mb-1">
         <h1 className="text-2xl font-bold">{c.nome}</h1>

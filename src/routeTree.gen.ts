@@ -38,6 +38,7 @@ import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
+import { Route as AuthenticatedUsuariosPapeisRouteImport } from './routes/_authenticated/usuarios.papeis'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
 import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
@@ -199,6 +200,12 @@ const ApiPublicBootstrapAdminRoute = ApiPublicBootstrapAdminRouteImport.update({
   path: '/api/public/bootstrap-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedUsuariosPapeisRoute =
+  AuthenticatedUsuariosPapeisRouteImport.update({
+    id: '/papeis',
+    path: '/papeis',
+    getParentRoute: () => AuthenticatedUsuariosRoute,
+  } as any)
 const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   id: '/contatos/$id',
   path: '/contatos/$id',
@@ -277,13 +284,14 @@ export interface FileRoutesByFullPath {
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/territorio': typeof AuthenticatedTerritorioRoute
-  '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
+  '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
@@ -316,13 +324,14 @@ export interface FileRoutesByTo {
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/territorio': typeof AuthenticatedTerritorioRoute
-  '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
+  '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
@@ -358,13 +367,14 @@ export interface FileRoutesById {
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
   '/_authenticated/territorio': typeof AuthenticatedTerritorioRoute
-  '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/_authenticated/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
+  '/_authenticated/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
     | '/contatos/$id'
+    | '/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/campanhas/'
     | '/comunicacao/'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
     | '/contatos/$id'
+    | '/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/campanhas'
     | '/comunicacao'
@@ -487,6 +499,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
     | '/_authenticated/contatos/$id'
+    | '/_authenticated/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/_authenticated/campanhas/'
     | '/_authenticated/comunicacao/'
@@ -724,6 +737,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicBootstrapAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/usuarios/papeis': {
+      id: '/_authenticated/usuarios/papeis'
+      path: '/papeis'
+      fullPath: '/usuarios/papeis'
+      preLoaderRoute: typeof AuthenticatedUsuariosPapeisRouteImport
+      parentRoute: typeof AuthenticatedUsuariosRoute
+    }
     '/_authenticated/contatos/$id': {
       id: '/_authenticated/contatos/$id'
       path: '/contatos/$id'
@@ -816,6 +836,19 @@ const AuthenticatedComunicacaoRouteWithChildren =
     AuthenticatedComunicacaoRouteChildren,
   )
 
+interface AuthenticatedUsuariosRouteChildren {
+  AuthenticatedUsuariosPapeisRoute: typeof AuthenticatedUsuariosPapeisRoute
+}
+
+const AuthenticatedUsuariosRouteChildren: AuthenticatedUsuariosRouteChildren = {
+  AuthenticatedUsuariosPapeisRoute: AuthenticatedUsuariosPapeisRoute,
+}
+
+const AuthenticatedUsuariosRouteWithChildren =
+  AuthenticatedUsuariosRoute._addFileChildren(
+    AuthenticatedUsuariosRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
@@ -830,7 +863,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
   AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
   AuthenticatedTerritorioRoute: typeof AuthenticatedTerritorioRoute
-  AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
+  AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRouteWithChildren
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedCampanhasIdRoute: typeof AuthenticatedCampanhasIdRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
@@ -852,7 +885,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
   AuthenticatedTagsRoute: AuthenticatedTagsRoute,
   AuthenticatedTerritorioRoute: AuthenticatedTerritorioRoute,
-  AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
+  AuthenticatedUsuariosRoute: AuthenticatedUsuariosRouteWithChildren,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedCampanhasIdRoute: AuthenticatedCampanhasIdRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,

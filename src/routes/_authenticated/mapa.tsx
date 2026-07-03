@@ -118,22 +118,19 @@ type Row = {
 };
 
 function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
-  const layerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const clusterRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const didInitialFitRef = useRef<boolean>(false);
+  const rowsSignatureRef = useRef<string>("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const center = useMemo(() => {
-    const withCoord = rows.filter((r) => r.latitude != null && r.longitude != null);
-    if (!withCoord.length) return { lat: -14.235, lng: -51.9253, zoom: 4 };
-    const lat = withCoord.reduce((s, r) => s + (r.latitude ?? 0), 0) / withCoord.length;
-    const lng = withCoord.reduce((s, r) => s + (r.longitude ?? 0), 0) / withCoord.length;
-    return { lat, lng, zoom: 11 };
-  }, [rows]);
-
+  // 1) Inicializa o mapa uma vez.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!ref.current) return;
+      if (!mapDivRef.current || mapRef.current) return;
       const L = (await import("leaflet")).default;
       await import("leaflet.markercluster");
       await import("leaflet/dist/leaflet.css");
@@ -148,40 +145,98 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
         iconRetinaUrl: iconRetina, iconUrl, shadowUrl,
       });
 
-      if (!mapRef.current) {
-        mapRef.current = L.map(ref.current).setView([center.lat, center.lng], center.zoom);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap contributors",
-          maxZoom: 19,
-        }).addTo(mapRef.current);
-      }
+      const map = L.map(mapDivRef.current, { preferCanvas: true }).setView([-14.235, -51.9253], 4);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19,
+        keepBuffer: 4,
+      }).addTo(map);
 
-      if (layerRef.current) {
-        mapRef.current.removeLayer(layerRef.current);
-      }
-      const cluster = (L as unknown as { markerClusterGroup: () => import("leaflet").LayerGroup }).markerClusterGroup();
-      rows.forEach((r) => {
-        if (r.latitude == null || r.longitude == null) return;
-        const marker = L.marker([r.latitude, r.longitude]);
-        marker.bindTooltip(r.nome ?? "(sem nome)");
-        marker.on("click", () => onSelect(r.id));
-        (cluster as unknown as { addLayer: (m: import("leaflet").Marker) => void }).addLayer(marker);
+      const cluster = (L as unknown as {
+        markerClusterGroup: (opts?: Record<string, unknown>) => import("leaflet").LayerGroup;
+      }).markerClusterGroup({
+        chunkedLoading: true,
+        chunkInterval: 100,
+        maxClusterRadius: 60,
       });
-      (mapRef.current as unknown as { addLayer: (l: import("leaflet").LayerGroup) => void }).addLayer(cluster);
-      layerRef.current = cluster;
+      (map as unknown as { addLayer: (l: import("leaflet").LayerGroup) => void }).addLayer(cluster);
 
-      if (rows.length) {
-        const withCoord = rows.filter((r) => r.latitude != null && r.longitude != null);
-        if (withCoord.length) {
-          const bounds = L.latLngBounds(withCoord.map((r) => [r.latitude!, r.longitude!]));
-          mapRef.current.fitBounds(bounds.pad(0.2));
-        }
-      }
+      mapRef.current = map;
+      clusterRef.current = cluster;
     })();
     return () => { cancelled = true; };
-  }, [rows, center.lat, center.lng, center.zoom, onSelect]);
+  }, []);
 
-  return <div ref={ref} className="w-full h-[70vh] rounded-lg border" />;
+  // 2) Atualiza marcadores quando 'rows' mudar (sem recriar o mapa).
+  useEffect(() => {
+    (async () => {
+      if (!mapRef.current || !clusterRef.current) return;
+      const L = (await import("leaflet")).default;
+      const withCoord = rows.filter((r) => r.latitude != null && r.longitude != null);
+      const signature = withCoord.map((r) => `${r.id}:${r.latitude},${r.longitude}`).join("|");
+      if (signature === rowsSignatureRef.current) return;
+      rowsSignatureRef.current = signature;
+
+      const cluster = clusterRef.current as unknown as {
+        clearLayers: () => void;
+        addLayers: (m: import("leaflet").Marker[]) => void;
+      };
+      cluster.clearLayers();
+      const markers = withCoord.map((r) => {
+        const m = L.marker([r.latitude!, r.longitude!]);
+        m.bindTooltip(r.nome ?? "(sem nome)");
+        m.on("click", () => onSelect(r.id));
+        return m;
+      });
+      cluster.addLayers(markers);
+
+      // fitBounds só no primeiro carregamento válido — não interrompe zoom manual do usuário.
+      if (!didInitialFitRef.current && withCoord.length) {
+        const bounds = L.latLngBounds(withCoord.map((r) => [r.latitude!, r.longitude!]));
+        mapRef.current.fitBounds(bounds.pad(0.2));
+        didInitialFitRef.current = true;
+      }
+    })();
+  }, [rows, onSelect]);
+
+  // 3) Fullscreen — corrige tamanho do Leaflet ao entrar/sair.
+  useEffect(() => {
+    function onChange() {
+      const active = !!document.fullscreenElement;
+      setIsFullscreen(active);
+      window.setTimeout(() => {
+        mapRef.current?.invalidateSize();
+      }, 200);
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  async function toggleFullscreen() {
+    if (!wrapperRef.current) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await wrapperRef.current.requestFullscreen();
+    }
+  }
+
+  return (
+    <div
+      ref={wrapperRef}
+      className={`relative w-full ${isFullscreen ? "h-screen bg-background" : "h-[70vh]"} rounded-lg border overflow-hidden`}
+    >
+      <div ref={mapDivRef} className="absolute inset-0" />
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        className="absolute top-2 right-2 z-[1000] bg-card border rounded-md px-2 py-1.5 text-xs shadow-sm hover:bg-muted"
+        title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+      >
+        {isFullscreen ? "Sair da tela cheia" : "⛶ Tela cheia"}
+      </button>
+    </div>
+  );
 }
 
 function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: () => void }) {
