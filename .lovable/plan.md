@@ -1,74 +1,47 @@
-## Diagnóstico
+## O que já existe hoje
 
-Vasculhei o código de envio. A pré-visualização não aparece por 3 motivos combinados:
+- Webhook `on-receive` grava `inbound_messages` e tenta casar contato por `phone_last8`. Se não achar (caso do LID ou telefone novo), fica com `contact_id = null`.
+- No Inbox há o banner amarelo **"Conversa não vinculada"** com dois botões:
+  - **Criar contato rápido**: só pede Nome / Cidade / UF e cria um contato mínimo com `phone_raw = from_phone` (isso hoje salvaria `217879546974326@lid` como se fosse telefone — bug).
+  - **Vincular existente**: busca contato e funde a conversa.
 
-1. **O loop de envio das campanhas não usa o motor unificado `wa-send.server.ts`**  
-   Em `src/lib/campaigns.functions.ts` (linhas 470–560, dentro de `processCampaignBatch`), o envio chama `zapi.sendText/sendImage/sendDocument` diretamente. Nunca cai em `zapi.sendLink`, mesmo quando há `link_url + link_title + link_image` salvos na campanha. Ou seja: a UI mostra a prévia bonita, mas na hora de mandar a Z-API só recebe texto.
+## O que precisa mudar
 
-2. **`zapi.sendText` envia `linkPreview: true`, mas o preview depende 100% do WhatsApp cachear o link**  
-   Já está correto em `src/integrations/zapi/client.server.ts` linha 66. Quando não aparece prévia com send-text, é porque:  
-   - o telefone-instância estava dormindo/desconectado no momento do envio;  
-   - a URL não tem `og:image` válida ou a imagem é > 300 KB;  
-   - o cache do Facebook está com metadados antigos.  
-   O caminho robusto é usar **`/send-link`** com título/descrição/imagem que já capturamos na composição — assim a prévia não depende de o WhatsApp buscar o link em tempo real.
+### 1. Detectar e tratar LID corretamente
+- No `on-receive` (`src/routes/api/public/zapi/$evento.ts`): quando `phone` terminar com `@lid` (ou não tiver dígitos suficientes), gravar em `inbound_messages` uma flag/coluna `is_lid = true` e não usar esse valor como telefone para busca. Continuar registrando `from_name` (nome do perfil WhatsApp) e o `senderPhone` alternativo se a Z-API mandar.
+- No card da conversa e no cabeçalho do chat: quando for LID, mostrar rótulo mais amigável — "Contato anônimo do WhatsApp (LID)" em vez do ID cru — com um tooltip explicando o que é.
+- Quando a Z-API entregar em algum campo do payload um telefone real junto do LID (`participantPhone`, `chatPhone`, `authorPhone`, `senderPhone`), usar esse telefone para tentar casar com a base **antes** de considerar não-vinculada.
 
-3. **Sem log/observabilidade do que a Z-API respondeu**  
-   Hoje salvamos `endpoint_used` e `preview_status`, mas não a resposta real do provedor nem o motivo do fallback. Fica difícil dizer "o envio X falhou o preview porque Y".
+### 2. Botão "Salvar contato" dentro do chat (com ficha completa)
+- Substituir o mini-formulário atual (Nome/Cidade/UF) por: **botão "Salvar como contato"** que abre a **mesma ficha de atualização cadastral que já existe** no fluxo público (`/atualizacao` — reaproveitar o componente/campos), porém:
+  - Em modo drawer/dialog dentro do Inbox (não navega para fora).
+  - **Todos os campos opcionais** (o operador preenche o que conseguir).
+  - Pré-preenchido com o que der para inferir: `nome` ← `from_name` do inbound; `phone_e164` ← telefone se vier no payload (não LID); nada nos demais.
+  - Cabeçalho do dialog explica: "Salvando contato a partir da conversa com [nome/LID]. Preencha o que souber; o resto pode ser completado depois."
+- Ao salvar: cria o `contact` normal (mesma tabela, mesma origem `manual` com `origem_detalhe = "inbox_quick_create"`), vincula a conversa e todo o histórico de `inbound_messages` daquele `from_phone`/LID, e habilita a resposta.
+- Se a conversa for LID sem telefone real conhecido, **avisar** que só será possível responder quando o contato mandar mensagem de um número real ou quando o operador editar o cadastro adicionando o telefone.
 
-## O que fazer
+### 3. "Vincular existente" continua igual
+- Nenhuma mudança funcional além de reaproveitar o mesmo banner reorganizado.
 
-### Etapa 1 — Fazer as campanhas usarem `/send-link` quando o link tem prévia
+### 4. Ajustes cosméticos no cabeçalho da conversa não-vinculada
+- Trocar o título grande `217879546974326@lid` por **"Sem contato vinculado"** com o LID/telefone em fonte menor, monoespaçada, ao lado.
+- Manter o banner amarelo com a mensagem "Vincule esta conversa a um contato antes de responder" e os dois botões (agora um deles abre a ficha completa).
 
-Em `campaigns.functions.ts` (`processCampaignBatch`):
+## Arquivos afetados
 
-- Ler a flag `use_send_link` via `readUseSendLinkFlag()` (já existe em `wa-send.server.ts`) **e** por padrão ligar em `true` (é isso que resolve o sintoma).
-- Quando `c.link_url` estiver definido **e** houver `c.link_title` ou `c.link_image`:
-  - chamar `zapi.sendLink({ phone, message: bodyRendered, linkUrl, title, linkDescription, image, linkType: "LARGE" })`;
-  - `endpoint_used = "send-link"`, `preview_status = "preview_confirmada"`.
-- Se `sendLink` falhar: fallback para `sendText` com `linkPreview:true`, gravar `fallback_reason` em `campaign_recipients.erro_preview` (novo campo texto opcional — se a coluna não existir, gravar dentro do `payload` do `message_events`).
-- Quando `c.tipo === "image"` e existir link com prévia salva: continuar mandando a imagem (a mídia é o principal), mas depois disparar um segundo `sendLink` com o link. Alternativa mais simples que vou adotar: se há mídia, mantemos hoje (mídia tem prioridade); se não há mídia e há link com OG, usar `send-link`.
-
-### Etapa 2 — Ligar a mesma flag no `SendWhatsAppWizard` e no botão "Enviar teste"
-
-Todos os pontos que hoje chamam `zapi.sendText` para um payload que tem `link_url + link_title/image` devem passar pelo mesmo caminho decisor. A forma mais barata é criar uma função interna `sendCampaignPayload(...)` em `campaigns.functions.ts` que centraliza a escolha e é chamada tanto pelo loop de campanha quanto pelo "enviar teste"/wizard.
-
-### Etapa 3 — Persistir resposta bruta para debug
-
-- Em `message_events.payload` já gravamos o retorno do `zapi.*`. Vou passar a incluir também `{ endpoint, requested_preview: {title, image, description}, fallback_reason }` para conseguirmos abrir um evento e ver exatamente o que a Z-API recebeu.
-- Adicionar log server-side (`console.warn`) quando `sendLink` falha, para o `server-function-logs` mostrar a mensagem da Z-API.
-
-### Etapa 4 — Painel "Como o contato vai ver"
-
-No detalhe da campanha (`/campanhas/:id`), no card do destinatário, mostrar:
-
-- `endpoint_used` traduzido ("Texto com preview automático" / "Link com preview forçado" / "Imagem" / "Documento");
-- `preview_status` com badge (verde = confirmada, amarelo = provável, cinza = sem link, vermelho = bloqueado);
-- se houve `fallback_reason`, mostrar em tooltip.
-
-Isso responde diretamente ao pedido "quero saber exatamente como vai aparecer para o contato".
-
-### Etapa 5 — Checklist na UI para o site do link
-
-No `MessageComposer`, quando a prévia carrega, mostrar um bloco pequeno de dicas se a imagem do OG for suspeita:
-
-- se `og:image` > 300 KB (checar via HEAD dentro de `fetchLinkPreview`), avisar "A imagem do link tem X KB — o WhatsApp pode descartar a prévia. Recomendado <300 KB.";
-- link para o Facebook Sharing Debugger com o URL pré-preenchido, texto: "Se o site mudou recentemente, force a atualização do cache do WhatsApp aqui.";
-- aviso simples se o telefone-instância estiver `disconnected` (status já é lido em `zapi.status()`): "Instância WhatsApp desconectada — reconecte antes de enviar."
+- `src/routes/api/public/zapi/$evento.ts` — detectar LID, tentar telefone alternativo do payload, gravar flag.
+- `src/components/CommunicationInbox.tsx` — refazer `UnlinkedBanner` + cabeçalho da conversa; adicionar botão "Salvar como contato" que abre o dialog da ficha completa.
+- Novo componente `src/components/QuickContactFromInboxDialog.tsx` — reaproveita os campos da ficha `/atualizacao` (nome, telefone, e-mail, cidade, bairro, UF, CEP, endereço, aniversário, notas etc.) todos opcionais.
+- `src/lib/communication.functions.ts` — expandir `createQuickContactFromConversation` para aceitar o payload completo (todos os campos opcionais) e não gravar LID em `phone_raw` quando `is_lid`.
+- (Opcional, só se necessário) Migration para adicionar `inbound_messages.is_lid boolean default false` — se não quiser migration, dá pra inferir por regex `@lid$` na hora de renderizar.
 
 ## Fora de escopo
 
-- Não vou mexer no wizard `SendWhatsAppWizard` além de reaproveitar a mesma função central.
-- Nenhuma migration necessária. As colunas `link_title/description/image/preview_status/endpoint_used` já existem em `campaign_recipients`.
-- Não vou tocar em `inbound_messages` / Inbox.
-
-## Detalhes técnicos
-
-- Arquivo a editar: `src/lib/campaigns.functions.ts` (loop de envio e função de "enviar teste"), `src/components/MessageComposer.tsx` (dicas), `src/routes/_authenticated/campanhas.$id.tsx` (badge/endpoint na lista de destinatários).
-- Sem novas dependências.
-- Compatível com registros antigos: quem não tem `link_title/image` continua com `send-text` + `linkPreview:true` (comportamento atual).
-- Nenhuma migração de banco.
+- Não vamos tentar "descobrir o telefone real por trás do LID" — o WhatsApp/Z-API não expõe isso de forma confiável.
+- Não vamos criar contato automaticamente no webhook (mantém decisão anterior: sempre precisa de ação humana).
+- Nenhuma mudança em campanhas, envio, ou fluxo público de atualização.
 
 ## Riscos
 
-- `/send-link` da Z-API às vezes rejeita imagens grandes ou URLs sem `https` — por isso o fallback automático para `send-text` está no plano.
-- O aviso de "imagem > 300 KB" depende do site permitir HEAD sem CORS server-side; feito no server (`link-preview.functions.ts`), então CORS não é problema.
+- Se algum contato antigo foi criado com `@lid` no `phone_raw` (bug do banner atual), o `phone_last8` dele está lixo. Posso incluir uma limpeza defensiva (transformar em `null` e marcar `whatsapp_status = 'invalido'`) — confirmar se quer que eu inclua.
