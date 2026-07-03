@@ -51,7 +51,18 @@ export async function processCampaignBatchInternal(
       const phone = ct.phone_e164.replace(/\D+/g, "");
       let result: { messageId?: string; zaapId?: string; id?: string };
       let endpointUsed: "send-text" | "send-image" | "send-document" = "send-text";
-      const caption = r.rendered_message ?? c.midia_caption ?? "";
+      const cc = c as unknown as { link_url?: string | null; link_title?: string | null; link_description?: string | null; link_image?: string | null };
+      const baseBody = r.rendered_message ?? c.mensagem_template;
+      const bodyRendered = cc.link_url && !baseBody.includes(cc.link_url)
+        ? `${baseBody}${baseBody.trim() ? "\n\n" : ""}${cc.link_url}`
+        : baseBody;
+      const caption = bodyRendered || c.midia_caption || "";
+      const urlMatch = bodyRendered.match(/\bhttps?:\/\/[^\s<>"]+/i);
+      const linkUrlFinal = cc.link_url ?? urlMatch?.[0] ?? null;
+      const previewStatus: string | null = linkUrlFinal
+        ? (cc.link_title || cc.link_image ? "preview_confirmada" : "preview_provavel")
+        : "sem_link";
+
       if (c.tipo === "document" && mediaUrl) {
         const ext = (c.midia_filename ?? "arquivo.pdf").split(".").pop()?.toLowerCase() ?? "pdf";
         result = await zapi.sendDocument(phone, mediaUrl, c.midia_filename ?? "arquivo", ext);
@@ -61,13 +72,19 @@ export async function processCampaignBatchInternal(
         result = await zapi.sendImage(phone, mediaUrl, caption);
         endpointUsed = "send-image";
       } else {
-        result = await zapi.sendText(phone, r.rendered_message ?? c.mensagem_template);
+        result = await zapi.sendText(phone, bodyRendered);
         endpointUsed = "send-text";
       }
       await supabaseAdmin.from("campaign_recipients").update({
         status: "sent", sent_at: new Date().toISOString(),
         message_id: result.messageId ?? result.id ?? null, zaap_id: result.zaapId ?? null,
         endpoint_used: endpointUsed,
+        link_url: linkUrlFinal,
+        link_title: cc.link_title ?? null,
+        link_description: cc.link_description ?? null,
+        link_image: cc.link_image ?? null,
+        preview_status: previewStatus,
+        rendered_message: bodyRendered,
       } as never).eq("id", r.id);
       await supabaseAdmin.from("message_events").insert({
         contact_id: r.contact_id, recipient_id: r.id, tipo: "sent", payload: result as never,
