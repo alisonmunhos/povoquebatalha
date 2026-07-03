@@ -150,8 +150,20 @@ export const inviteUser = createServerFn({ method: "POST" })
         .update({ invited_by: context.userId })
         .eq("id", userId);
     }
+    // Sempre gerar também um link direto (fallback caso o e-mail não chegue)
+    let actionLink: string | null = null;
+    try {
+      const { data: link } = await supabaseAdmin.auth.admin.generateLink({
+        type: "invite",
+        email: data.email,
+        options: { redirectTo },
+      });
+      actionLink = link?.properties?.action_link ?? null;
+    } catch {
+      /* non-blocking */
+    }
     await audit(context, userId ?? null, "convite_enviado", { email: data.email, role: data.role });
-    return { ok: true as const, userId };
+    return { ok: true as const, userId, actionLink, email: data.email, role: data.role };
   });
 
 export const resendInvite = createServerFn({ method: "POST" })
@@ -294,4 +306,77 @@ export const listAccessAudit = createServerFn({ method: "GET" })
       .limit(200);
     if (error) throw error;
     return { rows: data ?? [] };
+  });
+
+const resetPwdSchema = z.object({
+  userId: z.string().uuid(),
+  redirectOrigin: z.string().url(),
+});
+
+function verifyOrigin(reqOrigin: string) {
+  return reqOrigin;
+}
+
+export const generatePasswordResetLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => resetPwdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const req = getRequest();
+    const originHeader = req.headers.get("origin");
+    const host = req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const self = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
+    let requested: string;
+    try {
+      requested = new URL(data.redirectOrigin).origin;
+    } catch {
+      throw new Error("Origem inválida.");
+    }
+    if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
+    verifyOrigin(self);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: got, error: gotErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (gotErr || !got.user?.email) throw new Error("Usuário não encontrado.");
+    const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: got.user.email,
+      options: { redirectTo: `${self}/redefinir-senha` },
+    });
+    if (error) throw new Error(error.message);
+    await audit(context, data.userId, "senha_redefinida_por_admin", { via: "link", email: got.user.email });
+    return { url: link.properties?.action_link ?? null, email: got.user.email };
+  });
+
+export const sendPasswordResetEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => resetPwdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const req = getRequest();
+    const originHeader = req.headers.get("origin");
+    const host = req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const self = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
+    let requested: string;
+    try {
+      requested = new URL(data.redirectOrigin).origin;
+    } catch {
+      throw new Error("Origem inválida.");
+    }
+    if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: got, error: gotErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (gotErr || !got.user?.email) throw new Error("Usuário não encontrado.");
+    // Recovery link enviado por e-mail (usa templates do Supabase).
+    const { error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: got.user.email,
+      options: { redirectTo: `${self}/redefinir-senha` },
+    });
+    if (error) throw new Error(error.message);
+    await audit(context, data.userId, "senha_redefinida_por_admin", { via: "email", email: got.user.email });
+    return { ok: true as const, email: got.user.email };
   });
