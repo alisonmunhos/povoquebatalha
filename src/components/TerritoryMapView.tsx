@@ -14,8 +14,16 @@ import { toast } from "sonner";
 import {
   RefreshCw, AlertTriangle, X, Send, ExternalLink, LocateFixed, ChevronDown,
   Copy, Navigation, MessageCircle, CheckCircle2, UserX, StickyNote, RotateCcw,
-  History, Plus, Minus, Maximize2, Minimize2, Phone, MapPin,
+  History, Plus, Minus, Maximize2, Minimize2, Phone, MapPin, Crosshair,
 } from "lucide-react";
+
+type Precision = "exato" | "rua" | "cep" | "cidade";
+const PRECISION_LABEL: Record<Precision, string> = {
+  exato: "Endereço exato",
+  rua: "Na rua (número não confirmado)",
+  cep: "Aproximado pelo CEP",
+  cidade: "Só cidade/bairro",
+};
 
 // ---------- Deep links / helpers ----------
 function isMobile() {
