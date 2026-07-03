@@ -423,7 +423,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
       status: c.agendado_para ? "scheduled" : "draft",
     }).eq("id", data.id);
 
-    return { total: rows.length, ignorados: (contatos?.length ?? 0) - rows.length };
+    return { ok: true as const, total: rows.length, ignorados: (contatos?.length ?? 0) - rows.length, message: null };
   });
 
 export const startCampaign = createServerFn({ method: "POST" })
