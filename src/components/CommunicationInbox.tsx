@@ -89,7 +89,7 @@ export function CommunicationInbox() {
   const searchNewFn = useServerFn(searchContactsForNewChat);
   const signFn = useServerFn(signCampaignMediaUpload);
   const linkFn = useServerFn(linkConversationToContact);
-  const quickCreateFn = useServerFn(createQuickContactFromConversation);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", filter, search],
@@ -210,18 +210,12 @@ export function CommunicationInbox() {
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
-  const quickCreateMut = useMutation({
-    mutationFn: (v: { conversation_id: string; nome: string; cidade?: string; uf?: string }) =>
-      quickCreateFn({ data: v }),
-    onSuccess: (res) => {
-      toast.success("Contato criado");
-      setSelectedContactId(res.contact_id);
-      setSelectedConvId(null);
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
-      qc.invalidateQueries({ queryKey: ["comm-conv"] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
+  function onQuickContactCreated(contactId: string) {
+    setSelectedContactId(contactId);
+    setSelectedConvId(null);
+    qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+    qc.invalidateQueries({ queryKey: ["comm-conv"] });
+  }
 
   function openConversation(contactId: string | null, convId: string | null, unread: number) {
     setSelectedContactId(contactId);
