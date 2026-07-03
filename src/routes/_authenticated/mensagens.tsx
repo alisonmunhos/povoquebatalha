@@ -9,9 +9,9 @@ import {
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
   retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
-import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
-import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, Paperclip, RefreshCw, X } from "lucide-react";
+import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
+import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue } from "@/components/MessageComposer";
 
 export const Route = createFileRoute("/_authenticated/mensagens")({
   head: () => ({ meta: [{ title: "Mensagens e automações" }] }),
