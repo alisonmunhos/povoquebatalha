@@ -228,9 +228,26 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
       lifecycle_status: string | null; consentimento_whatsapp: boolean | null;
       opt_out_at: string | null; created_at: string;
     };
+
+    // Contagem de follow-ups pendentes por contato (independe do período)
+    const pageIds = ((rows ?? []) as ContactRow[]).map((r) => r.id);
+    const pendingByContact = new Map<string, number>();
+    if (pageIds.length > 0) {
+      const { data: pendRows } = await context.supabase
+        .from("territory_contact_logs")
+        .select("contact_id")
+        .in("contact_id", pageIds)
+        .eq("follow_up_status", "pendente")
+        .is("hidden_at", null);
+      for (const p of (pendRows ?? []) as Array<{ contact_id: string }>) {
+        pendingByContact.set(p.contact_id, (pendingByContact.get(p.contact_id) ?? 0) + 1);
+      }
+    }
+
     const enriched = ((rows ?? []) as ContactRow[]).map((r) => ({
       ...r,
       last_action: lastByContact.get(r.id) ?? null,
+      pending_count: pendingByContact.get(r.id) ?? 0,
     }));
 
     // Reordenar client-side se necessário
