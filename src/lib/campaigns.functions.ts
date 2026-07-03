@@ -387,13 +387,13 @@ export const prepareCampaign = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: c } = await context.supabase.from("campaigns").select("*").eq("id", data.id).single();
-    if (!c) throw new Error("Não encontrada");
+    if (!c) return { ok: false as const, total: 0, ignorados: 0, message: "Campanha não encontrada." };
     if (!["draft", "scheduled", "paused"].includes(c.status)) {
-      throw new Error("Campanha em andamento ou finalizada — não pode ser reprocessada.");
+      return { ok: false as const, total: 0, ignorados: 0, message: "Campanha em andamento ou finalizada — não pode ser reprocessada." };
     }
 
     const audience = await buildAudienceIds(context, c);
-    if (!audience.length) throw new Error("Público vazio.");
+    if (!audience.length) return { ok: false as const, total: 0, ignorados: 0, message: "Público vazio — nenhum contato corresponde aos filtros." };
 
     const { data: contatos } = await context.supabase
       .from("contacts")
