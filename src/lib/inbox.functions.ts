@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
+
 
 // ------- List conversations (grouped by contact) -------
 export const listInboxConversations = createServerFn({ method: "GET" })
@@ -203,10 +205,9 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     media_filename: z.string().trim().max(200).optional().nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: role } = await context.supabase
-      .from("user_roles").select("role").eq("user_id", context.userId)
-      .in("role", ["admin", "vrm", "operador"]).maybeSingle();
-    if (!role) throw new Error("Apenas admin/vrm/operador podem enviar mensagens.");
+    await requireStaff(context.supabase, context.userId);
+
+
 
     const { data: c, error } = await context.supabase
       .from("contacts")
