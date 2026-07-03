@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
+
 
 const listSchema = z.object({
   search: z.string().optional(),
@@ -213,25 +215,10 @@ export const archiveContact = createServerFn({ method: "POST" })
   });
 
 // =========== EXCLUSÃO DEFINITIVA (só admin) ===========
-async function assertAdmin(ctx: { supabase: { from: (t: string) => unknown }; userId: string }) {
-  const client = ctx.supabase as unknown as {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (c: string, v: unknown) => {
-          eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
-        };
-      };
-    };
-  };
-  const { data, error } = await client
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw error as Error;
-  if (!data) throw new Error("Apenas administradores podem excluir contatos definitivamente.");
+async function assertAdminHardDelete(ctx: { supabase: any; userId: string }) {
+  await requireAdmin(ctx.supabase, ctx.userId, "Apenas administradores podem excluir contatos definitivamente." as never);
 }
+
 
 async function auditHardDelete(
   ctx: { supabase: { from: (t: string) => unknown }; userId: string },

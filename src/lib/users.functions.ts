@@ -1,19 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
 
 type Ctx = { supabase: { from: (t: string) => any }; userId: string };
 
-async function assertAdmin(ctx: Ctx) {
-  const { data, error } = await ctx.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("Apenas administradores podem executar esta ação.");
-}
+
 
 async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Record<string, unknown> = {}) {
   try {

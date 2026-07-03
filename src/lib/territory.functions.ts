@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
 
 type Ctx = { supabase: { from: (t: string) => any }; userId: string };
 
@@ -9,10 +10,6 @@ async function getRoles(ctx: Ctx): Promise<string[]> {
   return (data ?? []).map((r: { role: string }) => r.role);
 }
 
-async function assertAdmin(ctx: Ctx) {
-  const roles = await getRoles(ctx);
-  if (!roles.includes("admin")) throw new Error("Apenas administradores.");
-}
 
 async function loadScopes(ctx: Ctx, userId: string) {
   const { data, error } = await ctx.supabase
