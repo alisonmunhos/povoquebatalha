@@ -104,8 +104,22 @@ function saudacaoAgora(): string {
   return "Boa noite";
 }
 
-export function renderVars(body: string, c: ContactCtx): string {
+export type RenderOptions = {
+  /** Base URL pública (ex.: https://app.example.com); usado para {{link_atualizacao}}, {{link_recadastro}}, {{link_inscricao}}. */
+  origin?: string | null;
+  /** Se true, variáveis desconhecidas viram string vazia. Padrão: false (mantém {{var}} literal). */
+  unknownAsEmpty?: boolean;
+};
+
+export function renderVars(body: string, c: ContactCtx, opts: RenderOptions = {}): string {
   const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
+  const origin = opts.origin ?? "";
+  const linkAtual = c.recad_token && origin
+    ? `${origin}/atualizacao?t=${c.recad_token}`
+    : origin
+      ? `${origin}/atualizacao`
+      : "";
+  const linkInscr = origin ? `${origin}/inscrever` : "";
   const values: Record<string, string> = {
     nome: c.nome ?? "",
     primeiro_nome: primeiro,
@@ -114,10 +128,14 @@ export function renderVars(body: string, c: ContactCtx): string {
     bairro: c.bairro ?? "",
     uf: c.uf ?? "",
     saudacao: saudacaoAgora(),
+    link_atualizacao: linkAtual,
+    link_recadastro: linkAtual,
+    link_inscricao: linkInscr,
   };
-  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
-    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
-  );
+  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) => {
+    if (Object.prototype.hasOwnProperty.call(values, k)) return values[k];
+    return opts.unknownAsEmpty ? "" : m;
+  });
 }
 
 /**
