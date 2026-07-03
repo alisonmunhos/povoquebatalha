@@ -274,9 +274,11 @@ export function TerritoryMapView() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, tone }: { label: string; value: number; tone?: "ok" | "warn" }) {
+  const toneClass = tone === "ok" ? "border-emerald-300 bg-emerald-50/60"
+    : tone === "warn" ? "border-amber-300 bg-amber-50/60" : "bg-card";
   return (
-    <div className="border rounded-lg p-3 bg-card">
+    <div className={`border rounded-lg p-3 ${toneClass}`}>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
     </div>
