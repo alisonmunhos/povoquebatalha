@@ -1366,6 +1366,11 @@ export type Database = {
           action: Database["public"]["Enums"]["territory_log_action"]
           contact_id: string
           created_at: string
+          follow_up_at: string | null
+          follow_up_by: string | null
+          follow_up_status: string | null
+          hidden_at: string | null
+          hidden_by: string | null
           id: string
           note: string | null
           user_id: string
@@ -1374,6 +1379,11 @@ export type Database = {
           action: Database["public"]["Enums"]["territory_log_action"]
           contact_id: string
           created_at?: string
+          follow_up_at?: string | null
+          follow_up_by?: string | null
+          follow_up_status?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
           id?: string
           note?: string | null
           user_id: string
@@ -1382,6 +1392,11 @@ export type Database = {
           action?: Database["public"]["Enums"]["territory_log_action"]
           contact_id?: string
           created_at?: string
+          follow_up_at?: string | null
+          follow_up_by?: string | null
+          follow_up_status?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
           id?: string
           note?: string | null
           user_id?: string
