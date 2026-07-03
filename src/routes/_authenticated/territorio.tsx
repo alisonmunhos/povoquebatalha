@@ -150,7 +150,13 @@ function FieldAction() {
     mutationFn: (v: { contactId: string; action: "whatsapp_aberto" | "contato_realizado" | "nao_encontrado" | "pediu_atualizacao" | "observacao"; note?: string }) =>
       logFn({ data: v }),
     onSuccess: (_res, vars) => {
-      toast.success(ACTION_TOAST[vars.action] ?? "Registrado");
+      toast.success(ACTION_TOAST[vars.action] ?? "Registrado", {
+        description: "Contato saiu desta lista e agora aparece no filtro correspondente.",
+        action: vars.action !== "observacao" ? {
+          label: "Desfazer",
+          onClick: () => undoMut.mutate({ contactId: vars.contactId }),
+        } : undefined,
+      });
       qc.invalidateQueries({ queryKey: ["territory-contacts"] });
       qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
     },
