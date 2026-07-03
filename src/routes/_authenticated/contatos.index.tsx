@@ -48,6 +48,10 @@ function Contatos() {
   const exportFn = useServerFn(exportContactsCsv);
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
+  const deleteBulkFn = useServerFn(deleteContactsBulk);
+  const role = useCurrentUserRole();
+  const isAdmin = role === "admin";
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Default: mostra todos os contatos (ativos + arquivados) para não "sumir" registros mesclados/arquivados
   const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
