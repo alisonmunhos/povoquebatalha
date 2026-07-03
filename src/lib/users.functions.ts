@@ -380,3 +380,29 @@ export const sendPasswordResetEmail = createServerFn({ method: "POST" })
     await audit(context, data.userId, "senha_redefinida_por_admin", { via: "email", email: got.user.email });
     return { ok: true as const, email: got.user.email };
   });
+
+// Bloco D — vincular o usuário atual a um contato (cria se não existir).
+export const linkCurrentUserContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      email: z.string().trim().email().optional().nullable(),
+      phone: z.string().trim().max(40).optional().nullable(),
+      full_name: z.string().trim().max(160).optional().nullable(),
+    }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: got } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const email = data.email ?? got.user?.email ?? null;
+    const phone = data.phone ?? null;
+    const full_name = data.full_name ?? (got.user?.user_metadata as { full_name?: string } | null)?.full_name ?? email;
+    const { data: contactId, error } = await supabaseAdmin.rpc("link_or_create_user_contact", {
+      _user_id: context.userId,
+      _email: email,
+      _phone: phone,
+      _full_name: full_name,
+    });
+    if (error) throw new Error(error.message);
+    return { contact_id: contactId as string | null };
+  });
