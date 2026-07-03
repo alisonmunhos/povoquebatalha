@@ -1,6 +1,65 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
+import { promises as dns } from "node:dns";
+
+function isPrivateIPv4(ip: string): boolean {
+  const m = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true; // link-local (metadata)
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  if (a >= 224) return true; // multicast/reserved
+  return false;
+}
+
+function isPrivateIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower === "::1" || lower === "::") return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // ULA
+  if (lower.startsWith("fe80")) return true; // link-local
+  if (lower.startsWith("::ffff:")) {
+    const v4 = lower.slice(7);
+    return isPrivateIPv4(v4);
+  }
+  return false;
+}
+
+async function assertPublicUrl(raw: string): Promise<string> {
+  let parsed: URL;
+  try { parsed = new URL(raw); } catch { throw new Error("URL inválida."); }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Apenas URLs http/https são permitidas.");
+  }
+  const host = parsed.hostname;
+  if (!host || host === "localhost") throw new Error("Host não permitido.");
+  // Bloqueia literal IPs em faixas privadas antes de resolver
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) && isPrivateIPv4(host)) {
+    throw new Error("Endereço de destino não permitido.");
+  }
+  if (host.includes(":") && isPrivateIPv6(host)) {
+    throw new Error("Endereço de destino não permitido.");
+  }
+  try {
+    const addrs = await dns.lookup(host, { all: true });
+    for (const a of addrs) {
+      if (a.family === 4 && isPrivateIPv4(a.address)) throw new Error("private");
+      if (a.family === 6 && isPrivateIPv6(a.address)) throw new Error("private");
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message === "private") {
+      throw new Error("Endereço de destino não permitido.");
+    }
+    throw new Error("Falha ao resolver o host.");
+  }
+  return parsed.toString();
+}
 
 export type LinkPreview = {
   url: string;
@@ -54,8 +113,17 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ url: z.string().trim().url().max(2000) }).parse(d),
   )
-  .handler(async ({ data }) => {
-    const url = data.url;
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
+    let url: string;
+    try {
+      url = await assertPublicUrl(data.url);
+    } catch (e) {
+      return {
+        url: data.url, title: null, description: null, image: null, siteName: null,
+        error: e instanceof Error ? e.message : "URL inválida",
+      } as LinkPreview;
+    }
     const cached = cache.get(url);
     if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
 
@@ -67,7 +135,7 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 5000);
       const res = await fetch(url, {
-        redirect: "follow",
+        redirect: "manual",
         signal: ctl.signal,
         headers: {
           // UA que costuma servir OG tags completas
@@ -78,6 +146,9 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
         },
       }).finally(() => clearTimeout(timer));
 
+      if (res.status >= 300 && res.status < 400) {
+        return { ...empty, error: "Redirecionamento não suportado" } as LinkPreview;
+      }
       if (!res.ok) {
         const out: LinkPreview = { ...empty, error: `HTTP ${res.status}` };
         return out;

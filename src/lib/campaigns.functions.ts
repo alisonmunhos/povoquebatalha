@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
 import { applyCrmFilters, crmFilterSchema, type CrmFilters } from "@/lib/crm-filters";
 
 const campaignInput = z.object({
@@ -176,6 +177,7 @@ export const signCampaignMediaUpload = createServerFn({ method: "POST" })
     contentType: z.string().trim().min(1).max(120),
   }).parse(d))
   .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const allowed = ["image/png","image/jpeg","image/jpg","image/webp","application/pdf"];
     if (!allowed.includes(data.contentType)) throw new Error("Tipo não permitido. Use PNG, JPG, WEBP ou PDF.");
     const clean = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);

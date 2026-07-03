@@ -26,6 +26,7 @@ type State =
 function PrimeiroAcessoPage() {
   const [state, setState] = useState<State>({ status: "checking" });
   const [email, setEmail] = useState("");
+  const [setupSecret, setSetupSecret] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +58,7 @@ function PrimeiroAcessoPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           email: parsed.data,
+          setup_secret: setupSecret,
           redirectOrigin: window.location.origin,
         }),
       });
@@ -131,6 +133,23 @@ function PrimeiroAcessoPage() {
                     className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     placeholder="voce@exemplo.com"
                   />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-medium">Segredo de inicialização</span>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="off"
+                    minLength={16}
+                    maxLength={200}
+                    value={setupSecret}
+                    onChange={(ev) => setSetupSecret(ev.target.value)}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="BOOTSTRAP_ADMIN_SECRET"
+                  />
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Valor do segredo <code>BOOTSTRAP_ADMIN_SECRET</code> configurado no backend.
+                  </span>
                 </label>
                 {state.status === "error" && (
                   <p className="text-sm text-destructive">{state.message}</p>

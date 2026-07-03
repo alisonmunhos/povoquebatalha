@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
 
 export const getGeocodingStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -43,6 +44,7 @@ export const runGeocodingBatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => runSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { geocodeAddress } = await import("@/lib/cep.server");
 
@@ -133,6 +135,7 @@ export const regeocodeOne = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { geocodeAddress } = await import("@/lib/cep.server");
 

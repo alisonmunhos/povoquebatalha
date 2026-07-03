@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
 
 const templateSchema = z.object({
   id: z.string().uuid().optional(),
@@ -116,7 +117,8 @@ const testSchema = z.object({
 export const sendTestTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => testSchema.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tpl, error } = await supabaseAdmin
       .from("message_templates")
@@ -169,7 +171,8 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
 export const retryAutomationDelivery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ deliveryId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: del, error } = await supabaseAdmin
       .from("automation_deliveries")
@@ -199,7 +202,8 @@ export const triggerAutomationForContact = createServerFn({ method: "POST" })
     eventKey: z.string().trim().min(2).max(80),
     contactQuery: z.string().trim().min(3).max(80), // nome, telefone ou id
   }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const q = data.contactQuery.trim();
     let contact: any = null;
