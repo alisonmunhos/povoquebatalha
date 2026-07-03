@@ -171,6 +171,7 @@ export const undoLastTerritoryLog = createServerFn({ method: "POST" })
       .eq("contact_id", data.contactId)
       .eq("user_id", context.userId)
       .is("hidden_at", null)
+      .in("action", ["contato_realizado", "nao_encontrado", "whatsapp_aberto", "pediu_atualizacao"])
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(1);
@@ -194,7 +195,8 @@ export const resetTerritoryContact = createServerFn({ method: "POST" })
     const { error, count } = await context.supabase
       .from("territory_contact_logs")
       .delete({ count: "exact" })
-      .eq("contact_id", data.contactId);
+      .eq("contact_id", data.contactId)
+      .neq("action", "observacao");
     if (error) throw error;
     return { ok: true as const, deleted: count ?? 0 };
   });
