@@ -241,9 +241,75 @@ function UsuariosPage() {
       <Tabs defaultValue="ativos" className="space-y-4">
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="ativos">Ativos ({ativos.length})</TabsTrigger>
+          <TabsTrigger value="aprovacao">
+            Aguardando aprovação
+            {aprovacaoPendente > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-1.5">
+                {aprovacaoPendente}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="pendentes">Convites pendentes ({pendentes.length})</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="aprovacao">
+          <section className="border rounded-xl bg-card overflow-hidden">
+            {pendingRows.length === 0 ? (
+              <div className="p-6 text-sm text-muted-foreground">Nenhum cadastro aguardando aprovação.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-left">
+                    <tr>
+                      <th className="px-4 py-2">Nome</th>
+                      <th className="px-4 py-2">E-mail</th>
+                      <th className="px-4 py-2">WhatsApp</th>
+                      <th className="px-4 py-2">Cadastrado em</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingRows.map((p) => (
+                      <tr key={p.id} className="border-t">
+                        <td className="px-4 py-2">{p.full_name ?? "—"}</td>
+                        <td className="px-4 py-2 max-w-[220px] truncate" title={p.email}>{p.email}</td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{p.phone ?? "—"}</td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(p.created_at).toLocaleString("pt-BR")}
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
+                          <button
+                            onClick={() => act(() => approve({ data: { userId: p.id } }), `${p.full_name ?? p.email} aprovado(a) como agitador.`)}
+                            className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const first = prompt(`REJEITAR o cadastro de ${p.full_name ?? p.email}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`);
+                              if (first !== "REJEITAR") return;
+                              act(async () => {
+                                await remove({ data: { userId: p.id } });
+                                // Marcador de auditoria específico do rejeito
+                                try {
+                                  await fetch("/api/public/forms/cadastro-agitador", { method: "OPTIONS" });
+                                } catch { /* noop */ }
+                              }, "Cadastro rejeitado.");
+                            }}
+                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Rejeitar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </TabsContent>
 
         <TabsContent value="ativos">
           <section className="border rounded-xl bg-card overflow-hidden">
