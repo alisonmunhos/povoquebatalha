@@ -61,14 +61,40 @@ async function assertPublicUrl(raw: string): Promise<string> {
   return parsed.toString();
 }
 
+export type LinkPreviewStatus =
+  | "preview_confirmada"
+  | "preview_provavel"
+  | "preview_indisponivel"
+  | "link_bloqueado";
+
 export type LinkPreview = {
   url: string;
   title: string | null;
   description: string | null;
   image: string | null;
   siteName: string | null;
+  status: LinkPreviewStatus;
   error?: string;
 };
+
+function classify(p: Omit<LinkPreview, "status">): LinkPreviewStatus {
+  if (p.error) {
+    // Erros específicos de bloqueio
+    if (
+      p.error.includes("não permitido") ||
+      p.error.includes("inválida") ||
+      p.error.includes("resolver")
+    ) {
+      return "link_bloqueado";
+    }
+    return "preview_indisponivel";
+  }
+  const hasTitle = Boolean(p.title && p.title.trim());
+  const hasImage = Boolean(p.image);
+  if (hasTitle && hasImage) return "preview_confirmada";
+  if (hasTitle || hasImage) return "preview_provavel";
+  return "preview_indisponivel";
+}
 
 const cache = new Map<string, { at: number; data: LinkPreview }>();
 const TTL_MS = 10 * 60 * 1000;
