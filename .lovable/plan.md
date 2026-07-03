@@ -1,47 +1,50 @@
-## Objetivo
+## Para onde vão as informações hoje
 
-Eliminar a necessidade de "escopo territorial" por usuário, unificar Território + Mapa em um único módulo, e garantir que o papel **Território** enxergue o mapa.
+Cada clique em **Abrir WhatsApp**, **Contato feito**, **Não encontrado** ou **Observação** insere uma linha na tabela `territory_contact_logs` (colunas: `user_id`, `contact_id`, `action`, `note`, `created_at`). Ou seja: o dado é gravado, mas hoje ele **não aparece em lugar nenhum** — nem na própria lista de Ação de Campo, nem no CRM, nem em filtros. Por isso parece que o botão "não faz nada".
 
-## Mudanças
+## O que vou fazer
 
-### 1. Remover restrição por escopo (todos veem tudo)
+Transformar essas ações em sinal útil, em três frentes — sem mudar o schema.
 
-- `src/lib/map.functions.ts` (`listMapContacts`): remover bloco `restrict` / `applyScopeFilter` / `noScope`. Sempre listar todos os contatos com lat/long (respeitando filtros normais do CRM).
-- `src/lib/territory.functions.ts` (`getTerritoryOverview`, `listTerritoryContacts`): remover `restrict` e `applyScopeFilter`. KPIs e listagem passam a considerar toda a base.
-- Manter as funções `listMyScopes`, `addScope`, `removeScope` existindo (não quebrar chamadas), mas a UI de gestão de escopos deixa de ser oferecida como pré-requisito. Mensagem "(sem escopo definido)" some.
+### 1. Feedback imediato ao clicar (aba Ação de Campo)
 
-### 2. Unificar Território + Mapa em um módulo único
+- Toast de sucesso/erro em cada ação (`sonner`).
+- Botão fica desabilitado com "Registrando…" enquanto a mutation está pendente (evita clique duplo).
+- O card ganha, na hora, um **selo persistente** com o último status desta visita: "✓ Contato feito 14:32" ou "Não encontrado 14:35" — assim o agente em campo sabe que o registro foi salvo.
+- O selo também aparece automaticamente com base no log mais recente do contato (não só na sessão atual), para quando outra pessoa já tiver passado por ele.
 
-- `src/routes/_authenticated/territorio.tsx`: transformar em página com **abas** (Tabs):
-  - **Ação de Campo** (conteúdo atual: KPIs, busca, lista de contatos, registrar visita).
-  - **Mapa** (embutir o conteúdo hoje em `/mapa`: mapa Leaflet com clusters, filtros, fullscreen).
-- `src/routes/_authenticated/mapa.tsx`: manter como rota redirecionando para `/territorio?tab=mapa` (preserva links antigos e o menu atual sem quebrar).
-- Extrair o componente do mapa para `src/components/TerritoryMap.tsx` para reuso dentro da aba.
+### 2. Filtros e ordenação na lista de Ação de Campo
 
-### 3. Menu lateral (AppShell)
+Barra de filtros acima da lista de contatos:
 
-- `src/components/AppShell.tsx`: grupo "Território" passa a ter **um único item**: "Território" (ícone Compass) apontando para `/territorio`. Remover item "Mapa Geral".
-- Ajustar `hint` para: "Ação de campo + mapa geral da base."
-- Permitir o item Território para os papéis `admin`, `operador`, `vrm`, `territorio` (já é o caso).
+- **Status de abordagem** (multi-select): "Ainda não abordado", "Contato feito", "Não encontrado", "Com observação".
+- **Período**: hoje / últimos 7 dias / todos.
+- **Ordenar por**: mais recentes primeiro / não abordados primeiro (padrão) / alfabético.
+- Contagem em cada opção ("Não encontrado (12)").
 
-### 4. Papel Território enxergando o mapa
+O objetivo é que o agente consiga, por exemplo, "esconder quem já foi contatado hoje" ou "revisitar os não encontrados da semana".
 
-- Com a unificação, o usuário `territorio` já entra em `/territorio` e vê a aba Mapa disponível.
-- Confirmar em `_authenticated/route.tsx` que `TERRITORIO_ALLOWED_PREFIXES` inclui `/territorio` (já inclui). Não precisa liberar `/mapa` porque vira redirect para `/territorio`.
-- Remover qualquer gate por escopo dentro das telas: usuária Território verá todos os contatos e todo o mapa automaticamente.
+### 3. Visibilidade no CRM (aba Contatos)
 
-### 5. Limpeza suave (sem migração destrutiva)
+- Nova **coluna opcional** "Última ação de campo" mostrando ícone + rótulo + data (ex.: "Contato feito · há 2h").
+- Novo **filtro no CRM**: "Ação de campo" com as mesmas opções acima, para segmentar quem já foi visitado.
+- Na **timeline do perfil do contato**, os eventos de campo passam a aparecer junto com os demais (importação, mensagens, etc.), com autor e observação.
 
-- Não apagar tabela `user_territory_scopes` nem dados existentes (preservação de dados).
-- Esconder da UI a seção de "Escopos" em `/usuarios` (se estiver visível), com nota "Escopos desativados — todos os usuários com acesso ao Território veem toda a base."
+### 4. Alertas leves (sem barulho)
+
+- Um pequeno **contador no menu lateral** de Território: "3 não encontrados hoje" quando aplicável.
+- No topo da Ação de Campo, um card resumo do dia do usuário logado: "Hoje você abordou 12 · fez contato com 8 · não encontrou 3 · deixou 2 observações".
 
 ## Fora do escopo
 
-- Não altero policies do banco nem estrutura de papéis.
-- Não mexo em Comunicação/Inbox/CRM além do menu lateral.
+- Não altero `territory_contact_logs` nem `logTerritoryAction`.
+- Não crio notificações por WhatsApp/e-mail — só alertas visuais dentro do app.
+- Não mudo RLS.
+- Não mexo na aba **Mapa**.
 
-## Onde testar depois
+## Detalhes técnicos
 
-Logar como usuária Território → menu mostra "Território" → abrir → alternar abas "Ação de Campo" e "Mapa" → confirmar contatos e pins visíveis sem precisar de escopo.
-
-- Logar como Admin → mesma tela unificada; link antigo `/mapa` redireciona para `/territorio`.
+- Novo server fn `getContactsLastFieldAction({ contactIds })` retornando `{ contact_id, action, note, created_at, user_id }` com base em `territory_contact_logs`, usando `distinct on (contact_id)` ordenado por `created_at desc`. Consumido tanto na lista de campo quanto no CRM.
+- `listTerritoryContacts` recebe novos filtros opcionais (`fieldStatus[]`, `sinceDays`, `sortBy`) resolvidos via join lateral com o log mais recente.
+- `logTerritoryAction` continua igual; o `onSuccess` da mutation já invalida `territory-contacts` — vou incluir também as queries do CRM (`contacts` list) para refletir o selo lá.
+- Coluna e filtro no CRM adicionados como opt-in em `ColumnSettings` para não poluir a tabela padrão.
