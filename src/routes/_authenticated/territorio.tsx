@@ -298,7 +298,7 @@ function FieldAction() {
           <Smartphone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
           <div className="text-[11px] text-muted-foreground leading-tight space-y-1">
             <p>Adicione à tela inicial pelo menu do navegador para usar como app.</p>
-            <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso ou o botão <b>Voltar para não abordado</b> no card para reverter.</p>
+            <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso ou o botão <b>Voltar para não abordado</b> no card para reverter. <b>As observações são mantidas no histórico</b> mesmo após desfazer.</p>
           </div>
         </div>
 
