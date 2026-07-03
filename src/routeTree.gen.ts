@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
@@ -50,6 +51,11 @@ import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/fo
 import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecadastroRoute = RecadastroRouteImport.update({
   id: '/recadastro',
   path: '/recadastro',
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
+    | '/redefinir-senha'
     | '/calendario'
     | '/comunicacao'
     | '/dashboard'
@@ -438,6 +448,7 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
+    | '/redefinir-senha'
     | '/calendario'
     | '/dashboard'
     | '/duplicidades'
@@ -479,6 +490,7 @@ export interface FileRouteTypes {
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
+    | '/redefinir-senha'
     | '/_authenticated/calendario'
     | '/_authenticated/comunicacao'
     | '/_authenticated/dashboard'
@@ -522,6 +534,7 @@ export interface RootRouteChildren {
   ObrigadoRoute: typeof ObrigadoRoute
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
@@ -534,6 +547,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recadastro': {
       id: '/recadastro'
       path: '/recadastro'
@@ -906,6 +926,7 @@ const rootRouteChildren: RootRouteChildren = {
   ObrigadoRoute: ObrigadoRoute,
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,

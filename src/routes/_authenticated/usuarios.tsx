@@ -9,10 +9,25 @@ import {
   setUserStatus,
   resendInvite,
   generateInviteLink,
+  generatePasswordResetLink,
+  sendPasswordResetEmail,
   listAccessAudit,
 } from "@/lib/users.functions";
-import { listUserScopes, addScope, removeScope } from "@/lib/territory.functions";
-import { UserPlus, Trash2, ShieldCheck, MapPin, Plus, X, Link as LinkIcon, RefreshCw, Ban, Play } from "lucide-react";
+import {
+  UserPlus,
+  Trash2,
+  ShieldCheck,
+  RefreshCw,
+  Ban,
+  Play,
+  KeyRound,
+  Copy,
+  X,
+  Link as LinkIcon,
+  Info,
+  CheckCircle2,
+  UserMinus,
+} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
@@ -35,7 +50,6 @@ type Row = {
     | "convite_expirado"
     | "suspenso"
     | "revogado";
-  scope_count: number;
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -46,6 +60,9 @@ const ROLE_LABEL: Record<string, string> = {
   leitor: "Leitor",
 };
 
+type InviteModal = { email: string; role: string; link: string | null };
+type ResetModal = { email: string; userId: string };
+
 function UsuariosPage() {
   const fetchList = useServerFn(listUsers);
   const invite = useServerFn(inviteUser);
@@ -54,6 +71,8 @@ function UsuariosPage() {
   const setStatus = useServerFn(setUserStatus);
   const resend = useServerFn(resendInvite);
   const genLink = useServerFn(generateInviteLink);
+  const genResetLink = useServerFn(generatePasswordResetLink);
+  const emailReset = useServerFn(sendPasswordResetEmail);
   const audit = useServerFn(listAccessAudit);
 
   const [rows, setRows] = useState<Row[]>([]);
@@ -61,9 +80,12 @@ function UsuariosPage() {
   const [err, setErr] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "operador" | "leitor" | "vrm" | "territorio">("operador");
-  const [expandedScopes, setExpandedScopes] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [inviteModal, setInviteModal] = useState<InviteModal | null>(null);
+  const [resetModal, setResetModal] = useState<ResetModal | null>(null);
+  const [resetLink, setResetLink] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
   const [auditRows, setAuditRows] = useState<{ id: string; event: string; created_at: string; meta: Record<string, unknown>; target_user_id: string | null; actor_id: string | null }[]>([]);
 
   async function load() {
@@ -87,8 +109,8 @@ function UsuariosPage() {
     e.preventDefault();
     setSubmitting(true); setMsg(null); setErr(null);
     try {
-      await invite({ data: { email, role, redirectOrigin: window.location.origin } });
-      setMsg(`Convite enviado para ${email}.`);
+      const r = await invite({ data: { email, role, redirectOrigin: window.location.origin } });
+      setInviteModal({ email: r.email ?? email, role: r.role ?? role, link: r.actionLink ?? null });
       setEmail("");
       await load();
     } catch (e) {
@@ -104,6 +126,34 @@ function UsuariosPage() {
     } catch (e) {
       alert(e instanceof Error ? e.message : "Erro.");
     }
+  }
+
+  async function openReset(u: Row) {
+    setResetModal({ email: u.email, userId: u.id });
+    setResetLink(null);
+  }
+
+  async function doGenerateResetLink() {
+    if (!resetModal) return;
+    setResetBusy(true);
+    try {
+      const r = await genResetLink({ data: { userId: resetModal.userId, redirectOrigin: window.location.origin } });
+      setResetLink(r.url);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao gerar link.");
+    } finally { setResetBusy(false); }
+  }
+
+  async function doSendResetEmail() {
+    if (!resetModal) return;
+    setResetBusy(true);
+    try {
+      await emailReset({ data: { userId: resetModal.userId, redirectOrigin: window.location.origin } });
+      setMsg(`E-mail de redefinição enviado para ${resetModal.email}.`);
+      setResetModal(null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao enviar e-mail.");
+    } finally { setResetBusy(false); }
   }
 
   const ativos = rows.filter((r) => r.derived_status === "ativo" || r.derived_status === "suspenso" || r.derived_status === "revogado");
@@ -153,8 +203,22 @@ function UsuariosPage() {
             {submitting ? "Enviando…" : "Enviar convite"}
           </button>
         </form>
+        <p className="mt-3 text-xs text-muted-foreground flex items-start gap-1.5">
+          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          Ao enviar, também geramos um link direto que você pode copiar e enviar por WhatsApp caso o e-mail não chegue.
+        </p>
         {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
         {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
+      </section>
+
+      {/* Guia rápido de ações */}
+      <section className="border rounded-xl p-4 bg-muted/30 text-xs text-muted-foreground">
+        <div className="font-medium text-foreground mb-2 flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Diferença entre as ações</div>
+        <ul className="space-y-1.5">
+          <li><b className="text-amber-700">Suspender</b> — bloqueia login temporariamente. Papel e histórico preservados. Reversível a qualquer momento.</li>
+          <li><b className="text-rose-700">Revogar acesso</b> — remove todos os papéis. Conta e histórico ficam preservados, mas a pessoa perde acesso ao painel. Reversível dando novo papel.</li>
+          <li><b className="text-destructive">Excluir conta</b> — apaga o usuário do sistema. Permite convidar o mesmo e-mail do zero. Não é reversível.</li>
+        </ul>
       </section>
 
       <Tabs defaultValue="ativos" className="space-y-4">
@@ -178,7 +242,6 @@ function UsuariosPage() {
                       <th className="px-4 py-2">E-mail</th>
                       <th className="px-4 py-2">Papel</th>
                       <th className="px-4 py-2">Status</th>
-                      <th className="px-4 py-2">Escopo</th>
                       <th className="px-4 py-2">Último acesso</th>
                       <th className="px-4 py-2">Criado</th>
                       <th className="px-4 py-2"></th>
@@ -188,66 +251,74 @@ function UsuariosPage() {
                     {ativos.map((u) => {
                       const currentRole = (u.roles[0] ?? "leitor") as
                         | "admin" | "operador" | "leitor" | "vrm" | "territorio";
-                      const showScopes = currentRole === "territorio" || currentRole === "leitor";
-                      const expanded = expandedScopes === u.id;
                       return (
-                        <>
-                          <tr key={u.id} className="border-t">
-                            <td className="px-4 py-2 max-w-[220px] truncate" title={u.email}>{u.email}</td>
-                            <td className="px-4 py-2">
-                              <select
-                                value={currentRole}
-                                onChange={(e) => act(() => updateRole({ data: { userId: u.id, role: e.target.value as typeof currentRole } }))}
-                                className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                        <tr key={u.id} className="border-t">
+                          <td className="px-4 py-2 max-w-[220px] truncate" title={u.email}>{u.email}</td>
+                          <td className="px-4 py-2">
+                            <select
+                              value={currentRole}
+                              onChange={(e) => act(() => updateRole({ data: { userId: u.id, role: e.target.value as typeof currentRole } }))}
+                              className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                            >
+                              {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2"><StatusPill status={u.derived_status} /></td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                            {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString("pt-BR") : "—"}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(u.created_at).toLocaleDateString("pt-BR")}
+                          </td>
+                          <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
+                            <button
+                              onClick={() => openReset(u)}
+                              title="Gerar link ou enviar e-mail para o usuário redefinir a senha"
+                              className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                            >
+                              <KeyRound className="h-3.5 w-3.5" /> Redefinir senha
+                            </button>
+                            {u.status === "ativo" ? (
+                              <button
+                                onClick={() => act(() => setStatus({ data: { userId: u.id, status: "suspenso" } }), "Acesso suspenso.")}
+                                title="Bloqueia login temporariamente. Reversível."
+                                className="text-amber-700 hover:underline inline-flex items-center gap-1 text-xs"
                               >
-                                {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                              </select>
-                            </td>
-                            <td className="px-4 py-2"><StatusPill status={u.derived_status} /></td>
-                            <td className="px-4 py-2 text-xs">{showScopes ? (u.scope_count > 0 ? `${u.scope_count} regra(s)` : "sem escopo") : "—"}</td>
-                            <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                              {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString("pt-BR") : "—"}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                              {new Date(u.created_at).toLocaleDateString("pt-BR")}
-                            </td>
-                            <td className="px-4 py-2 text-right whitespace-nowrap space-x-2">
-                              {showScopes && (
-                                <button onClick={() => setExpandedScopes(expanded ? null : u.id)}
-                                  className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                                  <MapPin className="h-3.5 w-3.5" /> {expanded ? "Fechar" : "Escopos"}
-                                </button>
-                              )}
-                              {u.status === "ativo" ? (
-                                <button onClick={() => act(() => setStatus({ data: { userId: u.id, status: "suspenso" } }), "Acesso suspenso.")}
-                                  className="text-amber-700 hover:underline inline-flex items-center gap-1 text-xs">
-                                  <Ban className="h-3.5 w-3.5" /> Suspender
-                                </button>
-                              ) : (
-                                <button onClick={() => act(() => setStatus({ data: { userId: u.id, status: "ativo" } }), "Acesso reativado.")}
-                                  className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs">
-                                  <Play className="h-3.5 w-3.5" /> Reativar
-                                </button>
-                              )}
-                              {u.status !== "revogado" && (
-                                <button onClick={() => {
-                                  if (!confirm(`Revogar acesso de ${u.email}? Todas as permissões serão removidas.`)) return;
+                                <Ban className="h-3.5 w-3.5" /> Suspender
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => act(() => setStatus({ data: { userId: u.id, status: "ativo" } }), "Acesso reativado.")}
+                                className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs"
+                              >
+                                <Play className="h-3.5 w-3.5" /> Reativar
+                              </button>
+                            )}
+                            {u.status !== "revogado" && (
+                              <button
+                                onClick={() => {
+                                  if (!confirm(`Revogar acesso de ${u.email}?\n\nTodos os papéis serão removidos. A conta e o histórico ficam preservados. Você pode reativar depois dando um novo papel.`)) return;
                                   act(() => setStatus({ data: { userId: u.id, status: "revogado" } }), "Acesso revogado.");
                                 }}
-                                  className="text-destructive hover:underline inline-flex items-center gap-1 text-xs">
-                                  <Trash2 className="h-3.5 w-3.5" /> Revogar
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                          {expanded && showScopes && (
-                            <tr>
-                              <td colSpan={7} className="px-4 py-3 bg-muted/30">
-                                <ScopesEditor userId={u.id} onChange={load} />
-                              </td>
-                            </tr>
-                          )}
-                        </>
+                                title="Remove todos os papéis. Conta preservada. Reversível dando novo papel."
+                                className="text-rose-700 hover:underline inline-flex items-center gap-1 text-xs"
+                              >
+                                <UserMinus className="h-3.5 w-3.5" /> Revogar acesso
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                const first = prompt(`EXCLUIR permanentemente a conta ${u.email}?\n\nEsta ação NÃO é reversível.\n\nDigite EXCLUIR para confirmar.`);
+                                if (first !== "EXCLUIR") return;
+                                act(() => remove({ data: { userId: u.id } }), "Conta excluída.");
+                              }}
+                              title="Apaga o usuário definitivamente. Permite reconvidar o mesmo e-mail."
+                              className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Excluir
+                            </button>
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -282,28 +353,32 @@ function UsuariosPage() {
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {u.invited_at ? new Date(u.invited_at).toLocaleString("pt-BR") : "—"}
                         </td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap space-x-2">
-                          <button onClick={() => act(() => resend({ data: { userId: u.id, redirectOrigin: window.location.origin } }), "Convite reenviado.")}
-                            className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                            <RefreshCw className="h-3.5 w-3.5" /> Reenviar
+                        <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const r = await genLink({ data: { userId: u.id, redirectOrigin: window.location.origin } });
+                                if (r.url) setInviteModal({ email: u.email, role: u.roles[0] ?? "leitor", link: r.url });
+                              } catch (e) { alert(e instanceof Error ? e.message : "Erro."); }
+                            }}
+                            className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                            title="Gera um novo link direto para copiar/enviar"
+                          >
+                            <LinkIcon className="h-3.5 w-3.5" /> Gerar novo link
                           </button>
-                          <button onClick={async () => {
-                            try {
-                              const r = await genLink({ data: { userId: u.id, redirectOrigin: window.location.origin } });
-                              if (r.url) {
-                                await navigator.clipboard.writeText(r.url);
-                                setMsg("Link copiado.");
-                              }
-                            } catch (e) { alert(e instanceof Error ? e.message : "Erro."); }
-                          }}
-                            className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                            <LinkIcon className="h-3.5 w-3.5" /> Copiar link
+                          <button
+                            onClick={() => act(() => resend({ data: { userId: u.id, redirectOrigin: window.location.origin } }), "Convite reenviado por e-mail.")}
+                            className="text-muted-foreground hover:text-foreground hover:underline inline-flex items-center gap-1 text-xs"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" /> Reenviar por e-mail
                           </button>
-                          <button onClick={() => {
-                            if (!confirm(`Cancelar o convite de ${u.email}? A conta será apagada.`)) return;
-                            act(() => remove({ data: { userId: u.id } }), "Convite cancelado.");
-                          }}
-                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs">
+                          <button
+                            onClick={() => {
+                              if (!confirm(`Cancelar o convite de ${u.email}? A conta será apagada.`)) return;
+                              act(() => remove({ data: { userId: u.id } }), "Convite cancelado.");
+                            }}
+                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                          >
                             <X className="h-3.5 w-3.5" /> Cancelar
                           </button>
                         </td>
@@ -338,6 +413,78 @@ function UsuariosPage() {
           </section>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de convite / link gerado */}
+      {inviteModal && (
+        <Modal onClose={() => setInviteModal(null)} title="Convite pronto">
+          <p className="text-sm">
+            Convite gerado para <b>{inviteModal.email}</b> como <b>{ROLE_LABEL[inviteModal.role] ?? inviteModal.role}</b>.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Tentamos enviar por e-mail, mas caso não chegue, copie o link abaixo e envie manualmente por WhatsApp. O link expira em 7 dias.
+          </p>
+          {inviteModal.link ? (
+            <>
+              <LinkBox url={inviteModal.link} />
+              <div className="flex gap-2 flex-wrap">
+                <CopyButton
+                  text={inviteModal.link}
+                  label="Copiar link"
+                  onDone={() => setMsg("Link copiado.")}
+                />
+                <CopyButton
+                  text={`Olá! Você foi convidado para a Central da Campanha do Povo que Batalha. Clique no link abaixo para criar sua senha e acessar:\n\n${inviteModal.link}\n\nO link expira em 7 dias.`}
+                  label="Copiar mensagem pronta"
+                  onDone={() => setMsg("Mensagem copiada.")}
+                />
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-amber-700">Não foi possível gerar o link automaticamente. Use "Gerar novo link" na lista de pendentes.</p>
+          )}
+        </Modal>
+      )}
+
+      {/* Modal de reset de senha */}
+      {resetModal && (
+        <Modal onClose={() => { setResetModal(null); setResetLink(null); }} title="Redefinir senha">
+          <p className="text-sm">
+            Para <b>{resetModal.email}</b>. Escolha como enviar:
+          </p>
+          {!resetLink ? (
+            <div className="grid sm:grid-cols-2 gap-2">
+              <button
+                disabled={resetBusy}
+                onClick={doGenerateResetLink}
+                className="rounded-md border p-3 text-left hover:bg-muted disabled:opacity-50"
+              >
+                <div className="font-medium text-sm flex items-center gap-1.5"><LinkIcon className="h-4 w-4" /> Gerar link (recomendado)</div>
+                <div className="text-xs text-muted-foreground mt-1">Cria uma URL única para você copiar e enviar por WhatsApp. Não depende do e-mail chegar.</div>
+              </button>
+              <button
+                disabled={resetBusy}
+                onClick={doSendResetEmail}
+                className="rounded-md border p-3 text-left hover:bg-muted disabled:opacity-50"
+              >
+                <div className="font-medium text-sm flex items-center gap-1.5"><RefreshCw className="h-4 w-4" /> Enviar por e-mail</div>
+                <div className="text-xs text-muted-foreground mt-1">Envia o link automaticamente para o e-mail do usuário. Pode não chegar em alguns provedores.</div>
+              </button>
+            </div>
+          ) : (
+            <>
+              <LinkBox url={resetLink} />
+              <div className="flex gap-2 flex-wrap">
+                <CopyButton text={resetLink} label="Copiar link" onDone={() => setMsg("Link copiado.")} />
+                <CopyButton
+                  text={`Olá! Aqui está seu link para redefinir a senha na Central da Campanha:\n\n${resetLink}\n\nAbra o link, defina uma nova senha e você entrará automaticamente.`}
+                  label="Copiar mensagem pronta"
+                  onDone={() => setMsg("Mensagem copiada.")}
+                />
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
@@ -354,71 +501,43 @@ function StatusPill({ status }: { status: Row["derived_status"] }) {
   return <span className={`text-xs px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
 }
 
-type Scope = { id: string; uf: string | null; cidade: string | null; bairro: string | null };
-function ScopesEditor({ userId, onChange }: { userId: string; onChange?: () => void }) {
-  const listFn = useServerFn(listUserScopes);
-  const addFn = useServerFn(addScope);
-  const removeFn = useServerFn(removeScope);
-  const [scopes, setScopes] = useState<Scope[]>([]);
-  const [uf, setUf] = useState(""); const [cidade, setCidade] = useState(""); const [bairro, setBairro] = useState("");
-  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    try { const r = await listFn({ data: { userId } }); setScopes(r as Scope[]); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [userId]);
-
-  async function add() {
-    if (!uf && !cidade && !bairro) return alert("Informe ao menos UF, cidade ou bairro.");
-    setSaving(true);
-    try {
-      await addFn({ data: { userId, uf: uf.trim().toUpperCase() || null, cidade: cidade.trim() || null, bairro: bairro.trim() || null } });
-      setUf(""); setCidade(""); setBairro("");
-      await load(); onChange?.();
-    } catch (e) { alert(e instanceof Error ? e.message : "Erro."); }
-    finally { setSaving(false); }
-  }
-  async function del(id: string) {
-    try { await removeFn({ data: { id } }); await load(); onChange?.(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Erro."); }
-  }
-
+function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
-    <div className="space-y-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Escopos territoriais deste usuário
-      </div>
-      {loading ? (<div className="text-xs text-muted-foreground">Carregando…</div>)
-      : scopes.length === 0 ? (<div className="text-xs text-muted-foreground">Sem escopos — o usuário não verá nenhum contato.</div>)
-      : (
-        <div className="flex flex-wrap gap-2">
-          {scopes.map((s) => (
-            <span key={s.id} className="inline-flex items-center gap-2 rounded-full bg-background border px-2 py-1 text-xs">
-              {[s.bairro, s.cidade, s.uf].filter(Boolean).join(" / ") || "(vazio)"}
-              <button onClick={() => del(s.id)} className="text-destructive hover:opacity-70" title="Remover">
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-card border rounded-xl shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
-      )}
-      <div className="grid grid-cols-[70px_1fr_1fr_auto] gap-2 items-center">
-        <input value={uf} onChange={(e) => setUf(e.target.value)} maxLength={2} placeholder="UF"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs uppercase" />
-        <input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Cidade"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
-        <input value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder="Bairro"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
-        <button onClick={add} disabled={saving}
-          className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1">
-          <Plus className="h-3 w-3" /> Adicionar
-        </button>
+        {children}
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        Deixe campos em branco para "todos". Ex.: só UF = todo o estado.
-      </p>
     </div>
+  );
+}
+
+function LinkBox({ url }: { url: string }) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-2 text-xs font-mono break-all select-all">{url}</div>
+  );
+}
+
+function CopyButton({ text, label, onDone }: { text: string; label: string; onDone?: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          onDone?.();
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          alert("Não foi possível copiar. Selecione o texto manualmente.");
+        }
+      }}
+      className="rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 inline-flex items-center gap-1.5"
+    >
+      {copied ? <><CheckCircle2 className="h-3.5 w-3.5" /> Copiado</> : <><Copy className="h-3.5 w-3.5" /> {label}</>}
+    </button>
   );
 }
