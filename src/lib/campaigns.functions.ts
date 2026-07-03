@@ -477,15 +477,25 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
       try {
         const phone = ct.phone_e164.replace(/\D+/g, "");
         let result: { messageId?: string; zaapId?: string; id?: string };
-        if ((c.tipo === "image" || c.tipo === "document") && mediaUrl) {
-          result = await zapi.sendImage(phone, mediaUrl, r.rendered_message ?? c.midia_caption ?? "");
+        let endpointUsed: "send-text" | "send-image" | "send-document" = "send-text";
+        const caption = r.rendered_message ?? c.midia_caption ?? "";
+        if (c.tipo === "document" && mediaUrl) {
+          const ext = (c.midia_filename ?? "arquivo.pdf").split(".").pop()?.toLowerCase() ?? "pdf";
+          result = await zapi.sendDocument(phone, mediaUrl, c.midia_filename ?? "arquivo", ext);
+          endpointUsed = "send-document";
+          if (caption.trim()) await zapi.sendText(phone, caption);
+        } else if (c.tipo === "image" && mediaUrl) {
+          result = await zapi.sendImage(phone, mediaUrl, caption);
+          endpointUsed = "send-image";
         } else {
           result = await zapi.sendText(phone, r.rendered_message ?? c.mensagem_template);
+          endpointUsed = "send-text";
         }
         await context.supabase.from("campaign_recipients").update({
           status: "sent", sent_at: new Date().toISOString(),
           message_id: result.messageId ?? result.id ?? null, zaap_id: result.zaapId ?? null,
-        }).eq("id", r.id);
+          endpoint_used: endpointUsed,
+        } as never).eq("id", r.id);
         await context.supabase.from("message_events").insert({
           contact_id: r.contact_id, recipient_id: r.id, tipo: "sent", payload: result as never,
         });

@@ -61,14 +61,40 @@ async function assertPublicUrl(raw: string): Promise<string> {
   return parsed.toString();
 }
 
+export type LinkPreviewStatus =
+  | "preview_confirmada"
+  | "preview_provavel"
+  | "preview_indisponivel"
+  | "link_bloqueado";
+
 export type LinkPreview = {
   url: string;
   title: string | null;
   description: string | null;
   image: string | null;
   siteName: string | null;
+  status: LinkPreviewStatus;
   error?: string;
 };
+
+function classify(p: Omit<LinkPreview, "status">): LinkPreviewStatus {
+  if (p.error) {
+    // Erros específicos de bloqueio
+    if (
+      p.error.includes("não permitido") ||
+      p.error.includes("inválida") ||
+      p.error.includes("resolver")
+    ) {
+      return "link_bloqueado";
+    }
+    return "preview_indisponivel";
+  }
+  const hasTitle = Boolean(p.title && p.title.trim());
+  const hasImage = Boolean(p.image);
+  if (hasTitle && hasImage) return "preview_confirmada";
+  if (hasTitle || hasImage) return "preview_provavel";
+  return "preview_indisponivel";
+}
 
 const cache = new Map<string, { at: number; data: LinkPreview }>();
 const TTL_MS = 10 * 60 * 1000;
@@ -115,19 +141,20 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireStaff(context.supabase, context.userId);
+    const withStatus = (p: Omit<LinkPreview, "status">): LinkPreview => ({ ...p, status: classify(p) });
     let url: string;
     try {
       url = await assertPublicUrl(data.url);
     } catch (e) {
-      return {
+      return withStatus({
         url: data.url, title: null, description: null, image: null, siteName: null,
         error: e instanceof Error ? e.message : "URL inválida",
-      } as LinkPreview;
+      });
     }
     const cached = cache.get(url);
     if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
 
-    const empty: LinkPreview = {
+    const empty: Omit<LinkPreview, "status"> = {
       url, title: null, description: null, image: null, siteName: null,
     };
 
@@ -138,7 +165,6 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
         redirect: "manual",
         signal: ctl.signal,
         headers: {
-          // UA que costuma servir OG tags completas
           "user-agent":
             "Mozilla/5.0 (compatible; WhatsApp/2.24) AppleWebKit/537.36 (KHTML, like Gecko)",
           "accept": "text/html,application/xhtml+xml",
@@ -147,18 +173,15 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
       }).finally(() => clearTimeout(timer));
 
       if (res.status >= 300 && res.status < 400) {
-        return { ...empty, error: "Redirecionamento não suportado" } as LinkPreview;
+        return withStatus({ ...empty, error: "Redirecionamento não suportado" });
       }
       if (!res.ok) {
-        const out: LinkPreview = { ...empty, error: `HTTP ${res.status}` };
-        return out;
+        return withStatus({ ...empty, error: `HTTP ${res.status}` });
       }
       const ct = res.headers.get("content-type") ?? "";
       if (!ct.includes("html")) {
-        const out: LinkPreview = { ...empty, error: "Conteúdo não é HTML" };
-        return out;
+        return withStatus({ ...empty, error: "Conteúdo não é HTML" });
       }
-      // Lê no máximo ~200KB
       const reader = res.body?.getReader();
       let html = "";
       if (reader) {
@@ -192,7 +215,7 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
         (() => { try { return new URL(finalUrl).hostname.replace(/^www\./, ""); } catch { return null; } })();
       const image = absoluteUrl(imageRaw, finalUrl);
 
-      const out: LinkPreview = { url: finalUrl, title, description, image, siteName };
+      const out = withStatus({ url: finalUrl, title, description, image, siteName });
       cache.set(url, { at: Date.now(), data: out });
       if (cache.size > MAX_ENTRIES) {
         const firstKey = cache.keys().next().value;
@@ -200,6 +223,6 @@ export const fetchLinkPreview = createServerFn({ method: "POST" })
       }
       return out;
     } catch (e) {
-      return { ...empty, error: e instanceof Error ? e.message : "Falha ao carregar" };
+      return withStatus({ ...empty, error: e instanceof Error ? e.message : "Falha ao carregar" });
     }
   });

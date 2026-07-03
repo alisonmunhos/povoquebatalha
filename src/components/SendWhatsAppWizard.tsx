@@ -20,6 +20,7 @@ import {
 } from "@/lib/campaigns.functions";
 import { listMessageTemplates } from "@/lib/messages.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
+import { MessagePreview, type PlannedEndpoint } from "@/components/MessagePreview";
 import { supabase } from "@/integrations/supabase/client";
 import type { CrmFilters } from "@/lib/crm-filters";
 
@@ -122,7 +123,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
         const r = await previewFn({ data: { url } });
         setLinkPreview(r);
       } catch (e) {
-        setLinkPreview({ url, title: null, description: null, image: null, siteName: null, error: (e as Error).message });
+        setLinkPreview({ url, title: null, description: null, image: null, siteName: null, status: "preview_indisponivel", error: (e as Error).message });
       } finally { setLinkLoading(false); }
     }, 600);
     return () => clearTimeout(t);
@@ -176,6 +177,18 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
     if (!first) return mensagem;
     return personalize(mensagem, first);
   }, [mensagem, audienceQ.data]);
+
+  const plannedEndpoint: PlannedEndpoint = useMemo(() => {
+    if (uploadInfo) {
+      if (uploadInfo.mime === "application/pdf") return "send-document";
+      if (uploadInfo.mime.startsWith("image/")) return "send-image";
+      if (uploadInfo.mime.startsWith("audio/")) return "send-audio";
+      return "send-document";
+    }
+    const hasUrl = /https?:\/\/\S+/i.test(mensagem) || linkUrl.trim().length > 0;
+    // send-link só quando UI/instância confirmarem — nesta fase, mantemos send-text.
+    return hasUrl ? "send-text" : "send-text";
+  }, [uploadInfo, mensagem, linkUrl]);
 
   function applyTemplate(id: string) {
     setTemplateId(id);
@@ -370,12 +383,16 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
           <section className="space-y-3">
             <div className="text-sm font-medium">Prévia personalizada</div>
             {aud?.amostra?.length ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {aud.amostra.map((c) => (
-                  <div key={c.id} className="border rounded p-3 bg-muted/30">
-                    <div className="text-xs text-muted-foreground mb-1">Para {c.nome} — {c.phone_e164}</div>
-                    <div className="text-sm whitespace-pre-wrap">{personalize(mensagem, c)}</div>
-                  </div>
+                  <MessagePreview
+                    key={c.id}
+                    text={personalize(mensagem, c)}
+                    linkPreview={linkPreview}
+                    attachment={uploadInfo ? { filename: uploadInfo.filename, mime: uploadInfo.mime } : null}
+                    plannedEndpoint={plannedEndpoint}
+                    recipientLabel={`Para ${c.nome} — ${c.phone_e164}`}
+                  />
                 ))}
               </div>
             ) : <div className="text-sm text-muted-foreground">Sem contatos para prévia.</div>}
@@ -447,15 +464,16 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
               <div><b>Anexo:</b> {uploadInfo?.filename ?? "—"}</div>
               <div><b>Agendamento:</b> {schedule ? new Date(schedule).toLocaleString("pt-BR") : "—"}</div>
               <div className="mt-2">
-                <b>Mensagem (prévia):</b>
-                <div className="border rounded bg-background p-2 whitespace-pre-wrap mt-1">{previewText || mensagem}</div>
-              </div>
-              {linkPreview && !linkPreview.error && (
+                <b className="text-xs">Prévia da mensagem:</b>
                 <div className="mt-2">
-                  <b>Prévia do link:</b>
-                  <div className="mt-1"><LinkPreviewCard loading={false} preview={linkPreview} /></div>
+                  <MessagePreview
+                    text={previewText || mensagem}
+                    linkPreview={linkPreview}
+                    attachment={uploadInfo ? { filename: uploadInfo.filename, mime: uploadInfo.mime } : null}
+                    plannedEndpoint={plannedEndpoint}
+                  />
                 </div>
-              )}
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">Envios já executados não podem ser desfeitos. Você poderá pausar ou cancelar depois na tela da campanha.</p>
           </section>
