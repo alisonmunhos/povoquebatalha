@@ -86,6 +86,7 @@ function UsuariosPage() {
   const audit = useServerFn(listAccessAudit);
   const fetchPending = useServerFn(listPendingApprovals);
   const approve = useServerFn(approvePendingAgitador);
+  const reject = useServerFn(rejectPendingAgitador);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
