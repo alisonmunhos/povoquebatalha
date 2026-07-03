@@ -56,7 +56,7 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (error) throw error;
     const { data: recs } = await context.supabase
       .from("campaign_recipients")
-      .select("id,contact_id,status,rendered_message,erro,sent_at,delivered_at,read_at,failed_at,tentativas,contacts(nome,phone_e164)")
+      .select("id,contact_id,status,rendered_message,erro,sent_at,delivered_at,read_at,failed_at,tentativas,endpoint_used,link_url,preview_status,contacts(nome,phone_e164)")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: true })
       .limit(500);
