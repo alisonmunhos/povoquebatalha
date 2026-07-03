@@ -80,6 +80,8 @@ function AceitarConvite() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      // Bloco D — vincular/criar contato do usuário do sistema
+      try { await linkContact({ data: {} }); } catch { /* non-blocking */ }
       setState({ kind: "done" });
       // Redireciona por papel: /auth já cuida disso, mas como estamos logados,
       // o gate irá redirecionar para /dashboard automaticamente. Damos um respiro.
