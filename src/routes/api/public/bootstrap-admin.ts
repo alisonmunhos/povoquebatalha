@@ -1,9 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { timingSafeEqual } from "crypto";
 import { z } from "zod";
 
 const bodySchema = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
+  setup_secret: z.string().min(16).max(200),
 });
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 async function adminExists() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
