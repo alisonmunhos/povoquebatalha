@@ -45,23 +45,29 @@ type Row = {
   confirmed_at: string | null;
   invited_at: string | null;
   roles: string[];
-  status: "ativo" | "suspenso" | "revogado";
+  status: "ativo" | "suspenso" | "revogado" | "pendente_aprovacao";
   derived_status:
     | "ativo"
     | "convite_pendente"
     | "convite_expirado"
     | "suspenso"
-    | "revogado";
+    | "revogado"
+    | "pendente_aprovacao";
 };
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Admin",
   operador: "Operador",
   vrm: "VRM",
+  comunicacao: "Comunicação",
   territorio: "Território",
   agitador: "Agitador",
   leitor: "Leitor",
 };
+
+type InviteRole = "admin" | "operador" | "leitor" | "vrm" | "territorio" | "agitador" | "comunicacao";
+
+type PendingRow = { id: string; email: string; full_name: string | null; created_at: string; phone: string | null };
 
 type InviteModal = { email: string; role: string; link: string | null };
 type ResetModal = { email: string; userId: string };
