@@ -163,24 +163,42 @@ export function TerritoryMapView() {
   return (
     <div className="flex flex-col md:flex-row w-full">
       <div className="flex-1 min-w-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-3">
-          <Stat label="Com coordenada" value={stats.data.comCoordenada} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mb-3">
+          <Stat label="Exatos" value={stats.data.exato} tone="ok" />
+          <Stat label="Na rua" value={stats.data.rua} tone="warn" />
+          <Stat label="Aprox. (CEP)" value={stats.data.cep} tone="warn" />
+          <Stat label="Só cidade" value={stats.data.cidade} tone="warn" />
           <Stat label="Pendente" value={stats.data.pendente} />
-          <Stat label="Aproximado" value={stats.data.aproximado} />
-          <Stat label="Erro" value={stats.data.erro} />
           <Stat label="Sem endereço" value={stats.data.semEndereco} />
         </div>
 
-        {stats.data.pendente + stats.data.erro > 0 && (
+        {(stats.data.pendente + stats.data.erro > 0 || imprecisos > 0) && (
           <div className="mb-3 p-3 border rounded-md bg-amber-50 text-amber-900 flex flex-col sm:flex-row sm:items-start gap-2">
             <div className="flex items-start gap-2 flex-1 text-sm">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <div>{stats.data.pendente + stats.data.erro} contato(s) sem coordenada. O mapa exibe apenas os geocodificados.</div>
+              <div>
+                {stats.data.pendente + stats.data.erro > 0 && (
+                  <div>{stats.data.pendente + stats.data.erro} sem coordenada — o mapa só mostra quem já foi geolocalizado.</div>
+                )}
+                {imprecisos > 0 && (
+                  <div>{imprecisos} contato(s) com endereço completo, mas pin ainda impreciso. Rode o refino para tentar achar a casa exata.</div>
+                )}
+              </div>
             </div>
-            <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending} className="shrink-0">
-              <RefreshCw className={`h-3 w-3 mr-1 ${runBatch.isPending ? "animate-spin" : ""}`} />
-              Atualizar geolocalização
-            </Button>
+            <div className="flex gap-2 shrink-0 flex-wrap">
+              {stats.data.pendente + stats.data.erro > 0 && (
+                <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending}>
+                  <RefreshCw className={`h-3 w-3 mr-1 ${runBatch.isPending ? "animate-spin" : ""}`} />
+                  Geocodificar pendentes
+                </Button>
+              )}
+              {imprecisos > 0 && (
+                <Button size="sm" variant="outline" onClick={() => runImprecise.mutate()} disabled={runImprecise.isPending}>
+                  <Crosshair className={`h-3 w-3 mr-1 ${runImprecise.isPending ? "animate-spin" : ""}`} />
+                  Refinar imprecisos
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
@@ -225,6 +243,15 @@ export function TerritoryMapView() {
               <option value="sim">Com consentimento</option>
               <option value="nao">Sem consentimento</option>
             </select>
+            <label className="col-span-full sm:col-span-2 md:col-span-4 inline-flex items-center gap-2 text-sm px-1 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!filters.onlyExact}
+                onChange={(e) => setFilters((f) => ({ ...f, onlyExact: e.target.checked || undefined }))}
+                className="h-4 w-4"
+              />
+              <span>Mostrar apenas endereços <b>exatos</b> (ideal para entrega de material)</span>
+            </label>
           </div>
         </details>
 
@@ -237,7 +264,7 @@ export function TerritoryMapView() {
           <span className="md:hidden">Toque num pin</span>
         </div>
 
-        <LeafletMap rows={contacts.data.rows} selectedId={selectedId} onSelect={setSelectedId} hasPanel={!!selectedId} />
+        <LeafletMap rows={visibleRows} selectedId={selectedId} onSelect={setSelectedId} hasPanel={!!selectedId} />
       </div>
 
       {selectedId && (
