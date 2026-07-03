@@ -14,6 +14,7 @@ import {
   listAccessAudit,
   listPendingApprovals,
   approvePendingAgitador,
+  rejectPendingAgitador,
 } from "@/lib/users.functions";
 import {
   UserPlus,
