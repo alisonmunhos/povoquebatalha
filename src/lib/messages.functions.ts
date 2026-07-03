@@ -171,7 +171,8 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
 export const retryAutomationDelivery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ deliveryId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: del, error } = await supabaseAdmin
       .from("automation_deliveries")
