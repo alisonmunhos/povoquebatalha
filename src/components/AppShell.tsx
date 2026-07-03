@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
-  MapPin, LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
+  LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
   MessageCircle,
 } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
@@ -33,10 +34,10 @@ const groups: NavGroup[] = [
   {
     label: "Território",
     items: [
-      { to: "/territorio", label: "Ação de Campo", icon: Compass, hint: "Militante na rua: minha região, meus contatos, registrar visita (celular).", roles: ["admin", "operador", "vrm", "territorio"] },
-      { to: "/mapa", label: "Mapa Geral", icon: MapPin, hint: "Visão panorâmica: todos os contatos no mapa, com filtros e tela cheia.", roles: ["admin", "operador", "vrm"] },
+      { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm", "territorio"] },
     ],
   },
+
   {
     label: "Comunicação",
     items: [

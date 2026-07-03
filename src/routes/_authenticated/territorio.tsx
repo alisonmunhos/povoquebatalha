@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { getTerritoryOverview, listTerritoryContacts } from "@/lib/territory.functions";
 import { logTerritoryAction } from "@/lib/territory-logs.functions";
-import { MapPin, Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2, StickyNote, UserX, Smartphone } from "lucide-react";
+import { Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2, StickyNote, UserX, Smartphone, Compass, Map as MapIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TerritoryMapView } from "@/components/TerritoryMapView";
 
 export const Route = createFileRoute("/_authenticated/territorio")({
   head: () => ({ meta: [{ title: "Território — Campanha do Povo que Batalha" }] }),
@@ -25,6 +27,35 @@ type Row = {
 };
 
 function TerritorioPage() {
+  return (
+    <div className="max-w-6xl mx-auto p-3 sm:p-6 space-y-4">
+      <div className="flex items-center gap-2 text-primary">
+        <Compass className="h-5 w-5" />
+        <h1 className="text-lg font-semibold">Território</h1>
+        <span className="text-xs text-muted-foreground ml-2">Ação de campo + mapa geral da base</span>
+      </div>
+
+      <Tabs defaultValue="campo" className="w-full">
+        <TabsList>
+          <TabsTrigger value="campo" className="gap-1.5"><Compass className="h-3.5 w-3.5" /> Ação de Campo</TabsTrigger>
+          <TabsTrigger value="mapa" className="gap-1.5"><MapIcon className="h-3.5 w-3.5" /> Mapa</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="campo" className="mt-4">
+          <FieldAction />
+        </TabsContent>
+
+        <TabsContent value="mapa" className="mt-4">
+          <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Carregando mapa…</div>}>
+            <TerritoryMapView />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function FieldAction() {
   const overviewFn = useServerFn(getTerritoryOverview);
   const listFn = useServerFn(listTerritoryContacts);
   const logFn = useServerFn(logTerritoryAction);
@@ -60,18 +91,7 @@ function TerritorioPage() {
   const o = overview.data;
 
   return (
-    <div className="max-w-3xl mx-auto p-3 sm:p-6 space-y-4">
-      <div className="flex items-center gap-2 text-primary">
-        <MapPin className="h-4 w-4" />
-        <span className="text-xs font-semibold truncate">{o.scopeLabel}</span>
-      </div>
-
-      {o.restricted && o.scopes.length === 0 && (
-        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
-          Seu acesso territorial ainda não foi configurado. Fale com o administrador.
-        </p>
-      )}
-
+    <div className="max-w-3xl mx-auto space-y-4">
       <section className="grid grid-cols-2 gap-2">
         <Kpi icon={Users} label="Apoiadores" value={o.kpis.total} color="text-blue-600" />
         <Kpi icon={HeartPulse} label="Engajados 30d" value={o.kpis.engajados} color="text-emerald-600" />
@@ -99,7 +119,7 @@ function TerritorioPage() {
 
         {contacts.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
         {contacts.data && contacts.data.rows.length === 0 && (
-          <div className="p-6 text-sm text-muted-foreground text-center">Nenhum contato no território.</div>
+          <div className="p-6 text-sm text-muted-foreground text-center">Nenhum contato encontrado.</div>
         )}
         <ul className="divide-y">
           {(contacts.data?.rows ?? []).map((c: Row) => {
