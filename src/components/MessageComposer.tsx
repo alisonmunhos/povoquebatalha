@@ -5,7 +5,9 @@ import { toast } from "sonner";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { MessagePreview } from "@/components/MessagePreview";
+import { MESSAGE_VARIABLES, renderMessageVars } from "@/lib/message-vars";
 
+// Subconjunto exibido como chips clicáveis no composer (mais enxuto que o wizard).
 export const COMPOSER_VARIABLES = [
   "nome",
   "primeiro_nome",
@@ -13,7 +15,7 @@ export const COMPOSER_VARIABLES = [
   "bairro",
   "link_atualizacao",
   "link_inscricao",
-] as const;
+] as const satisfies ReadonlyArray<(typeof MESSAGE_VARIABLES)[number]>;
 
 export type ComposerValue = {
   body: string;
@@ -47,16 +49,16 @@ type Props = {
   bodyPlaceholder?: string;
 };
 
-/** Renderiza variáveis com valores de exemplo (mesmo estilo usado no envio real de teste). */
+/** Renderiza variáveis com valores de exemplo (mesmo motor usado no envio real). */
 function renderExample(body: string): string {
-  return body
-    .replace(/\{\{\s*nome\s*\}\}/gi, "Marina")
-    .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, "Marina")
-    .replace(/\{\{\s*cidade\s*\}\}/gi, "Curitiba")
-    .replace(/\{\{\s*bairro\s*\}\}/gi, "Centro")
-    .replace(/\{\{\s*link_atualizacao\s*\}\}/gi, "https://povoquebatalha.lovable.app/recadastro?t=exemplo")
-    .replace(/\{\{\s*link_inscricao\s*\}\}/gi, "https://povoquebatalha.lovable.app/inscrever");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return renderMessageVars(
+    body,
+    { nome: "Marina Silva", cidade: "Curitiba", bairro: "Centro", uf: "PR", recad_token: "exemplo" },
+    { origin, unknownAsEmpty: true },
+  );
 }
+
 
 export function MessageComposer({
   value,
