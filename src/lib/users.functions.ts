@@ -150,8 +150,20 @@ export const inviteUser = createServerFn({ method: "POST" })
         .update({ invited_by: context.userId })
         .eq("id", userId);
     }
+    // Sempre gerar também um link direto (fallback caso o e-mail não chegue)
+    let actionLink: string | null = null;
+    try {
+      const { data: link } = await supabaseAdmin.auth.admin.generateLink({
+        type: "invite",
+        email: data.email,
+        options: { redirectTo },
+      });
+      actionLink = link?.properties?.action_link ?? null;
+    } catch {
+      /* non-blocking */
+    }
     await audit(context, userId ?? null, "convite_enviado", { email: data.email, role: data.role });
-    return { ok: true as const, userId };
+    return { ok: true as const, userId, actionLink, email: data.email, role: data.role };
   });
 
 export const resendInvite = createServerFn({ method: "POST" })
