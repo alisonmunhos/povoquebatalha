@@ -294,14 +294,30 @@ export const linkConversationToContact = createServerFn({ method: "POST" })
     return { ok: true, conversation_id: existing?.id ?? conv.id };
   });
 
-// Cria um contato rápido a partir de uma conversa não-vinculada
+// Cria um contato rápido a partir de uma conversa não-vinculada.
+// Todos os campos exceto `nome` são opcionais — o operador preenche o que conseguir
+// coletar durante o atendimento. Se a origem for LID (identificador anônimo do
+// WhatsApp), NÃO gravamos o LID como telefone; o operador pode digitar um número
+// real no campo `phone` do formulário.
 export const createQuickContactFromConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     conversation_id: z.string().uuid(),
     nome: z.string().trim().min(1).max(120),
+    nome_social: z.string().trim().max(120).optional(),
+    phone: z.string().trim().max(30).optional(),
+    email: z.string().trim().max(255).optional(),
+    cep: z.string().trim().max(15).optional(),
+    endereco: z.string().trim().max(240).optional(),
+    numero: z.string().trim().max(20).optional(),
+    complemento: z.string().trim().max(120).optional(),
+    referencia: z.string().trim().max(240).optional(),
+    bairro: z.string().trim().max(120).optional(),
     cidade: z.string().trim().max(120).optional(),
-    uf: z.string().trim().length(2).optional(),
+    uf: z.string().trim().max(2).optional(),
+    profissao: z.string().trim().max(120).optional(),
+    observacoes: z.string().trim().max(2000).optional(),
+    consentimento_whatsapp: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: role } = await context.supabase.from("user_roles")
@@ -310,34 +326,58 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
 
     const { data: conv } = await context.supabase.from("conversations")
       .select("id, from_phone, contact_id").eq("id", data.conversation_id).maybeSingle();
-    if (!conv || !conv.from_phone || conv.contact_id) {
+    if (!conv || conv.contact_id) {
       throw new Error("Conversa inválida ou já vinculada.");
     }
 
+    // LID = identificador anônimo do WhatsApp (não é telefone real).
+    const originIsLid = Boolean(conv.from_phone && /@lid$/i.test(conv.from_phone));
+    // Telefone que vai no cadastro: prioridade para o que o operador digitou;
+    // se ele deixou vazio E a origem é um telefone real, usamos o da conversa.
+    const phoneForContact = (data.phone && data.phone.trim())
+      ? data.phone.trim()
+      : (!originIsLid && conv.from_phone ? conv.from_phone : null);
+
     const { data: novo, error } = await context.supabase.from("contacts").insert({
       nome: data.nome,
-      phone_raw: conv.from_phone,
+      nome_social: data.nome_social ?? null,
+      phone_raw: phoneForContact,
+      email: data.email ?? null,
+      cep: data.cep ?? null,
+      endereco: data.endereco ?? null,
+      numero: data.numero ?? null,
+      complemento: data.complemento ?? null,
+      referencia: data.referencia ?? null,
+      bairro: data.bairro ?? null,
       cidade: data.cidade ?? null,
-      uf: data.uf ?? null,
+      uf: data.uf ? data.uf.toUpperCase() : null,
+      profissao: data.profissao ?? null,
+      observacoes: data.observacoes ?? null,
       origem: "manual",
-      origem_detalhe: "inbox_quick_create",
-      consentimento_whatsapp: false,
+      origem_detalhe: originIsLid ? "inbox_quick_create_lid" : "inbox_quick_create",
+      consentimento_whatsapp: data.consentimento_whatsapp ?? false,
     }).select("id").single();
     if (error || !novo) throw error ?? new Error("Falha ao criar contato.");
 
-    // Vincula histórico e conversa
-    await context.supabase.from("inbound_messages")
-      .update({ contact_id: novo.id })
-      .eq("from_phone", conv.from_phone).is("contact_id", null);
+    // Vincula histórico da conversa (todas as mensagens daquele from_phone/LID).
+    if (conv.from_phone) {
+      await context.supabase.from("inbound_messages")
+        .update({ contact_id: novo.id })
+        .eq("from_phone", conv.from_phone).is("contact_id", null);
+    }
     await context.supabase.from("conversations")
       .update({ contact_id: novo.id, from_phone: null }).eq("id", conv.id);
     await context.supabase.from("conversation_events").insert({
       conversation_id: conv.id,
       actor_id: context.userId,
       event_type: "quick_contact_created",
-      payload: { contact_id: novo.id } as never,
+      payload: {
+        contact_id: novo.id,
+        origin_is_lid: originIsLid,
+        source_from_phone: conv.from_phone,
+      } as never,
     });
-    return { ok: true, contact_id: novo.id, conversation_id: conv.id };
+    return { ok: true, contact_id: novo.id, conversation_id: conv.id, origin_is_lid: originIsLid };
   });
 
 // Mark conversation read (zera unread + marca inbound_messages)

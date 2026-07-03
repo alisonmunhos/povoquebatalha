@@ -16,8 +16,20 @@ import {
   listConversations, getConversation, markConversationRead, assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
-  linkConversationToContact, createQuickContactFromConversation,
+  linkConversationToContact,
 } from "@/lib/communication.functions";
+import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
+
+// LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
+// Ex.: "217879546974326@lid".
+function isLidPhone(v?: string | null): boolean {
+  return Boolean(v && /@lid$/i.test(v));
+}
+function displayPhone(v?: string | null): string {
+  if (!v) return "—";
+  if (isLidPhone(v)) return "Contato anônimo (WhatsApp)";
+  return v;
+}
 
 type Filter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
@@ -77,7 +89,7 @@ export function CommunicationInbox() {
   const searchNewFn = useServerFn(searchContactsForNewChat);
   const signFn = useServerFn(signCampaignMediaUpload);
   const linkFn = useServerFn(linkConversationToContact);
-  const quickCreateFn = useServerFn(createQuickContactFromConversation);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", filter, search],
@@ -198,18 +210,12 @@ export function CommunicationInbox() {
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
-  const quickCreateMut = useMutation({
-    mutationFn: (v: { conversation_id: string; nome: string; cidade?: string; uf?: string }) =>
-      quickCreateFn({ data: v }),
-    onSuccess: (res) => {
-      toast.success("Contato criado");
-      setSelectedContactId(res.contact_id);
-      setSelectedConvId(null);
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
-      qc.invalidateQueries({ queryKey: ["comm-conv"] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
+  function onQuickContactCreated(contactId: string) {
+    setSelectedContactId(contactId);
+    setSelectedConvId(null);
+    qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+    qc.invalidateQueries({ queryKey: ["comm-conv"] });
+  }
 
   function openConversation(contactId: string | null, convId: string | null, unread: number) {
     setSelectedContactId(contactId);
@@ -388,7 +394,9 @@ export function CommunicationInbox() {
               <div className="flex justify-between items-baseline gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   {c.flagged && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
-                  <span className="font-medium text-sm truncate">{c.nome ?? c.phone ?? "Sem nome"}</span>
+                  <span className="font-medium text-sm truncate">
+                    {c.nome ?? (isLidPhone(c.phone) ? "Sem contato vinculado" : (c.phone ?? "Sem nome"))}
+                  </span>
                 </div>
                 <span className="text-[10px] text-muted-foreground shrink-0">{fmtRel(c.last_at)}</span>
               </div>
@@ -402,7 +410,7 @@ export function CommunicationInbox() {
                 <span className="truncate">{c.last_preview ?? "(sem prévia)"}</span>
               </div>
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-1">
-                <span>{c.phone}</span>
+                <span className={isLidPhone(c.phone) ? "font-mono" : ""}>{displayPhone(c.phone)}</span>
                 {c.cidade && <span>· {c.cidade}/{c.uf ?? ""}</span>}
                 {c.assigned_to && <span className="ml-auto inline-flex items-center gap-0.5"><UserPlus className="h-2.5 w-2.5" />atribuída</span>}
               </div>
@@ -445,9 +453,11 @@ export function CommunicationInbox() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold truncate">{active.nome ?? active.phone ?? "Sem nome"}</div>
+                <div className="font-semibold truncate">
+                  {active.nome ?? (isLidPhone(active.phone) ? "Sem contato vinculado" : (active.phone ?? "Sem nome"))}
+                </div>
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-2">
-                  <span>{active.phone}</span>
+                  <span className={isLidPhone(active.phone) ? "font-mono text-[10px]" : ""}>{displayPhone(active.phone)}</span>
                   {active.cidade && <span>· {active.cidade}/{active.uf ?? ""}</span>}
                   {active.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
                 </div>
@@ -504,9 +514,7 @@ export function CommunicationInbox() {
             {conv && !conv.contact_id && (
               <UnlinkedBanner
                 phone={conv.from_phone ?? ""}
-                onQuick={(nome, cidade, uf) =>
-                  quickCreateMut.mutate({ conversation_id: conv.id, nome, cidade, uf })
-                }
+                onQuick={() => setQuickCreateOpen(true)}
                 onLink={(contact_id) =>
                   linkMut.mutate({ conversation_id: conv.id, contact_id })
                 }
@@ -790,6 +798,17 @@ export function CommunicationInbox() {
           </div>
         </div>
       )}
+
+      {conv && !conv.contact_id && (
+        <QuickContactFromInboxDialog
+          open={quickCreateOpen}
+          onClose={() => setQuickCreateOpen(false)}
+          conversationId={conv.id}
+          suggestedNome={active?.nome ?? null}
+          originPhone={conv.from_phone}
+          onCreated={onQuickContactCreated}
+        />
+      )}
     </div>
   );
 }
@@ -873,20 +892,17 @@ function InboundMedia({ url, mime, filename }: { url: string; mime: string; file
   );
 }
 
-// ---- Banner de conversa "não vinculada": criar rápido OU vincular a contato existente.
+// ---- Banner de conversa "não vinculada": salvar como contato OU vincular a contato existente.
 function UnlinkedBanner({
   phone,
   onQuick,
   onLink,
 }: {
   phone: string;
-  onQuick: (nome: string, cidade?: string, uf?: string) => void;
+  onQuick: () => void;
   onLink: (contact_id: string) => void;
 }) {
-  const [mode, setMode] = useState<"none" | "quick" | "link">("none");
-  const [nome, setNome] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [uf, setUf] = useState("");
+  const [mode, setMode] = useState<"none" | "link">("none");
   const [q, setQ] = useState("");
   const searchFn = useServerFn(searchContactsForNewChat);
   const searchQ = useQuery({
@@ -895,19 +911,27 @@ function UnlinkedBanner({
     enabled: mode === "link" && q.trim().length >= 2,
   });
 
+  const lid = isLidPhone(phone);
   return (
     <div className="border-b bg-amber-50/60 p-3 text-xs space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <div className="font-medium text-amber-900">Conversa não vinculada</div>
-          <div className="text-amber-800/80">Número de origem: <span className="font-mono">{phone || "—"}</span></div>
+          <div className="text-amber-800/80 truncate">
+            {lid ? (
+              <>Origem: <span className="font-mono">{phone}</span> — identificador anônimo do WhatsApp (não é telefone real).</>
+            ) : (
+              <>Número de origem: <span className="font-mono">{phone || "—"}</span></>
+            )}
+          </div>
         </div>
         <div className="flex gap-1 shrink-0">
           <button
-            onClick={() => setMode(mode === "quick" ? "none" : "quick")}
-            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100"
+            onClick={onQuick}
+            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100 inline-flex items-center gap-1"
+            title="Abrir ficha completa para salvar como contato"
           >
-            Criar contato rápido
+            <UserPlus className="h-3 w-3" /> Salvar como contato
           </button>
           <button
             onClick={() => setMode(mode === "link" ? "none" : "link")}
@@ -917,24 +941,6 @@ function UnlinkedBanner({
           </button>
         </div>
       </div>
-      {mode === "quick" && (
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className="col-span-2 px-2 py-1.5 rounded border bg-background"
-            placeholder="Nome do contato"
-            value={nome} onChange={(e) => setNome(e.target.value)}
-          />
-          <input className="px-2 py-1.5 rounded border bg-background" placeholder="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
-          <input className="px-2 py-1.5 rounded border bg-background" placeholder="UF" maxLength={2} value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} />
-          <button
-            disabled={!nome.trim()}
-            onClick={() => onQuick(nome.trim(), cidade || undefined, uf || undefined)}
-            className="col-span-2 px-2 py-1.5 rounded bg-primary text-primary-foreground disabled:opacity-40"
-          >
-            Criar contato e vincular
-          </button>
-        </div>
-      )}
       {mode === "link" && (
         <div className="space-y-2">
           <input
@@ -959,3 +965,4 @@ function UnlinkedBanner({
     </div>
   );
 }
+
