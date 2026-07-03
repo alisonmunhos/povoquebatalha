@@ -2,25 +2,28 @@ import { Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { listMapContacts, getMapContactDetail } from "@/lib/map.functions";
+import { listMapContacts, getMapContactDetail, listMapFacets } from "@/lib/map.functions";
 import { getGeocodingStats, runGeocodingBatch } from "@/lib/geocoding.functions";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "sonner";
 import { RefreshCw, AlertTriangle, X, Send, ExternalLink } from "lucide-react";
 
 export function TerritoryMapView() {
   const listFn = useServerFn(listMapContacts);
   const statsFn = useServerFn(getGeocodingStats);
+  const facetsFn = useServerFn(listMapFacets);
   const runFn = useServerFn(runGeocodingBatch);
   const qc = useQueryClient();
 
-  const [filters, setFilters] = useState<{ cidade?: string; bairro?: string; tipo_contato?: string; consent?: "sim" | "nao" }>({});
+  const [filters, setFilters] = useState<{ cidades?: string[]; bairros?: string[]; tipo_contato?: string; consent?: "sim" | "nao" }>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const stats = useSuspenseQuery({ queryKey: ["geocode-stats"], queryFn: () => statsFn() });
+  const facets = useSuspenseQuery({ queryKey: ["map-facets"], queryFn: () => facetsFn() });
   const contacts = useSuspenseQuery({
     queryKey: ["map-contacts", filters],
     queryFn: () => listFn({ data: filters }),
