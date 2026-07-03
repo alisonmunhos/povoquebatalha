@@ -125,70 +125,118 @@ export function AppShell() {
     );
   }
 
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => { setMobileOpen(false); }, [currentPath]);
+
+  const SidebarInner = (
+    <>
+      <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
+        <Megaphone className="h-5 w-5 text-sidebar-primary" />
+        <div className="font-semibold text-sm leading-tight">
+          Campanha do Povo
+          <br />
+          que Batalha
+        </div>
+      </div>
+      <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
+        {groups.map((group, gi) => {
+          const visibleItems = group.items.filter(canSee);
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={gi} className="space-y-1">
+              {group.label && (
+                <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                  {group.label}
+                </div>
+              )}
+              {visibleItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.to);
+                const badge = item.to === "/comunicacao/inbox" ? (badgeQ.data?.mine_unread ?? 0) : 0;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    title={item.hint}
+                    className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
+                      active
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate flex-1">{item.label}</span>
+                    {badge > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                        {badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
+      </nav>
+      <div className="border-t border-sidebar-border p-3 space-y-2">
+        <div className="text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-xs text-sidebar-foreground/80 hover:text-sidebar-foreground"
+        >
+          <LogOut className="h-3.5 w-3.5" /> Sair
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="flex min-h-screen bg-background">
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
-        <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
-          <Megaphone className="h-5 w-5 text-sidebar-primary" />
-          <div className="font-semibold text-sm leading-tight">
-            Campanha do Povo
-            <br />
-            que Batalha
-          </div>
-        </div>
-        <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
-          {groups.map((group, gi) => {
-            const visibleItems = group.items.filter(canSee);
-            if (visibleItems.length === 0) return null;
-            return (
-              <div key={gi} className="space-y-1">
-                {group.label && (
-                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                    {group.label}
-                  </div>
-                )}
-                {visibleItems.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.to);
-                  const badge = item.to === "/comunicacao/inbox" ? (badgeQ.data?.mine_unread ?? 0) : 0;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      title={item.hint}
-                      className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
-                        active
-                          ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                          : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate flex-1">{item.label}</span>
-                      {badge > 0 && (
-                        <span className="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
-                          {badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </nav>
-        <div className="border-t border-sidebar-border p-3 space-y-2">
-          <div className="text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-xs text-sidebar-foreground/80 hover:text-sidebar-foreground"
-          >
-            <LogOut className="h-3.5 w-3.5" /> Sair
-          </button>
-        </div>
+        {SidebarInner}
       </aside>
-      <main className="flex-1 min-w-0">
-        <Outlet />
-      </main>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden
+          />
+          <aside className="relative z-10 w-72 max-w-[85vw] flex flex-col bg-sidebar text-sidebar-foreground border-r shadow-xl animate-in slide-in-from-left">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-3 right-3 p-1.5 rounded-md hover:bg-sidebar-accent"
+              aria-label="Fechar menu"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {SidebarInner}
+          </aside>
+        </div>
+      )}
+
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Mobile top bar with hamburger */}
+        <header className="md:hidden sticky top-0 z-30 h-12 border-b bg-card flex items-center gap-2 px-3">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="p-2 -ml-2 rounded-md hover:bg-muted"
+            aria-label="Abrir menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Megaphone className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-semibold truncate">Povo que Batalha</span>
+          </div>
+        </header>
+        <main className="flex-1 min-w-0">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
