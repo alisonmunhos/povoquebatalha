@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
 
 export const getGeocodingStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
