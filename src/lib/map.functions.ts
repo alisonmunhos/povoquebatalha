@@ -10,7 +10,7 @@ export const listMapContacts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,bairro,cidade,uf,profissao,tipo_contato,formas_ajuda,consentimento_whatsapp,lifecycle_status,latitude,longitude")
+      .select("id,nome,phone_e164,bairro,cidade,uf,profissao,tipo_contato,formas_ajuda,consentimento_whatsapp,lifecycle_status,latitude,longitude,geocoding_precision")
       .not("latitude", "is", null)
       .not("longitude", "is", null)
       .limit(5000);
