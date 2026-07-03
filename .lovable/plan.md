@@ -1,25 +1,28 @@
-## Diagnóstico
+## Objetivo
+Cada card no módulo Território deve ter um botão persistente para **retornar o contato para "Ainda não abordado"**, sem depender do toast "Desfazer" (que some rápido e não aparece para ações antigas).
 
-O botão **"Não encontrado"** já está funcionando como projetado:
+## Mudanças
 
-1. Grava o log em `territory_contact_logs` com `action = 'nao_encontrado'`.
-2. Invalida a lista e o resumo → o card sai da aba "Ainda não abordado".
-3. O contato passa a aparecer no chip de filtro **"Não encontrado"**.
+### 1. Backend — `src/lib/territory-logs.functions.ts`
+Adicionar server function `resetTerritoryContact({ contactId })`:
+- Middleware `requireSupabaseAuth`.
+- Deleta **todos** os logs em `territory_contact_logs` do contato (o `last_action` volta a `null` → o contato reaparece como "Ainda não abordado").
+- Retorna `{ ok: true, deleted: N }`.
 
-Esse é o comportamento correto — não há bug a corrigir.
+Observação: `undoLastTerritoryLog` continua existindo (desfaz só a última ação, usado pelo toast).
 
-## Melhoria opcional sugerida (polimento de UX)
+### 2. UI — `src/routes/_authenticated/territorio.tsx`
+No card de cada contato (`FieldAction`, dentro do `<li>`):
+- Quando o contato já tem `last_action` (ou seja, já foi marcado como "Contato feito", "Não encontrado" ou "Observação"), mostrar um botão discreto **"Voltar para Ainda não abordado"** logo abaixo dos botões principais.
+- Ícone `RotateCcw` (lucide-react), estilo texto pequeno / link secundário para não competir visualmente com as ações primárias.
+- Confirmação inline via `window.confirm("Voltar este contato para 'Ainda não abordado'? Isso apaga o histórico de campo dele.")`.
+- Usa a mutation nova `resetMut` que chama `resetTerritoryContact` e invalida `territory-contacts` + `territory-summary-today`.
+- Toast de sucesso: "Contato voltou para 'Ainda não abordado'".
 
-Como o card **some da tela** logo após o clique, o usuário pode achar que "sumiu por engano". Sugiro adicionar:
+### 3. Texto de ajuda
+Atualizar o bloco explicativo no topo da lista (linha ~280) para mencionar:
+> "Para trazer um contato de volta para a lista de não abordados, use o botão **Voltar para não abordado** no próprio card."
 
-- **Toast com "Desfazer"** (5s): permite reverter a última ação registrada sem precisar ir até o filtro.
-- **Contador visível nos chips de filtro** já existe — apenas confirmar que atualiza imediatamente.
-- **Texto de ajuda** no topo da aba Ação de Campo: *"Contatos marcados saem desta lista e podem ser vistos nos filtros abaixo."*
-
-### Detalhes técnicos
-
-- Novo server fn `undoLastTerritoryLog({ contactId })` que deleta o log mais recente do usuário para aquele contato (últimos 60s).
-- `toast.success("Marcado como não encontrado", { action: { label: "Desfazer", onClick: () => undoMut.mutate(...) } })`.
-- Reinvalidar `["territory-contacts"]` e `["territory-summary-today"]` após desfazer.
-
-Confirma se quer que eu implemente esse polimento, ou prefere deixar como está?
+## Fora do escopo
+- Não mexer no fluxo do toast "Desfazer" (mantém como atalho rápido).
+- Não alterar o esquema do banco.
