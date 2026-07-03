@@ -244,63 +244,71 @@ function FieldAction() {
         />
       </div>
 
-      {/* Barra de filtros */}
-      <div className="rounded-xl border bg-card p-3 space-y-2.5">
-        <div className="flex items-center justify-between">
+      {/* Barra de filtros (colapsável no mobile) */}
+      <details className="md:open rounded-xl border bg-card group" open>
+        <summary className="cursor-pointer list-none p-3 flex items-center justify-between select-none">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Filter className="h-3.5 w-3.5" /> Filtros
             {activeFilterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>}
           </div>
-          {activeFilterCount > 0 && (
-            <button onClick={clearFilters} className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-              <XCircle className="h-3 w-3" /> limpar
-            </button>
-          )}
-        </div>
+          <div className="flex items-center gap-3">
+            {activeFilterCount > 0 && (
+              <button onClick={(e) => { e.preventDefault(); clearFilters(); }} className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                <XCircle className="h-3 w-3" /> limpar
+              </button>
+            )}
+            <span className="text-muted-foreground text-xs group-open:rotate-180 transition-transform">▾</span>
+          </div>
+        </summary>
+        <div className="px-3 pb-3 space-y-2.5">
+          <div className="flex flex-wrap gap-1.5">
+            <FilterChip active={fieldStatus.includes("nao_abordado")} onClick={() => toggleStatus("nao_abordado")}>
+              Ainda não abordado
+            </FilterChip>
+            <FilterChip active={fieldStatus.includes("contato_realizado")} onClick={() => toggleStatus("contato_realizado")} tone="emerald">
+              Contato feito {counts && `(${counts.contato_realizado})`}
+            </FilterChip>
+            <FilterChip active={fieldStatus.includes("nao_encontrado")} onClick={() => toggleStatus("nao_encontrado")} tone="amber">
+              Não encontrado {counts && `(${counts.nao_encontrado})`}
+            </FilterChip>
+            <FilterChip active={fieldStatus.includes("observacao")} onClick={() => toggleStatus("observacao")} tone="sky">
+              Com observação {counts && `(${counts.observacao})`}
+            </FilterChip>
+          </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          <FilterChip active={fieldStatus.includes("nao_abordado")} onClick={() => toggleStatus("nao_abordado")}>
-            Ainda não abordado
-          </FilterChip>
-          <FilterChip active={fieldStatus.includes("contato_realizado")} onClick={() => toggleStatus("contato_realizado")} tone="emerald">
-            Contato feito {counts && `(${counts.contato_realizado})`}
-          </FilterChip>
-          <FilterChip active={fieldStatus.includes("nao_encontrado")} onClick={() => toggleStatus("nao_encontrado")} tone="amber">
-            Não encontrado {counts && `(${counts.nao_encontrado})`}
-          </FilterChip>
-          <FilterChip active={fieldStatus.includes("observacao")} onClick={() => toggleStatus("observacao")} tone="sky">
-            Com observação {counts && `(${counts.observacao})`}
-          </FilterChip>
+          <div className="flex flex-wrap gap-3 items-center pt-1">
+            <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+              Período:
+              <select value={period} onChange={(e) => { setPeriod(e.target.value as Period); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
+                <option value="all">Todos</option>
+                <option value="today">Hoje</option>
+                <option value="week">Últimos 7 dias</option>
+              </select>
+            </label>
+            <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+              Ordenar:
+              <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as SortBy); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
+                <option value="nao_abordado_first">Não abordados primeiro</option>
+                <option value="recent_action">Ações mais recentes</option>
+                <option value="alphabetical">Alfabético</option>
+              </select>
+            </label>
+          </div>
         </div>
-
-        <div className="flex flex-wrap gap-3 items-center pt-1">
-          <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-            Período:
-            <select value={period} onChange={(e) => { setPeriod(e.target.value as Period); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
-              <option value="all">Todos</option>
-              <option value="today">Hoje</option>
-              <option value="week">Últimos 7 dias</option>
-            </select>
-          </label>
-          <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-            Ordenar:
-            <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as SortBy); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
-              <option value="nao_abordado_first">Não abordados primeiro</option>
-              <option value="recent_action">Ações mais recentes</option>
-              <option value="alphabetical">Alfabético</option>
-            </select>
-          </label>
-        </div>
-      </div>
+      </details>
 
       <div className="rounded-xl border bg-card">
-        <div className="flex items-start gap-2 p-3 border-b bg-muted/30 rounded-t-xl">
-          <Smartphone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-          <div className="text-[11px] text-muted-foreground leading-tight space-y-1">
+        <details className="border-b bg-muted/30 rounded-t-xl">
+          <summary className="cursor-pointer list-none p-3 flex items-start gap-2 text-[11px] text-muted-foreground select-none">
+            <Smartphone className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span className="flex-1">Dicas de uso</span>
+            <span className="text-[10px]">▾</span>
+          </summary>
+          <div className="px-3 pb-3 pl-8 text-[11px] text-muted-foreground leading-tight space-y-1">
             <p>Adicione à tela inicial pelo menu do navegador para usar como app.</p>
             <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso ou o botão <b>Voltar para não abordado</b> no card para reverter. <b>As observações são mantidas no histórico</b> mesmo após desfazer.</p>
           </div>
-        </div>
+        </details>
 
         {contacts.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
         {contacts.data && contacts.data.rows.length === 0 && (

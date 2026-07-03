@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "sonner";
-import { RefreshCw, AlertTriangle, X, Send, ExternalLink } from "lucide-react";
+import { RefreshCw, AlertTriangle, X, Send, ExternalLink, LocateFixed, ChevronDown } from "lucide-react";
 
 export function TerritoryMapView() {
   const listFn = useServerFn(listMapContacts);
@@ -39,10 +39,16 @@ export function TerritoryMapView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const activeFilterCount =
+    (filters.cidades?.length ?? 0) +
+    (filters.bairros?.length ?? 0) +
+    (filters.tipo_contato ? 1 : 0) +
+    (filters.consent ? 1 : 0);
+
   return (
-    <div className="flex w-full">
+    <div className="flex flex-col md:flex-row w-full">
       <div className="flex-1 min-w-0">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-3">
           <Stat label="Com coordenada" value={stats.data.comCoordenada} />
           <Stat label="Pendente" value={stats.data.pendente} />
           <Stat label="Aproximado" value={stats.data.aproximado} />
@@ -51,54 +57,65 @@ export function TerritoryMapView() {
         </div>
 
         {stats.data.pendente + stats.data.erro > 0 && (
-          <div className="mb-4 p-3 border rounded-md bg-amber-50 text-amber-900 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 mt-0.5" />
-            <div className="flex-1 text-sm">
-              {stats.data.pendente + stats.data.erro} contato(s) sem coordenada. O mapa exibe apenas os geocodificados.
+          <div className="mb-3 p-3 border rounded-md bg-amber-50 text-amber-900 flex flex-col sm:flex-row sm:items-start gap-2">
+            <div className="flex items-start gap-2 flex-1 text-sm">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>{stats.data.pendente + stats.data.erro} contato(s) sem coordenada. O mapa exibe apenas os geocodificados.</div>
             </div>
-            <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending}>
+            <Button size="sm" onClick={() => runBatch.mutate()} disabled={runBatch.isPending} className="shrink-0">
               <RefreshCw className={`h-3 w-3 mr-1 ${runBatch.isPending ? "animate-spin" : ""}`} />
-              Atualizar geolocalização (lote)
+              Atualizar geolocalização
             </Button>
           </div>
         )}
 
-        <div className="grid md:grid-cols-4 gap-3 mb-4">
-          <MultiSelectFilter
-            options={
-              filters.cidades?.length
-                ? filters.cidades.flatMap((c) => facets.data.bairrosPorCidade[c] ?? [])
-                : facets.data.bairros
-            }
-            value={filters.bairros ?? []}
-            onChange={(v) => setFilters((f) => ({ ...f, bairros: v.length ? v : undefined }))}
-            placeholder="Bairro (todos)"
-            emptyText="Sem bairros."
-          />
-          <MultiSelectFilter
-            options={facets.data.cidades}
-            value={filters.cidades ?? []}
-            onChange={(v) => setFilters((f) => ({ ...f, cidades: v.length ? v : undefined, bairros: undefined }))}
-            placeholder="Cidade (todas)"
-            emptyText="Sem cidades."
-          />
-          <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.tipo_contato ?? ""} onChange={(e) => setFilters((f) => ({ ...f, tipo_contato: e.target.value || undefined }))}>
-            <option value="">Todos os tipos</option>
-            <option value="apoiador">Apoiador</option>
-            <option value="militante">Militante</option>
-            <option value="lideranca">Liderança</option>
-            <option value="eleitor">Eleitor</option>
-          </select>
-          <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.consent ?? ""} onChange={(e) => setFilters((f) => ({ ...f, consent: (e.target.value || undefined) as "sim" | "nao" | undefined }))}>
-            <option value="">Todos os consentimentos</option>
-            <option value="sim">Com consentimento</option>
-            <option value="nao">Sem consentimento</option>
-          </select>
-        </div>
+        <details className="mb-3 rounded-lg border bg-card group" open={typeof window !== "undefined" && window.innerWidth >= 768}>
+          <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between text-sm font-medium select-none">
+            <span className="inline-flex items-center gap-2">
+              Filtros
+              {activeFilterCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>
+              )}
+            </span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 p-3 pt-0">
+            <MultiSelectFilter
+              options={
+                filters.cidades?.length
+                  ? filters.cidades.flatMap((c) => facets.data.bairrosPorCidade[c] ?? [])
+                  : facets.data.bairros
+              }
+              value={filters.bairros ?? []}
+              onChange={(v) => setFilters((f) => ({ ...f, bairros: v.length ? v : undefined }))}
+              placeholder="Bairro (todos)"
+              emptyText="Sem bairros."
+            />
+            <MultiSelectFilter
+              options={facets.data.cidades}
+              value={filters.cidades ?? []}
+              onChange={(v) => setFilters((f) => ({ ...f, cidades: v.length ? v : undefined, bairros: undefined }))}
+              placeholder="Cidade (todas)"
+              emptyText="Sem cidades."
+            />
+            <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.tipo_contato ?? ""} onChange={(e) => setFilters((f) => ({ ...f, tipo_contato: e.target.value || undefined }))}>
+              <option value="">Todos os tipos</option>
+              <option value="apoiador">Apoiador</option>
+              <option value="militante">Militante</option>
+              <option value="lideranca">Liderança</option>
+              <option value="eleitor">Eleitor</option>
+            </select>
+            <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.consent ?? ""} onChange={(e) => setFilters((f) => ({ ...f, consent: (e.target.value || undefined) as "sim" | "nao" | undefined }))}>
+              <option value="">Todos os consentimentos</option>
+              <option value="sim">Com consentimento</option>
+              <option value="nao">Sem consentimento</option>
+            </select>
+          </div>
+        </details>
 
 
         <div className="text-xs text-muted-foreground mb-2">
-          {contacts.data.rows.length} pin(s) no mapa • Clique num pin para abrir o painel lateral
+          {contacts.data.rows.length} pin(s) no mapa • Toque num pin para abrir os detalhes
         </div>
 
         <LeafletMap rows={contacts.data.rows} onSelect={setSelectedId} />
@@ -136,6 +153,12 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
   const rowsSignatureRef = useRef<string>("");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const userMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
+  const userAccuracyRef = useRef<import("leaflet").Circle | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const [locateMode, setLocateMode] = useState<"off" | "once" | "follow">("off");
+  const [locating, setLocating] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -154,7 +177,8 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
         iconRetinaUrl: iconRetina, iconUrl, shadowUrl,
       });
 
-      const map = L.map(mapDivRef.current, { preferCanvas: true }).setView([-14.235, -51.9253], 4);
+      const map = L.map(mapDivRef.current, { preferCanvas: true, zoomControl: false }).setView([-14.235, -51.9253], 4);
+      L.control.zoom({ position: "topleft" }).addTo(map);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
         maxZoom: 19,
@@ -218,6 +242,112 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
+  // Cleanup watch on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, []);
+
+  async function updateUserPosition(lat: number, lng: number, accuracy: number, center: boolean) {
+    if (!mapRef.current) return;
+    const L = (await import("leaflet")).default;
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = L.circleMarker([lat, lng], {
+        radius: 8,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#2563eb",
+        fillOpacity: 1,
+      }).addTo(mapRef.current);
+      userMarkerRef.current.bindTooltip("Você está aqui");
+    } else {
+      userMarkerRef.current.setLatLng([lat, lng]);
+    }
+    if (!userAccuracyRef.current) {
+      userAccuracyRef.current = L.circle([lat, lng], {
+        radius: accuracy,
+        color: "#2563eb",
+        weight: 1,
+        fillColor: "#3b82f6",
+        fillOpacity: 0.12,
+      }).addTo(mapRef.current);
+    } else {
+      userAccuracyRef.current.setLatLng([lat, lng]);
+      userAccuracyRef.current.setRadius(accuracy);
+    }
+    if (center) {
+      mapRef.current.setView([lat, lng], Math.max(mapRef.current.getZoom(), 16), { animate: true });
+    }
+  }
+
+  async function handleLocate() {
+    if (!navigator.geolocation) {
+      toast.error("Geolocalização não disponível neste dispositivo.");
+      return;
+    }
+    // Cycle: off -> once -> follow -> off
+    if (locateMode === "off") {
+      setLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          setLocating(false);
+          setLocateMode("once");
+          await updateUserPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? 30, true);
+        },
+        (err) => {
+          setLocating(false);
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error("Permissão negada. Habilite a localização no navegador.");
+          } else {
+            toast.error("Não foi possível obter sua localização.");
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
+      );
+      return;
+    }
+    if (locateMode === "once") {
+      // Start following
+      setLocateMode("follow");
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        async (pos) => {
+          await updateUserPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? 30, true);
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error("Permissão de localização foi revogada.");
+            stopLocate();
+          }
+        },
+        { enableHighAccuracy: true, maximumAge: 3000 },
+      );
+      toast.success("Seguindo sua localização em tempo real.");
+      return;
+    }
+    // Turn off
+    stopLocate();
+  }
+
+  function stopLocate() {
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setLocateMode("off");
+    if (mapRef.current && userMarkerRef.current) {
+      mapRef.current.removeLayer(userMarkerRef.current);
+      userMarkerRef.current = null;
+    }
+    if (mapRef.current && userAccuracyRef.current) {
+      mapRef.current.removeLayer(userAccuracyRef.current);
+      userAccuracyRef.current = null;
+    }
+  }
+
   async function toggleFullscreen() {
     if (!wrapperRef.current) return;
     if (document.fullscreenElement) {
@@ -227,10 +357,24 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
     }
   }
 
+  const locateBtnClass =
+    locateMode === "follow"
+      ? "bg-blue-600 text-white border-blue-700 animate-pulse"
+      : locateMode === "once"
+      ? "bg-blue-600 text-white border-blue-700"
+      : "bg-card hover:bg-muted";
+
+  const locateTitle =
+    locateMode === "off"
+      ? "Centralizar na minha localização"
+      : locateMode === "once"
+      ? "Toque de novo para seguir em tempo real"
+      : "Toque para parar de seguir";
+
   return (
     <div
       ref={wrapperRef}
-      className={`relative w-full ${isFullscreen ? "h-screen bg-background" : "h-[70vh]"} rounded-lg border overflow-hidden`}
+      className={`relative w-full ${isFullscreen ? "h-screen bg-background" : "h-[65vh] md:h-[70vh] min-h-[380px]"} rounded-lg border overflow-hidden`}
     >
       <div ref={mapDivRef} className="absolute inset-0" />
       <button
@@ -240,6 +384,20 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
         title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
       >
         {isFullscreen ? "Sair da tela cheia" : "⛶ Tela cheia"}
+      </button>
+      <button
+        type="button"
+        onClick={handleLocate}
+        disabled={locating}
+        aria-label={locateTitle}
+        title={locateTitle}
+        className={`absolute bottom-4 right-3 z-[1000] h-11 w-11 rounded-full border shadow-lg flex items-center justify-center transition-colors disabled:opacity-70 ${locateBtnClass}`}
+      >
+        {locating ? (
+          <RefreshCw className="h-5 w-5 animate-spin" />
+        ) : (
+          <LocateFixed className="h-5 w-5" />
+        )}
       </button>
     </div>
   );
@@ -268,7 +426,14 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
   const c = detail.data?.contact;
 
   return (
-    <aside className="w-full md:w-[380px] shrink-0 border-l bg-card overflow-y-auto max-h-[80vh]">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="md:hidden fixed inset-0 bg-black/40 z-[1100]"
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside className="fixed md:static bottom-0 inset-x-0 md:inset-auto z-[1101] md:z-auto w-full md:w-[380px] shrink-0 border-t md:border-t-0 md:border-l bg-card overflow-y-auto max-h-[80vh] rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none animate-in slide-in-from-bottom md:slide-in-from-right">
       <div className="p-4 border-b flex items-center justify-between">
         <div className="font-semibold truncate">{c?.nome ?? "Carregando…"}</div>
         <button onClick={onClose} className="p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
@@ -366,5 +531,6 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
         </div>
       )}
     </aside>
+    </>
   );
 }
