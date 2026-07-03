@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
-  MapPin, LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
+  LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
   MessageCircle,
 } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
