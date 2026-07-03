@@ -4,7 +4,7 @@ import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { getTerritoryOverview, listTerritoryContacts, getMyFieldSummaryToday } from "@/lib/territory.functions";
-import { logTerritoryAction } from "@/lib/territory-logs.functions";
+import { logTerritoryAction, undoLastTerritoryLog } from "@/lib/territory-logs.functions";
 import {
   Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2,
   StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle,
@@ -92,8 +92,23 @@ function FieldAction() {
   const overviewFn = useServerFn(getTerritoryOverview);
   const listFn = useServerFn(listTerritoryContacts);
   const logFn = useServerFn(logTerritoryAction);
+  const undoFn = useServerFn(undoLastTerritoryLog);
   const summaryFn = useServerFn(getMyFieldSummaryToday);
   const qc = useQueryClient();
+
+  const undoMut = useMutation({
+    mutationFn: (v: { contactId: string }) => undoFn({ data: v }),
+    onSuccess: (res) => {
+      if (res?.ok) {
+        toast.success("Ação desfeita");
+        qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+        qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
+      } else {
+        toast.info("Nada recente para desfazer");
+      }
+    },
+    onError: (e) => toast.error("Não foi possível desfazer", { description: e instanceof Error ? e.message : undefined }),
+  });
 
   const overview = useSuspenseQuery({
     queryKey: ["territory-overview"],
@@ -135,7 +150,13 @@ function FieldAction() {
     mutationFn: (v: { contactId: string; action: "whatsapp_aberto" | "contato_realizado" | "nao_encontrado" | "pediu_atualizacao" | "observacao"; note?: string }) =>
       logFn({ data: v }),
     onSuccess: (_res, vars) => {
-      toast.success(ACTION_TOAST[vars.action] ?? "Registrado");
+      toast.success(ACTION_TOAST[vars.action] ?? "Registrado", {
+        description: "Contato saiu desta lista e agora aparece no filtro correspondente.",
+        action: vars.action !== "observacao" ? {
+          label: "Desfazer",
+          onClick: () => undoMut.mutate({ contactId: vars.contactId }),
+        } : undefined,
+      });
       qc.invalidateQueries({ queryKey: ["territory-contacts"] });
       qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
     },
@@ -252,11 +273,12 @@ function FieldAction() {
       </div>
 
       <div className="rounded-xl border bg-card">
-        <div className="flex items-center gap-2 p-3 border-b bg-muted/30 rounded-t-xl">
-          <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground leading-tight">
-            Adicione à tela inicial pelo menu do navegador para usar como app.
-          </p>
+        <div className="flex items-start gap-2 p-3 border-b bg-muted/30 rounded-t-xl">
+          <Smartphone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="text-[11px] text-muted-foreground leading-tight space-y-1">
+            <p>Adicione à tela inicial pelo menu do navegador para usar como app.</p>
+            <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso se marcar por engano.</p>
+          </div>
         </div>
 
         {contacts.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
