@@ -881,20 +881,17 @@ function InboundMedia({ url, mime, filename }: { url: string; mime: string; file
   );
 }
 
-// ---- Banner de conversa "não vinculada": criar rápido OU vincular a contato existente.
+// ---- Banner de conversa "não vinculada": salvar como contato OU vincular a contato existente.
 function UnlinkedBanner({
   phone,
   onQuick,
   onLink,
 }: {
   phone: string;
-  onQuick: (nome: string, cidade?: string, uf?: string) => void;
+  onQuick: () => void;
   onLink: (contact_id: string) => void;
 }) {
-  const [mode, setMode] = useState<"none" | "quick" | "link">("none");
-  const [nome, setNome] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [uf, setUf] = useState("");
+  const [mode, setMode] = useState<"none" | "link">("none");
   const [q, setQ] = useState("");
   const searchFn = useServerFn(searchContactsForNewChat);
   const searchQ = useQuery({
@@ -903,19 +900,27 @@ function UnlinkedBanner({
     enabled: mode === "link" && q.trim().length >= 2,
   });
 
+  const lid = isLidPhone(phone);
   return (
     <div className="border-b bg-amber-50/60 p-3 text-xs space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <div className="font-medium text-amber-900">Conversa não vinculada</div>
-          <div className="text-amber-800/80">Número de origem: <span className="font-mono">{phone || "—"}</span></div>
+          <div className="text-amber-800/80 truncate">
+            {lid ? (
+              <>Origem: <span className="font-mono">{phone}</span> — identificador anônimo do WhatsApp (não é telefone real).</>
+            ) : (
+              <>Número de origem: <span className="font-mono">{phone || "—"}</span></>
+            )}
+          </div>
         </div>
         <div className="flex gap-1 shrink-0">
           <button
-            onClick={() => setMode(mode === "quick" ? "none" : "quick")}
-            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100"
+            onClick={onQuick}
+            className="px-2 py-1 rounded border border-amber-300 bg-white hover:bg-amber-100 inline-flex items-center gap-1"
+            title="Abrir ficha completa para salvar como contato"
           >
-            Criar contato rápido
+            <UserPlus className="h-3 w-3" /> Salvar como contato
           </button>
           <button
             onClick={() => setMode(mode === "link" ? "none" : "link")}
@@ -925,24 +930,6 @@ function UnlinkedBanner({
           </button>
         </div>
       </div>
-      {mode === "quick" && (
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className="col-span-2 px-2 py-1.5 rounded border bg-background"
-            placeholder="Nome do contato"
-            value={nome} onChange={(e) => setNome(e.target.value)}
-          />
-          <input className="px-2 py-1.5 rounded border bg-background" placeholder="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
-          <input className="px-2 py-1.5 rounded border bg-background" placeholder="UF" maxLength={2} value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} />
-          <button
-            disabled={!nome.trim()}
-            onClick={() => onQuick(nome.trim(), cidade || undefined, uf || undefined)}
-            className="col-span-2 px-2 py-1.5 rounded bg-primary text-primary-foreground disabled:opacity-40"
-          >
-            Criar contato e vincular
-          </button>
-        </div>
-      )}
       {mode === "link" && (
         <div className="space-y-2">
           <input
@@ -967,3 +954,4 @@ function UnlinkedBanner({
     </div>
   );
 }
+
