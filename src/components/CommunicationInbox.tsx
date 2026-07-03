@@ -451,9 +451,11 @@ export function CommunicationInbox() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold truncate">{active.nome ?? active.phone ?? "Sem nome"}</div>
+                <div className="font-semibold truncate">
+                  {active.nome ?? (isLidPhone(active.phone) ? "Sem contato vinculado" : (active.phone ?? "Sem nome"))}
+                </div>
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-2">
-                  <span>{active.phone}</span>
+                  <span className={isLidPhone(active.phone) ? "font-mono text-[10px]" : ""}>{displayPhone(active.phone)}</span>
                   {active.cidade && <span>· {active.cidade}/{active.uf ?? ""}</span>}
                   {active.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
                 </div>
@@ -510,9 +512,7 @@ export function CommunicationInbox() {
             {conv && !conv.contact_id && (
               <UnlinkedBanner
                 phone={conv.from_phone ?? ""}
-                onQuick={(nome, cidade, uf) =>
-                  quickCreateMut.mutate({ conversation_id: conv.id, nome, cidade, uf })
-                }
+                onQuick={() => setQuickCreateOpen(true)}
                 onLink={(contact_id) =>
                   linkMut.mutate({ conversation_id: conv.id, contact_id })
                 }
