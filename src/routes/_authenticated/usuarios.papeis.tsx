@@ -63,6 +63,15 @@ const ROWS: Row[] = [
     config: "—",
   },
   {
+    papel: "Agitador",
+    cor: "bg-orange-100 text-orange-800",
+    descricao: "Voluntário de captação em campo. Só acessa o módulo de agitação para cadastrar novos contatos.",
+    base: "Cadastra novos contatos pelo módulo de agitação. Não vê a base completa.",
+    comunicacao: "—",
+    territorio: "—",
+    config: "—",
+  },
+  {
     papel: "Leitor",
     cor: "bg-slate-100 text-slate-800",
     descricao: "Acesso apenas para acompanhar sem interferir. Bom para observadores, apoiadores institucionais.",
