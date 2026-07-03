@@ -2,16 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CommunicationTabs } from "@/components/CommunicationTabs";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { listCampaigns, upsertCampaign, deleteCampaign } from "@/lib/campaigns.functions";
 import { listSegments } from "@/lib/segments.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Trash2, Send } from "lucide-react";
+import { Plus, Trash2, Send, Info, Users } from "lucide-react";
+import { MessageComposer, emptyComposerValue, type ComposerValue } from "@/components/MessageComposer";
 
 export const Route = createFileRoute("/_authenticated/campanhas/")({
   head: () => ({ meta: [{ title: "Campanhas" }] }),
@@ -27,6 +27,22 @@ const statusColors: Record<string, string> = {
   canceled: "bg-red-100 text-red-700",
 };
 
+type FormMeta = {
+  nome: string;
+  segment_id: string;
+  agendado_para: string;
+  delay_min_ms: number;
+  delay_max_ms: number;
+};
+
+const emptyMeta = (): FormMeta => ({
+  nome: "",
+  segment_id: "",
+  agendado_para: "",
+  delay_min_ms: 3000,
+  delay_max_ms: 8000,
+});
+
 function CampanhasPage() {
   const listFn = useServerFn(listCampaigns);
   const segFn = useServerFn(listSegments);
@@ -38,29 +54,55 @@ function CampanhasPage() {
   const segs = useSuspenseQuery({ queryKey: ["segments"], queryFn: () => segFn() });
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    nome: "", tipo: "text" as "text" | "image", mensagem_template: "",
-    midia_url: "", segment_id: "", agendado_para: "",
-    delay_min_ms: 3000, delay_max_ms: 8000,
-  });
+  const [meta, setMeta] = useState<FormMeta>(emptyMeta);
+  const [composer, setComposer] = useState<ComposerValue>(emptyComposerValue);
+
+  const selectedSegment = useMemo(
+    () => segs.data.rows.find((s) => s.id === meta.segment_id) ?? null,
+    [segs.data.rows, meta.segment_id],
+  );
+
+  const segmentCountLabel = useMemo(() => {
+    if (!selectedSegment) return null;
+    const seg = selectedSegment as { tipo: string; member_ids?: string[] | null };
+    if (seg.tipo === "estatico") {
+      const n = Array.isArray(seg.member_ids) ? seg.member_ids.length : 0;
+      return `${n} contato${n === 1 ? "" : "s"} no segmento`;
+    }
+    return "Contagem calculada ao preparar destinatários";
+  }, [selectedSegment]);
 
   const create = useMutation({
-    mutationFn: (payload: typeof form) => upsertFn({
-      data: {
-        nome: payload.nome,
-        tipo: payload.tipo,
-        mensagem_template: payload.mensagem_template,
-        midia_url: payload.midia_url || null,
-        segment_id: payload.segment_id || null,
-        agendado_para: payload.agendado_para ? new Date(payload.agendado_para).toISOString() : null,
-        delay_min_ms: payload.delay_min_ms,
-        delay_max_ms: payload.delay_max_ms,
-      },
-    }),
+    mutationFn: () => {
+      const tipo: "text" | "image" | "document" | "link" =
+        composer.media_mime?.startsWith("image/") ? "image"
+        : composer.media_mime === "application/pdf" ? "document"
+        : composer.link_url ? "link"
+        : "text";
+      return upsertFn({
+        data: {
+          nome: meta.nome,
+          tipo,
+          mensagem_template: composer.body,
+          segment_id: meta.segment_id || null,
+          agendado_para: meta.agendado_para ? new Date(meta.agendado_para).toISOString() : null,
+          delay_min_ms: meta.delay_min_ms,
+          delay_max_ms: meta.delay_max_ms,
+          midia_path: composer.media_path,
+          midia_mime: composer.media_mime,
+          midia_filename: composer.media_filename,
+          link_url: composer.link_url,
+          link_title: composer.link_title,
+          link_description: composer.link_description,
+          link_image: composer.link_image,
+        },
+      });
+    },
     onSuccess: () => {
-      toast.success("Campanha criada");
+      toast.success("Campanha criada como rascunho");
       setOpen(false);
-      setForm({ nome: "", tipo: "text", mensagem_template: "", midia_url: "", segment_id: "", agendado_para: "", delay_min_ms: 3000, delay_max_ms: 8000 });
+      setMeta(emptyMeta());
+      setComposer(emptyComposerValue());
       qc.invalidateQueries({ queryKey: ["campaigns"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -72,10 +114,16 @@ function CampanhasPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const canSubmit =
+    meta.nome.trim().length > 0 &&
+    composer.body.trim().length > 0 &&
+    meta.segment_id.length > 0 &&
+    !create.isPending;
+
   return (
     <div className="p-6 md:p-10 max-w-6xl">
-    <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
-      
+      <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
+
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <Send className="h-6 w-6 text-primary" />
@@ -85,39 +133,91 @@ function CampanhasPage() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-1" /> Nova campanha</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Nova campanha</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <Input placeholder="Nome da campanha" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-              <div className="grid grid-cols-2 gap-2">
-                <select className="border rounded-md px-2 h-9 text-sm bg-background" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as "text" | "image" })}>
-                  <option value="text">Texto</option>
-                  <option value="image">Imagem</option>
-                </select>
-                <select className="border rounded-md px-2 h-9 text-sm bg-background" value={form.segment_id} onChange={(e) => setForm({ ...form, segment_id: e.target.value })}>
-                  <option value="">— Selecione um segmento —</option>
-                  {segs.data.rows.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                </select>
+
+            <div className="rounded-md border bg-primary/5 text-primary/90 text-xs p-3 flex gap-2 mb-3">
+              <Info className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                Mensagem e campanha usam o mesmo editor. Uma <b>mensagem salva</b> vira modelo reutilizável
+                (usada em automações e no Inbox). Uma <b>campanha</b> dispara essa mensagem para um
+                público-alvo, agora ou agendada.
               </div>
-              {form.tipo === "image" && (
-                <Input placeholder="URL da imagem (https://...)" value={form.midia_url} onChange={(e) => setForm({ ...form, midia_url: e.target.value })} />
-              )}
-              <Textarea rows={6} placeholder="Mensagem. Use {{nome}}, {{primeiro_nome}}, {{cidade}}, {{bairro}}." value={form.mensagem_template} onChange={(e) => setForm({ ...form, mensagem_template: e.target.value })} />
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-medium">Nome da campanha</label>
+                <Input
+                  placeholder="Ex.: Aviso de reunião — Zona Norte"
+                  value={meta.nome}
+                  onChange={(e) => setMeta({ ...meta, nome: e.target.value })}
+                  className="mt-1"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Uso interno — não aparece para os contatos.</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium flex items-center gap-1">
+                  <Users className="h-3.5 w-3.5" /> Público-alvo (obrigatório)
+                </label>
+                <select
+                  className="mt-1 w-full border rounded-md px-2 h-9 text-sm bg-background"
+                  value={meta.segment_id}
+                  onChange={(e) => setMeta({ ...meta, segment_id: e.target.value })}
+                >
+                  <option value="">— Selecione um segmento —</option>
+                  {segs.data.rows.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {segmentCountLabel
+                    ? `Selecionado: ${segmentCountLabel}.`
+                    : "Escolha o grupo de contatos que receberá esta mensagem. Para criar campanhas a partir de contatos filtrados, use a tela Contatos."}
+                </p>
+              </div>
+
+              <MessageComposer value={composer} onChange={setComposer} />
+
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground">Agendado para</label>
-                  <Input type="datetime-local" value={form.agendado_para} onChange={(e) => setForm({ ...form, agendado_para: e.target.value })} />
+                  <Input
+                    type="datetime-local"
+                    value={meta.agendado_para}
+                    onChange={(e) => setMeta({ ...meta, agendado_para: e.target.value })}
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Delay mín. (ms)</label>
-                  <Input type="number" value={form.delay_min_ms} onChange={(e) => setForm({ ...form, delay_min_ms: Number(e.target.value) })} />
+                  <Input
+                    type="number"
+                    value={meta.delay_min_ms}
+                    onChange={(e) => setMeta({ ...meta, delay_min_ms: Number(e.target.value) })}
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Delay máx. (ms)</label>
-                  <Input type="number" value={form.delay_max_ms} onChange={(e) => setForm({ ...form, delay_max_ms: Number(e.target.value) })} />
+                  <Input
+                    type="number"
+                    value={meta.delay_max_ms}
+                    onChange={(e) => setMeta({ ...meta, delay_max_ms: Number(e.target.value) })}
+                  />
                 </div>
               </div>
-              <Button className="w-full" onClick={() => create.mutate(form)} disabled={!form.nome || !form.mensagem_template || create.isPending}>
+
+              <Button
+                className="w-full"
+                onClick={() => create.mutate()}
+                disabled={!canSubmit}
+                title={
+                  !meta.segment_id ? "Selecione um público-alvo"
+                  : !meta.nome.trim() ? "Informe o nome"
+                  : !composer.body.trim() ? "Escreva a mensagem"
+                  : ""
+                }
+              >
                 {create.isPending ? "Criando..." : "Criar como rascunho"}
               </Button>
             </div>
@@ -125,7 +225,7 @@ function CampanhasPage() {
         </Dialog>
       </div>
       <p className="text-xs text-muted-foreground mb-6">
-        Uma campanha é uma ação de envio para um público. Ela pode usar uma mensagem salva, ser enviada agora ou ser agendada. Para criar campanhas a partir de contatos filtrados, use a tela <b>Contatos</b>.
+        Uma campanha é uma ação de envio para um público. Ela pode usar uma mensagem salva, ser enviada agora ou ser agendada.
       </p>
 
       <div className="border rounded-xl overflow-hidden">
