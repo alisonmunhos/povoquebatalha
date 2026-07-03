@@ -36,7 +36,7 @@ export const listUserScopes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     return loadScopes(context, data.userId);
   });
 
@@ -49,7 +49,7 @@ export const addScope = createServerFn({ method: "POST" })
     bairro: z.string().trim().max(160).optional().nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     if (!data.uf && !data.cidade && !data.bairro) throw new Error("Informe ao menos UF, cidade ou bairro.");
     const { error } = await context.supabase.from("user_territory_scopes").insert({
       user_id: data.userId,
@@ -66,7 +66,7 @@ export const removeScope = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { error } = await context.supabase.from("user_territory_scopes").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true as const };

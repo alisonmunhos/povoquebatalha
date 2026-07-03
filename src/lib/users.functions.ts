@@ -33,7 +33,7 @@ const RoleEnum = z.enum(["admin", "operador", "leitor", "vrm", "territorio", "ag
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     if (error) throw error;
@@ -119,7 +119,7 @@ export const inviteUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => inviteSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     const originHeader = req.headers.get("origin");
@@ -172,7 +172,7 @@ export const resendInvite = createServerFn({ method: "POST" })
     z.object({ userId: z.string().uuid(), redirectOrigin: z.string().url() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     const originHeader = req.headers.get("origin");
@@ -202,7 +202,7 @@ export const generateInviteLink = createServerFn({ method: "POST" })
     z.object({ userId: z.string().uuid(), redirectOrigin: z.string().url() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     const originHeader = req.headers.get("origin");
@@ -237,7 +237,7 @@ export const setUserStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => setStatusSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     if (data.userId === context.userId && data.status !== "ativo") {
       throw new Error("Você não pode alterar seu próprio status.");
     }
@@ -263,7 +263,7 @@ export const deleteUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => deleteSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     if (data.userId === context.userId) {
       throw new Error("Você não pode remover a si mesmo.");
     }
@@ -283,7 +283,7 @@ export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => setRoleSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
     const { error } = await supabaseAdmin
@@ -297,7 +297,7 @@ export const setUserRole = createServerFn({ method: "POST" })
 export const listAccessAudit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("access_audit_log")
@@ -321,7 +321,7 @@ export const generatePasswordResetLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => resetPwdSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     const originHeader = req.headers.get("origin");
@@ -353,7 +353,7 @@ export const sendPasswordResetEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => resetPwdSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     const originHeader = req.headers.get("origin");

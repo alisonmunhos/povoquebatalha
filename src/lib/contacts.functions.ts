@@ -270,7 +270,7 @@ export const deleteContact = createServerFn({ method: "POST" })
     if (data.confirmation !== "EXCLUIR") {
       throw new Error("Confirmação inválida. Digite EXCLUIR para prosseguir.");
     }
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { data: contact, error: getErr } = await context.supabase
       .from("contacts")
       .select("*")
@@ -298,7 +298,7 @@ export const deleteContactsBulk = createServerFn({ method: "POST" })
     if (data.confirmation !== expected) {
       throw new Error(`Confirmação inválida. Digite o número exato de contatos (${expected}).`);
     }
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { data: contacts, error: getErr } = await context.supabase
       .from("contacts")
       .select("id,nome,phone_e164,email,cidade,uf,origem")

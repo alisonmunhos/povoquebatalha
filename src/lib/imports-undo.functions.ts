@@ -87,7 +87,7 @@ export const getUndoPreview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => previewSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
     const { data: imp, error } = await sb
@@ -128,7 +128,7 @@ export const exportBackupCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => backupSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
     const { data: rows, error } = await sb
@@ -176,7 +176,7 @@ export const undoImport = createServerFn({ method: "POST" })
     if (data.confirmText.trim() !== CONFIRM_PHRASE) {
       throw new Error(`Confirmação inválida. Digite exatamente: ${CONFIRM_PHRASE}`);
     }
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
     const contacts = await fetchContactsForImport(sb, data.importId);
@@ -242,7 +242,7 @@ export const deleteImportFile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => deleteFileSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
     const { data: imp } = await sb
       .from("imports")
