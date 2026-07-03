@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
+
 
 export const getZapiStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -40,14 +42,9 @@ export const getZapiQr = createServerFn({ method: "GET" })
 export const disconnectZapi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: roleRow } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!roleRow) throw new Error("Apenas administradores podem desconectar.");
+    await requireAdmin(context.supabase, context.userId);
     const { zapi } = await import("@/integrations/zapi/client.server");
+
     await zapi.disconnect();
     return { ok: true as const };
   });
