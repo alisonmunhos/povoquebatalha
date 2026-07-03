@@ -1,56 +1,68 @@
 ## Objetivo
 
-Deixar `/territorio` totalmente fluido no celular (aba **Ação de Campo** + aba **Mapa**), sem quebras de layout, com filtros retráteis e um mapa fácil de manipular — incluindo um botão "Minha localização" estilo GPS que centraliza o mapa no ponto onde o usuário está.
+Simplificar a Central de Acesso: remover o escopo territorial (que ficou como resíduo), esclarecer as ações e dar ao admin controle total sobre convites e senhas.
 
-## Mudanças
+## 1. Limpar o escopo territorial (o que sobrou da mudança anterior)
 
-### 1. Shell (menu lateral no mobile) — `src/components/AppShell.tsx`
+Quando você pediu para não exigir mais escopo, eu removi a **obrigatoriedade** (todos os usuários passaram a ver tudo), mas deixei a UI de "Escopos" ativa como filtro opcional — daí a coluna "1 regra(s)" / "sem escopo" e o botão **Escopos** que você está vendo.
 
-- Garantir que o sidebar entre em modo off-canvas retrátil em telas `< md` (drawer sobreposto ao conteúdo, com backdrop e botão hamburger fixo no topo).
-- Botão hambúrguer visível no header em mobile; fecha automaticamente ao navegar.
-- Preservar comportamento desktop (fixo).
+- Remover a coluna **Escopos** e o botão **Escopos** da tabela de usuários.
+- Remover o editor `ScopesEditor` da página `/usuarios`.
+- Apagar automaticamente todos os registros existentes em `user_territory_scopes` (reset), já que não estão mais em uso.
+- Manter a tabela no banco (por ora vazia) para não quebrar código legado, mas sem interface.
 
-### 2. Aba Ação de Campo — `src/routes/_authenticated/territorio.tsx`
+Resultado: nenhum usuário terá restrição territorial. Todos veem a base inteira.
 
-- **KPIs**: manter `grid-cols-2`, mas reduzir padding e fonte no mobile para caber sem overflow horizontal.
-- **Barra de filtros retrátil**: no mobile transformar o cartão de filtros em um bloco colapsável (`<details>` ou botão "Filtros ▾") — começa fechado; mostra apenas contagem de filtros ativos. Chips e selects aparecem quando expande.
-- **Cards de contato**:
-  - Botões de ação viram `grid-cols-2` com altura mínima `h-11` (tap target 44px) — já está próximo, mas ajustar espaçamentos e evitar wrap com `min-w-0` + `truncate`.
-  - Chips de status (opt-out, WhatsApp, recadastro) com `flex-wrap` seguro.
-- **Resumo do dia**: quebrar em linhas no mobile em vez de flex-wrap denso.
-- **Aviso/dica** (Smartphone icon): virar `<details>` colapsável — economiza espaço vertical.
+## 2. Esclarecer Suspender vs. Revogar vs. Excluir
 
-### 3. Aba Mapa — `src/components/TerritoryMapView.tsx`
+Hoje as duas ações estão parecidas e confundem. Vou deixar assim:
 
-- **Layout responsivo**:
-  - Container principal muda de `flex` para `flex-col md:flex-row`, para o painel de detalhes empilhar abaixo no mobile em vez de espremer o mapa.
-  - Stats: `grid-cols-2 md:grid-cols-5` (já é). Reduzir padding em mobile.
-  - Filtros: envolver em `<details>` colapsável no mobile (fechado por padrão, com resumo dos filtros ativos).
-- **Painel lateral do contato selecionado (`MapDetailPanel`)** no mobile: virar **bottom sheet** deslizante (fixo em `bottom-0`, `inset-x-0`, com backdrop, arrastável para fechar/fechar no `X`) em vez de ocupar a largura toda empurrando o mapa para cima.
-- **Altura do mapa no mobile**: usar `h-[calc(100dvh-14rem)]` (usa `dvh` — dynamic viewport, evita corte com barra do Safari) e ficar próximo de tela cheia.
-- **Fullscreen**: manter botão de tela cheia já existente.
+| Ação | O que faz | Reversível? | Quando usar |
+|---|---|---|---|
+| **Suspender** | Bloqueia login temporariamente. Papel e histórico ficam preservados. | Sim (botão "Reativar") | Afastamento, férias, desconfiança momentânea |
+| **Revogar acesso** | Remove todos os papéis. O usuário perde acesso ao painel mas a conta existe (histórico preservado, pode ser reativado com novo papel). | Sim (dando novo papel) | Saída da equipe mantendo rastro |
+| **Excluir conta** | Apaga o usuário do sistema (auth + papéis). Permite convidar o mesmo e-mail de novo do zero. | **Não** | Convite errado, e-mail digitado errado, quer reenviar convite limpo |
 
-### 4. Botão "Minha localização" (GPS) no mapa — `LeafletMap`
+- Adicionar botão **Excluir** (ícone lixeira vermelho) também na aba **Ativos**, ao lado de Revogar, com confirmação dupla mostrando o e-mail.
+- Trocar rótulos e adicionar tooltip curto em cada botão explicando a diferença.
+- Renomear "Revogar" para "Revogar acesso" para diferenciar visualmente de Excluir.
 
-- Novo botão flutuante no canto inferior direito (`bottom-4 right-2`) com ícone `Crosshair`/`LocateFixed`.
-- Ao clicar:
-  1. `navigator.geolocation.getCurrentPosition({ enableHighAccuracy: true })`.
-  2. Se autorizado, adicionar/atualizar um marcador azul distinto ("Você está aqui") com círculo de precisão.
-  3. Centralizar o mapa em `[lat, lng]` com `zoom 16` (rua).
-  4. Se negado, mostrar `toast.error("Precisamos da sua localização — habilite no navegador.")`.
-- Segundo clique alterna modo **"Seguir minha localização"**: usa `watchPosition` e move o marcador em tempo real; terceiro clique desliga.
-- Estado do modo mostrado no botão (cinza → azul preenchido → azul pulsante).
-- Cleanup do `watch` no unmount.
+## 3. Sempre gerar link de convite (não depender do e-mail)
 
-### 5. Detalhes técnicos
+Você relatou que os convites por e-mail não chegam. Solução: além de tentar enviar o e-mail, **sempre** gerar o link direto na hora do convite e mostrá-lo em um modal para você copiar e enviar manualmente (WhatsApp, etc.).
 
-- Nada de novas libs — `navigator.geolocation` é nativo; marcador de usuário usa `L.circleMarker` (círculo) + `L.circle` (raio de precisão), sem novos assets.
-- HTTPS já é garantido no preview/publicado — geolocation funciona.
-- Sem migrations. Sem mudanças no banco.
-- Manter comportamento desktop intacto (o layout mobile é ativado por breakpoints `md:`).
+- Após clicar **Enviar convite**, abrir um modal com:
+  - E-mail convidado + papel.
+  - Campo com o **link de aceite** (URL pronta para o usuário definir a senha).
+  - Botão **Copiar link**.
+  - Botão **Copiar mensagem pronta** (texto tipo: "Olá! Você foi convidado para a Central. Clique aqui para criar sua senha: [link]. O link expira em 7 dias.").
+- Na aba **Convites pendentes**, manter o botão "Copiar link" (para gerar novo link se o antigo expirou) e reforçar visualmente o botão.
+- No convite, guardar internamente o `redirectTo` para `/aceitar-convite` (já existe).
 
-## Fora de escopo
+## 4. Reset de senha pelo admin
 
-- Rota/traçado (Directions) até o contato — pode entrar depois se pedido.
-- Cache/histórico de localização do usuário.
-- Modo escuro do mapa.
+Adicionar ação **"Redefinir senha"** para usuários **ativos**:
+
+- Botão com ícone de chave 🔑 na linha do usuário.
+- Ao clicar, o admin escolhe entre duas opções em um pequeno modal:
+  1. **Enviar e-mail de redefinição** (padrão do Supabase — pode falhar como o convite).
+  2. **Gerar link de redefinição** (recomendado): gera uma URL única via `generateLink({ type: 'recovery' })` que você copia e envia por WhatsApp. O usuário abre, define nova senha e entra.
+- Nova rota pública `/redefinir-senha` que trata o token de recovery e mostra formulário de nova senha.
+- Registrar no log de auditoria (`senha_redefinida_por_admin`).
+
+## 5. Detalhes técnicos (para referência)
+
+- **Frontend**: `src/routes/_authenticated/usuarios.tsx` — remover coluna Escopos, adicionar botões Excluir e Redefinir senha, criar modal reutilizável `InviteLinkModal` e `ResetPasswordModal`.
+- **Server functions** em `src/lib/users.functions.ts`:
+  - Alterar `inviteUser` para retornar `{ userId, actionLink }` (gera link junto).
+  - Nova `generatePasswordResetLink({ userId })` — usa `supabaseAdmin.auth.admin.generateLink({ type: 'recovery' })`.
+  - Nova `sendPasswordResetEmail({ userId })` — usa `resetPasswordForEmail`.
+- **Nova rota pública**: `src/routes/redefinir-senha.tsx` (fora de `_authenticated`), trata `type=recovery` no hash e chama `supabase.auth.updateUser({ password })`.
+- **Migration**: `DELETE FROM public.user_territory_scopes;` para zerar os escopos existentes.
+- Sem mudança de schema; tabela `user_territory_scopes` fica lá dormindo.
+
+## O que NÃO vou mexer
+
+- Fluxo de aceite de convite existente (`/aceitar-convite`).
+- Sistema de papéis (`user_roles`) e permissões.
+- Cadastro público continua desabilitado — só convite.
