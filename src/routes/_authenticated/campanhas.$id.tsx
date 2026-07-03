@@ -159,6 +159,20 @@ function CampanhaDetail() {
         <section className="border rounded-xl p-5 bg-card">
           <h2 className="font-semibold mb-2">Mensagem</h2>
           <div className="text-sm whitespace-pre-wrap border rounded p-3 bg-background">{c.mensagem_template}</div>
+          {(c as unknown as { link_url?: string | null }).link_url && (
+            <div className="mt-3 border rounded p-3 bg-muted/30 text-xs space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Link anexado:</span>
+                <a href={(c as unknown as { link_url: string }).link_url} target="_blank" rel="noreferrer" className="text-blue-600 underline break-all">
+                  {(c as unknown as { link_url: string }).link_url}
+                </a>
+              </div>
+              {(c as unknown as { link_title?: string | null }).link_title && (
+                <div><b>Título:</b> {(c as unknown as { link_title: string }).link_title}</div>
+              )}
+              <div className="text-muted-foreground">O link é enviado ao final da mensagem. A prévia é gerada pelo WhatsApp do destinatário quando o site permitir.</div>
+            </div>
+          )}
           {(c.midia_filename || c.midia_url) && (
             <div className="mt-2 text-xs text-muted-foreground">Anexo: <b>{c.midia_filename ?? c.midia_url}</b> {c.midia_mime ? `(${c.midia_mime})` : ""}</div>
           )}
