@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "@/lib/authz";
+import type { AppRole } from "@/lib/roles";
 
 type Ctx = { supabase: { from: (t: string) => any }; userId: string };
 
@@ -20,7 +21,16 @@ async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Rec
   }
 }
 
-const RoleEnum = z.enum(["admin", "operador", "leitor", "vrm", "territorio", "agitador"]);
+const ALL_ROLES = [
+  "admin",
+  "operador",
+  "leitor",
+  "vrm",
+  "territorio",
+  "agitador",
+  "comunicacao",
+] as const satisfies readonly AppRole[];
+const RoleEnum = z.enum(ALL_ROLES);
 
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
