@@ -21,12 +21,24 @@ function asRecord(v: unknown): AnyRecord | null {
 }
 
 function pickPhone(payload: AnyRecord): string | null {
-  return (
-    safeStr(payload.phone) ??
-    safeStr(payload.from) ??
-    safeStr(asRecord(payload.sender)?.phone) ??
-    null
-  );
+  // Prioridade: campos que costumam trazer telefone REAL (não LID).
+  // Alguns eventos da Z-API entregam o `phone` como "<digits>@lid" quando o
+  // WhatsApp não expõe o número real; nesses casos, tentamos os campos
+  // alternativos antes de cair no `phone` cru.
+  const candidates: Array<string | null> = [
+    safeStr(payload.senderPhone),
+    safeStr(payload.participantPhone),
+    safeStr(payload.chatPhone),
+    safeStr(payload.authorPhone),
+    safeStr(asRecord(payload.sender)?.phone),
+    safeStr(payload.phone),
+    safeStr(payload.from),
+  ];
+  // Escolhe o primeiro que NÃO seja LID.
+  const real = candidates.find((v) => v && !/@lid$/i.test(v));
+  if (real) return real;
+  // Se só temos LID, devolvemos ele mesmo (a UI mostra amigável).
+  return candidates.find((v) => Boolean(v)) ?? null;
 }
 function pickZaapId(payload: AnyRecord): string | null {
   return safeStr(payload.zaapId) ?? safeStr(payload.id) ?? null;
