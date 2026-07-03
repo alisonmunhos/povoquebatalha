@@ -22,7 +22,19 @@ const campaignInput = z.object({
   agendado_para: z.string().datetime().optional().nullable(),
   delay_min_ms: z.number().int().min(500).max(60000).default(3000),
   delay_max_ms: z.number().int().min(500).max(120000).default(8000),
+  link_url: z.string().url().optional().nullable(),
+  link_title: z.string().max(300).optional().nullable(),
+  link_description: z.string().max(600).optional().nullable(),
+  link_image: z.string().url().optional().nullable(),
 });
+
+/** Anexa a URL ao final do corpo se ainda não estiver contida (garante prévia no WhatsApp). */
+function ensureLinkInBody(body: string, linkUrl: string | null | undefined): string {
+  if (!linkUrl) return body;
+  if (body.includes(linkUrl)) return body;
+  const sep = body.trim().length > 0 ? "\n\n" : "";
+  return `${body}${sep}${linkUrl}`;
+}
 
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
