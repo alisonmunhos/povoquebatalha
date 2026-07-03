@@ -113,7 +113,11 @@ function FieldAction() {
 
   const resetMut = useMutation({
     mutationFn: (v: { contactId: string }) => resetFn({ data: v }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (!res?.deleted) {
+        toast.error("Nada para apagar", { description: "O contato não tinha histórico de campo, ou você não tem permissão para removê-lo." });
+        return;
+      }
       toast.success("Contato voltou para 'Ainda não abordado'");
       qc.invalidateQueries({ queryKey: ["territory-contacts"] });
       qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
