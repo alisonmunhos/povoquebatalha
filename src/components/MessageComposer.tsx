@@ -201,8 +201,13 @@ export function MessageComposer({
                 className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                O link é anexado ao final da mensagem para o WhatsApp gerar a prévia automaticamente.
+                Se a prévia carregar abaixo (título/imagem), o envio usa <code>/send-link</code> e a prévia é garantida. Sem OG, o WhatsApp tenta gerar sozinho.
               </p>
+              {linkPreview && !linkPreview.image && (value.link_url ?? "").length > 0 && (
+                <p className="text-[10px] text-amber-700 mt-1">
+                  Sem imagem OG detectada. O WhatsApp pode não mostrar prévia. Verifique <a className="underline" href={`https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(value.link_url ?? "")}`} target="_blank" rel="noreferrer">o cache do link</a> ou peça ao site para adicionar <code>og:image</code> &lt; 300&nbsp;KB.
+                </p>
+              )}
             </div>
           )}
           {showAttachment && (

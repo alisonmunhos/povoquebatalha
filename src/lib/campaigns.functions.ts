@@ -510,14 +510,16 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
       try {
         const phone = ct.phone_e164.replace(/\D+/g, "");
         let result: { messageId?: string; zaapId?: string; id?: string };
-        let endpointUsed: "send-text" | "send-image" | "send-document" = "send-text";
+        let endpointUsed: "send-text" | "send-image" | "send-document" | "send-link" = "send-text";
+        let fallbackReason: string | null = null;
         const bodyRendered = ensureLinkInBody(r.rendered_message ?? c.mensagem_template, c.link_url);
         const caption = bodyRendered || c.midia_caption || "";
         // Detect URL to persist link metadata even when we don't use send-link.
         const urlMatch = bodyRendered.match(/\bhttps?:\/\/[^\s<>"]+/i);
         const linkUrlFinal = c.link_url ?? urlMatch?.[0] ?? null;
-        const previewStatus: string | null = linkUrlFinal
-          ? (c.link_title || c.link_image ? "preview_confirmada" : "preview_provavel")
+        const hasOgPreview = Boolean(linkUrlFinal && (c.link_title || c.link_image));
+        let previewStatus: string | null = linkUrlFinal
+          ? (hasOgPreview ? "preview_confirmada" : "preview_provavel")
           : "sem_link";
 
         if (c.tipo === "document" && mediaUrl) {
@@ -528,6 +530,27 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
         } else if (c.tipo === "image" && mediaUrl) {
           result = await zapi.sendImage(phone, mediaUrl, caption);
           endpointUsed = "send-image";
+        } else if (hasOgPreview && linkUrlFinal) {
+          // Usa /send-link com metadados OG já capturados — prévia garantida, não depende do WhatsApp buscar o link.
+          try {
+            result = await zapi.sendLink({
+              phone,
+              message: bodyRendered,
+              linkUrl: linkUrlFinal,
+              title: c.link_title ?? "",
+              linkDescription: c.link_description ?? "",
+              image: c.link_image ?? "",
+              linkType: "LARGE",
+            });
+            endpointUsed = "send-link";
+            previewStatus = "preview_confirmada";
+          } catch (e) {
+            fallbackReason = `send-link falhou: ${e instanceof Error ? e.message : "erro"}`;
+            console.warn("[campaign] send-link fallback ->", fallbackReason);
+            result = await zapi.sendText(phone, bodyRendered);
+            endpointUsed = "send-text";
+            previewStatus = "preview_provavel";
+          }
         } else {
           result = await zapi.sendText(phone, bodyRendered);
           endpointUsed = "send-text";
@@ -542,9 +565,11 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
           link_image: c.link_image ?? null,
           preview_status: previewStatus,
           rendered_message: bodyRendered,
+          erro: fallbackReason,
         } as never).eq("id", r.id);
         await context.supabase.from("message_events").insert({
-          contact_id: r.contact_id, recipient_id: r.id, tipo: "sent", payload: result as never,
+          contact_id: r.contact_id, recipient_id: r.id, tipo: "sent",
+          payload: { endpoint: endpointUsed, preview_status: previewStatus, fallback_reason: fallbackReason, requested_preview: { title: c.link_title, image: c.link_image, description: c.link_description }, response: result } as never,
         });
         ok++;
       } catch (e) {
