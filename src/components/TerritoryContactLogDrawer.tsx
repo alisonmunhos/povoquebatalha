@@ -141,71 +141,87 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange }: Props
   );
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
-        <SheetHeader className="px-4 pt-5 pb-3 border-b space-y-1">
-          <SheetTitle className="text-base">{contact?.nome ?? "Contato"}</SheetTitle>
-          <SheetDescription className="text-xs">
-            {location || "Sem endereço"}
-            {contact?.phone_e164 ? ` · ${contact.phone_e164}` : ""}
-          </SheetDescription>
-          <div className="flex items-center justify-between pt-2">
-            <div className="text-[11px] text-muted-foreground">
-              {rows.length} {rows.length === 1 ? "registro" : "registros"}
-              {pendingCount > 0 && (
-                <>
-                  {" · "}
-                  <span className="text-amber-700 font-medium">{pendingCount} pendente{pendingCount === 1 ? "" : "s"}</span>
-                </>
-              )}
-            </div>
-            <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showHidden}
-                onChange={(e) => setShowHidden(e.target.checked)}
-                className="h-3 w-3"
-              />
-              Mostrar ocultas
-            </label>
-          </div>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {query.isLoading && (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Carregando histórico…
-            </div>
-          )}
-          {query.isError && (
-            <div className="text-sm text-destructive p-3 border border-destructive/30 rounded bg-destructive/5">
-              Não foi possível carregar o histórico.
-            </div>
-          )}
-          {!query.isLoading && rows.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-2">
-              <Inbox className="h-8 w-8" />
-              <div className="text-sm">Nenhum registro ainda</div>
-              <div className="text-[11px]">
-                As ações e observações que você registrar neste contato aparecerão aqui.
+    <SheetPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <SheetPrimitive.Portal>
+        <SheetPrimitive.Overlay
+          className="fixed inset-0 z-[1200] bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+        />
+        <SheetPrimitive.Content
+          className="fixed inset-y-0 right-0 z-[1201] h-full w-full sm:max-w-md border-l bg-background shadow-2xl p-0 flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=closed]:duration-300 data-[state=open]:duration-300"
+        >
+          <SheetPrimitive.Close
+            className="absolute right-3 top-3 rounded-md p-1.5 opacity-70 hover:opacity-100 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring z-10"
+            aria-label="Fechar histórico"
+          >
+            <span className="sr-only">Fechar</span>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </SheetPrimitive.Close>
+          <div className="px-4 pt-5 pb-3 border-b space-y-1">
+            <SheetPrimitive.Title className="text-base font-semibold pr-8">
+              {contact?.nome ?? "Contato"}
+            </SheetPrimitive.Title>
+            <SheetPrimitive.Description className="text-xs text-muted-foreground">
+              {location || "Sem endereço"}
+              {contact?.phone_e164 ? ` · ${contact.phone_e164}` : ""}
+            </SheetPrimitive.Description>
+            <div className="flex items-center justify-between pt-2">
+              <div className="text-[11px] text-muted-foreground">
+                {rows.length} {rows.length === 1 ? "registro" : "registros"}
+                {pendingCount > 0 && (
+                  <>
+                    {" · "}
+                    <span className="text-amber-700 font-medium">{pendingCount} pendente{pendingCount === 1 ? "" : "s"}</span>
+                  </>
+                )}
               </div>
+              <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showHidden}
+                  onChange={(e) => setShowHidden(e.target.checked)}
+                  className="h-3 w-3"
+                />
+                Mostrar ocultas
+              </label>
             </div>
-          )}
-          {rows.map((row) => (
-            <LogCard
-              key={row.id}
-              row={row}
-              onSetFollowUp={(status) => followMut.mutate({ logId: row.id, status })}
-              onSetHidden={(hidden) => hideMut.mutate({ logId: row.id, hidden })}
-              busy={
-                (followMut.isPending && followMut.variables?.logId === row.id) ||
-                (hideMut.isPending && hideMut.variables?.logId === row.id)
-              }
-            />
-          ))}
-        </div>
-      </SheetContent>
-    </Sheet>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {query.isLoading && (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando histórico…
+              </div>
+            )}
+            {query.isError && (
+              <div className="text-sm text-destructive p-3 border border-destructive/30 rounded bg-destructive/5">
+                Não foi possível carregar o histórico.
+              </div>
+            )}
+            {!query.isLoading && rows.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-2">
+                <Inbox className="h-8 w-8" />
+                <div className="text-sm">Nenhum registro ainda</div>
+                <div className="text-[11px]">
+                  As ações e observações que você registrar neste contato aparecerão aqui.
+                </div>
+              </div>
+            )}
+            {rows.map((row) => (
+              <LogCard
+                key={row.id}
+                row={row}
+                onSetFollowUp={(status) => followMut.mutate({ logId: row.id, status })}
+                onSetHidden={(hidden) => hideMut.mutate({ logId: row.id, hidden })}
+                busy={
+                  (followMut.isPending && followMut.variables?.logId === row.id) ||
+                  (hideMut.isPending && hideMut.variables?.logId === row.id)
+                }
+              />
+            ))}
+          </div>
+        </SheetPrimitive.Content>
+      </SheetPrimitive.Portal>
+    </SheetPrimitive.Root>
   );
 }
 
