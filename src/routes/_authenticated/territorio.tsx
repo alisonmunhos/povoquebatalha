@@ -294,13 +294,17 @@ function FieldAction() {
       </div>
 
       <div className="rounded-xl border bg-card">
-        <div className="flex items-start gap-2 p-3 border-b bg-muted/30 rounded-t-xl">
-          <Smartphone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-          <div className="text-[11px] text-muted-foreground leading-tight space-y-1">
+        <details className="border-b bg-muted/30 rounded-t-xl">
+          <summary className="cursor-pointer list-none p-3 flex items-start gap-2 text-[11px] text-muted-foreground select-none">
+            <Smartphone className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span className="flex-1">Dicas de uso</span>
+            <span className="text-[10px]">▾</span>
+          </summary>
+          <div className="px-3 pb-3 pl-8 text-[11px] text-muted-foreground leading-tight space-y-1">
             <p>Adicione à tela inicial pelo menu do navegador para usar como app.</p>
             <p>Contatos marcados como <b>Contato feito</b> ou <b>Não encontrado</b> saem desta lista e passam a aparecer nos filtros correspondentes acima. Use <b>Desfazer</b> no aviso ou o botão <b>Voltar para não abordado</b> no card para reverter. <b>As observações são mantidas no histórico</b> mesmo após desfazer.</p>
           </div>
-        </div>
+        </details>
 
         {contacts.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
         {contacts.data && contacts.data.rows.length === 0 && (
