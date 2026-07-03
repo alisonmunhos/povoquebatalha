@@ -39,6 +39,7 @@ export async function requireStaff(supabase: Client, userId: string): Promise<vo
   );
 }
 
-export async function requireAdmin(supabase: Client, userId: string): Promise<void> {
-  await requireRole(supabase, userId, ["admin"], "Apenas administradores podem executar esta ação.");
+export async function requireAdmin(supabase: Client, userId: string, errorMsg?: string): Promise<void> {
+  await requireRole(supabase, userId, ["admin"], errorMsg ?? "Apenas administradores podem executar esta ação.");
 }
+

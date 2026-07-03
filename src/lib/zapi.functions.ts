@@ -84,10 +84,8 @@ export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: role } = await context.supabase
-      .from("user_roles").select("role").eq("user_id", context.userId)
-      .eq("role", "admin").maybeSingle();
-    if (!role) throw new Error("Apenas administradores podem alterar esta configuração.");
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem alterar esta configuração.");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existing } = await supabaseAdmin
       .from("whatsapp_instances")
@@ -112,10 +110,8 @@ export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
 export const getWebhookDiagnostics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: role } = await context.supabase
-      .from("user_roles").select("role").eq("user_id", context.userId)
-      .eq("role", "admin").maybeSingle();
-    if (!role) throw new Error("Apenas administradores podem ver o token de webhook.");
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem ver o token de webhook.");
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: last }, { data: lastReceive }, { data: lastErr }, { data: inst }] = await Promise.all([
