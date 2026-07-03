@@ -475,3 +475,27 @@ export const approvePendingAgitador = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const rejectPendingAgitador = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    if (data.userId === context.userId) {
+      throw new Error("Você não pode rejeitar a si mesmo.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("status")
+      .eq("id", data.userId)
+      .maybeSingle();
+    if (!prof || prof.status !== "pendente_aprovacao") {
+      throw new Error("Este usuário não está aguardando aprovação.");
+    }
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+    if (error) throw new Error(error.message);
+    await audit(context, data.userId, "agitador_rejeitado", {});
+    return { ok: true as const };
+  });
+
+
