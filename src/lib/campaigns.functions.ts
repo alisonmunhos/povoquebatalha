@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/lib/authz";
 import { applyCrmFilters, crmFilterSchema, type CrmFilters } from "@/lib/crm-filters";
 
 const campaignInput = z.object({
