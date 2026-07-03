@@ -26,6 +26,7 @@ type State =
 function PrimeiroAcessoPage() {
   const [state, setState] = useState<State>({ status: "checking" });
   const [email, setEmail] = useState("");
+  const [setupSecret, setSetupSecret] = useState("");
 
   useEffect(() => {
     let cancelled = false;
