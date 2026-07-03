@@ -285,6 +285,44 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "ok
   );
 }
 
+function PrecisionBadge({
+  precision, onRefine, loading, hasFullAddress,
+}: { precision: Precision | null; onRefine: () => void; loading: boolean; hasFullAddress: boolean }) {
+  const isExact = precision === "exato";
+  const isKnown = !!precision;
+  const tone = isExact
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : isKnown
+      ? "border-amber-300 bg-amber-50 text-amber-800"
+      : "border-slate-300 bg-slate-50 text-slate-700";
+  const label = precision ? PRECISION_LABEL[precision] : "Ainda não geocodificado";
+  return (
+    <div className={`mt-2 rounded-md border p-2 flex items-start gap-2 text-xs ${tone}`}>
+      <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium">{label}</div>
+        {!isExact && (
+          <div className="opacity-80 mt-0.5">
+            {hasFullAddress
+              ? "Endereço completo cadastrado — clique em Refinar para tentar achar a casa exata."
+              : "Complete rua, número e cidade para permitir localização exata."}
+          </div>
+        )}
+      </div>
+      {hasFullAddress && !isExact && (
+        <button
+          onClick={onRefine}
+          disabled={loading}
+          className="h-7 px-2 rounded border bg-background text-[11px] font-medium inline-flex items-center gap-1 hover:bg-muted disabled:opacity-60"
+        >
+          <Crosshair className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refinar
+        </button>
+      )}
+    </div>
+  );
+}
+
+
 type Row = {
   id: string; nome: string | null; phone_e164: string | null; bairro: string | null;
   cidade: string | null; profissao: string | null; tipo_contato: string | null;
