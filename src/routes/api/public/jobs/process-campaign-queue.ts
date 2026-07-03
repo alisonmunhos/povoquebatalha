@@ -1,14 +1,23 @@
 // Cron endpoint: processa 1 lote de cada campanha em envio (status = 'running').
-// Chamado pelo pg_cron a cada minuto. Autenticação via header `apikey` (anon key).
+// Chamado pelo pg_cron a cada minuto. Autenticação: header `x-cron-secret`
+// comparado ao segredo `CRON_SECRET` via timingSafeEqual.
 import { createFileRoute } from "@tanstack/react-router";
+import { timingSafeEqual } from "crypto";
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 export const Route = createFileRoute("/api/public/jobs/process-campaign-queue")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey") ?? "";
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
-        if (!apikey || apikey !== expected) {
+        const expected = process.env.CRON_SECRET ?? "";
+        const provided = request.headers.get("x-cron-secret") ?? "";
+        if (!expected || !provided || !safeEqual(provided, expected)) {
           return new Response("Unauthorized", { status: 401 });
         }
 
