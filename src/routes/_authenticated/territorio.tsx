@@ -165,6 +165,7 @@ function FieldAction() {
   const [openNote, setOpenNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [drawerContact, setDrawerContact] = useState<Row | null>(null);
+  const [detailContactId, setDetailContactId] = useState<string | null>(null);
 
   const logMut = useMutation({
     mutationFn: (v: { contactId: string; action: "whatsapp_aberto" | "contato_realizado" | "nao_encontrado" | "pediu_atualizacao" | "observacao"; note?: string }) =>
