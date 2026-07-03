@@ -20,6 +20,7 @@ import {
 } from "@/lib/campaigns.functions";
 import { listMessageTemplates } from "@/lib/messages.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
+import { MessagePreview, type PlannedEndpoint } from "@/components/MessagePreview";
 import { supabase } from "@/integrations/supabase/client";
 import type { CrmFilters } from "@/lib/crm-filters";
 
