@@ -505,6 +505,7 @@ function StatusPill({ status }: { status: Row["derived_status"] }) {
     convite_expirado: { label: "Convite expirado", cls: "bg-orange-100 text-orange-800" },
     suspenso: { label: "Suspenso", cls: "bg-yellow-100 text-yellow-800" },
     revogado: { label: "Revogado", cls: "bg-rose-100 text-rose-800" },
+    pendente_aprovacao: { label: "Aguardando aprovação", cls: "bg-amber-100 text-amber-800" },
   };
   const s = map[status];
   return <span className={`text-xs px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
