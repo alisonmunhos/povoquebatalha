@@ -21,6 +21,8 @@ export const Route = createFileRoute("/_authenticated")({
 
 // Territorio-only users must stay under /territorio.
 const TERRITORIO_ALLOWED_PREFIXES = ["/territorio"];
+// Agitador-only users must stay under /agitacao.
+const AGITADOR_ALLOWED_PREFIXES = ["/agitacao"];
 
 function AuthenticatedShell() {
   const router = useRouter();
@@ -32,10 +34,20 @@ function AuthenticatedShell() {
     if (!roles) return;
     const isTerritorioOnly =
       roles.includes("territorio") &&
-      !roles.some((r) => r === "admin" || r === "operador" || r === "vrm");
-    if (!isTerritorioOnly) return;
-    const allowed = TERRITORIO_ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
-    if (!allowed) router.navigate({ to: "/territorio", replace: true });
+      !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador");
+    const isAgitadorOnly =
+      roles.includes("agitador") &&
+      !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "territorio" || r === "comunicacao");
+    if (isTerritorioOnly) {
+      const allowed = TERRITORIO_ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+      if (!allowed) router.navigate({ to: "/territorio", replace: true });
+      return;
+    }
+    if (isAgitadorOnly) {
+      const allowed = AGITADOR_ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+      if (!allowed) router.navigate({ to: "/agitacao", replace: true });
+      return;
+    }
   }, [roles, path, router]);
 
   return <AppShell />;

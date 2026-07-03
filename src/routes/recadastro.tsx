@@ -8,6 +8,7 @@ export const Route = createFileRoute("/recadastro")({
   validateSearch: z.object({
     origem: z.string().max(80).optional(),
     t: z.string().uuid().optional(),
+    ref: z.string().min(8).max(48).optional(),
   }),
   head: () => ({
     meta: [
@@ -36,7 +37,7 @@ const FORMAS_AJUDA_OPTS: Array<{ value: string; label: string }> = [
 
 export function Recadastro() {
   const navigate = useNavigate();
-  const { origem, t } = Route.useSearch();
+  const { origem, t, ref } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cep, setCep] = useState("");
@@ -114,6 +115,7 @@ export function Recadastro() {
       consentimento_whatsapp: fd.get("consentimento_whatsapp") === "on",
       origem_detalhe: origem ?? "",
       recad_token: t ?? "",
+      ref_token: ref ?? "",
       hp: String(fd.get("hp") ?? ""),
     };
     setSubmitting(true);

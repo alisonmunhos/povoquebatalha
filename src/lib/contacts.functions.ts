@@ -378,6 +378,34 @@ export const getContactHistory = createServerFn({ method: "POST" })
     };
   });
 
+export const getContactSourceEvents = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: events } = await context.supabase
+      .from("contact_source_events")
+      .select("id, source_module, source_form_type, event_type, created_at, source_user_id, source_link_id, metadata")
+      .eq("contact_id", data.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    const userIds = Array.from(new Set((events ?? []).map((e) => e.source_user_id).filter(Boolean))) as string[];
+    let names = new Map<string, string>();
+    if (userIds.length > 0) {
+      const { data: profs } = await context.supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", userIds);
+      names = new Map((profs ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? "—"]));
+    }
+    return {
+      events: (events ?? []).map((e) => ({
+        ...e,
+        source_user_name: e.source_user_id ? (names.get(e.source_user_id) ?? "—") : null,
+      })),
+    };
+  });
+
+
 // Tags
 export const listAllTags = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

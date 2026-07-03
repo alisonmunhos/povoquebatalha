@@ -1,6 +1,8 @@
 import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { linkCurrentUserContact } from "@/lib/users.functions";
 import { Megaphone, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/aceitar-convite")({
@@ -19,6 +21,7 @@ type State =
 
 function AceitarConvite() {
   const router = useRouter();
+  const linkContact = useServerFn(linkCurrentUserContact);
   const [state, setState] = useState<State>({ kind: "loading" });
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -77,6 +80,8 @@ function AceitarConvite() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      // Bloco D — vincular/criar contato do usuário do sistema
+      try { await linkContact({ data: {} }); } catch { /* non-blocking */ }
       setState({ kind: "done" });
       // Redireciona por papel: /auth já cuida disso, mas como estamos logados,
       // o gate irá redirecionar para /dashboard automaticamente. Damos um respiro.

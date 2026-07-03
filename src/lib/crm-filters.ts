@@ -28,6 +28,15 @@ export const crmFilterSchema = z.object({
   origens: z.array(z.string()).optional(),
   origem_detalhe: z.string().optional(),
   origem_detalhes: z.array(z.string()).optional(),
+
+  // Origem e captação (Bloco C)
+  source_modules: z.array(z.string()).optional(),
+  source_form_types: z.array(z.string()).optional(),
+  source_user_id: z.string().uuid().optional(),
+  sem_origem_rastreada: z.boolean().optional(),
+  captado_desde: z.string().optional(),
+  captado_ate: z.string().optional(),
+
   tag_ids: z.array(z.string().uuid()).optional(),
   segment_id: z.string().uuid().optional(),
 
@@ -82,6 +91,8 @@ export function applyCrmFilters<T extends {
   not: (col: string, op: string, v: unknown) => T;
   in: (col: string, v: unknown[]) => T;
   contains: (col: string, v: unknown) => T;
+  gte: (col: string, v: unknown) => T;
+  lte: (col: string, v: unknown) => T;
 }>(q: T, f: CrmFilters): T {
   // Arquivados
   if (f.archived === "nao") q = q.is("arquivado_at", null);
@@ -142,6 +153,14 @@ export function applyCrmFilters<T extends {
   if (f.origem_detalhes?.length) {
     q = q.or(f.origem_detalhes.map((v) => `origem_detalhe.ilike.${safe(v)}`).join(","));
   }
+
+  // Origem e captação (Bloco C)
+  if (f.source_modules?.length) q = q.in("primary_source_module", f.source_modules);
+  if (f.source_form_types?.length) q = q.in("source_form_type", f.source_form_types);
+  if (f.source_user_id) q = q.eq("created_by_source_user_id", f.source_user_id);
+  if (f.sem_origem_rastreada) q = q.is("primary_source_module", null);
+  if (f.captado_desde) q = q.gte("source_captured_at", f.captado_desde);
+  if (f.captado_ate) q = q.lte("source_captured_at", f.captado_ate);
 
   // Comunicação
   if (f.consent === "sim") q = q.eq("consentimento_whatsapp", true);

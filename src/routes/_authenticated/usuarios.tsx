@@ -57,6 +57,7 @@ const ROLE_LABEL: Record<string, string> = {
   operador: "Operador",
   vrm: "VRM",
   territorio: "Território",
+  agitador: "Agitador",
   leitor: "Leitor",
 };
 

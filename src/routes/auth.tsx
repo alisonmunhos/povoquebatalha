@@ -24,12 +24,15 @@ const ROLE_HOME: Record<string, string> = {
   operador: "/dashboard",
   vrm: "/relacionamento",
   territorio: "/territorio",
+  agitador: "/agitacao",
   leitor: "/dashboard",
 };
 
 function pickHome(roles: string[]): string {
-  if (roles.includes("territorio") && !roles.some((r) => r === "admin" || r === "operador" || r === "vrm"))
+  if (roles.includes("territorio") && !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador"))
     return "/territorio";
+  if (roles.includes("agitador") && !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "territorio" || r === "comunicacao"))
+    return "/agitacao";
   for (const r of ["admin", "operador", "vrm", "leitor"]) {
     if (roles.includes(r)) return ROLE_HOME[r];
   }
