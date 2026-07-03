@@ -3,26 +3,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { crmFilterSchema, applyCrmFilters, type CrmFilters } from "@/lib/crm-filters";
 
-async function getRoles(ctx: { supabase: { from: (t: string) => any }; userId: string }) {
-  const { data } = await ctx.supabase.from("user_roles").select("role").eq("user_id", ctx.userId);
-  return (data ?? []).map((r: { role: string }) => r.role as string);
-}
-
-type Scope = { uf: string | null; cidade: string | null; bairro: string | null };
-function applyScopeFilter<Q>(query: Q, scopes: Scope[]): Q {
-  if (!scopes.length) return query;
-  const parts = scopes
-    .map((s) => {
-      const conds: string[] = [];
-      if (s.uf) conds.push(`uf.eq.${s.uf}`);
-      if (s.cidade) conds.push(`cidade.ilike.${s.cidade}`);
-      if (s.bairro) conds.push(`bairro.ilike.${s.bairro}`);
-      return conds.length ? `and(${conds.join(",")})` : null;
-    })
-    .filter(Boolean) as string[];
-  if (!parts.length) return query;
-  return (query as any).or(parts.join(",")) as Q;
-}
 
 export const listMapContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
