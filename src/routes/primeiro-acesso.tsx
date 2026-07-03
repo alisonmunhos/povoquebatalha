@@ -58,6 +58,7 @@ function PrimeiroAcessoPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           email: parsed.data,
+          setup_secret: setupSecret,
           redirectOrigin: window.location.origin,
         }),
       });
