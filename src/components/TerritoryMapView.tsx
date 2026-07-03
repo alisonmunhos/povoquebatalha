@@ -153,6 +153,12 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
   const rowsSignatureRef = useRef<string>("");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const userMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
+  const userAccuracyRef = useRef<import("leaflet").Circle | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const [locateMode, setLocateMode] = useState<"off" | "once" | "follow">("off");
+  const [locating, setLocating] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -171,7 +177,8 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
         iconRetinaUrl: iconRetina, iconUrl, shadowUrl,
       });
 
-      const map = L.map(mapDivRef.current, { preferCanvas: true }).setView([-14.235, -51.9253], 4);
+      const map = L.map(mapDivRef.current, { preferCanvas: true, zoomControl: false }).setView([-14.235, -51.9253], 4);
+      L.control.zoom({ position: "topleft" }).addTo(map);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
         maxZoom: 19,
@@ -235,6 +242,112 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
+  // Cleanup watch on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, []);
+
+  async function updateUserPosition(lat: number, lng: number, accuracy: number, center: boolean) {
+    if (!mapRef.current) return;
+    const L = (await import("leaflet")).default;
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = L.circleMarker([lat, lng], {
+        radius: 8,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#2563eb",
+        fillOpacity: 1,
+      }).addTo(mapRef.current);
+      userMarkerRef.current.bindTooltip("Você está aqui");
+    } else {
+      userMarkerRef.current.setLatLng([lat, lng]);
+    }
+    if (!userAccuracyRef.current) {
+      userAccuracyRef.current = L.circle([lat, lng], {
+        radius: accuracy,
+        color: "#2563eb",
+        weight: 1,
+        fillColor: "#3b82f6",
+        fillOpacity: 0.12,
+      }).addTo(mapRef.current);
+    } else {
+      userAccuracyRef.current.setLatLng([lat, lng]);
+      userAccuracyRef.current.setRadius(accuracy);
+    }
+    if (center) {
+      mapRef.current.setView([lat, lng], Math.max(mapRef.current.getZoom(), 16), { animate: true });
+    }
+  }
+
+  async function handleLocate() {
+    if (!navigator.geolocation) {
+      toast.error("Geolocalização não disponível neste dispositivo.");
+      return;
+    }
+    // Cycle: off -> once -> follow -> off
+    if (locateMode === "off") {
+      setLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          setLocating(false);
+          setLocateMode("once");
+          await updateUserPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? 30, true);
+        },
+        (err) => {
+          setLocating(false);
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error("Permissão negada. Habilite a localização no navegador.");
+          } else {
+            toast.error("Não foi possível obter sua localização.");
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
+      );
+      return;
+    }
+    if (locateMode === "once") {
+      // Start following
+      setLocateMode("follow");
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        async (pos) => {
+          await updateUserPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? 30, true);
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            toast.error("Permissão de localização foi revogada.");
+            stopLocate();
+          }
+        },
+        { enableHighAccuracy: true, maximumAge: 3000 },
+      );
+      toast.success("Seguindo sua localização em tempo real.");
+      return;
+    }
+    // Turn off
+    stopLocate();
+  }
+
+  function stopLocate() {
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setLocateMode("off");
+    if (mapRef.current && userMarkerRef.current) {
+      mapRef.current.removeLayer(userMarkerRef.current);
+      userMarkerRef.current = null;
+    }
+    if (mapRef.current && userAccuracyRef.current) {
+      mapRef.current.removeLayer(userAccuracyRef.current);
+      userAccuracyRef.current = null;
+    }
+  }
+
   async function toggleFullscreen() {
     if (!wrapperRef.current) return;
     if (document.fullscreenElement) {
@@ -244,10 +357,24 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
     }
   }
 
+  const locateBtnClass =
+    locateMode === "follow"
+      ? "bg-blue-600 text-white border-blue-700 animate-pulse"
+      : locateMode === "once"
+      ? "bg-blue-600 text-white border-blue-700"
+      : "bg-card hover:bg-muted";
+
+  const locateTitle =
+    locateMode === "off"
+      ? "Centralizar na minha localização"
+      : locateMode === "once"
+      ? "Toque de novo para seguir em tempo real"
+      : "Toque para parar de seguir";
+
   return (
     <div
       ref={wrapperRef}
-      className={`relative w-full ${isFullscreen ? "h-screen bg-background" : "h-[70vh]"} rounded-lg border overflow-hidden`}
+      className={`relative w-full ${isFullscreen ? "h-screen bg-background" : "h-[65vh] md:h-[70vh] min-h-[380px]"} rounded-lg border overflow-hidden`}
     >
       <div ref={mapDivRef} className="absolute inset-0" />
       <button
@@ -257,6 +384,20 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
         title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
       >
         {isFullscreen ? "Sair da tela cheia" : "⛶ Tela cheia"}
+      </button>
+      <button
+        type="button"
+        onClick={handleLocate}
+        disabled={locating}
+        aria-label={locateTitle}
+        title={locateTitle}
+        className={`absolute bottom-4 right-3 z-[1000] h-11 w-11 rounded-full border shadow-lg flex items-center justify-center transition-colors disabled:opacity-70 ${locateBtnClass}`}
+      >
+        {locating ? (
+          <RefreshCw className="h-5 w-5 animate-spin" />
+        ) : (
+          <LocateFixed className="h-5 w-5" />
+        )}
       </button>
     </div>
   );
