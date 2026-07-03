@@ -105,6 +105,7 @@ function FieldAction() {
       if (res?.ok) {
         toast.success("Ação desfeita");
         qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+        qc.invalidateQueries({ queryKey: ["territory-contact-logs"] });
         qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
       } else {
         toast.info("Nada recente para desfazer");
@@ -122,6 +123,7 @@ function FieldAction() {
       }
       toast.success("Contato voltou para 'Ainda não abordado'");
       qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+      qc.invalidateQueries({ queryKey: ["territory-contact-logs"] });
       qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
     },
     onError: (e) => toast.error("Não foi possível voltar o contato", { description: e instanceof Error ? e.message : undefined }),
@@ -176,6 +178,7 @@ function FieldAction() {
         } : undefined,
       });
       qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+      qc.invalidateQueries({ queryKey: ["territory-contact-logs"] });
       qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
     },
     onError: (e) => {

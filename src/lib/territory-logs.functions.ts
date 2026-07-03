@@ -170,6 +170,7 @@ export const undoLastTerritoryLog = createServerFn({ method: "POST" })
       .select("id, action, created_at")
       .eq("contact_id", data.contactId)
       .eq("user_id", context.userId)
+      .is("hidden_at", null)
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(1);
