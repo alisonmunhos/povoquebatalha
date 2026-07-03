@@ -279,16 +279,20 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
       agendado_para: data.agendado_para ?? null,
       delay_min_ms: data.delay_min_ms,
       delay_max_ms: data.delay_max_ms,
+      link_url: data.link_url ?? null,
+      link_title: data.link_title ?? null,
+      link_description: data.link_description ?? null,
+      link_image: data.link_image ?? null,
       status: data.agendado_para ? "scheduled" : "draft",
       total_destinatarios: elegiveis.length,
       created_by: context.userId,
     }).select("id").single();
     if (error) throw error;
 
-    // 5) Create queued recipients with rendered messages
+    // 5) Create queued recipients with rendered messages (com link ao final quando houver)
     const rows = elegiveis.map((c) => ({
       campaign_id: ins.id, contact_id: c.id,
-      rendered_message: personalize(data.mensagem_template, c),
+      rendered_message: ensureLinkInBody(personalize(data.mensagem_template, c), data.link_url),
       status: "queued" as const,
     }));
     for (let i = 0; i < rows.length; i += 500) {
