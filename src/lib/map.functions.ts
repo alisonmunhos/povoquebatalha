@@ -120,7 +120,7 @@ export const getMapContactDetail = createServerFn({ method: "POST" })
     const { data: c, error } = await context.supabase
       .from("contacts")
       .select(
-        "id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,cep,endereco,numero,complemento,endereco_completo,latitude,longitude,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda",
+        "id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,cep,endereco,numero,complemento,endereco_completo,latitude,longitude,geocoding_precision,geocoding_status,geocoding_provider,geocoding_match_score,geocoded_at,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda",
       )
       .eq("id", data.id)
       .maybeSingle();
