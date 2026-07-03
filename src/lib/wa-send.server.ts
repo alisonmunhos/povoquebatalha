@@ -90,6 +90,8 @@ export type SendResult = {
   error: string | null;
 };
 
+import { renderMessageVars, type MessageVarOptions } from "@/lib/message-vars";
+
 const URL_RE = /\bhttps?:\/\/[^\s<>"]+/i;
 
 export function detectUrl(text: string): string | null {
@@ -97,46 +99,12 @@ export function detectUrl(text: string): string | null {
   return m ? m[0] : null;
 }
 
-function saudacaoAgora(): string {
-  const h = new Date(Date.now() - 3 * 3600 * 1000).getUTCHours();
-  if (h >= 5 && h < 12) return "Bom dia";
-  if (h >= 12 && h < 18) return "Boa tarde";
-  return "Boa noite";
-}
-
-export type RenderOptions = {
-  /** Base URL pública (ex.: https://app.example.com); usado para {{link_atualizacao}}, {{link_recadastro}}, {{link_inscricao}}. */
-  origin?: string | null;
-  /** Se true, variáveis desconhecidas viram string vazia. Padrão: false (mantém {{var}} literal). */
-  unknownAsEmpty?: boolean;
-};
+export type RenderOptions = MessageVarOptions;
 
 export function renderVars(body: string, c: ContactCtx, opts: RenderOptions = {}): string {
-  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
-  const origin = opts.origin ?? "";
-  const linkAtual = c.recad_token && origin
-    ? `${origin}/atualizacao?t=${c.recad_token}`
-    : origin
-      ? `${origin}/atualizacao`
-      : "";
-  const linkInscr = origin ? `${origin}/inscrever` : "";
-  const values: Record<string, string> = {
-    nome: c.nome ?? "",
-    primeiro_nome: primeiro,
-    primeiro_nome_ou_ola: primeiro || "Olá",
-    cidade: c.cidade ?? "",
-    bairro: c.bairro ?? "",
-    uf: c.uf ?? "",
-    saudacao: saudacaoAgora(),
-    link_atualizacao: linkAtual,
-    link_recadastro: linkAtual,
-    link_inscricao: linkInscr,
-  };
-  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) => {
-    if (Object.prototype.hasOwnProperty.call(values, k)) return values[k];
-    return opts.unknownAsEmpty ? "" : m;
-  });
+  return renderMessageVars(body, c, opts);
 }
+
 
 /**
  * Decide o endpoint que será usado, sem enviar. Útil para preview na UI.
