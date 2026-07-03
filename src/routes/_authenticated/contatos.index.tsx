@@ -513,6 +513,22 @@ function Contatos() {
         source={sendDlg.mode === "selection" ? { ids: [...selected] } : { filters }}
         labelSelecao={sendDlg.mode === "selection" ? `${selected.size} contato(s) selecionado(s)` : "todos os contatos do filtro atual"}
       />
+
+      <ConfirmDeleteContactDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        bulkCount={selected.size}
+        onConfirm={async (typed) => {
+          try {
+            const r = await deleteBulkFn({ data: { ids: [...selected], confirmation: typed } });
+            toast.success(`${r.deleted} contato(s) excluído(s) definitivamente.`);
+            setSelected(new Set());
+            q.refetch();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Erro ao excluir.");
+          }
+        }}
+      />
     </div>
     </TooltipProvider>
   );
