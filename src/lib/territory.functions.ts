@@ -24,21 +24,6 @@ async function loadScopes(ctx: Ctx, userId: string) {
   return data ?? [];
 }
 
-/** Applies scope filter on a contacts query when role is territorio/leitor and has scopes. */
-type Scope = { uf: string | null; cidade: string | null; bairro: string | null };
-function applyScopeFilter<Q>(query: Q, scopes: Scope[]): Q {
-  if (!scopes.length) return query;
-  const parts = scopes.map((s: Scope) => {
-    const conds: string[] = [];
-    if (s.uf) conds.push(`uf.eq.${s.uf}`);
-    if (s.cidade) conds.push(`cidade.ilike.${s.cidade}`);
-    if (s.bairro) conds.push(`bairro.ilike.${s.bairro}`);
-    return conds.length ? `and(${conds.join(",")})` : null;
-  }).filter(Boolean) as string[];
-  if (!parts.length) return query;
-  return (query as any).or(parts.join(",")) as Q;
-}
-
 export const listMyScopes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -87,65 +72,43 @@ export const removeScope = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Territory dashboard: KPIs + contact list respecting user's scopes. */
+/** Territory dashboard: KPIs sobre toda a base (escopo desativado). */
 export const getTerritoryOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const roles = await getRoles(context);
-    const scopes = await loadScopes(context, context.userId);
-    const restrict = !roles.includes("admin") && !roles.includes("operador") && !roles.includes("vrm");
 
-    const scopeLabel = scopes.length
-      ? scopes.map((s: Scope) => [s.bairro, s.cidade, s.uf].filter(Boolean).join(" / ")).join(" • ")
-      : (restrict ? "(sem escopo definido)" : "Todo o território");
-
-    let baseQ = context.supabase
+    const { count: total } = await context.supabase
       .from("contacts")
       .select("id", { count: "exact", head: true })
       .is("arquivado_at", null);
-    if (restrict) baseQ = applyScopeFilter(baseQ, scopes);
-    const { count: total } = await baseQ;
 
     const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
-    // "Engajados" = contatos com mensagens recebidas nos últimos 30 dias
     const { data: recentInbound } = await context.supabase
       .from("inbound_messages")
       .select("contact_id")
       .gte("received_at", since30)
       .not("contact_id", "is", null);
-    let engajados = new Set((recentInbound ?? []).map((r: { contact_id: string }) => r.contact_id)).size;
-    if (restrict && scopes.length && engajados > 0) {
-      // Rough filter: intersect with scope by fetching those contacts
-      const ids = Array.from(new Set((recentInbound ?? []).map((r: { contact_id: string }) => r.contact_id)));
-      let filtQ = context.supabase.from("contacts").select("id").in("id", ids);
-      filtQ = applyScopeFilter(filtQ, scopes);
-      const { data: filt } = await filtQ;
-      engajados = (filt ?? []).length;
-    }
+    const engajados = new Set((recentInbound ?? []).map((r: { contact_id: string }) => r.contact_id)).size;
 
-
-    let optQ = context.supabase
+    const { count: optOuts } = await context.supabase
       .from("contacts")
       .select("id", { count: "exact", head: true })
       .not("opt_out_at", "is", null);
-    if (restrict) optQ = applyScopeFilter(optQ, scopes);
-    const { count: optOuts } = await optQ;
 
-    let pendQ = context.supabase
+    const { count: pendentes } = await context.supabase
       .from("contacts")
       .select("id", { count: "exact", head: true })
       .eq("lifecycle_status", "importado_aguardando_recadastro");
-    if (restrict) pendQ = applyScopeFilter(pendQ, scopes);
-    const { count: pendentes } = await pendQ;
 
     return {
       roles,
-      scopes,
-      scopeLabel,
-      restricted: restrict,
+      scopes: [] as Array<{ id: string; uf: string | null; cidade: string | null; bairro: string | null; created_at: string }>,
+      scopeLabel: "Toda a base",
+      restricted: false,
       kpis: {
         total: total ?? 0,
-        engajados: engajados ?? 0,
+        engajados,
         optOuts: optOuts ?? 0,
         pendentes: pendentes ?? 0,
       },
@@ -160,10 +123,6 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
     pageSize: z.number().int().min(1).max(100).default(30),
   }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    const roles = await getRoles(context);
-    const scopes = await loadScopes(context, context.userId);
-    const restrict = !roles.includes("admin") && !roles.includes("operador") && !roles.includes("vrm");
-
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
 
@@ -174,12 +133,11 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (restrict) q = applyScopeFilter(q, scopes);
     if (data.search) {
       const term = data.search.replace(/[%_]/g, "").slice(0, 60);
       q = q.or(`nome.ilike.%${term}%,phone_e164.ilike.%${term}%,cidade.ilike.%${term}%,bairro.ilike.%${term}%`);
     }
     const { data: rows, count, error } = await q;
     if (error) throw error;
-    return { rows: rows ?? [], total: count ?? 0, page: data.page, pageSize: data.pageSize, restricted: restrict };
+    return { rows: rows ?? [], total: count ?? 0, page: data.page, pageSize: data.pageSize, restricted: false };
   });
