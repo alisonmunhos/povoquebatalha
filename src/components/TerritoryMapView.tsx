@@ -531,5 +531,6 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
         </div>
       )}
     </aside>
+    </>
   );
 }
