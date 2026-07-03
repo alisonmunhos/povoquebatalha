@@ -243,6 +243,7 @@ type Row = {
   cidade: string | null; profissao: string | null; tipo_contato: string | null;
   formas_ajuda: unknown; consentimento_whatsapp: boolean | null; latitude: number | null; longitude: number | null;
   tags: string[]; last_action: { action: string; created_at: string } | null;
+  geocoding_precision: Precision | null;
 };
 
 // ---------- Leaflet Map ----------
