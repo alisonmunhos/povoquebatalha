@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Suspense, useState } from "react";
-import { getTerritoryOverview, listTerritoryContacts } from "@/lib/territory.functions";
+import { Suspense, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { getTerritoryOverview, listTerritoryContacts, getMyFieldSummaryToday } from "@/lib/territory.functions";
 import { logTerritoryAction } from "@/lib/territory-logs.functions";
-import { Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2, StickyNote, UserX, Smartphone, Compass, Map as MapIcon } from "lucide-react";
+import {
+  Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2,
+  StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TerritoryMapView } from "@/components/TerritoryMapView";
@@ -13,6 +17,12 @@ export const Route = createFileRoute("/_authenticated/territorio")({
   head: () => ({ meta: [{ title: "Território — Campanha do Povo que Batalha" }] }),
   component: TerritorioPage,
 });
+
+type FieldStatus = "nao_abordado" | "contato_realizado" | "nao_encontrado" | "observacao";
+type Period = "today" | "week" | "all";
+type SortBy = "nao_abordado_first" | "recent_action" | "alphabetical";
+
+type LastAction = { action: string; note: string | null; created_at: string; user_id: string } | null;
 
 type Row = {
   id: string;
@@ -24,6 +34,7 @@ type Row = {
   lifecycle_status: string | null;
   consentimento_whatsapp: boolean | null;
   opt_out_at: string | null;
+  last_action: LastAction;
 };
 
 function TerritorioPage() {
@@ -55,10 +66,33 @@ function TerritorioPage() {
   );
 }
 
+const ACTION_LABEL: Record<string, string> = {
+  contato_realizado: "Contato feito",
+  nao_encontrado: "Não encontrado",
+  observacao: "Observação",
+  whatsapp_aberto: "WhatsApp aberto",
+  pediu_atualizacao: "Pediu atualização",
+};
+
+const ACTION_TOAST: Record<string, string> = {
+  contato_realizado: "Contato registrado",
+  nao_encontrado: "Marcado como não encontrado",
+  observacao: "Observação salva",
+  whatsapp_aberto: "WhatsApp registrado",
+  pediu_atualizacao: "Registrado como pediu atualização",
+};
+
+function formatShortTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+}
+
 function FieldAction() {
   const overviewFn = useServerFn(getTerritoryOverview);
   const listFn = useServerFn(listTerritoryContacts);
   const logFn = useServerFn(logTerritoryAction);
+  const summaryFn = useServerFn(getMyFieldSummaryToday);
   const qc = useQueryClient();
 
   const overview = useSuspenseQuery({
@@ -68,9 +102,30 @@ function FieldAction() {
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [fieldStatus, setFieldStatus] = useState<FieldStatus[]>([]);
+  const [period, setPeriod] = useState<Period>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("nao_abordado_first");
+
+  const sinceDays = period === "today" ? 1 : period === "week" ? 7 : undefined;
+
   const contacts = useQuery({
-    queryKey: ["territory-contacts", search, page],
-    queryFn: () => listFn({ data: { search: search || undefined, page, pageSize: 30 } }),
+    queryKey: ["territory-contacts", { search, page, fieldStatus, sinceDays, sortBy }],
+    queryFn: () => listFn({
+      data: {
+        search: search || undefined,
+        page,
+        pageSize: 30,
+        fieldStatus: fieldStatus.length ? fieldStatus : undefined,
+        sinceDays,
+        sortBy,
+        actionScope: "all",
+      },
+    }),
+  });
+
+  const summary = useQuery({
+    queryKey: ["territory-summary-today"],
+    queryFn: () => summaryFn(),
   });
 
   const [openNote, setOpenNote] = useState<string | null>(null);
@@ -79,8 +134,17 @@ function FieldAction() {
   const logMut = useMutation({
     mutationFn: (v: { contactId: string; action: "whatsapp_aberto" | "contato_realizado" | "nao_encontrado" | "pediu_atualizacao" | "observacao"; note?: string }) =>
       logFn({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["territory-contacts"] }),
+    onSuccess: (_res, vars) => {
+      toast.success(ACTION_TOAST[vars.action] ?? "Registrado");
+      qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+      qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
+    },
+    onError: (e) => {
+      toast.error("Não foi possível registrar", { description: e instanceof Error ? e.message : "Tente novamente." });
+    },
   });
+
+  const pendingContactId = logMut.isPending ? logMut.variables?.contactId : undefined;
 
   function waHref(phone: string, nome: string | null) {
     const digits = phone.replace(/\D/g, "");
@@ -89,6 +153,21 @@ function FieldAction() {
   }
 
   const o = overview.data;
+  const counts = contacts.data?.counts;
+
+  const toggleStatus = (s: FieldStatus) => {
+    setPage(1);
+    setFieldStatus((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  };
+
+  const clearFilters = () => {
+    setFieldStatus([]); setPeriod("all"); setSortBy("nao_abordado_first"); setPage(1);
+  };
+
+  const activeFilterCount = fieldStatus.length + (period !== "all" ? 1 : 0) + (sortBy !== "nao_abordado_first" ? 1 : 0);
+
+  const s = summary.data;
+  const hasSummaryActivity = !!s && (s.contato_realizado + s.nao_encontrado + s.observacao + s.whatsapp_aberto) > 0;
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
@@ -99,6 +178,20 @@ function FieldAction() {
         <Kpi icon={BanIcon} label="Opt-out" value={o.kpis.optOuts} color="text-rose-600" />
       </section>
 
+      {/* Resumo do dia */}
+      {hasSummaryActivity && (
+        <div className="rounded-xl border bg-emerald-50/60 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-emerald-800 font-semibold mb-1">Seu dia em campo</div>
+          <div className="text-sm text-emerald-900 flex flex-wrap gap-x-3 gap-y-1">
+            <span><b>{s!.totalContatos}</b> contato(s) trabalhado(s)</span>
+            <span>· <b>{s!.contato_realizado}</b> contato feito</span>
+            <span>· <b>{s!.nao_encontrado}</b> não encontrado</span>
+            <span>· <b>{s!.observacao}</b> observação</span>
+            {s!.whatsapp_aberto > 0 && <span>· <b>{s!.whatsapp_aberto}</b> WhatsApp aberto</span>}
+          </div>
+        </div>
+      )}
+
       <div className="relative">
         <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -107,6 +200,55 @@ function FieldAction() {
           placeholder="Buscar por nome, telefone, cidade…"
           className="pl-9 h-11"
         />
+      </div>
+
+      {/* Barra de filtros */}
+      <div className="rounded-xl border bg-card p-3 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" /> Filtros
+            {activeFilterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>}
+          </div>
+          {activeFilterCount > 0 && (
+            <button onClick={clearFilters} className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+              <XCircle className="h-3 w-3" /> limpar
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          <FilterChip active={fieldStatus.includes("nao_abordado")} onClick={() => toggleStatus("nao_abordado")}>
+            Ainda não abordado
+          </FilterChip>
+          <FilterChip active={fieldStatus.includes("contato_realizado")} onClick={() => toggleStatus("contato_realizado")} tone="emerald">
+            Contato feito {counts && `(${counts.contato_realizado})`}
+          </FilterChip>
+          <FilterChip active={fieldStatus.includes("nao_encontrado")} onClick={() => toggleStatus("nao_encontrado")} tone="amber">
+            Não encontrado {counts && `(${counts.nao_encontrado})`}
+          </FilterChip>
+          <FilterChip active={fieldStatus.includes("observacao")} onClick={() => toggleStatus("observacao")} tone="sky">
+            Com observação {counts && `(${counts.observacao})`}
+          </FilterChip>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-center pt-1">
+          <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+            Período:
+            <select value={period} onChange={(e) => { setPeriod(e.target.value as Period); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
+              <option value="all">Todos</option>
+              <option value="today">Hoje</option>
+              <option value="week">Últimos 7 dias</option>
+            </select>
+          </label>
+          <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+            Ordenar:
+            <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as SortBy); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
+              <option value="nao_abordado_first">Não abordados primeiro</option>
+              <option value="recent_action">Ações mais recentes</option>
+              <option value="alphabetical">Alfabético</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-card">
@@ -119,12 +261,14 @@ function FieldAction() {
 
         {contacts.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
         {contacts.data && contacts.data.rows.length === 0 && (
-          <div className="p-6 text-sm text-muted-foreground text-center">Nenhum contato encontrado.</div>
+          <div className="p-6 text-sm text-muted-foreground text-center">Nenhum contato encontrado com esses filtros.</div>
         )}
         <ul className="divide-y">
           {(contacts.data?.rows ?? []).map((c: Row) => {
             const canWa = !!c.phone_e164 && !c.opt_out_at;
             const isNoteOpen = openNote === c.id;
+            const isPending = pendingContactId === c.id;
+            const la = c.last_action;
             return (
               <li key={c.id} className="p-3 space-y-2">
                 <div>
@@ -132,7 +276,8 @@ function FieldAction() {
                   <div className="text-xs text-muted-foreground truncate">
                     {[c.bairro, c.cidade, c.uf].filter(Boolean).join(" • ") || "sem endereço"}
                   </div>
-                  <div className="text-[11px] mt-1 flex flex-wrap gap-1">
+                  <div className="text-[11px] mt-1 flex flex-wrap gap-1 items-center">
+                    {la && <LastActionBadge action={la.action} at={la.created_at} />}
                     {c.opt_out_at && <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">opt-out</span>}
                     {c.consentimento_whatsapp && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">WhatsApp</span>}
                     {c.lifecycle_status === "importado_aguardando_recadastro" && (
@@ -157,14 +302,17 @@ function FieldAction() {
                     <MessageCircle className="h-4 w-4" /> Abrir WhatsApp
                   </a>
                   <button
+                    disabled={isPending}
                     onClick={() => logMut.mutate({ contactId: c.id, action: "contato_realizado" })}
-                    className="h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium border hover:bg-accent"
+                    className="h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium border hover:bg-accent disabled:opacity-60"
                   >
-                    <CheckCircle2 className="h-4 w-4" /> Contato feito
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {isPending ? "Registrando…" : "Contato feito"}
                   </button>
                   <button
+                    disabled={isPending}
                     onClick={() => logMut.mutate({ contactId: c.id, action: "nao_encontrado" })}
-                    className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent"
+                    className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent disabled:opacity-60"
                   >
                     <UserX className="h-3.5 w-3.5" /> Não encontrado
                   </button>
@@ -175,6 +323,12 @@ function FieldAction() {
                     <StickyNote className="h-3.5 w-3.5" /> {isNoteOpen ? "Cancelar" : "Observação"}
                   </button>
                 </div>
+
+                {la?.note && !isNoteOpen && (
+                  <div className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1 border">
+                    <span className="font-medium text-foreground">Última obs.:</span> {la.note}
+                  </div>
+                )}
 
                 {isNoteOpen && (
                   <div className="space-y-2">
@@ -194,7 +348,7 @@ function FieldAction() {
                         Cancelar
                       </button>
                       <button
-                        disabled={!noteText.trim()}
+                        disabled={!noteText.trim() || isPending}
                         onClick={() => {
                           logMut.mutate(
                             { contactId: c.id, action: "observacao", note: noteText.trim() },
@@ -237,6 +391,41 @@ function FieldAction() {
         </div>
       )}
     </div>
+  );
+}
+
+function FilterChip({ active, onClick, children, tone = "primary" }: { active: boolean; onClick: () => void; children: React.ReactNode; tone?: "primary" | "emerald" | "amber" | "sky" }) {
+  const toneClass = tone === "emerald" ? "border-emerald-300 text-emerald-800 bg-emerald-50"
+    : tone === "amber" ? "border-amber-300 text-amber-800 bg-amber-50"
+    : tone === "sky" ? "border-sky-300 text-sky-800 bg-sky-50"
+    : "border-primary/40 text-primary bg-primary/5";
+  return (
+    <button
+      onClick={onClick}
+      className={`h-7 px-2.5 rounded-full border text-[11px] font-medium transition ${
+        active ? toneClass : "border-border text-muted-foreground hover:bg-accent"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LastActionBadge({ action, at }: { action: string; at: string }) {
+  const label = ACTION_LABEL[action] ?? action;
+  const tone = action === "contato_realizado" ? "bg-emerald-100 text-emerald-800"
+    : action === "nao_encontrado" ? "bg-amber-100 text-amber-800"
+    : action === "observacao" ? "bg-sky-100 text-sky-800"
+    : "bg-muted text-muted-foreground";
+  const icon = action === "contato_realizado" ? <CheckCircle2 className="h-3 w-3" />
+    : action === "nao_encontrado" ? <UserX className="h-3 w-3" />
+    : action === "observacao" ? <StickyNote className="h-3 w-3" />
+    : <MessageCircle className="h-3 w-3" />;
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded ${tone}`} title={new Date(at).toLocaleString("pt-BR")}>
+      {icon}
+      <span>{label} · {formatShortTime(at)}</span>
+    </span>
   );
 }
 
