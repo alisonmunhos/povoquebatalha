@@ -426,7 +426,14 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
   const c = detail.data?.contact;
 
   return (
-    <aside className="w-full md:w-[380px] shrink-0 border-l bg-card overflow-y-auto max-h-[80vh]">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="md:hidden fixed inset-0 bg-black/40 z-[1100]"
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside className="fixed md:static bottom-0 inset-x-0 md:inset-auto z-[1101] md:z-auto w-full md:w-[380px] shrink-0 border-t md:border-t-0 md:border-l bg-card overflow-y-auto max-h-[80vh] rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none animate-in slide-in-from-bottom md:slide-in-from-right">
       <div className="p-4 border-b flex items-center justify-between">
         <div className="font-semibold truncate">{c?.nome ?? "Carregando…"}</div>
         <button onClick={onClose} className="p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
