@@ -234,6 +234,9 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
 
     setSubmitting(true);
     try {
+      const linkUrlClean = linkUrl.trim()
+        ? (/^https?:\/\//i.test(linkUrl.trim()) ? linkUrl.trim() : `https://${linkUrl.trim()}`)
+        : null;
       const payload = {
         nome: nomeCampanha.trim(),
         ids: source.ids,
@@ -247,6 +250,10 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
         agendado_para: mode === "schedule" ? new Date(schedule).toISOString() : null,
         delay_min_ms: delayMin,
         delay_max_ms: delayMax,
+        link_url: linkUrlClean,
+        link_title: linkPreview?.title ?? null,
+        link_description: linkPreview?.description ?? null,
+        link_image: linkPreview?.image ?? null,
         save_as_template: saveAsTemplate.enabled && saveAsTemplate.title.trim()
           ? { title: saveAsTemplate.title.trim() } : undefined,
       };
