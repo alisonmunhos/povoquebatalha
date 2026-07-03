@@ -245,6 +245,10 @@ export type Database = {
           is_system: boolean
           janela_fim: string
           janela_inicio: string
+          link_description: string | null
+          link_image: string | null
+          link_title: string | null
+          link_url: string | null
           mensagem_template: string
           midia_caption: string | null
           midia_filename: string | null
@@ -283,6 +287,10 @@ export type Database = {
           is_system?: boolean
           janela_fim?: string
           janela_inicio?: string
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
           mensagem_template: string
           midia_caption?: string | null
           midia_filename?: string | null
@@ -321,6 +329,10 @@ export type Database = {
           is_system?: boolean
           janela_fim?: string
           janela_inicio?: string
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
           mensagem_template?: string
           midia_caption?: string | null
           midia_filename?: string | null

@@ -1,62 +1,59 @@
-# Precisão de geocodificação + indicação visual no mapa
+## Diagnóstico
 
-## Problema
-Hoje usamos uma única chamada ao Nominatim que devolve qualquer resultado — normalmente o centro da rua, não o número exato. Resultado: o pin cai "na rua certa mas na casa errada". Também não distinguimos visualmente um endereço geolocalizado com precisão de um aproximado (só CEP/cidade).
+**Problema 1 — link não chega ao contato e sem prévia:**
+- No `SendWhatsAppWizard`, o campo dedicado de link (`linkUrl`) só entra na mensagem se o usuário clicar em "Inserir link". Se não clicar, o link **fica só no state do wizard e nunca vai para o backend**.
+- `createCampaignFromSelection` não aceita nenhum campo de link — a tabela `campaigns` não tem colunas `link_url/title/description/image` (só `direct_messages` tem).
+- `processCampaignBatch` (worker de envio) e `campaigns.server.ts` (cron) **não usam** o novo motor `sendMessage`. Chamam `zapi.sendText` direto com `rendered_message`, que sai sem link nenhum. As colunas `endpoint_used/preview_status/link_*` criadas na Etapa 1 em `campaign_recipients` nunca são preenchidas.
+- Resultado: o contato recebe só o texto puro, sem URL nem card.
 
-## Estratégia
+**Problema 2 — "Ver prévia" e "Preparar destinatários" não fazem nada:**
+- `prepareCampaign` só aceita status `draft|scheduled|paused`. Se a campanha já está `running`/`done`, dispara erro. Se o erro chega ao toast, aparece; se falha antes por outro motivo, botão parece morto.
+- `previewCampaign` faz `.limit(5)` na query, então "elegíveis" nunca reflete o público real quando `audience_ids` já foi montado — mostra número enganoso e sem exemplos.
+- Precisa verificar erros reais em runtime (após 1º ajuste dá para diagnosticar).
 
-### 1. Geocodificador em cascata com validação (`src/lib/cep.server.ts`)
-Reescrever `geocodeAddress` para tentar, em ordem, e parar no primeiro resultado que confirme o número da casa:
+## Plano de correção (imediato)
 
-1. **Nominatim estruturado** — enviar `street=<rua>, <número>`, `postalcode=<cep>`, `city=<cidade>`, `state=<uf>`, `country=Brasil`, `addressdetails=1`. Consulta estruturada é bem mais precisa que a string única atual.
-2. **Nominatim busca livre** (fallback atual) — só se a estruturada não retornar nada.
-3. **Photon (Komoot, grátis, base OSM)** — `https://photon.komoot.io/api/?q=...&limit=5&lang=pt&osm_tag=place:house`. Photon costuma indexar `addr:housenumber` em cidades pequenas onde o Nominatim falha.
-4. **Fallback só-CEP** — geocodificar só o CEP quando nenhuma tentativa devolver o número.
+### 1. Persistir link estruturado em campanhas
+- Migration: adicionar `link_url text`, `link_title text`, `link_description text`, `link_image text` em `public.campaigns`. Preservar dados existentes.
+- Estender `campaignInput` e `createFromSelectionSchema` (`src/lib/campaigns.functions.ts`) para aceitar esses 4 campos.
+- Ajustar `upsertCampaign` e `createCampaignFromSelection` para gravar os campos.
 
-Cada retorno inclui `addressdetails.house_number`. Comparamos com o número informado e classificamos precisão em 4 níveis:
+### 2. Garantir link no `rendered_message` de cada destinatário
+- Ao montar `campaign_recipients`, se `campaign.link_url` existe e não está contido no template renderizado, anexar `\n\n{link_url}` ao final. Isso garante que o WhatsApp (com `linkPreview:true`) tenha URL para expandir.
+- Aplicar tanto em `createCampaignFromSelection` quanto em `prepareCampaign`.
 
-| Nível | Critério |
-|---|---|
-| `exato` | número da casa retornado bate com o do cadastro (tolerância: mesmo número, ou pertence a um `housenumbers` range do OSM) |
-| `rua` | rua e CEP conferem, mas número não veio / não bateu |
-| `cep` | apenas CEP resolvido (cidade pequena, CEP único) |
-| `cidade` | só cidade/UF resolvidos |
-| `erro` | nada resolvido |
+### 3. Wizard passa o link mesmo sem "Inserir link"
+- No `submit()` do `SendWhatsAppWizard`, incluir no payload: `link_url`, `link_title`, `link_description`, `link_image` a partir do state `linkUrl` + `linkPreview`.
+- Manter o botão "Inserir link" opcional (para quem quer o link no meio do texto).
 
-### 2. Schema
-Migration adiciona `contacts.geocoding_precision` (enum `exato | rua | cep | cidade`) e `contacts.geocoding_match_score` (numeric, 0–1). `geocode_cache` ganha as mesmas colunas para não perder o nível de precisão ao usar cache. Recomputa a coluna dentro do batch existente — não altera comportamento do trigger de re-geocode ao editar endereço.
+### 4. Migrar envio de campanhas para o motor `sendMessage`
+- Refatorar `processCampaignBatch` (`campaigns.functions.ts`) e `processCampaignBatchInternal` (`campaigns.server.ts`) para:
+  - Chamar `sendMessage({ contact, text: rendered_message, link: { url, title, description, image, status }, attachment, origin: "campaign", useSendLink })`.
+  - Persistir em `campaign_recipients`: `endpoint_used`, `preview_status`, `link_url`, `link_title`, `link_description`, `link_image`, `fallback_reason` (colunas já existem).
+- Ler flag `use_send_link` via `readUseSendLinkFlag()`. Enquanto a flag estiver desligada, o motor usa `send-text` com `linkPreview:true` — a URL no corpo já força o WhatsApp a gerar preview quando o site permite.
 
-### 3. Re-geocodificação automática dos completos
-Um serverFn `regeocodeIncompletePins` marca como `pendente` todos os contatos com `endereco_completo IS NOT NULL` E (`geocoding_precision IN ('cep','cidade')` OU `geocoding_precision IS NULL` OU `geocoding_status = 'aproximado'`). Assim toda a base migrada passa pelo novo pipeline sem apagar quem já está com `exato`. Botão "Re-geocodificar imprecisos" na tela `/mapa` (ou dentro da aba Território → Mapa) dispara em lotes de 20 (respeitando 1 req/s do Nominatim).
+### 5. Corrigir "Ver prévia" e "Preparar destinatários"
+- `previewCampaign`: remover `.limit(5)`, contar corretamente todos os aptos vs. inaptos, retornar até 3 exemplos personalizados e o motivo do descarte (`sem_consent`, `opt_out`, `sem_telefone`, `arquivado`). Toast deve mostrar breakdown ("X aptos · Y sem consentimento · Z opt-out").
+- `prepareCampaign`: manter regra de status, mas retornar toast claro quando bloqueado ("Campanha em envio — pause antes de reprocessar"). Adicionar `console.error` do lado do server-fn e mensagem legível quando `audience_ids` vazio.
+- Frontend: nos `useMutation` desses dois botões, garantir toast em `onSettled` e desabilitar durante `isPending` (já existe). Adicionar `retry:false` para o handler `useQuery({refetchInterval:4000})` não mascarar toasts.
 
-Também exponho um botão por-contato "Re-geocodificar este endereço" no card do mapa, para o seu caso específico (Sarmento Leite 1011).
+### 6. Sinalização de status na tela da campanha
+- Ao lado do bloco "Mensagem" mostrar o link com badge da prévia (`preview_confirmada|provavel|indisponivel|link_bloqueado|sem_link`) — reaproveita `MessagePreview`/`LinkPreviewCard`.
+- Tabela de destinatários: mostrar coluna extra "Endpoint" (usa `endpoint_used`) só se estiver preenchido, para diagnosticar envios recentes.
 
-### 4. Camada visual — segunda dimensão além da cor de status
-As cores atuais (verde/âmbar/azul/cinza) continuam representando **status da ação de campo**. Precisão vira uma **borda + forma**, para não conflitar:
+## Fora de escopo
+- Não mexer em Inbox, Mapa, Território, Automação nesta rodada.
+- Não implementar `send-link` ativo (flag continua desligada até você confirmar que a Z-API do plano suporta).
+- Não recriar CRM, tags, segmentos.
 
-- `exato` → pin cheio, borda branca sólida grossa, sombra normal.
-- `rua` → pin cheio, borda **tracejada** branca.
-- `cep` → pin cheio, borda tracejada + **ponto de interrogação pequeno** sobreposto (canto sup. dir.).
-- `cidade` → pin **oco/translúcido** (opacidade 55%) com ponto de interrogação.
+## Riscos
+- Preview no WhatsApp depende do site alvo permitir OG scraping. Redes sociais (Instagram/Facebook/TikTok) frequentemente bloqueiam — nesse caso o link chega, o balão do WhatsApp aparece sem card. Isso é limite do WhatsApp, não do sistema.
+- Migration adiciona 4 colunas nullable em `campaigns`; sem risco para dados existentes.
+- Alterar `processCampaignBatch` para o motor único muda o fluxo em produção — vou preservar o comportamento atual quando `link_url` for null (fallback para `sendText` puro), assim campanhas antigas não são afetadas.
 
-Implementado no `L.divIcon` já existente em `TerritoryMapView.tsx` — só amplia o SVG para receber `precision` além de `status`. Adiciono legenda discreta no rodapé do mapa: "● Exato · ◐ Rua · ◌ Aproximado".
-
-Filtros do mapa ganham chip **"Só endereços exatos"** para quando você quiser só visitar quem tem certeza da localização.
-
-### 5. Contadores no cabeçalho do mapa
-Substituo a contagem atual por: "N pins · X exatos · Y na rua · Z aproximados · W sem coordenada", com o número de aproximados clicável abrindo a lista dos que precisam de conferência.
-
-## Arquivos afetados
-- `src/lib/cep.server.ts` — nova cascata + Photon + classificação de precisão.
-- `src/lib/geocoding.functions.ts` — grava `geocoding_precision`, novo serverFn `regeocodeImprecise` e `regeocodeOne`.
-- `src/lib/map.functions.ts` — retorna `geocoding_precision` em `listMapContacts` e `getMapContactDetail`.
-- `src/components/TerritoryMapView.tsx` — ícone com dupla codificação (cor=status, borda/forma=precisão), legenda, filtro "só exatos", botão "Re-geocodificar este pin".
-- `src/routes/_authenticated/territorio.tsx` — botão "Re-geocodificar imprecisos" com progresso.
-- Migration: coluna `geocoding_precision` em `contacts` e `geocode_cache`.
-
-## Limitações honestas
-- Nominatim/Photon são base OSM. Ruas sem `addr:housenumber` mapeado no OSM (comum em cidades pequenas e interior) simplesmente **não têm** o número no banco — nenhum provedor grátis resolve isso. Nesses casos o pin vai ficar como `rua` ou `cep` mesmo com endereço completo. É por isso que a segunda camada visual é essencial: você saberá de antemão em quem confiar antes de sair para entregar material.
-- Para o seu endereço (Porto Alegre, Rua Sarmento Leite 1011), a consulta estruturada + Photon quase certamente retorna `exato` — vou validar rodando um teste real assim que aprovar.
-
-## Fora de escopo (a pedido)
-- Arrastar o pin para ajuste manual — fica anotado para depois se a precisão automática não bastar.
+## Onde testar depois do build
+1. Abrir wizard de envio em massa, colar um link no campo dedicado (sem clicar "Inserir link"), enviar rascunho, verificar em `/campanhas/{id}` que aparece o link.
+2. Clicar "Ver prévia" — deve mostrar breakdown correto.
+3. Clicar "Preparar destinatários" em rascunho — deve popular a fila; se em `running`, toast explicando bloqueio.
+4. "Iniciar envio" + "Enviar próximo lote agora" — destinatário deve receber texto **com** o link ao final e preview do WhatsApp (quando site permitir).
+5. Conferir na tabela de destinatários que `endpoint_used` = `send-text` e a mensagem enviada contém o URL.
