@@ -22,7 +22,19 @@ const campaignInput = z.object({
   agendado_para: z.string().datetime().optional().nullable(),
   delay_min_ms: z.number().int().min(500).max(60000).default(3000),
   delay_max_ms: z.number().int().min(500).max(120000).default(8000),
+  link_url: z.string().url().optional().nullable(),
+  link_title: z.string().max(300).optional().nullable(),
+  link_description: z.string().max(600).optional().nullable(),
+  link_image: z.string().url().optional().nullable(),
 });
+
+/** Anexa a URL ao final do corpo se ainda não estiver contida (garante prévia no WhatsApp). */
+function ensureLinkInBody(body: string, linkUrl: string | null | undefined): string {
+  if (!linkUrl) return body;
+  if (body.includes(linkUrl)) return body;
+  const sep = body.trim().length > 0 ? "\n\n" : "";
+  return `${body}${sep}${linkUrl}`;
+}
 
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -44,7 +56,7 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (error) throw error;
     const { data: recs } = await context.supabase
       .from("campaign_recipients")
-      .select("id,contact_id,status,rendered_message,erro,sent_at,delivered_at,read_at,failed_at,tentativas,contacts(nome,phone_e164)")
+      .select("id,contact_id,status,rendered_message,erro,sent_at,delivered_at,read_at,failed_at,tentativas,endpoint_used,link_url,preview_status,contacts(nome,phone_e164)")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: true })
       .limit(500);
@@ -73,6 +85,10 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       agendado_para: payload.agendado_para ?? null,
       delay_min_ms: payload.delay_min_ms,
       delay_max_ms: payload.delay_max_ms,
+      link_url: payload.link_url ?? null,
+      link_title: payload.link_title ?? null,
+      link_description: payload.link_description ?? null,
+      link_image: payload.link_image ?? null,
       created_by: context.userId,
     };
     if (id) {
@@ -202,6 +218,10 @@ const createFromSelectionSchema = z.object({
   agendado_para: z.string().datetime().optional().nullable(),
   delay_min_ms: z.number().int().min(500).max(60000).default(3000),
   delay_max_ms: z.number().int().min(500).max(120000).default(8000),
+  link_url: z.string().url().optional().nullable(),
+  link_title: z.string().max(300).optional().nullable(),
+  link_description: z.string().max(600).optional().nullable(),
+  link_image: z.string().url().optional().nullable(),
   save_as_template: z.object({ title: z.string().trim().min(2).max(120), category: z.string().max(60).optional() }).optional(),
 });
 
@@ -259,16 +279,20 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
       agendado_para: data.agendado_para ?? null,
       delay_min_ms: data.delay_min_ms,
       delay_max_ms: data.delay_max_ms,
+      link_url: data.link_url ?? null,
+      link_title: data.link_title ?? null,
+      link_description: data.link_description ?? null,
+      link_image: data.link_image ?? null,
       status: data.agendado_para ? "scheduled" : "draft",
       total_destinatarios: elegiveis.length,
       created_by: context.userId,
     }).select("id").single();
     if (error) throw error;
 
-    // 5) Create queued recipients with rendered messages
+    // 5) Create queued recipients with rendered messages (com link ao final quando houver)
     const rows = elegiveis.map((c) => ({
       campaign_id: ins.id, contact_id: c.id,
-      rendered_message: personalize(data.mensagem_template, c),
+      rendered_message: ensureLinkInBody(personalize(data.mensagem_template, c), data.link_url),
       status: "queued" as const,
     }));
     for (let i = 0; i < rows.length; i += 500) {
@@ -305,19 +329,28 @@ export const previewCampaign = createServerFn({ method: "POST" })
     } else if (c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length) {
       contactsQuery = applyCrmFilters(contactsQuery as never, c.filtro_adhoc as CrmFilters) as typeof contactsQuery;
     } else {
-      return { totalBruto: 0, elegíveis: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
+      return { totalBruto: 0, elegíveis: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
     }
 
-    const { data: all, count } = await contactsQuery.limit(5);
-    const elegiveis = (all ?? []).filter((r) => r.consentimento_whatsapp && !r.opt_out_at && !r.arquivado_at && r.phone_e164);
+    const { data: all, count } = await contactsQuery.limit(20000);
+    let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
+    const elegiveis: NonNullable<typeof all> = [];
+    for (const r of all ?? []) {
+      if (r.arquivado_at) { arquivados++; continue; }
+      if (r.opt_out_at) { optOut++; continue; }
+      if (!r.consentimento_whatsapp) { semConsent++; continue; }
+      if (!r.phone_e164) { semTelefone++; continue; }
+      elegiveis.push(r);
+    }
     const exemplos = elegiveis.slice(0, 3).map((r) => ({
       nome: r.nome, cidade: r.cidade, phone: r.phone_e164,
-      preview: personalize(c.mensagem_template, r),
+      preview: ensureLinkInBody(personalize(c.mensagem_template, r), c.link_url),
     }));
 
     return {
-      totalBruto: count ?? 0,
+      totalBruto: count ?? (all?.length ?? 0),
       elegíveis: elegiveis.length,
+      semConsent, optOut, arquivados, semTelefone,
       exemplos,
       mensagemExemplo: exemplos[0]?.preview ?? c.mensagem_template,
     };
@@ -375,7 +408,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const rows = elegiveis.map((c2) => ({
       campaign_id: data.id, contact_id: c2.id,
-      rendered_message: personalize(c.mensagem_template, c2),
+      rendered_message: ensureLinkInBody(personalize(c.mensagem_template, c2), c.link_url),
       status: "queued" as const,
     }));
 
@@ -478,7 +511,15 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
         const phone = ct.phone_e164.replace(/\D+/g, "");
         let result: { messageId?: string; zaapId?: string; id?: string };
         let endpointUsed: "send-text" | "send-image" | "send-document" = "send-text";
-        const caption = r.rendered_message ?? c.midia_caption ?? "";
+        const bodyRendered = ensureLinkInBody(r.rendered_message ?? c.mensagem_template, c.link_url);
+        const caption = bodyRendered || c.midia_caption || "";
+        // Detect URL to persist link metadata even when we don't use send-link.
+        const urlMatch = bodyRendered.match(/\bhttps?:\/\/[^\s<>"]+/i);
+        const linkUrlFinal = c.link_url ?? urlMatch?.[0] ?? null;
+        const previewStatus: string | null = linkUrlFinal
+          ? (c.link_title || c.link_image ? "preview_confirmada" : "preview_provavel")
+          : "sem_link";
+
         if (c.tipo === "document" && mediaUrl) {
           const ext = (c.midia_filename ?? "arquivo.pdf").split(".").pop()?.toLowerCase() ?? "pdf";
           result = await zapi.sendDocument(phone, mediaUrl, c.midia_filename ?? "arquivo", ext);
@@ -488,13 +529,19 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
           result = await zapi.sendImage(phone, mediaUrl, caption);
           endpointUsed = "send-image";
         } else {
-          result = await zapi.sendText(phone, r.rendered_message ?? c.mensagem_template);
+          result = await zapi.sendText(phone, bodyRendered);
           endpointUsed = "send-text";
         }
         await context.supabase.from("campaign_recipients").update({
           status: "sent", sent_at: new Date().toISOString(),
           message_id: result.messageId ?? result.id ?? null, zaap_id: result.zaapId ?? null,
           endpoint_used: endpointUsed,
+          link_url: linkUrlFinal,
+          link_title: c.link_title ?? null,
+          link_description: c.link_description ?? null,
+          link_image: c.link_image ?? null,
+          preview_status: previewStatus,
+          rendered_message: bodyRendered,
         } as never).eq("id", r.id);
         await context.supabase.from("message_events").insert({
           contact_id: r.contact_id, recipient_id: r.id, tipo: "sent", payload: result as never,
