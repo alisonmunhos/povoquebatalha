@@ -217,7 +217,7 @@ function UsuariosPage() {
         <ul className="space-y-1.5">
           <li><b className="text-amber-700">Suspender</b> — bloqueia login temporariamente. Papel e histórico preservados. Reversível a qualquer momento.</li>
           <li><b className="text-rose-700">Revogar acesso</b> — remove todos os papéis. Conta e histórico ficam preservados, mas a pessoa perde acesso ao painel. Reversível dando novo papel.</li>
-          <li><b className="text-destructive">Excluir conta</b> — apaga o usuário do sistema. Permite convidar o mesmo e-mail do zero. Não é reversível.</li>
+          <li><b className="text-destructive">Excluir conta</b> — remove permanentemente o usuário, seus papéis e o histórico de acesso. A ação não pode ser desfeita: você pode convidar o mesmo e-mail novamente, mas será uma conta nova, sem o histórico anterior.</li>
         </ul>
       </section>
 
