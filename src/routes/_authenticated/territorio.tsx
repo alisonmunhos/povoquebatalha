@@ -4,7 +4,7 @@ import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { getTerritoryOverview, listTerritoryContacts, getMyFieldSummaryToday } from "@/lib/territory.functions";
-import { logTerritoryAction } from "@/lib/territory-logs.functions";
+import { logTerritoryAction, undoLastTerritoryLog } from "@/lib/territory-logs.functions";
 import {
   Users, HeartPulse, BanIcon, Clock3, Search, MessageCircle, CheckCircle2,
   StickyNote, UserX, Smartphone, Compass, Map as MapIcon, Loader2, Filter, XCircle,
