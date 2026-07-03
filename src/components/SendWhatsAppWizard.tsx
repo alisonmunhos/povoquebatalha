@@ -122,7 +122,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
         const r = await previewFn({ data: { url } });
         setLinkPreview(r);
       } catch (e) {
-        setLinkPreview({ url, title: null, description: null, image: null, siteName: null, error: (e as Error).message });
+        setLinkPreview({ url, title: null, description: null, image: null, siteName: null, status: "preview_indisponivel", error: (e as Error).message });
       } finally { setLinkLoading(false); }
     }, 600);
     return () => clearTimeout(t);
