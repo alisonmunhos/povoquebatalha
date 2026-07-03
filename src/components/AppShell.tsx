@@ -33,10 +33,10 @@ const groups: NavGroup[] = [
   {
     label: "Território",
     items: [
-      { to: "/territorio", label: "Ação de Campo", icon: Compass, hint: "Militante na rua: minha região, meus contatos, registrar visita (celular).", roles: ["admin", "operador", "vrm", "territorio"] },
-      { to: "/mapa", label: "Mapa Geral", icon: MapPin, hint: "Visão panorâmica: todos os contatos no mapa, com filtros e tela cheia.", roles: ["admin", "operador", "vrm"] },
+      { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm", "territorio"] },
     ],
   },
+
   {
     label: "Comunicação",
     items: [
