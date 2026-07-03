@@ -399,9 +399,9 @@ export const linkCurrentUserContact = createServerFn({ method: "POST" })
     const full_name = data.full_name ?? (got.user?.user_metadata as { full_name?: string } | null)?.full_name ?? email;
     const { data: contactId, error } = await supabaseAdmin.rpc("link_or_create_user_contact", {
       _user_id: context.userId,
-      _email: email,
-      _phone: phone,
-      _full_name: full_name,
+      _email: email ?? "",
+      _phone: phone ?? "",
+      _full_name: full_name ?? "",
     });
     if (error) throw new Error(error.message);
     return { contact_id: contactId as string | null };
