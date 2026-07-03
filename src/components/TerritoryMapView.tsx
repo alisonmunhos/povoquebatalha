@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "sonner";
-import { RefreshCw, AlertTriangle, X, Send, ExternalLink } from "lucide-react";
+import { RefreshCw, AlertTriangle, X, Send, ExternalLink, LocateFixed, ChevronDown } from "lucide-react";
 
 export function TerritoryMapView() {
   const listFn = useServerFn(listMapContacts);
