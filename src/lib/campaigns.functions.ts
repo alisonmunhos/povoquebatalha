@@ -479,7 +479,7 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
           title: c.link_title ?? null,
           description: c.link_description ?? null,
           image: c.link_image ?? null,
-          status: (c.link_title || c.link_image ? "preview_confirmada" : "preview_provavel") as const,
+          status: (c.link_title || c.link_image ? "preview_confirmada" : "preview_provavel") as "preview_confirmada" | "preview_provavel",
         }
       : null;
 
