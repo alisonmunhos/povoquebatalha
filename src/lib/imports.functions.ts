@@ -2,7 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { hasRole } from "@/lib/authz";
 import { parsePhoneBR, type ParsedPhone } from "@/lib/phone";
+
 
 export const FIELD_KEYS = [
   "ignore",
@@ -573,13 +575,8 @@ export const listImports = createServerFn({ method: "GET" })
       }
     }
 
-    const { data: roleRow } = await sb
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    const isAdmin = !!roleRow;
+    const isAdmin = await hasRole(sb, context.userId, ["admin"]);
+
 
     return {
       rows: (imports ?? []).map((r) => ({

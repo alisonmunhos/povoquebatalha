@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
+
 
 const CONFIRM_PHRASE = "DESFAZER IMPORTAÇÃO";
 
@@ -19,16 +21,8 @@ type ContactRow = {
 
 
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function assertAdmin(sb: any, userId: string) {
-  const { data } = await sb
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (!data) throw new Error("Apenas administradores podem executar esta ação.");
-}
+
+
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchContactsForImport(sb: any, importId: string): Promise<ContactRow[]> {
@@ -87,7 +81,7 @@ export const getUndoPreview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => previewSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
     const { data: imp, error } = await sb
@@ -128,7 +122,7 @@ export const exportBackupCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => backupSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
     const { data: rows, error } = await sb
@@ -176,7 +170,7 @@ export const undoImport = createServerFn({ method: "POST" })
     if (data.confirmText.trim() !== CONFIRM_PHRASE) {
       throw new Error(`Confirmação inválida. Digite exatamente: ${CONFIRM_PHRASE}`);
     }
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
 
     const contacts = await fetchContactsForImport(sb, data.importId);
@@ -242,7 +236,7 @@ export const deleteImportFile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => deleteFileSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
+    await requireAdmin(context.supabase, context.userId);
     const sb = context.supabase;
     const { data: imp } = await sb
       .from("imports")

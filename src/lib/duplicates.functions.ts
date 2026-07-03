@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
+
 
 export const listImportedContactsTokens = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -86,12 +88,9 @@ export const mergeContacts = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => mergeSchema.parse(d))
   .handler(async ({ data, context }) => {
     // Permissão: somente admin
-    const { data: roles } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
-    if (!isAdmin) throw new Error("Apenas administradores podem mesclar contatos.");
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem mesclar contatos.");
+
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const overridesNorm: Record<string, string | null> = {};

@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireRole, requireStaff } from "@/lib/authz";
+
 
 type ConvEventPayload = Record<string, string | number | boolean | null>;
 
@@ -259,9 +261,9 @@ export const linkConversationToContact = createServerFn({ method: "POST" })
     contact_id: z.string().uuid(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: role } = await context.supabase.from("user_roles")
-      .select("role").eq("user_id", context.userId).in("role", ["admin", "vrm"]).maybeSingle();
-    if (!role) throw new Error("Apenas admin/vrm podem vincular conversas.");
+    await requireRole(context.supabase, context.userId, ["admin", "vrm"], "Apenas admin/vrm podem vincular conversas.");
+
+
 
     const { data: conv } = await context.supabase.from("conversations")
       .select("id, from_phone, contact_id").eq("id", data.conversation_id).maybeSingle();
@@ -320,9 +322,9 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
     consentimento_whatsapp: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: role } = await context.supabase.from("user_roles")
-      .select("role").eq("user_id", context.userId).in("role", ["admin", "vrm", "operador"]).maybeSingle();
-    if (!role) throw new Error("Apenas admin/vrm/operador podem criar contatos.");
+    await requireStaff(context.supabase, context.userId);
+
+
 
     const { data: conv } = await context.supabase.from("conversations")
       .select("id, from_phone, contact_id").eq("id", data.conversation_id).maybeSingle();

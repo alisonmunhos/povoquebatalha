@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { AppRole as CanonicalAppRole } from "@/lib/roles";
 
-export type AppRole = "admin" | "operador" | "vrm" | "comunicacao" | "territorio" | "agitador" | "leitor" | null;
+export type AppRole = CanonicalAppRole | null;
+
 
 /**
  * Lê o papel principal do usuário logado a partir de public.user_roles.

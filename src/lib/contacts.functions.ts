@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/lib/authz";
+
 
 const listSchema = z.object({
   search: z.string().optional(),
@@ -213,25 +215,8 @@ export const archiveContact = createServerFn({ method: "POST" })
   });
 
 // =========== EXCLUSÃO DEFINITIVA (só admin) ===========
-async function assertAdmin(ctx: { supabase: { from: (t: string) => unknown }; userId: string }) {
-  const client = ctx.supabase as unknown as {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (c: string, v: unknown) => {
-          eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
-        };
-      };
-    };
-  };
-  const { data, error } = await client
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw error as Error;
-  if (!data) throw new Error("Apenas administradores podem excluir contatos definitivamente.");
-}
+
+
 
 async function auditHardDelete(
   ctx: { supabase: { from: (t: string) => unknown }; userId: string },
@@ -270,7 +255,7 @@ export const deleteContact = createServerFn({ method: "POST" })
     if (data.confirmation !== "EXCLUIR") {
       throw new Error("Confirmação inválida. Digite EXCLUIR para prosseguir.");
     }
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { data: contact, error: getErr } = await context.supabase
       .from("contacts")
       .select("*")
@@ -298,7 +283,7 @@ export const deleteContactsBulk = createServerFn({ method: "POST" })
     if (data.confirmation !== expected) {
       throw new Error(`Confirmação inválida. Digite o número exato de contatos (${expected}).`);
     }
-    await assertAdmin(context);
+    await requireAdmin(context.supabase, context.userId);
     const { data: contacts, error: getErr } = await context.supabase
       .from("contacts")
       .select("id,nome,phone_e164,email,cidade,uf,origem")
