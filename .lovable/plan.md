@@ -1,47 +1,86 @@
-## O que já existe hoje
+# Plano — Captação rastreável, Usuário-Contato e Módulo Agitação
 
-- Webhook `on-receive` grava `inbound_messages` e tenta casar contato por `phone_last8`. Se não achar (caso do LID ou telefone novo), fica com `contact_id = null`.
-- No Inbox há o banner amarelo **"Conversa não vinculada"** com dois botões:
-  - **Criar contato rápido**: só pede Nome / Cidade / UF e cria um contato mínimo com `phone_raw = from_phone` (isso hoje salvaria `217879546974326@lid` como se fosse telefone — bug).
-  - **Vincular existente**: busca contato e funde a conversa.
+Entendi o escopo. Nada de refazer CRM, Campanhas, Inbox, Território, Mapa ou Z-API. Vou entregar em 5 blocos incrementais, cada um testável isoladamente. Aviso: é bastante coisa — sugiro aprovar o plano inteiro e eu executo bloco a bloco, pausando entre eles se você quiser validar.
 
-## O que precisa mudar
+## Bloco A — Banco de dados (1 migration)
 
-### 1. Detectar e tratar LID corretamente
-- No `on-receive` (`src/routes/api/public/zapi/$evento.ts`): quando `phone` terminar com `@lid` (ou não tiver dígitos suficientes), gravar em `inbound_messages` uma flag/coluna `is_lid = true` e não usar esse valor como telefone para busca. Continuar registrando `from_name` (nome do perfil WhatsApp) e o `senderPhone` alternativo se a Z-API mandar.
-- No card da conversa e no cabeçalho do chat: quando for LID, mostrar rótulo mais amigável — "Contato anônimo do WhatsApp (LID)" em vez do ID cru — com um tooltip explicando o que é.
-- Quando a Z-API entregar em algum campo do payload um telefone real junto do LID (`participantPhone`, `chatPhone`, `authorPhone`, `senderPhone`), usar esse telefone para tentar casar com a base **antes** de considerar não-vinculada.
+Novas tabelas + colunas, sem quebrar nada existente:
 
-### 2. Botão "Salvar contato" dentro do chat (com ficha completa)
-- Substituir o mini-formulário atual (Nome/Cidade/UF) por: **botão "Salvar como contato"** que abre a **mesma ficha de atualização cadastral que já existe** no fluxo público (`/atualizacao` — reaproveitar o componente/campos), porém:
-  - Em modo drawer/dialog dentro do Inbox (não navega para fora).
-  - **Todos os campos opcionais** (o operador preenche o que conseguir).
-  - Pré-preenchido com o que der para inferir: `nome` ← `from_name` do inbound; `phone_e164` ← telefone se vier no payload (não LID); nada nos demais.
-  - Cabeçalho do dialog explica: "Salvando contato a partir da conversa com [nome/LID]. Preencha o que souber; o resto pode ser completado depois."
-- Ao salvar: cria o `contact` normal (mesma tabela, mesma origem `manual` com `origem_detalhe = "inbox_quick_create"`), vincula a conversa e todo o histórico de `inbound_messages` daquele `from_phone`/LID, e habilita a resposta.
-- Se a conversa for LID sem telefone real conhecido, **avisar** que só será possível responder quando o contato mandar mensagem de um número real ou quando o operador editar o cadastro adicionando o telefone.
+- `tracked_form_links` — token seguro (nanoid 24), `created_by_user_id`, `source_module`, `source_form_type` (`cadastro_completo` | `receber_informacoes`), `label`, `is_active`, `expires_at`, `metadata jsonb`.
+- `contact_source_events` — histórico append-only de captações (`contact_id`, `source_user_id`, `source_module`, `source_form_type`, `source_link_id`, `event_type`, `metadata`).
+- `agitacao_contact_logs` — logs simples do agitador (`whatsapp_aberto`, `contato_realizado`, `observacao`, `pediu_atualizacao`, `nao_respondeu`).
+- `contacts`: novas colunas resumo — `primary_source_module`, `last_source_module`, `created_by_source_user_id`, `last_source_user_id`, `source_form_type`, `source_link_id`, `source_captured_at`, `is_system_user boolean`.
+- `profiles.contact_id uuid` (FK para `contacts.id`, nullable, ON DELETE SET NULL).
+- Enum `app_role`: adicionar valor `'agitador'`.
+- RLS + GRANTs em todas as novas tabelas. Políticas: agitador só enxerga contatos/logs cujo `source_user_id = auth.uid()` (via `contact_source_events`); admin/vrm veem tudo.
+- Função `resolve_tracked_link(token)` SECURITY DEFINER retornando só o necessário para o form público.
+- Função `link_or_create_user_contact(user_id, email, phone, full_name)` para o fluxo de convite.
 
-### 3. "Vincular existente" continua igual
-- Nenhuma mudança funcional além de reaproveitar o mesmo banner reorganizado.
+## Bloco B — Botão global "Adicionar contato" + links rastreáveis
 
-### 4. Ajustes cosméticos no cabeçalho da conversa não-vinculada
-- Trocar o título grande `217879546974326@lid` por **"Sem contato vinculado"** com o LID/telefone em fonte menor, monoespaçada, ao lado.
-- Manter o banner amarelo com a mensagem "Vincule esta conversa a um contato antes de responder" e os dois botões (agora um deles abre a ficha completa).
+- Componente `<AddContactButton />` reutilizável, mostrado no AppShell para papéis autorizados (admin, vrm, territorio, agitador).
+- Modal com 2 cards grandes (estilo do print): "Formulário de cadastro" / "Receber informações".
+- Ao abrir, cria um `tracked_form_links` via server fn `createTrackedLink({ source_module, source_form_type })` — deriva `source_module` da rota atual.
+- Ações: Abrir, Copiar, Compartilhar WhatsApp (wa.me).
+- Mostra "Este link será registrado como criado por: [Nome] · Origem: [Módulo]".
+- Rotas `/atualizacao` e `/inscrever` passam a ler `?ref=TOKEN`, resolvem via `resolve_tracked_link`, e ao submeter chamam server fn que cria/atualiza contato + insere `contact_source_events` + atualiza campos resumo em `contacts`. Deduplicação atual (telefone/e-mail) preservada.
 
-## Arquivos afetados
+## Bloco C — Ficha do contato + filtros Gestão da Base
 
-- `src/routes/api/public/zapi/$evento.ts` — detectar LID, tentar telefone alternativo do payload, gravar flag.
-- `src/components/CommunicationInbox.tsx` — refazer `UnlinkedBanner` + cabeçalho da conversa; adicionar botão "Salvar como contato" que abre o dialog da ficha completa.
-- Novo componente `src/components/QuickContactFromInboxDialog.tsx` — reaproveita os campos da ficha `/atualizacao` (nome, telefone, e-mail, cidade, bairro, UF, CEP, endereço, aniversário, notas etc.) todos opcionais.
-- `src/lib/communication.functions.ts` — expandir `createQuickContactFromConversation` para aceitar o payload completo (todos os campos opcionais) e não gravar LID em `phone_raw` quando `is_lid`.
-- (Opcional, só se necessário) Migration para adicionar `inbound_messages.is_lid boolean default false` — se não quiser migration, dá pra inferir por regex `@lid$` na hora de renderizar.
+- Nova seção "Origem e captação" na ficha do contato: origem principal, última origem, captado por (nome), módulo, data, link, e histórico completo (lista de `contact_source_events`).
+- Filtros novos em `/contatos` no grupo "Origem e captação":
+  - Módulo de origem (enum estruturado)
+  - Tipo de formulário
+  - Captado por (dropdown com nomes de usuários)
+  - Última origem
+  - Data de captação (range)
+  - Sem origem rastreada
+- Chips ativos no padrão atual.
 
-## Fora de escopo
+## Bloco D — Usuário-contato + fluxo de convite
 
-- Não vamos tentar "descobrir o telefone real por trás do LID" — o WhatsApp/Z-API não expõe isso de forma confiável.
-- Não vamos criar contato automaticamente no webhook (mantém decisão anterior: sempre precisa de ação humana).
-- Nenhuma mudança em campanhas, envio, ou fluxo público de atualização.
+- Ao aprovar/convidar usuário em `/usuarios`: campos nome completo + e-mail + papel (+ escopo se territorio). Botão gera link de convite (copiável) e envia e-mail via fluxo já existente.
+- Tela de aceite: e-mail pré-preenchido e travado; pede nome, WhatsApp (opcional recomendado), senha.
+- Ao aceitar: `link_or_create_user_contact` busca por e-mail → WhatsApp → cria contato novo se não achar. Marca `is_system_user=true`, `profiles.contact_id`, salva nome no perfil.
+- Trigger `handle_new_user` ajustado para não criar contato duplicado quando o fluxo de convite já criou.
+- Lista `/usuarios`: colunas nome, e-mail, papel, status (`convite_pendente`|`ativo`|`suspenso`|`revogado`|`convite_expirado`), contato vinculado (link para ficha), escopo, último acesso.
+- `merge_contacts` (função já existente): adicionar preservação de `profiles.contact_id` — se o merged tinha vínculo, migrar para o survivor; bloquear mesclagem automática entre dois contatos ambos vinculados a usuários (marcar duplicidade como "requer_revisao_manual"). Alerta na ficha e na tela de duplicidades.
 
-## Riscos
+## Bloco E — Papel Agitador + módulo `/agitacao`
 
-- Se algum contato antigo foi criado com `@lid` no `phone_raw` (bug do banner atual), o `phone_last8` dele está lixo. Posso incluir uma limpeza defensiva (transformar em `null` e marcar `whatsapp_status = 'invalido'`) — confirmar se quer que eu inclua.
+- Nova rota `/_authenticated/agitacao.tsx` mobile-first, cards estilo Território, **sem mapa**.
+- Topo, botões "Formulário de cadastro" / "Receber informações" (reutilizam Bloco B com `source_module=agitacao`).
+- KPIs: captados, cadastros completos, inscrições simples, pendentes de atualização, contatos realizados, novos 7 dias.
+- Busca (nome/telefone/cidade/bairro) + filtros locais.
+- Cards: nome, WhatsApp, cidade/bairro, tipo form, data captação, status cadastro, status contato realizado. Botões: Abrir WhatsApp (wa.me + log `whatsapp_aberto`), Marcar realizado, Observação, Detalhes simples.
+- Server fns escopadas ao `auth.uid()` — RLS garante isolamento server-side.
+- Redirect pós-login: se papel principal = agitador, cai em `/agitacao`. Menu do agitador oculta tudo menos `/agitacao`.
+- Guard de rota: agitador barrado em `/contatos`, `/campanhas`, `/mensagens`, `/relacionamento`, `/inbox`, `/mapa`, `/territorio`, `/usuarios`, `/importar` (redirect + 403).
+- Em `/usuarios` para papel agitador: resumo (total captados, últimos, link `/agitacao`, contato vinculado).
+- Em `/contatos` (admin/vrm): filtros já cobrem "captado por agitador" via Bloco C.
+
+## Auditoria
+
+Reutilizar `contact_audit_log` e `access_audit_log` existentes. Novos eventos: `tracked_link_created`, `tracked_link_used`, `user_invite_accepted`, `user_contact_linked`, `merge_blocked_user_link`, `agitador_whatsapp_aberto`, `agitador_contato_realizado`, `agitador_observacao`.
+
+## Fora deste plano
+
+Preview de link, CEP novo, pg_cron, chatbot, heatmap, ranking, gamificação, edição completa pelo agitador, Z-API para agitador, exportação CSV para agitador, múltiplos papéis simultâneos, mapa em Agitação, mudanças destrutivas no schema.
+
+## Ordem de execução sugerida
+
+1. Bloco A (migration) — aprovação separada da migration.
+2. Bloco B (botão + tracked links + resolução no form público).
+3. Bloco C (ficha + filtros).
+4. Bloco D (usuário-contato + convite + proteção de merge).
+5. Bloco E (papel agitador + módulo `/agitacao`).
+
+Cada bloco fica testável isoladamente conforme os 22 critérios da PARTE 19.
+
+## Dúvidas rápidas antes de começar
+
+1. **Papel único vs. múltiplos**: hoje `user_roles` já permite múltiplas linhas por usuário. Trato "papel principal" como o de maior privilégio (admin > vrm > territorio > agitador > user) para decidir landing page e menu — ok?
+2. **Formulário `/inscrever`**: existe hoje? Se não, faço uma versão enxuta (nome + WhatsApp + consentimento + cidade) reaproveitando componentes de `/atualizacao`.
+3. **Botão global em mobile**: FAB flutuante no canto inferior direito, ok?
+
+Posso começar pelo Bloco A assim que aprovar.

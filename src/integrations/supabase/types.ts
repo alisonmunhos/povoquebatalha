@@ -41,6 +41,44 @@ export type Database = {
         }
         Relationships: []
       }
+      agitacao_contact_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["agitacao_action"]
+          contact_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["agitacao_action"]
+          contact_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["agitacao_action"]
+          contact_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agitacao_contact_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_deliveries: {
         Row: {
           automation_id: string
@@ -526,6 +564,73 @@ export type Database = {
           },
         ]
       }
+      contact_source_events: {
+        Row: {
+          contact_id: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["source_event_type"]
+          id: string
+          metadata: Json
+          source_form_type:
+            | Database["public"]["Enums"]["source_form_type"]
+            | null
+          source_link_id: string | null
+          source_module: Database["public"]["Enums"]["source_module"]
+          source_user_contact_id: string | null
+          source_user_id: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          event_type: Database["public"]["Enums"]["source_event_type"]
+          id?: string
+          metadata?: Json
+          source_form_type?:
+            | Database["public"]["Enums"]["source_form_type"]
+            | null
+          source_link_id?: string | null
+          source_module: Database["public"]["Enums"]["source_module"]
+          source_user_contact_id?: string | null
+          source_user_id?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["source_event_type"]
+          id?: string
+          metadata?: Json
+          source_form_type?:
+            | Database["public"]["Enums"]["source_form_type"]
+            | null
+          source_link_id?: string | null
+          source_module?: Database["public"]["Enums"]["source_module"]
+          source_user_contact_id?: string | null
+          source_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_source_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_source_events_source_link_id_fkey"
+            columns: ["source_link_id"]
+            isOneToOne: false
+            referencedRelation: "tracked_form_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_source_events_source_user_contact_id_fkey"
+            columns: ["source_user_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_tags: {
         Row: {
           contact_id: string
@@ -573,6 +678,7 @@ export type Database = {
           cpf_hash: string | null
           created_at: string
           created_by: string | null
+          created_by_source_user_id: string | null
           custom_fields: Json
           email: string | null
           endereco: string | null
@@ -590,6 +696,11 @@ export type Database = {
             | null
           id: string
           import_id: string | null
+          is_system_user: boolean
+          last_source_module:
+            | Database["public"]["Enums"]["source_module"]
+            | null
+          last_source_user_id: string | null
           lat: number | null
           latitude: number | null
           lifecycle_status:
@@ -620,10 +731,18 @@ export type Database = {
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
           phone_whatsapp_candidate: string | null
+          primary_source_module:
+            | Database["public"]["Enums"]["source_module"]
+            | null
           profissao: string | null
           quer_voluntariar: boolean | null
           recad_token: string | null
           referencia: string | null
+          source_captured_at: string | null
+          source_form_type:
+            | Database["public"]["Enums"]["source_form_type"]
+            | null
+          source_link_id: string | null
           tipo: string | null
           tipo_contato: string | null
           uf: string | null
@@ -643,6 +762,7 @@ export type Database = {
           cpf_hash?: string | null
           created_at?: string
           created_by?: string | null
+          created_by_source_user_id?: string | null
           custom_fields?: Json
           email?: string | null
           endereco?: string | null
@@ -660,6 +780,11 @@ export type Database = {
             | null
           id?: string
           import_id?: string | null
+          is_system_user?: boolean
+          last_source_module?:
+            | Database["public"]["Enums"]["source_module"]
+            | null
+          last_source_user_id?: string | null
           lat?: number | null
           latitude?: number | null
           lifecycle_status?:
@@ -690,10 +815,18 @@ export type Database = {
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
           phone_whatsapp_candidate?: string | null
+          primary_source_module?:
+            | Database["public"]["Enums"]["source_module"]
+            | null
           profissao?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
           referencia?: string | null
+          source_captured_at?: string | null
+          source_form_type?:
+            | Database["public"]["Enums"]["source_form_type"]
+            | null
+          source_link_id?: string | null
           tipo?: string | null
           tipo_contato?: string | null
           uf?: string | null
@@ -715,6 +848,7 @@ export type Database = {
           cpf_hash?: string | null
           created_at?: string
           created_by?: string | null
+          created_by_source_user_id?: string | null
           custom_fields?: Json
           email?: string | null
           endereco?: string | null
@@ -732,6 +866,11 @@ export type Database = {
             | null
           id?: string
           import_id?: string | null
+          is_system_user?: boolean
+          last_source_module?:
+            | Database["public"]["Enums"]["source_module"]
+            | null
+          last_source_user_id?: string | null
           lat?: number | null
           latitude?: number | null
           lifecycle_status?:
@@ -762,10 +901,18 @@ export type Database = {
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
           phone_whatsapp_candidate?: string | null
+          primary_source_module?:
+            | Database["public"]["Enums"]["source_module"]
+            | null
           profissao?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
           referencia?: string | null
+          source_captured_at?: string | null
+          source_form_type?:
+            | Database["public"]["Enums"]["source_form_type"]
+            | null
+          source_link_id?: string | null
           tipo?: string | null
           tipo_contato?: string | null
           uf?: string | null
@@ -780,6 +927,13 @@ export type Database = {
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_source_link_id_fkey"
+            columns: ["source_link_id"]
+            isOneToOne: false
+            referencedRelation: "tracked_form_links"
             referencedColumns: ["id"]
           },
         ]
@@ -1342,6 +1496,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          contact_id: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -1352,6 +1507,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          contact_id?: string | null
           created_at?: string
           full_name?: string | null
           id: string
@@ -1362,6 +1518,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          contact_id?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
@@ -1371,7 +1528,15 @@ export type Database = {
           suspended_at?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       segments: {
         Row: {
@@ -1488,6 +1653,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tracked_form_links: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          metadata: Json
+          source_form_type: Database["public"]["Enums"]["source_form_type"]
+          source_module: Database["public"]["Enums"]["source_module"]
+          token: string
+          updated_at: string
+          use_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          metadata?: Json
+          source_form_type: Database["public"]["Enums"]["source_form_type"]
+          source_module: Database["public"]["Enums"]["source_module"]
+          token: string
+          updated_at?: string
+          use_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          metadata?: Json
+          source_form_type?: Database["public"]["Enums"]["source_form_type"]
+          source_module?: Database["public"]["Enums"]["source_module"]
+          token?: string
+          updated_at?: string
+          use_count?: number
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -1617,6 +1827,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_contact_source: {
+        Args: {
+          _contact_id: string
+          _event_type: Database["public"]["Enums"]["source_event_type"]
+          _metadata?: Json
+          _source_form_type: Database["public"]["Enums"]["source_form_type"]
+          _source_link_id: string
+          _source_module: Database["public"]["Enums"]["source_module"]
+          _source_user_id: string
+        }
+        Returns: string
+      }
       build_endereco_completo: {
         Args: {
           p_bairro: string
@@ -1626,6 +1848,15 @@ export type Database = {
           p_endereco: string
           p_numero: string
           p_uf: string
+        }
+        Returns: string
+      }
+      link_or_create_user_contact: {
+        Args: {
+          _email: string
+          _full_name: string
+          _phone: string
+          _user_id: string
         }
         Returns: string
       }
@@ -1641,11 +1872,28 @@ export type Database = {
       }
       normalize_phone_br: { Args: { input: string }; Returns: string }
       phone_last8: { Args: { input: string }; Returns: string }
+      resolve_tracked_link: {
+        Args: { _token: string }
+        Returns: {
+          created_by_name: string
+          expired: boolean
+          id: string
+          is_active: boolean
+          source_form_type: Database["public"]["Enums"]["source_form_type"]
+          source_module: Database["public"]["Enums"]["source_module"]
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
+      agitacao_action:
+        | "whatsapp_aberto"
+        | "contato_realizado"
+        | "observacao"
+        | "pediu_atualizacao"
+        | "nao_respondeu"
       app_role:
         | "admin"
         | "operador"
@@ -1653,6 +1901,7 @@ export type Database = {
         | "vrm"
         | "territorio"
         | "comunicacao"
+        | "agitador"
       campaign_status:
         | "draft"
         | "scheduled"
@@ -1707,6 +1956,27 @@ export type Database = {
         | "opted_out"
         | "canceled"
       segment_tipo: "dinamico" | "estatico"
+      source_event_type:
+        | "contato_criado"
+        | "contato_atualizado"
+        | "inscricao_simples"
+        | "cadastro_completo"
+        | "link_aberto"
+        | "origem_atribuida"
+      source_form_type: "cadastro_completo" | "receber_informacoes"
+      source_module:
+        | "gestao_base"
+        | "territorio"
+        | "agitacao"
+        | "mapa"
+        | "inbox"
+        | "ficha_contato"
+        | "relacionamento"
+        | "link_publico"
+        | "formulario_publico"
+        | "importacao"
+        | "manual"
+        | "outro"
       tag_categoria:
         | "perfil"
         | "territorio"
@@ -1857,6 +2127,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agitacao_action: [
+        "whatsapp_aberto",
+        "contato_realizado",
+        "observacao",
+        "pediu_atualizacao",
+        "nao_respondeu",
+      ],
       app_role: [
         "admin",
         "operador",
@@ -1864,6 +2141,7 @@ export const Constants = {
         "vrm",
         "territorio",
         "comunicacao",
+        "agitador",
       ],
       campaign_status: [
         "draft",
@@ -1925,6 +2203,29 @@ export const Constants = {
         "canceled",
       ],
       segment_tipo: ["dinamico", "estatico"],
+      source_event_type: [
+        "contato_criado",
+        "contato_atualizado",
+        "inscricao_simples",
+        "cadastro_completo",
+        "link_aberto",
+        "origem_atribuida",
+      ],
+      source_form_type: ["cadastro_completo", "receber_informacoes"],
+      source_module: [
+        "gestao_base",
+        "territorio",
+        "agitacao",
+        "mapa",
+        "inbox",
+        "ficha_contato",
+        "relacionamento",
+        "link_publico",
+        "formulario_publico",
+        "importacao",
+        "manual",
+        "outro",
+      ],
       tag_categoria: [
         "perfil",
         "territorio",
