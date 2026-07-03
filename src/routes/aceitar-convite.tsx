@@ -21,6 +21,7 @@ type State =
 
 function AceitarConvite() {
   const router = useRouter();
+  const linkContact = useServerFn(linkCurrentUserContact);
   const [state, setState] = useState<State>({ kind: "loading" });
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
