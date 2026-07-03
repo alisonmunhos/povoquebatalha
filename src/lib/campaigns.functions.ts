@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
 import { applyCrmFilters, crmFilterSchema, type CrmFilters } from "@/lib/crm-filters";
+import { renderVars, sendMessage } from "@/lib/wa-send.server";
 
 const campaignInput = z.object({
   id: z.string().uuid().optional(),
