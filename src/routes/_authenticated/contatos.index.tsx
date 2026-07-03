@@ -327,6 +327,16 @@ function Contatos() {
               <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setConfirmDelete(true)}
+                  title="Excluir definitivamente (apenas admin)"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" /> Excluir
+                </Button>
+              )}
             </div>
 
             <div className="h-6 w-px bg-primary-foreground/30" />
