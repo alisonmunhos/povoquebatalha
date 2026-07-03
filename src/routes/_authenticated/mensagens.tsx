@@ -44,7 +44,7 @@ function MensagensPage() {
     <div className="p-6 md:p-10 max-w-6xl">
     <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
       
-      <header className="flex items-center gap-3 mb-6">
+      <header className="flex items-center gap-3 mb-3">
         <MessageSquareText className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-2xl font-semibold">Mensagens e automações</h1>
@@ -53,6 +53,13 @@ function MensagensPage() {
           </p>
         </div>
       </header>
+      <div className="rounded-md border bg-primary/5 text-primary/90 text-xs p-3 flex gap-2 mb-4">
+        <Info className="h-4 w-4 shrink-0 mt-0.5" />
+        <div>
+          Mensagem e campanha usam o mesmo editor. Uma <b>mensagem salva</b> vira modelo reutilizável.
+          Uma <b>campanha</b> dispara essa mensagem para um público-alvo, agora ou agendada.
+        </div>
+      </div>
       <div className="border-b mb-4 flex gap-1">
         <TabBtn active={tab === "system"} onClick={() => setTab("system")} icon={<Zap className="h-4 w-4" />}>Mensagens do sistema</TabBtn>
         <TabBtn active={tab === "quick_reply"} onClick={() => setTab("quick_reply")} icon={<Reply className="h-4 w-4" />}>Respostas prontas</TabBtn>
