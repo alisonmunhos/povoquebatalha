@@ -141,6 +141,7 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
     let logsQ = context.supabase
       .from("territory_contact_logs")
       .select("contact_id,action,note,created_at,user_id")
+      .is("hidden_at", null)
       .order("created_at", { ascending: false });
     if (sinceIso) logsQ = logsQ.gte("created_at", sinceIso);
     if (data.actionScope === "own") logsQ = logsQ.eq("user_id", context.userId);
@@ -202,8 +203,10 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
         // Não abordado OU alguma ação selecionada → união = universo - (any - includeIds)
         const exclude = idsWith.any.filter((i) => !includeIds.has(i));
         if (exclude.length > 0) q = q.not("id", "in", `(${exclude.join(",")})`);
-      } else {
-        // filtro vazio efetivo
+      } else if (!includeNaoAbordado && includeIds.size === 0) {
+        // Filtros de ações selecionados, mas nenhuma ação ativa existe.
+        // Deve retornar lista vazia, não cair no universo completo.
+        q = q.eq("id", "00000000-0000-0000-0000-000000000000");
       }
     }
 
@@ -290,6 +293,7 @@ export const getMyFieldSummaryToday = createServerFn({ method: "GET" })
       .from("territory_contact_logs")
       .select("action,contact_id")
       .eq("user_id", context.userId)
+      .is("hidden_at", null)
       .gte("created_at", since.toISOString());
     if (error) throw error;
     const rows = (data ?? []) as Array<{ action: string; contact_id: string }>;
