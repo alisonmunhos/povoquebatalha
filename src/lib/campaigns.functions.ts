@@ -460,7 +460,6 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
       return { processed: 0, ok: 0, fail: 0, skipped: 0, done: true as const };
     }
 
-    const { zapi } = await import("@/integrations/zapi/client.server");
     let ok = 0, fail = 0, skipped = 0;
     const minMs = c.delay_min_ms ?? 3000;
     const maxMs = c.delay_max_ms ?? 8000;
@@ -473,11 +472,33 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
       mediaUrl = signed?.signedUrl ?? null;
     }
 
+    // Metadados de link estruturado da campanha (se o autor forneceu).
+    const linkMeta = c.link_url
+      ? {
+          url: c.link_url,
+          title: c.link_title ?? null,
+          description: c.link_description ?? null,
+          image: c.link_image ?? null,
+          status: (c.link_title || c.link_image ? "preview_confirmada" : "preview_provavel") as const,
+        }
+      : null;
+
+    // Anexo estruturado (send-image / send-document) montado uma vez.
+    const attachment = mediaUrl && c.midia_mime
+      ? {
+          signedUrl: mediaUrl,
+          mime: c.midia_mime,
+          filename: c.midia_filename ?? "arquivo",
+        }
+      : null;
+
     for (const r of recs) {
       const { data: cur } = await context.supabase.from("campaigns").select("status").eq("id", data.id).single();
       if (!cur || cur.status !== "running") break;
 
       const ct = (r as unknown as { contacts: { phone_e164: string | null; consentimento_whatsapp: boolean; opt_out_at: string | null } | null }).contacts;
+      // Pré-check de elegibilidade — mantém status "opted_out" com a mesma mensagem
+      // usada antes da unificação, para não mudar comportamento visível ao usuário.
       if (!ct?.phone_e164 || !ct.consentimento_whatsapp || ct.opt_out_at) {
         await context.supabase.from("campaign_recipients").update({
           status: "opted_out", failed_at: new Date().toISOString(), erro: "sem consentimento ou opt-out",
@@ -487,73 +508,52 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
       }
 
       await context.supabase.from("campaign_recipients").update({ status: "sending", tentativas: 1 }).eq("id", r.id);
-      try {
-        const phone = ct.phone_e164.replace(/\D+/g, "");
-        let result: { messageId?: string; zaapId?: string; id?: string };
-        let endpointUsed: "send-text" | "send-image" | "send-document" | "send-link" = "send-text";
-        let fallbackReason: string | null = null;
-        const bodyRendered = ensureLinkInBody(r.rendered_message ?? c.mensagem_template, c.link_url);
-        const caption = bodyRendered || c.midia_caption || "";
-        // Detect URL to persist link metadata even when we don't use send-link.
-        const urlMatch = bodyRendered.match(/\bhttps?:\/\/[^\s<>"]+/i);
-        const linkUrlFinal = c.link_url ?? urlMatch?.[0] ?? null;
-        const hasOgPreview = Boolean(linkUrlFinal && (c.link_title || c.link_image));
-        let previewStatus: string | null = linkUrlFinal
-          ? (hasOgPreview ? "preview_confirmada" : "preview_provavel")
-          : "sem_link";
 
-        if (c.tipo === "document" && mediaUrl) {
-          const ext = (c.midia_filename ?? "arquivo.pdf").split(".").pop()?.toLowerCase() ?? "pdf";
-          result = await zapi.sendDocument(phone, mediaUrl, c.midia_filename ?? "arquivo", ext);
-          endpointUsed = "send-document";
-          if (caption.trim()) await zapi.sendText(phone, caption);
-        } else if (c.tipo === "image" && mediaUrl) {
-          result = await zapi.sendImage(phone, mediaUrl, caption);
-          endpointUsed = "send-image";
-        } else if (hasOgPreview && linkUrlFinal) {
-          // Usa /send-link com metadados OG já capturados — prévia garantida, não depende do WhatsApp buscar o link.
-          try {
-            result = await zapi.sendLink({
-              phone,
-              message: bodyRendered,
-              linkUrl: linkUrlFinal,
-              title: c.link_title ?? "",
-              linkDescription: c.link_description ?? "",
-              image: c.link_image ?? "",
-              linkType: "LARGE",
-            });
-            endpointUsed = "send-link";
-            previewStatus = "preview_confirmada";
-          } catch (e) {
-            fallbackReason = `send-link falhou: ${e instanceof Error ? e.message : "erro"}`;
-            console.warn("[campaign] send-link fallback ->", fallbackReason);
-            result = await zapi.sendText(phone, bodyRendered);
-            endpointUsed = "send-text";
-            previewStatus = "preview_provavel";
-          }
-        } else {
-          result = await zapi.sendText(phone, bodyRendered);
-          endpointUsed = "send-text";
-        }
+      // Texto para o motor: se a campanha tem anexo tipo imagem sem legenda no corpo
+      // renderizado, preserva o midia_caption como fallback (comportamento anterior).
+      const bodyText = r.rendered_message ?? c.mensagem_template ?? "";
+      const textForSend = bodyText.trim().length === 0 && c.midia_caption ? c.midia_caption : bodyText;
+
+      const result = await sendMessage({
+        contact: {
+          id: r.contact_id,
+          phone_e164: ct.phone_e164,
+        },
+        text: textForSend,
+        textAlreadyRendered: true,
+        link: linkMeta,
+        attachment,
+        origin: "campaign",
+        useSendLink: true, // campanhas priorizam /send-link quando há metadados OG (comportamento anterior)
+        skipValidations: true, // já validamos acima com o skip específico da campanha
+      });
+
+      if (result.ok) {
         await context.supabase.from("campaign_recipients").update({
           status: "sent", sent_at: new Date().toISOString(),
-          message_id: result.messageId ?? result.id ?? null, zaap_id: result.zaapId ?? null,
-          endpoint_used: endpointUsed,
-          link_url: linkUrlFinal,
-          link_title: c.link_title ?? null,
-          link_description: c.link_description ?? null,
-          link_image: c.link_image ?? null,
-          preview_status: previewStatus,
-          rendered_message: bodyRendered,
-          erro: fallbackReason,
+          message_id: result.message_id, zaap_id: result.zaap_id,
+          endpoint_used: result.endpoint_used,
+          link_url: result.link_url,
+          link_title: result.link_title ?? c.link_title ?? null,
+          link_description: result.link_description ?? c.link_description ?? null,
+          link_image: result.link_image ?? c.link_image ?? null,
+          preview_status: result.preview_status,
+          rendered_message: result.rendered_text,
+          erro: result.fallback_reason,
         } as never).eq("id", r.id);
         await context.supabase.from("message_events").insert({
           contact_id: r.contact_id, recipient_id: r.id, tipo: "sent",
-          payload: { endpoint: endpointUsed, preview_status: previewStatus, fallback_reason: fallbackReason, requested_preview: { title: c.link_title, image: c.link_image, description: c.link_description }, response: result } as never,
+          payload: {
+            endpoint: result.endpoint_used,
+            preview_status: result.preview_status,
+            fallback_reason: result.fallback_reason,
+            requested_preview: { title: c.link_title, image: c.link_image, description: c.link_description },
+            response: { messageId: result.message_id, zaapId: result.zaap_id },
+          } as never,
         });
         ok++;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "erro desconhecido";
+      } else {
+        const msg = result.error ?? "erro desconhecido";
         await context.supabase.from("campaign_recipients").update({
           status: "failed", failed_at: new Date().toISOString(), erro: msg,
         }).eq("id", r.id);
