@@ -18,9 +18,9 @@ export const listMapContacts = createServerFn({ method: "POST" })
     const { data: rows, error } = await q;
     if (error) throw error;
 
-
     const ids = (rows ?? []).map((r) => r.id);
-    let tagMap: Record<string, string[]> = {};
+    const tagMap: Record<string, string[]> = {};
+    const lastActionMap: Record<string, { action: string; created_at: string }> = {};
     if (ids.length) {
       const { data: t } = await context.supabase
         .from("contact_tags")
@@ -32,8 +32,34 @@ export const listMapContacts = createServerFn({ method: "POST" })
         if (!tg) continue;
         (tagMap[cid] ??= []).push(tg.nome);
       }
+
+      // Última ação de campo por contato (para colorir os pins)
+      const { data: logs } = await context.supabase
+        .from("territory_contact_logs")
+        .select("contact_id,action,created_at")
+        .in("contact_id", ids)
+        .is("hidden_at", null)
+        .in("action", ["contato_realizado", "nao_encontrado", "observacao", "whatsapp_aberto", "pediu_atualizacao"])
+        .order("created_at", { ascending: false })
+        .limit(10000);
+      for (const l of logs ?? []) {
+        const cid = (l as { contact_id: string }).contact_id;
+        if (!lastActionMap[cid]) {
+          lastActionMap[cid] = {
+            action: (l as { action: string }).action,
+            created_at: (l as { created_at: string }).created_at,
+          };
+        }
+      }
     }
-    return { rows: (rows ?? []).map((r) => ({ ...r, tags: tagMap[r.id] ?? [] })), noScope: false };
+    return {
+      rows: (rows ?? []).map((r) => ({
+        ...r,
+        tags: tagMap[r.id] ?? [],
+        last_action: lastActionMap[r.id] ?? null,
+      })),
+      noScope: false,
+    };
   });
 
 export const listUnmappedContacts = createServerFn({ method: "POST" })
