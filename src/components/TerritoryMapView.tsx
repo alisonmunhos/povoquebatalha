@@ -113,20 +113,30 @@ export function TerritoryMapView() {
   const runFn = useServerFn(runGeocodingBatch);
   const qc = useQueryClient();
 
-  const [filters, setFilters] = useState<{ cidades?: string[]; bairros?: string[]; tipo_contato?: string; consent?: "sim" | "nao" }>({});
+  const [filters, setFilters] = useState<{ cidades?: string[]; bairros?: string[]; tipo_contato?: string; consent?: "sim" | "nao"; onlyExact?: boolean }>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const stats = useSuspenseQuery({ queryKey: ["geocode-stats"], queryFn: () => statsFn() });
   const facets = useSuspenseQuery({ queryKey: ["map-facets"], queryFn: () => facetsFn() });
   const contacts = useSuspenseQuery({
     queryKey: ["map-contacts", filters],
-    queryFn: () => listFn({ data: filters }),
+    queryFn: () => listFn({ data: { cidades: filters.cidades, bairros: filters.bairros, tipo_contato: filters.tipo_contato, consent: filters.consent } }),
   });
 
   const runBatch = useMutation({
     mutationFn: () => runFn({ data: { limit: 15 } }),
     onSuccess: (r) => {
-      toast.success(`Geocode: ${r.ok} localizados, ${r.aprox} aproximados, ${r.fail} falha (${r.cached} em cache)`);
+      toast.success(`Geocode: ${r.ok} exatos, ${r.aprox} aproximados, ${r.fail} sem sucesso (${r.cached} em cache).`);
+      qc.invalidateQueries({ queryKey: ["geocode-stats"] });
+      qc.invalidateQueries({ queryKey: ["map-contacts"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const runImprecise = useMutation({
+    mutationFn: () => runFn({ data: { limit: 20, onlyImprecise: true } }),
+    onSuccess: (r) => {
+      toast.success(`Refino: ${r.ok} agora exatos, ${r.aprox} ainda aproximados, ${r.fail} sem sucesso.`);
       qc.invalidateQueries({ queryKey: ["geocode-stats"] });
       qc.invalidateQueries({ queryKey: ["map-contacts"] });
     },
@@ -137,10 +147,18 @@ export function TerritoryMapView() {
     (filters.cidades?.length ?? 0) +
     (filters.bairros?.length ?? 0) +
     (filters.tipo_contato ? 1 : 0) +
-    (filters.consent ? 1 : 0);
+    (filters.consent ? 1 : 0) +
+    (filters.onlyExact ? 1 : 0);
 
-  const pinCount = contacts.data.rows.length;
+  const visibleRows = useMemo(
+    () => filters.onlyExact
+      ? contacts.data.rows.filter((r) => r.geocoding_precision === "exato")
+      : contacts.data.rows,
+    [contacts.data.rows, filters.onlyExact],
+  );
+  const pinCount = visibleRows.length;
   const semCoord = stats.data.pendente + stats.data.erro + stats.data.semEndereco;
+  const imprecisos = stats.data.rua + stats.data.cep + stats.data.cidade;
 
   return (
     <div className="flex flex-col md:flex-row w-full">
