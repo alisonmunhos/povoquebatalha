@@ -119,8 +119,11 @@ export const getMapContactDetail = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: c, error } = await context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,endereco_completo,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda")
-      .eq("id", data.id).maybeSingle();
+      .select(
+        "id,nome,phone_e164,phone_whatsapp_candidate,bairro,cidade,uf,cep,endereco,numero,complemento,endereco_completo,latitude,longitude,profissao,tipo_contato,lifecycle_status,consentimento_whatsapp,opt_out_at,whatsapp_status,formas_ajuda",
+      )
+      .eq("id", data.id)
+      .maybeSingle();
     if (error) throw error;
     if (!c) throw new Error("Contato não encontrado.");
 
@@ -135,13 +138,26 @@ export const getMapContactDetail = createServerFn({ method: "POST" })
       })
       .filter(Boolean) as string[];
 
-    const { data: audit } = await context.supabase
-      .from("contact_audit_log")
-      .select("action,changes,created_at")
+    // Últimas ações de campo (para mostrar timeline curta e o status atual)
+    const { data: fieldLogs } = await context.supabase
+      .from("territory_contact_logs")
+      .select("action,note,created_at")
       .eq("contact_id", data.id)
+      .is("hidden_at", null)
       .order("created_at", { ascending: false })
-      .limit(3);
+      .limit(5);
 
-    return { contact: c, tags, timeline: audit ?? [] };
+    const last_action = (fieldLogs ?? []).find((l) =>
+      ["contato_realizado", "nao_encontrado", "observacao", "whatsapp_aberto", "pediu_atualizacao"].includes(
+        (l as { action: string }).action,
+      ),
+    ) ?? null;
+
+    return {
+      contact: c,
+      tags,
+      timeline: (fieldLogs ?? []) as Array<{ action: string; note: string | null; created_at: string }>,
+      last_action: last_action as { action: string; note: string | null; created_at: string } | null,
+    };
   });
 
