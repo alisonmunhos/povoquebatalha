@@ -51,7 +51,14 @@ function CampanhaDetail() {
 
   const preview = useMutation({
     mutationFn: () => previewFn({ data: { id } }),
-    onSuccess: (r) => toast.success(`Prévia: ${r.elegíveis} elegíveis de ${r.totalBruto} no público bruto`),
+    onSuccess: (r) => {
+      const detalhes: string[] = [];
+      if (r.semConsent) detalhes.push(`${r.semConsent} sem consentimento`);
+      if (r.optOut) detalhes.push(`${r.optOut} opt-out`);
+      if (r.arquivados) detalhes.push(`${r.arquivados} arquivados`);
+      if (r.semTelefone) detalhes.push(`${r.semTelefone} sem telefone`);
+      toast.success(`Prévia: ${r.elegíveis} aptos de ${r.totalBruto}${detalhes.length ? ` · ${detalhes.join(" · ")}` : ""}`);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const prepare = useMutation({
