@@ -1,6 +1,12 @@
 // SERVER-ONLY: dispara automações após um evento e registra em automation_deliveries.
 // Chamado a partir dos handlers de rotas públicas (POST /api/public/forms/*).
 // Nunca importar de rotas ou *.functions.ts em módulo top-level; use await import(...).
+//
+// Envio unificado via `sendMessage` (src/lib/wa-send.server.ts). O render de variáveis
+// é delegado a `renderVars`; `renderTemplate` permanece exportado como wrapper fino
+// apenas para não quebrar chamadas em messages.functions.ts (fase 2 unifica lá também).
+
+import { renderVars, sendMessage } from "@/lib/wa-send.server";
 
 type ContactCtx = {
   id: string;
@@ -14,36 +20,16 @@ type ContactCtx = {
   arquivado_at?: string | null;
 };
 
-function firstName(nome: string | null | undefined): string {
-  if (!nome) return "";
-  const t = nome.trim().split(/\s+/)[0] ?? "";
-  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
-}
-
+/**
+ * Wrapper de compatibilidade — delega ao renderizador único (`renderVars`).
+ * Preserva o comportamento anterior de "variável desconhecida vira string vazia"
+ * via `unknownAsEmpty: true`.
+ */
 export function renderTemplate(
   body: string,
   ctx: { contact: ContactCtx; origin?: string | null },
 ): string {
-  const c = ctx.contact;
-  const origin = ctx.origin ?? "";
-  const linkAtual = c.recad_token && origin
-    ? `${origin}/atualizacao?t=${c.recad_token}`
-    : origin
-      ? `${origin}/atualizacao`
-      : "";
-  const linkInscr = origin ? `${origin}/inscrever` : "";
-  const values: Record<string, string> = {
-    nome: c.nome ?? "",
-    primeiro_nome: firstName(c.nome),
-    cidade: c.cidade ?? "",
-    bairro: c.bairro ?? "",
-    link_atualizacao: linkAtual,
-    link_recadastro: linkAtual,
-    link_inscricao: linkInscr,
-  };
-  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_, k: string) => {
-    return values[k] ?? "";
-  });
+  return renderVars(body, ctx.contact, { origin: ctx.origin ?? null, unknownAsEmpty: true });
 }
 
 /**
@@ -81,7 +67,8 @@ export async function triggerAutomationsForEvent(params: {
         status: "queued", error: null,
       }, { onConflict: "automation_id,contact_id" });
 
-      // Consentimento / opt-out / arquivado
+      // Consentimento / opt-out / arquivado — regras de negócio por automação,
+      // aplicadas ANTES de chamar o motor de envio (por isso `skipValidations: true` abaixo).
       if (a.require_consent && !contact.consentimento_whatsapp) {
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
@@ -127,32 +114,38 @@ export async function triggerAutomationsForEvent(params: {
         continue;
       }
 
-      let rendered = renderTemplate(tpl.body, { contact, origin });
+      let rendered = renderVars(tpl.body, contact, { origin: origin ?? null, unknownAsEmpty: true });
       // Anexa o link do template ao corpo (se ainda não estiver presente)
       // para que o WhatsApp gere a prévia da postagem no cliente do contato.
       if (tpl.link && !rendered.includes(tpl.link)) {
         rendered = `${rendered}\n\n${tpl.link}`;
       }
 
-      // Envia via Z-API
-      try {
-        const { zapi } = await import("@/integrations/zapi/client.server");
-        const phone = contact.phone_e164.replace(/^\+/, "");
-        const res = await zapi.sendText(phone, rendered);
-        const msgId = res.messageId ?? res.zaapId ?? res.id ?? null;
+      // Envia via motor único. `skipValidations: true` porque já validamos acima
+      // com as regras específicas da automação (require_consent, arquivado, etc).
+      const result = await sendMessage({
+        contact,
+        text: rendered,
+        textAlreadyRendered: true,
+        origin: "automation",
+        skipValidations: true,
+      });
+
+      if (result.ok) {
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: tpl.id,
-          status: "sent", error: null, zapi_message_id: msgId,
-          rendered_body: rendered, sent_at: new Date().toISOString(),
+          status: "sent", error: null,
+          zapi_message_id: result.message_id ?? result.zaap_id ?? null,
+          rendered_body: result.rendered_text, sent_at: new Date().toISOString(),
         }, { onConflict: "automation_id,contact_id" });
-      } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        console.error("[automations] falha ao enviar Z-API", {
+      } else {
+        const err = result.error ?? result.fallback_reason ?? "erro desconhecido";
+        console.error("[automations] falha ao enviar", {
           eventKey, contactId: contact.id, automationId: a.id, error: err,
         });
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: tpl.id,
-          status: "error", error: err, rendered_body: rendered,
+          status: "error", error: err, rendered_body: result.rendered_text,
         }, { onConflict: "automation_id,contact_id" });
       }
     }
