@@ -1,10 +1,11 @@
 import { Link, Outlet, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
-  MessageCircle,
+  MessageCircle, Menu, X,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
