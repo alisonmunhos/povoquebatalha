@@ -218,6 +218,10 @@ const createFromSelectionSchema = z.object({
   agendado_para: z.string().datetime().optional().nullable(),
   delay_min_ms: z.number().int().min(500).max(60000).default(3000),
   delay_max_ms: z.number().int().min(500).max(120000).default(8000),
+  link_url: z.string().url().optional().nullable(),
+  link_title: z.string().max(300).optional().nullable(),
+  link_description: z.string().max(600).optional().nullable(),
+  link_image: z.string().url().optional().nullable(),
   save_as_template: z.object({ title: z.string().trim().min(2).max(120), category: z.string().max(60).optional() }).optional(),
 });
 
