@@ -394,7 +394,9 @@ export function CommunicationInbox() {
               <div className="flex justify-between items-baseline gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   {c.flagged && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
-                  <span className="font-medium text-sm truncate">{c.nome ?? c.phone ?? "Sem nome"}</span>
+                  <span className="font-medium text-sm truncate">
+                    {c.nome ?? (isLidPhone(c.phone) ? "Sem contato vinculado" : (c.phone ?? "Sem nome"))}
+                  </span>
                 </div>
                 <span className="text-[10px] text-muted-foreground shrink-0">{fmtRel(c.last_at)}</span>
               </div>
