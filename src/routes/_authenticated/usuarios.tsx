@@ -12,6 +12,8 @@ import {
   generatePasswordResetLink,
   sendPasswordResetEmail,
   listAccessAudit,
+  listPendingApprovals,
+  approvePendingAgitador,
 } from "@/lib/users.functions";
 import {
   UserPlus,
