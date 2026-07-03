@@ -89,9 +89,8 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     setEditing({ kind, active: true, variables: VARIAVEIS });
   }
 
-  const signUpload = useServerFn(signCampaignMediaUpload);
   const [testPhone, setTestPhone] = useState("");
-  const [uploading, setUploading] = useState(false);
+
 
   async function save() {
     if (!editing?.title || !editing.body) return toast.error("Título e mensagem são obrigatórios");
