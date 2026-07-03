@@ -23,6 +23,7 @@ import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions
 import { MessagePreview, type PlannedEndpoint } from "@/components/MessagePreview";
 import { supabase } from "@/integrations/supabase/client";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { MESSAGE_VARIABLES, renderMessageVars } from "@/lib/message-vars";
 
 type Source = { ids: string[]; filters?: never } | { filters: Partial<CrmFilters>; ids?: never };
 type Props = {
@@ -33,36 +34,17 @@ type Props = {
   labelSelecao: string; // e.g. "12 selecionados" ou "todos do filtro atual"
 };
 
-const VARIABLES = [
-  "saudacao", "primeiro_nome", "primeiro_nome_ou_ola", "nome",
-  "cidade", "bairro", "uf", "link_atualizacao", "link_inscricao",
-];
+const VARIABLES = MESSAGE_VARIABLES;
 const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️", "🔗", "📍", "⏰"];
 
-function saudacaoAgora(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return "Bom dia";
-  if (h >= 12 && h < 18) return "Boa tarde";
-  return "Boa noite";
+function personalize(
+  tpl: string,
+  c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null; recad_token?: string | null },
+) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return renderMessageVars(tpl, c, { origin });
 }
 
-function personalize(tpl: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null }) {
-  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
-  const values: Record<string, string> = {
-    nome: c.nome ?? "",
-    primeiro_nome: primeiro,
-    primeiro_nome_ou_ola: primeiro || "Olá",
-    cidade: c.cidade ?? "",
-    bairro: c.bairro ?? "",
-    uf: c.uf ?? "",
-    saudacao: saudacaoAgora(),
-    link_atualizacao: `${typeof window !== "undefined" ? window.location.origin : ""}/atualizacao`,
-    link_inscricao: `${typeof window !== "undefined" ? window.location.origin : ""}/inscrever`,
-  };
-  return tpl.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
-    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
-  );
-}
 
 
 export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }: Props) {

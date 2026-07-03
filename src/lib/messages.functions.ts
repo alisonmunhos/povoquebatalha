@@ -128,10 +128,24 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
     const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: data.phone });
     const phoneE164 = norm as string | null;
     if (!phoneE164) throw new Error("Telefone inválido");
-    const { renderTemplate } = await import("@/lib/automations.server");
-    let rendered = renderTemplate(tpl.body, {
+
+    // Assina anexo (se houver) para o motor unificado enviar como imagem/documento/áudio.
+    let attachment: { signedUrl: string; mime: string; filename: string } | null = null;
+    if (tpl.media_path && tpl.media_mime) {
+      const { data: signed } = await supabaseAdmin
+        .storage.from("campaign-media").createSignedUrl(tpl.media_path, 60 * 15);
+      if (signed?.signedUrl) {
+        attachment = {
+          signedUrl: signed.signedUrl,
+          mime: tpl.media_mime,
+          filename: tpl.media_filename ?? tpl.media_path.split("/").pop() ?? "anexo",
+        };
+      }
+    }
+
+    const { sendMessage } = await import("@/lib/wa-send.server");
+    const res = await sendMessage({
       contact: {
-        id: "test",
         nome: "Teste",
         phone_e164: phoneE164,
         cidade: null,
@@ -140,32 +154,17 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
         consentimento_whatsapp: true,
         opt_out_at: null,
       },
+      text: `[TESTE] ${tpl.body}`,
+      renderOptions: { unknownAsEmpty: true },
+      link: tpl.link ? { url: tpl.link, status: "preview_provavel" } : null,
+      attachment,
+      origin: "template_test",
+      skipValidations: true,
     });
-    if (tpl.link && !rendered.includes(tpl.link)) {
-      rendered = `${rendered}\n\n${tpl.link}`;
-    }
-    const phone = phoneE164.replace(/^\+/, "");
-    const { zapi } = await import("@/integrations/zapi/client.server");
-    // Se houver anexo, envia como imagem/documento com legenda
-    if (tpl.media_path) {
-      const { data: signed } = await supabaseAdmin
-        .storage.from("campaign-media").createSignedUrl(tpl.media_path, 60 * 15);
-      if (signed?.signedUrl) {
-        const caption = `[TESTE] ${rendered}`;
-        if (tpl.media_mime && tpl.media_mime.startsWith("image/")) {
-          const res = await zapi.sendImage(phone, signed.signedUrl, caption);
-          return { ok: true, id: res.messageId ?? res.zaapId ?? null };
-        }
-        // PDF/documento: envia texto separado + mensagem sinalizando anexo
-        // (Z-API tem endpoint próprio para documento; nesta versão simplificada mandamos como imagem cai em erro
-        // então mandamos só o texto com o link assinado embutido para o teste.)
-        const res = await zapi.sendText(phone, `${caption}\n\n📎 ${tpl.media_filename ?? "anexo"}: ${signed.signedUrl}`);
-        return { ok: true, id: res.messageId ?? res.zaapId ?? res.id ?? null };
-      }
-    }
-    const res = await zapi.sendText(phone, `[TESTE] ${rendered}`);
-    return { ok: true, id: res.messageId ?? res.zaapId ?? res.id ?? null };
+    if (!res.ok) throw new Error(res.error ?? "Falha no envio de teste");
+    return { ok: true, id: res.message_id ?? res.zaap_id ?? null };
   });
+
 
 // Reenvia manualmente uma automação para um contato específico
 export const retryAutomationDelivery = createServerFn({ method: "POST" })
