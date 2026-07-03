@@ -1,28 +1,35 @@
-## Objetivo
-Cada card no módulo Território deve ter um botão persistente para **retornar o contato para "Ainda não abordado"**, sem depender do toast "Desfazer" (que some rápido e não aparece para ações antigas).
+## Diagnóstico
 
-## Mudanças
+O botão "Voltar para 'Ainda não abordado'" chama `resetTerritoryContact`, que executa um `DELETE` em `territory_contact_logs`. A tabela tem RLS habilitado, mas **só existem policies de INSERT e SELECT** — não há policy para DELETE.
 
-### 1. Backend — `src/lib/territory-logs.functions.ts`
-Adicionar server function `resetTerritoryContact({ contactId })`:
-- Middleware `requireSupabaseAuth`.
-- Deleta **todos** os logs em `territory_contact_logs` do contato (o `last_action` volta a `null` → o contato reaparece como "Ainda não abordado").
-- Retorna `{ ok: true, deleted: N }`.
+Sob RLS, um DELETE sem policy correspondente não retorna erro: simplesmente afeta 0 linhas. Por isso o botão parece "não fazer nada" — o servidor responde ok, o toast some, mas o card continua exatamente como estava porque nenhum log foi apagado.
 
-Observação: `undoLastTerritoryLog` continua existindo (desfaz só a última ação, usado pelo toast).
+## O que fazer
 
-### 2. UI — `src/routes/_authenticated/territorio.tsx`
-No card de cada contato (`FieldAction`, dentro do `<li>`):
-- Quando o contato já tem `last_action` (ou seja, já foi marcado como "Contato feito", "Não encontrado" ou "Observação"), mostrar um botão discreto **"Voltar para Ainda não abordado"** logo abaixo dos botões principais.
-- Ícone `RotateCcw` (lucide-react), estilo texto pequeno / link secundário para não competir visualmente com as ações primárias.
-- Confirmação inline via `window.confirm("Voltar este contato para 'Ainda não abordado'? Isso apaga o histórico de campo dele.")`.
-- Usa a mutation nova `resetMut` que chama `resetTerritoryContact` e invalida `territory-contacts` + `territory-summary-today`.
-- Toast de sucesso: "Contato voltou para 'Ainda não abordado'".
+### 1. Migration — criar policy de DELETE
 
-### 3. Texto de ajuda
-Atualizar o bloco explicativo no topo da lista (linha ~280) para mencionar:
-> "Para trazer um contato de volta para a lista de não abordados, use o botão **Voltar para não abordado** no próprio card."
+Permitir que o próprio usuário apague seus logs de campo, e que papéis de gestão (admin, operador, vrm, territorio) apaguem logs de qualquer usuário — necessário porque um coordenador precisa poder resetar um contato marcado por outra pessoa da equipe.
 
-## Fora do escopo
-- Não mexer no fluxo do toast "Desfazer" (mantém como atalho rápido).
-- Não alterar o esquema do banco.
+```sql
+CREATE POLICY tcl_delete_own_or_staff
+ON public.territory_contact_logs
+FOR DELETE
+TO authenticated
+USING (
+  user_id = auth.uid()
+  OR private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'operador')
+  OR private.has_role(auth.uid(), 'vrm')
+  OR private.has_role(auth.uid(), 'territorio')
+);
+```
+
+### 2. Confirmar retorno útil no server function
+
+`resetTerritoryContact` já retorna `deleted: count`. Vou aproveitar para, no cliente, checar `deleted === 0` e mostrar erro claro ("nada para apagar") em vez de sucesso falso — assim qualquer regressão futura de RLS aparece de imediato para o usuário.
+
+### Cuidados
+
+- Não altera dados existentes.
+- Mantém `undoLastTerritoryLog` (janela de 5 min) funcionando igual.
+- Após aplicar, o botão deve remover os selos do card e devolvê-lo para "Ainda não abordado" imediatamente.
