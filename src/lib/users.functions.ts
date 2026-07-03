@@ -410,3 +410,68 @@ export const linkCurrentUserContact = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { contact_id: contactId as string | null };
   });
+
+// Aprovação de auto-cadastros de agitador
+export const listPendingApprovals = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profs, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, created_at, contact_id")
+      .eq("status", "pendente_aprovacao")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const ids = (profs ?? []).map((p) => p.id);
+    if (ids.length === 0) return { rows: [] as Array<{ id: string; email: string; full_name: string | null; created_at: string; phone: string | null }> };
+    const { data: users } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const emailById = new Map<string, string>();
+    (users?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
+    const contactIds = (profs ?? []).map((p) => p.contact_id).filter((x): x is string => Boolean(x));
+    const phoneById = new Map<string, string | null>();
+    if (contactIds.length) {
+      const { data: cs } = await supabaseAdmin
+        .from("contacts")
+        .select("id, phone_e164")
+        .in("id", contactIds);
+      (cs ?? []).forEach((c) => phoneById.set(c.id, c.phone_e164));
+    }
+    return {
+      rows: (profs ?? []).map((p) => ({
+        id: p.id,
+        email: emailById.get(p.id) ?? "",
+        full_name: p.full_name,
+        created_at: p.created_at,
+        phone: p.contact_id ? phoneById.get(p.contact_id) ?? null : null,
+      })),
+    };
+  });
+
+export const approvePendingAgitador = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("status")
+      .eq("id", data.userId)
+      .maybeSingle();
+    if (!prof || prof.status !== "pendente_aprovacao") {
+      throw new Error("Este usuário não está aguardando aprovação.");
+    }
+    // Insere role agitador (idempotente)
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: data.userId, role: "agitador" }, { onConflict: "user_id,role" });
+    const { error: upErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ status: "ativo" })
+      .eq("id", data.userId);
+    if (upErr) throw new Error(upErr.message);
+    await audit(context, data.userId, "agitador_aprovado", {});
+    return { ok: true as const };
+  });
+
