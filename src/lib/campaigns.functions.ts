@@ -408,7 +408,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const rows = elegiveis.map((c2) => ({
       campaign_id: data.id, contact_id: c2.id,
-      rendered_message: personalize(c.mensagem_template, c2),
+      rendered_message: ensureLinkInBody(personalize(c.mensagem_template, c2), c.link_url),
       status: "queued" as const,
     }));
 
