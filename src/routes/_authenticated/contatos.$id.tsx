@@ -145,8 +145,32 @@ function ContatoFicha() {
           <button onClick={async () => { await archiveFn({ data: { id, archived: !c.arquivado_at } }); q.refetch(); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md">
             {c.arquivado_at ? <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</> : <><Archive className="h-3.5 w-3.5" /> Arquivar</>}
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border border-destructive/40 rounded-md text-destructive hover:bg-destructive/10"
+              title="Excluir definitivamente (admin)"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Excluir
+            </button>
+          )}
         </div>
       </div>
+
+      <ConfirmDeleteContactDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        contactName={c.nome}
+        onConfirm={async (typed) => {
+          try {
+            await deleteFn({ data: { id, confirmation: typed } });
+            toast.success("Contato excluído definitivamente.");
+            navigate({ to: "/contatos" });
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Erro ao excluir.");
+          }
+        }}
+      />
 
       <div className="flex items-baseline gap-3 mb-1">
         <h1 className="text-2xl font-bold">{c.nome}</h1>
