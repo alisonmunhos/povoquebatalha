@@ -730,6 +730,17 @@ function MapDetailPanel({ contactId, onClose }: { contactId: string; onClose: ()
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const regeocodeFn = useServerFn(regeocodeOne);
+  const regeocodeMut = useMutation({
+    mutationFn: () => regeocodeFn({ data: { contactId } }),
+    onSuccess: (r) => {
+      const label = r.precision ? PRECISION_LABEL[r.precision as Precision] : "sem sucesso";
+      toast.success(`Refino concluído: ${label}.`);
+      invalidateAfterField();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // ESC fecha (desktop)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
