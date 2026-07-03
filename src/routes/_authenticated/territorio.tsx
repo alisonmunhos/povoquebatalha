@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { TerritoryMapView } from "@/components/TerritoryMapView";
+import { TerritoryMapView, MapDetailPanel } from "@/components/TerritoryMapView";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 
 export const Route = createFileRoute("/_authenticated/territorio")({
