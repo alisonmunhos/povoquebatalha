@@ -502,6 +502,14 @@ function FieldAction() {
         open={!!drawerContact}
         onOpenChange={(o) => { if (!o) setDrawerContact(null); }}
       />
+
+      {detailContactId && (
+        <MapDetailPanel
+          contactId={detailContactId}
+          onClose={() => setDetailContactId(null)}
+          overlay
+        />
+      )}
     </div>
   );
 }
