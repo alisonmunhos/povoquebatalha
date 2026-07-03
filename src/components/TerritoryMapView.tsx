@@ -2,25 +2,28 @@ import { Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { listMapContacts, getMapContactDetail } from "@/lib/map.functions";
+import { listMapContacts, getMapContactDetail, listMapFacets } from "@/lib/map.functions";
 import { getGeocodingStats, runGeocodingBatch } from "@/lib/geocoding.functions";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "sonner";
 import { RefreshCw, AlertTriangle, X, Send, ExternalLink } from "lucide-react";
 
 export function TerritoryMapView() {
   const listFn = useServerFn(listMapContacts);
   const statsFn = useServerFn(getGeocodingStats);
+  const facetsFn = useServerFn(listMapFacets);
   const runFn = useServerFn(runGeocodingBatch);
   const qc = useQueryClient();
 
-  const [filters, setFilters] = useState<{ cidade?: string; bairro?: string; tipo_contato?: string; consent?: "sim" | "nao" }>({});
+  const [filters, setFilters] = useState<{ cidades?: string[]; bairros?: string[]; tipo_contato?: string; consent?: "sim" | "nao" }>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const stats = useSuspenseQuery({ queryKey: ["geocode-stats"], queryFn: () => statsFn() });
+  const facets = useSuspenseQuery({ queryKey: ["map-facets"], queryFn: () => facetsFn() });
   const contacts = useSuspenseQuery({
     queryKey: ["map-contacts", filters],
     queryFn: () => listFn({ data: filters }),
@@ -61,8 +64,24 @@ export function TerritoryMapView() {
         )}
 
         <div className="grid md:grid-cols-4 gap-3 mb-4">
-          <Input placeholder="Cidade" value={filters.cidade ?? ""} onChange={(e) => setFilters((f) => ({ ...f, cidade: e.target.value || undefined }))} />
-          <Input placeholder="Bairro" value={filters.bairro ?? ""} onChange={(e) => setFilters((f) => ({ ...f, bairro: e.target.value || undefined }))} />
+          <MultiSelectFilter
+            options={
+              filters.cidades?.length
+                ? filters.cidades.flatMap((c) => facets.data.bairrosPorCidade[c] ?? [])
+                : facets.data.bairros
+            }
+            value={filters.bairros ?? []}
+            onChange={(v) => setFilters((f) => ({ ...f, bairros: v.length ? v : undefined }))}
+            placeholder="Bairro (todos)"
+            emptyText="Sem bairros."
+          />
+          <MultiSelectFilter
+            options={facets.data.cidades}
+            value={filters.cidades ?? []}
+            onChange={(v) => setFilters((f) => ({ ...f, cidades: v.length ? v : undefined, bairros: undefined }))}
+            placeholder="Cidade (todas)"
+            emptyText="Sem cidades."
+          />
           <select className="border rounded-md px-2 h-9 text-sm bg-background" value={filters.tipo_contato ?? ""} onChange={(e) => setFilters((f) => ({ ...f, tipo_contato: e.target.value || undefined }))}>
             <option value="">Todos os tipos</option>
             <option value="apoiador">Apoiador</option>
@@ -76,6 +95,7 @@ export function TerritoryMapView() {
             <option value="nao">Sem consentimento</option>
           </select>
         </div>
+
 
         <div className="text-xs text-muted-foreground mb-2">
           {contacts.data.rows.length} pin(s) no mapa • Clique num pin para abrir o painel lateral
