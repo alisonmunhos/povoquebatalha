@@ -163,7 +163,12 @@ export type Database = {
           failed_at: string | null
           fallback_reason: string | null
           id: string
+          link_description: string | null
+          link_image: string | null
+          link_title: string | null
+          link_url: string | null
           message_id: string | null
+          preview_status: string | null
           read_at: string | null
           rendered_message: string | null
           sent_at: string | null
@@ -182,7 +187,12 @@ export type Database = {
           failed_at?: string | null
           fallback_reason?: string | null
           id?: string
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
           message_id?: string | null
+          preview_status?: string | null
           read_at?: string | null
           rendered_message?: string | null
           sent_at?: string | null
@@ -201,7 +211,12 @@ export type Database = {
           failed_at?: string | null
           fallback_reason?: string | null
           id?: string
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
           message_id?: string | null
+          preview_status?: string | null
           read_at?: string | null
           rendered_message?: string | null
           sent_at?: string | null
