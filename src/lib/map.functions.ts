@@ -28,19 +28,6 @@ export const listMapContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => crmFilterSchema.partial().parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    const roles = await getRoles(context);
-    const restrict =
-      !roles.includes("admin") && !roles.includes("operador") && !roles.includes("vrm");
-    let scopes: Scope[] = [];
-    if (restrict) {
-      const { data: s } = await context.supabase
-        .from("user_territory_scopes")
-        .select("uf,cidade,bairro")
-        .eq("user_id", context.userId);
-      scopes = (s ?? []) as Scope[];
-      if (!scopes.length) return { rows: [], noScope: true };
-    }
-
     let q = context.supabase
       .from("contacts")
       .select("id,nome,phone_e164,bairro,cidade,uf,profissao,tipo_contato,formas_ajuda,consentimento_whatsapp,lifecycle_status,latitude,longitude")
@@ -48,9 +35,9 @@ export const listMapContacts = createServerFn({ method: "POST" })
       .not("longitude", "is", null)
       .limit(5000);
     q = applyCrmFilters(q as never, data as CrmFilters) as typeof q;
-    if (restrict) q = applyScopeFilter(q, scopes);
     const { data: rows, error } = await q;
     if (error) throw error;
+
 
     const ids = (rows ?? []).map((r) => r.id);
     let tagMap: Record<string, string[]> = {};
