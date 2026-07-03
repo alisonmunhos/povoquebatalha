@@ -1993,7 +1993,11 @@ export type Database = {
         | "nao_encontrado"
         | "pediu_atualizacao"
         | "observacao"
-      user_access_status: "ativo" | "suspenso" | "revogado"
+      user_access_status:
+        | "ativo"
+        | "suspenso"
+        | "revogado"
+        | "pendente_aprovacao"
       whatsapp_status:
         | "desconhecido"
         | "confirmado"
@@ -2244,7 +2248,12 @@ export const Constants = {
         "pediu_atualizacao",
         "observacao",
       ],
-      user_access_status: ["ativo", "suspenso", "revogado"],
+      user_access_status: [
+        "ativo",
+        "suspenso",
+        "revogado",
+        "pendente_aprovacao",
+      ],
       whatsapp_status: [
         "desconhecido",
         "confirmado",
