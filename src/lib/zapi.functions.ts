@@ -87,7 +87,10 @@ export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    // Verifica papel admin/vrm; RLS já protege, mas mensagem clara ajuda.
+    const { data: role } = await context.supabase
+      .from("user_roles").select("role").eq("user_id", context.userId)
+      .eq("role", "admin").maybeSingle();
+    if (!role) throw new Error("Apenas administradores podem alterar esta configuração.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existing } = await supabaseAdmin
       .from("whatsapp_instances")
