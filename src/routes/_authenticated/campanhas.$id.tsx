@@ -262,18 +262,38 @@ function CampanhaDetail() {
                 <th className="text-left p-2">Contato</th>
                 <th className="text-left p-2">Telefone</th>
                 <th className="text-left p-2">Status</th>
+                <th className="text-left p-2">Como foi enviado</th>
+                <th className="text-left p-2">Prévia do link</th>
                 <th className="text-left p-2">Enviado em</th>
-                <th className="text-left p-2">Erro</th>
+                <th className="text-left p-2">Observação</th>
               </tr>
             </thead>
             <tbody>
               {camp.data.recipients.map((r) => {
                 const ct = (r as unknown as { contacts: { nome: string | null; phone_e164: string | null } | null }).contacts;
+                const ep = (r as unknown as { endpoint_used: string | null }).endpoint_used;
+                const ps = (r as unknown as { preview_status: string | null }).preview_status;
+                const epLabel: Record<string, string> = {
+                  "send-text": "Texto (prévia automática)",
+                  "send-link": "Link com prévia forçada",
+                  "send-image": "Imagem",
+                  "send-document": "Documento",
+                };
+                const psLabel: Record<string, { txt: string; cls: string }> = {
+                  "preview_confirmada": { txt: "Confirmada", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+                  "preview_provavel": { txt: "Provável", cls: "bg-amber-100 text-amber-800 border-amber-300" },
+                  "preview_indisponivel": { txt: "Indisponível", cls: "bg-red-100 text-red-800 border-red-300" },
+                  "link_bloqueado": { txt: "Bloqueado", cls: "bg-red-100 text-red-800 border-red-300" },
+                  "sem_link": { txt: "Sem link", cls: "bg-muted text-muted-foreground" },
+                };
+                const ps2 = ps ? psLabel[ps] : null;
                 return (
                   <tr key={r.id} className="border-t">
                     <td className="p-2">{ct?.nome ?? "—"}</td>
                     <td className="p-2">{ct?.phone_e164 ?? "—"}</td>
                     <td className="p-2"><Badge variant="outline">{r.status}</Badge></td>
+                    <td className="p-2">{ep ? (epLabel[ep] ?? ep) : "—"}</td>
+                    <td className="p-2">{ps2 ? <span className={`px-2 py-0.5 rounded border text-[11px] ${ps2.cls}`}>{ps2.txt}</span> : "—"}</td>
                     <td className="p-2">{r.sent_at ? new Date(r.sent_at).toLocaleString("pt-BR") : "—"}</td>
                     <td className="p-2 text-red-600">{r.erro ?? ""}</td>
                   </tr>
