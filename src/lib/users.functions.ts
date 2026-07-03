@@ -69,14 +69,16 @@ export const listUsers = createServerFn({ method: "GET" })
         const confirmed = u.email_confirmed_at ?? u.confirmed_at ?? null;
         const invited = u.invited_at ?? null;
         const lastSignIn = u.last_sign_in_at ?? null;
-        const status = (prof?.status ?? "ativo") as "ativo" | "suspenso" | "revogado";
+        const status = (prof?.status ?? "ativo") as "ativo" | "suspenso" | "revogado" | "pendente_aprovacao";
         let derived:
           | "ativo"
           | "convite_pendente"
           | "convite_expirado"
           | "suspenso"
-          | "revogado";
-        if (status === "suspenso") derived = "suspenso";
+          | "revogado"
+          | "pendente_aprovacao";
+        if (status === "pendente_aprovacao") derived = "pendente_aprovacao";
+        else if (status === "suspenso") derived = "suspenso";
         else if (status === "revogado") derived = "revogado";
         else if (!confirmed && invited) {
           const invitedMs = new Date(invited).getTime();
