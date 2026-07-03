@@ -93,6 +93,7 @@ function FieldAction() {
   const listFn = useServerFn(listTerritoryContacts);
   const logFn = useServerFn(logTerritoryAction);
   const undoFn = useServerFn(undoLastTerritoryLog);
+  const resetFn = useServerFn(resetTerritoryContact);
   const summaryFn = useServerFn(getMyFieldSummaryToday);
   const qc = useQueryClient();
 
