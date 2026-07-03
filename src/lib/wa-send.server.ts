@@ -191,25 +191,31 @@ function ensureLinkInBody(text: string, linkUrl: string | null): string {
  */
 export async function sendMessage(input: SendInput): Promise<SendResult> {
   const c = input.contact;
-  const rendered = input.textAlreadyRendered ? input.text : renderVars(input.text ?? "", c);
+  const rendered = input.textAlreadyRendered
+    ? input.text
+    : renderVars(input.text ?? "", c, input.renderOptions);
 
-  // Validações comuns (não aplicam a wa.me — Território é apenas montagem de texto)
+  // Validações comuns (não aplicam a wa.me — Território é apenas montagem de texto).
+  // Quando skipValidations=true, o chamador já checou opt-out/consentimento/whatsapp_status
+  // e não queremos duplicar a decisão aqui — apenas checamos telefone (sem ele não há envio).
   if (input.origin !== "territory_wa_me") {
-    if (c.opt_out_at) {
-      return baseSkip(rendered, "opt-out");
-    }
-    if (input.origin === "campaign" && c.consentimento_whatsapp === false) {
-      return baseSkip(rendered, "sem consentimento");
+    if (!input.skipValidations) {
+      if (c.opt_out_at) {
+        return baseSkip(rendered, "opt-out");
+      }
+      if (input.origin === "campaign" && c.consentimento_whatsapp === false) {
+        return baseSkip(rendered, "sem consentimento");
+      }
+      if (
+        c.whatsapp_status === "invalido" ||
+        c.whatsapp_status === "erro_envio" ||
+        c.whatsapp_status === "opt_out"
+      ) {
+        return baseSkip(rendered, "whatsapp indisponível");
+      }
     }
     const phoneRaw = c.phone_whatsapp_candidate ?? c.phone_e164;
     if (!phoneRaw) return baseSkip(rendered, "sem telefone");
-    if (
-      c.whatsapp_status === "invalido" ||
-      c.whatsapp_status === "erro_envio" ||
-      c.whatsapp_status === "opt_out"
-    ) {
-      return baseSkip(rendered, "whatsapp indisponível");
-    }
   }
 
   const phone = (c.phone_whatsapp_candidate ?? c.phone_e164 ?? "").replace(/\D+/g, "");
