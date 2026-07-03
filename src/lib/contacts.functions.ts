@@ -215,9 +215,7 @@ export const archiveContact = createServerFn({ method: "POST" })
   });
 
 // =========== EXCLUSÃO DEFINITIVA (só admin) ===========
-async function assertAdminHardDelete(ctx: { supabase: any; userId: string }) {
-  await requireAdmin(ctx.supabase, ctx.userId, "Apenas administradores podem excluir contatos definitivamente." as never);
-}
+
 
 
 async function auditHardDelete(
