@@ -1,95 +1,62 @@
+# Precisão de geocodificação + indicação visual no mapa
 
-## Objetivo
-Deixar o módulo **Território** impecável focando em: (1) card rico ao clicar no pin do mapa com as mesmas ações da aba "Ação de Campo", (2) integrações com WhatsApp e Google Maps do celular, (3) navegação fluida no mapa (desktop + mobile), (4) refinamento geral de UX.
+## Problema
+Hoje usamos uma única chamada ao Nominatim que devolve qualquer resultado — normalmente o centro da rua, não o número exato. Resultado: o pin cai "na rua certa mas na casa errada". Também não distinguimos visualmente um endereço geolocalizado com precisão de um aproximado (só CEP/cidade).
 
----
+## Estratégia
 
-## 1. Card do contato no mapa (principal)
+### 1. Geocodificador em cascata com validação (`src/lib/cep.server.ts`)
+Reescrever `geocodeAddress` para tentar, em ordem, e parar no primeiro resultado que confirme o número da casa:
 
-Ao clicar no pin, abrir um painel (bottom sheet no mobile, lateral no desktop) com **todas** as informações e ações que o usuário tem hoje na aba *Ação de Campo*, sem precisar sair do mapa.
+1. **Nominatim estruturado** — enviar `street=<rua>, <número>`, `postalcode=<cep>`, `city=<cidade>`, `state=<uf>`, `country=Brasil`, `addressdetails=1`. Consulta estruturada é bem mais precisa que a string única atual.
+2. **Nominatim busca livre** (fallback atual) — só se a estruturada não retornar nada.
+3. **Photon (Komoot, grátis, base OSM)** — `https://photon.komoot.io/api/?q=...&limit=5&lang=pt&osm_tag=place:house`. Photon costuma indexar `addr:housenumber` em cidades pequenas onde o Nominatim falha.
+4. **Fallback só-CEP** — geocodificar só o CEP quando nenhuma tentativa devolver o número.
 
-**Cabeçalho**
-- Nome, foto (iniciais coloridas), badges de status (WhatsApp OK, opt-out, recadastro pendente, tipo de contato).
-- Selo do último status de campo (Contato feito / Não encontrado / Observação) com data relativa.
+Cada retorno inclui `addressdetails.house_number`. Comparamos com o número informado e classificamos precisão em 4 níveis:
 
-**Bloco de contato**
-- Telefone formatado + botão "Copiar".
-- Endereço completo em linhas (logradouro, número, bairro, cidade/UF, CEP).
-- Botão **"Copiar endereço"** (área de transferência para colar no Waze/Maps).
-- Botão **"Abrir no Google Maps"** que usa `geo:lat,lng?q=endereço` no mobile (abre o app nativo — Google Maps/Waze/Apple Maps) e `https://www.google.com/maps/dir/?...` no desktop.
-- Botão **"Como chegar"** (rota a partir da localização atual do usuário quando GPS ativo).
+| Nível | Critério |
+|---|---|
+| `exato` | número da casa retornado bate com o do cadastro (tolerância: mesmo número, ou pertence a um `housenumbers` range do OSM) |
+| `rua` | rua e CEP conferem, mas número não veio / não bateu |
+| `cep` | apenas CEP resolvido (cidade pequena, CEP único) |
+| `cidade` | só cidade/UF resolvidos |
+| `erro` | nada resolvido |
 
-**Ações de campo (mesmas da aba "Ação de Campo")**
-- ✅ Contato feito
-- 🚫 Não encontrado
-- 📝 Observação (com textarea inline, salva no histórico)
-- 💬 Abrir WhatsApp (registra `whatsapp_aberto` automaticamente)
-- ↩️ Voltar para "Ainda não abordado"
-- 📜 Ver histórico completo (abre o `TerritoryContactLogDrawer` existente).
+### 2. Schema
+Migration adiciona `contacts.geocoding_precision` (enum `exato | rua | cep | cidade`) e `contacts.geocoding_match_score` (numeric, 0–1). `geocode_cache` ganha as mesmas colunas para não perder o nível de precisão ao usar cache. Recomputa a coluna dentro do batch existente — não altera comportamento do trigger de re-geocode ao editar endereço.
 
-**Envio rápido de WhatsApp** (mantém o bloco atual com templates + variáveis).
+### 3. Re-geocodificação automática dos completos
+Um serverFn `regeocodeIncompletePins` marca como `pendente` todos os contatos com `endereco_completo IS NOT NULL` E (`geocoding_precision IN ('cep','cidade')` OU `geocoding_precision IS NULL` OU `geocoding_status = 'aproximado'`). Assim toda a base migrada passa pelo novo pipeline sem apagar quem já está com `exato`. Botão "Re-geocodificar imprecisos" na tela `/mapa` (ou dentro da aba Território → Mapa) dispara em lotes de 20 (respeitando 1 req/s do Nominatim).
 
-**"Abrir ficha completa"** continua como link para `/contatos/$id`.
+Também exponho um botão por-contato "Re-geocodificar este endereço" no card do mapa, para o seu caso específico (Sarmento Leite 1011).
 
-Reaproveitar `logTerritoryAction`, `undoLastTerritoryLog`, `resetTerritoryContact` e `TerritoryContactLogDrawer` — sem duplicar lógica.
+### 4. Camada visual — segunda dimensão além da cor de status
+As cores atuais (verde/âmbar/azul/cinza) continuam representando **status da ação de campo**. Precisão vira uma **borda + forma**, para não conflitar:
 
----
+- `exato` → pin cheio, borda branca sólida grossa, sombra normal.
+- `rua` → pin cheio, borda **tracejada** branca.
+- `cep` → pin cheio, borda tracejada + **ponto de interrogação pequeno** sobreposto (canto sup. dir.).
+- `cidade` → pin **oco/translúcido** (opacidade 55%) com ponto de interrogação.
 
-## 2. Tooltip / popup nativo do pin
+Implementado no `L.divIcon` já existente em `TerritoryMapView.tsx` — só amplia o SVG para receber `precision` além de `status`. Adiciono legenda discreta no rodapé do mapa: "● Exato · ◐ Rua · ◌ Aproximado".
 
-- Tooltip do marker mostra: **nome + bairro** (não só nome).
-- Cor do pin por status de campo (cinza = não abordado, verde = contato feito, âmbar = não encontrado, azul = observação). Ícone SVG customizado leve.
-- Clusters continuam com contagem; ao passar do zoom mínimo abre pin individual.
+Filtros do mapa ganham chip **"Só endereços exatos"** para quando você quiser só visitar quem tem certeza da localização.
 
----
-
-## 3. Navegação e zoom do mapa
-
-**Desktop**
-- Ativar `scrollWheelZoom` com **modificador**: zoom com Ctrl+scroll ou scroll direto, e exibir hint "Use Ctrl + scroll para dar zoom" quando o usuário rolar sem Ctrl (padrão Google Maps embed) — evita capturar acidentalmente o scroll da página.
-- `doubleClickZoom` ativado.
-- Botões **+ / −** e **⌂ Enquadrar tudo** mais visíveis no canto (substituindo o atual controle padrão).
-- Cursor `grab` / `grabbing` durante arraste.
-
-**Mobile**
-- `tap: true`, `touchZoom: true`, `bounceAtZoomLimits: false`.
-- Aumentar `tapTolerance` para não confundir toque com arraste em pins.
-- Bottom sheet com "handle" arrastável (arrastar para baixo fecha, arrastar para cima expande — usando `vaul` ou implementação simples via touch events).
-- Botão de GPS já existe; adicionar botão **+ / −** flutuante no canto oposto (polegar direito).
-- Ao selecionar contato, centralizar o pin com offset vertical (para não ficar atrás do sheet).
-
----
-
-## 4. Refinamentos gerais
-
-- **Persistir última posição/zoom** no `localStorage` para reabrir onde estava.
-- **Contagem visível** de pins renderizados vs. total filtrado (ex.: "312 no mapa · 47 sem coordenada").
-- **Loading skeleton** ao trocar filtros (evita mapa "piscar").
-- **Fechar card** ao pressionar `Esc` (desktop) ou swipe-down (mobile).
-- **Preservar zoom/centro** ao abrir/fechar o card (não refazer `fitBounds`).
-- Botão "Tela cheia" continua, mas reposicionado no cluster de controles top-right.
-
----
-
-## 5. Detalhes técnicos
-
-- Ajustar `getMapContactDetail` em `src/lib/map.functions.ts` para retornar também: `logradouro`, `numero`, `complemento`, `cep`, `latitude`, `longitude`, `last_action` (com `note`), e contagem de pendentes — para o card não precisar de outra chamada.
-- Ícones customizados: `L.divIcon` com SVG por status (sem imagens externas).
-- Google Maps deep link:
-  - Mobile: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(nome)})` com fallback para `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`.
-  - Rota: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`.
-- Reaproveitar mutations de `territorio.tsx` extraindo um hook `useFieldActions(contactId)` compartilhado entre `FieldAction` e o card do mapa (evita duplicação).
-- Bottom sheet mobile: implementação leve com `touchstart`/`touchmove` no cabeçalho — sem adicionar biblioteca nova.
-- Persistência: `localStorage` chave `territorio:mapa:view` com `{ lat, lng, zoom }`.
-
----
+### 5. Contadores no cabeçalho do mapa
+Substituo a contagem atual por: "N pins · X exatos · Y na rua · Z aproximados · W sem coordenada", com o número de aproximados clicável abrindo a lista dos que precisam de conferência.
 
 ## Arquivos afetados
-- `src/components/TerritoryMapView.tsx` — reescrita do `MapDetailPanel` + controles + pins coloridos + persistência.
-- `src/hooks/useFieldActions.ts` — **novo**, hook compartilhado com as ações de campo.
-- `src/lib/map.functions.ts` — expandir `getMapContactDetail`.
-- `src/routes/_authenticated/territorio.tsx` — usar o novo hook para não repetir lógica.
+- `src/lib/cep.server.ts` — nova cascata + Photon + classificação de precisão.
+- `src/lib/geocoding.functions.ts` — grava `geocoding_precision`, novo serverFn `regeocodeImprecise` e `regeocodeOne`.
+- `src/lib/map.functions.ts` — retorna `geocoding_precision` em `listMapContacts` e `getMapContactDetail`.
+- `src/components/TerritoryMapView.tsx` — ícone com dupla codificação (cor=status, borda/forma=precisão), legenda, filtro "só exatos", botão "Re-geocodificar este pin".
+- `src/routes/_authenticated/territorio.tsx` — botão "Re-geocodificar imprecisos" com progresso.
+- Migration: coluna `geocoding_precision` em `contacts` e `geocode_cache`.
 
-## Fora de escopo
-- Rotas otimizadas entre múltiplos contatos (roteirização de visita) — pode virar próxima etapa.
-- Substituir Leaflet por Google Maps JS — mantém Leaflet + OSM (grátis).
+## Limitações honestas
+- Nominatim/Photon são base OSM. Ruas sem `addr:housenumber` mapeado no OSM (comum em cidades pequenas e interior) simplesmente **não têm** o número no banco — nenhum provedor grátis resolve isso. Nesses casos o pin vai ficar como `rua` ou `cep` mesmo com endereço completo. É por isso que a segunda camada visual é essencial: você saberá de antemão em quem confiar antes de sair para entregar material.
+- Para o seu endereço (Porto Alegre, Rua Sarmento Leite 1011), a consulta estruturada + Photon quase certamente retorna `exato` — vou validar rodando um teste real assim que aprovar.
+
+## Fora de escopo (a pedido)
+- Arrastar o pin para ajuste manual — fica anotado para depois se a precisão automática não bastar.
