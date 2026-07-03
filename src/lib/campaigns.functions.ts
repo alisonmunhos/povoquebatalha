@@ -85,6 +85,10 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       agendado_para: payload.agendado_para ?? null,
       delay_min_ms: payload.delay_min_ms,
       delay_max_ms: payload.delay_max_ms,
+      link_url: payload.link_url ?? null,
+      link_title: payload.link_title ?? null,
+      link_description: payload.link_description ?? null,
+      link_image: payload.link_image ?? null,
       created_by: context.userId,
     };
     if (id) {
