@@ -137,24 +137,7 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
   }
 
-  async function onAttach(file: File) {
-    if (!editing) return;
-    if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
-    setUploading(true);
-    try {
-      const sig = await signUpload({ data: { filename: file.name, contentType: file.type } });
-      const up = await fetch(sig.signedUrl, {
-        method: "PUT",
-        headers: { "Content-Type": sig.contentType, "x-upsert": "true" },
-        body: file,
-      });
-      if (!up.ok) throw new Error(`Falha upload (${up.status})`);
-      setEditing({ ...editing, media_path: sig.path, media_mime: sig.contentType, media_filename: sig.filename });
-      toast.success("Anexo carregado");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro upload");
-    } finally { setUploading(false); }
-  }
+
 
   return (
     <div className="grid md:grid-cols-[380px_1fr] gap-4">
