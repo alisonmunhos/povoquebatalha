@@ -17,6 +17,7 @@ type ContactCtx = {
   opt_out_at?: string | null;
   consentimento_whatsapp?: boolean | null;
   whatsapp_status?: string | null;
+  recad_token?: string | null;
 };
 
 export type SendOrigin =
