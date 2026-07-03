@@ -222,7 +222,13 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
     const { data: rows, count, error } = await q;
     if (error) throw error;
 
-    const enriched = ((rows ?? []) as Array<{ id: string }>).map((r) => ({
+    type ContactRow = {
+      id: string; nome: string | null; phone_e164: string | null;
+      bairro: string | null; cidade: string | null; uf: string | null;
+      lifecycle_status: string | null; consentimento_whatsapp: boolean | null;
+      opt_out_at: string | null; created_at: string;
+    };
+    const enriched = ((rows ?? []) as ContactRow[]).map((r) => ({
       ...r,
       last_action: lastByContact.get(r.id) ?? null,
     }));
