@@ -798,6 +798,17 @@ export function CommunicationInbox() {
           </div>
         </div>
       )}
+
+      {conv && !conv.contact_id && (
+        <QuickContactFromInboxDialog
+          open={quickCreateOpen}
+          onClose={() => setQuickCreateOpen(false)}
+          conversationId={conv.id}
+          suggestedNome={active?.nome ?? null}
+          originPhone={conv.from_phone}
+          onCreated={onQuickContactCreated}
+        />
+      )}
     </div>
   );
 }
