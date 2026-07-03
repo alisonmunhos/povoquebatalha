@@ -74,3 +74,17 @@ export const undoLastTerritoryLog = createServerFn({ method: "POST" })
     if (delErr) throw delErr;
     return { ok: true as const, action: last.action };
   });
+
+export const resetTerritoryContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ contactId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error, count } = await context.supabase
+      .from("territory_contact_logs")
+      .delete({ count: "exact" })
+      .eq("contact_id", data.contactId);
+    if (error) throw error;
+    return { ok: true as const, deleted: count ?? 0 };
+  });
