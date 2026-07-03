@@ -372,7 +372,7 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
       if (!mapRef.current || !clusterRef.current || !ready) return;
       const L = (await import("leaflet")).default;
       const withCoord = rows.filter((r) => r.latitude != null && r.longitude != null);
-      const signature = withCoord.map((r) => `${r.id}:${r.latitude},${r.longitude}:${r.last_action?.action ?? ""}`).join("|");
+      const signature = withCoord.map((r) => `${r.id}:${r.latitude},${r.longitude}:${r.last_action?.action ?? ""}:${r.geocoding_precision ?? ""}`).join("|");
       if (signature === rowsSignatureRef.current) return;
       rowsSignatureRef.current = signature;
 
@@ -386,7 +386,7 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
       const markers = withCoord.map((r) => {
         const color = r.last_action ? (ACTION_COLORS[r.last_action.action] ?? DEFAULT_PIN) : DEFAULT_PIN;
         const icon = L.divIcon({
-          html: pinSvg(color),
+          html: pinSvg(color, r.geocoding_precision),
           className: "custom-pin",
           iconSize: [28, 36],
           iconAnchor: [14, 34],
@@ -394,7 +394,9 @@ function LeafletMap({ rows, selectedId, onSelect, hasPanel }: { rows: Row[]; sel
         });
         const m = L.marker([r.latitude!, r.longitude!], { icon });
         const bairroTxt = r.bairro ? ` — ${r.bairro}` : "";
-        m.bindTooltip(`<b>${escapeHtml(r.nome ?? "(sem nome)")}</b>${escapeHtml(bairroTxt)}`, { direction: "top", offset: [0, -28], className: "leaflet-tooltip-pin" });
+        const precTxt = r.geocoding_precision && r.geocoding_precision !== "exato"
+          ? `<br/><span style="opacity:.75">${PRECISION_LABEL[r.geocoding_precision]}</span>` : "";
+        m.bindTooltip(`<b>${escapeHtml(r.nome ?? "(sem nome)")}</b>${escapeHtml(bairroTxt)}${precTxt}`, { direction: "top", offset: [0, -28], className: "leaflet-tooltip-pin" });
         m.on("click", () => onSelect(r.id));
         markerByIdRef.current.set(r.id, m);
         return m;
