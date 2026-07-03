@@ -81,12 +81,27 @@ const ACTION_COLORS: Record<string, { bg: string; ring: string; label: string }>
 };
 const DEFAULT_PIN = { bg: "#64748b", ring: "#1e293b", label: "Não abordado" };
 
-function pinSvg(color: { bg: string; ring: string }): string {
+function pinSvg(color: { bg: string; ring: string }, precision: Precision | null): string {
+  // Camada 2 (precisão): borda branca / tracejada / opacidade / ? sobreposto
+  const isExact = precision === "exato";
+  const isStreet = precision === "rua";
+  const isCep = precision === "cep";
+  const isCity = precision === "cidade" || precision == null;
+  const fillOpacity = isCity ? 0.55 : 1;
+  const outerStroke = isExact ? "#ffffff" : isStreet ? "#ffffff" : "#ffffff";
+  const outerWidth = isExact ? 2.5 : 1.8;
+  const dash = isExact ? "" : `stroke-dasharray="2.5 2"`;
+  const questionMark = (isCep || isCity)
+    ? `<circle cx="22" cy="6" r="5" fill="#f59e0b" stroke="#ffffff" stroke-width="1"/><text x="22" y="9" text-anchor="middle" font-size="8" font-weight="700" fill="#ffffff" font-family="system-ui">?</text>`
+    : "";
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-  <path fill="${color.bg}" stroke="${color.ring}" stroke-width="1.5"
+  <path fill="${color.bg}" fill-opacity="${fillOpacity}" stroke="${outerStroke}" stroke-width="${outerWidth}" ${dash}
     d="M14 1.5C7.4 1.5 2 6.7 2 13.1c0 8.9 11 20.4 11.5 20.9.3.3.7.3 1 0C15 33.5 26 22 26 13.1 26 6.7 20.6 1.5 14 1.5z"/>
-  <circle cx="14" cy="13" r="4.5" fill="#ffffff" fill-opacity="0.9"/>
+  <path fill="none" stroke="${color.ring}" stroke-width="0.8" fill-opacity="${fillOpacity}"
+    d="M14 1.5C7.4 1.5 2 6.7 2 13.1c0 8.9 11 20.4 11.5 20.9.3.3.7.3 1 0C15 33.5 26 22 26 13.1 26 6.7 20.6 1.5 14 1.5z"/>
+  <circle cx="14" cy="13" r="4.5" fill="#ffffff" fill-opacity="${isCity ? 0.6 : 0.9}"/>
+  ${questionMark}
 </svg>`.trim();
 }
 
