@@ -53,6 +53,14 @@ export const Route = createFileRoute("/api/public/bootstrap-admin")({
           return Response.json({ error: "Dados inválidos." }, { status: 400 });
         }
 
+        const expectedSecret = process.env.BOOTSTRAP_ADMIN_SECRET ?? "";
+        if (!expectedSecret || !safeEqual(parsed.data.setup_secret, expectedSecret)) {
+          return Response.json(
+            { error: "Segredo de inicialização inválido." },
+            { status: 401 },
+          );
+        }
+
         if (await adminExists()) {
           return Response.json(
             { error: "Já existe um administrador. Use a tela de Usuários para convidar." },
