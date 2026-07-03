@@ -3,7 +3,7 @@ import { useSuspenseQuery, useMutation, useQueryClient, useQuery } from "@tansta
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listMapContacts, getMapContactDetail, listMapFacets } from "@/lib/map.functions";
-import { getGeocodingStats, runGeocodingBatch } from "@/lib/geocoding.functions";
+import { getGeocodingStats, runGeocodingBatch, regeocodeOne } from "@/lib/geocoding.functions";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { logTerritoryAction, resetTerritoryContact } from "@/lib/territory-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
