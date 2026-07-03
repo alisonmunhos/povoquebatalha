@@ -291,6 +291,33 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
     }
     // Cycle: off -> once -> follow -> off
     if (locateMode === "off") {
+      // Preview do Lovable roda em iframe sem allow="geolocation" — o navegador bloqueia silenciosamente.
+      const inIframe = typeof window !== "undefined" && window.self !== window.top;
+      if (inIframe) {
+        toast.error("A localização é bloqueada dentro do preview. Abra o app em uma aba nova para autorizar.", {
+          action: {
+            label: "Abrir em nova aba",
+            onClick: () => window.open(window.location.href, "_blank", "noopener"),
+          },
+          duration: 8000,
+        });
+        return;
+      }
+      // Se o usuário já negou antes, o navegador não pergunta de novo — instruir a reabilitar manualmente.
+      try {
+        if (navigator.permissions && (navigator.permissions as any).query) {
+          const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+          if (status.state === "denied") {
+            toast.error(
+              "Localização bloqueada nas configurações do site. Clique no cadeado ao lado da URL → Permissões → Localização → Permitir, e recarregue a página.",
+              { duration: 10000 },
+            );
+            return;
+          }
+        }
+      } catch {
+        // Permissions API indisponível — segue e deixa o navegador pedir.
+      }
       setLocating(true);
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
@@ -301,15 +328,23 @@ function LeafletMap({ rows, onSelect }: { rows: Row[]; onSelect: (id: string) =>
         (err) => {
           setLocating(false);
           if (err.code === err.PERMISSION_DENIED) {
-            toast.error("Permissão negada. Habilite a localização no navegador.");
+            toast.error(
+              "Permissão negada. Clique no cadeado ao lado da URL, autorize a Localização e tente novamente.",
+              { duration: 8000 },
+            );
+          } else if (err.code === err.POSITION_UNAVAILABLE) {
+            toast.error("Localização indisponível. Ative o GPS/Wi-Fi e tente novamente.");
+          } else if (err.code === err.TIMEOUT) {
+            toast.error("Tempo esgotado ao obter localização. Tente novamente em um local com melhor sinal.");
           } else {
             toast.error("Não foi possível obter sua localização.");
           }
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
       );
       return;
     }
+
     if (locateMode === "once") {
       // Start following
       setLocateMode("follow");
