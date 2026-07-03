@@ -33,8 +33,8 @@ const groups: NavGroup[] = [
   {
     label: "Território",
     items: [
-      { to: "/territorio", label: "Território", icon: Compass, hint: "Mini-app mobile-first.", roles: ["admin", "operador", "vrm", "territorio"] },
-      { to: "/mapa", label: "Mapa", icon: MapPin, hint: "Visualize contatos geolocalizados.", roles: ["admin", "operador", "vrm"] },
+      { to: "/territorio", label: "Ação de Campo", icon: Compass, hint: "Militante na rua: minha região, meus contatos, registrar visita (celular).", roles: ["admin", "operador", "vrm", "territorio"] },
+      { to: "/mapa", label: "Mapa Geral", icon: MapPin, hint: "Visão panorâmica: todos os contatos no mapa, com filtros e tela cheia.", roles: ["admin", "operador", "vrm"] },
     ],
   },
   {
