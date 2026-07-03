@@ -36,6 +36,7 @@ type Row = {
   consentimento_whatsapp: boolean | null;
   opt_out_at: string | null;
   last_action: LastAction;
+  pending_count?: number;
 };
 
 function TerritorioPage() {
