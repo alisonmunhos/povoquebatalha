@@ -172,6 +172,7 @@ function UsuariosPage() {
 
   const ativos = rows.filter((r) => r.derived_status === "ativo" || r.derived_status === "suspenso" || r.derived_status === "revogado");
   const pendentes = rows.filter((r) => r.derived_status === "convite_pendente" || r.derived_status === "convite_expirado");
+  const aprovacaoPendente = pendingRows.length;
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
