@@ -7,7 +7,7 @@
 // Import típico:  const { sendMessage } = await import("@/lib/wa-send.server");
 
 type ContactCtx = {
-  id: string;
+  id?: string;
   nome?: string | null;
   cidade?: string | null;
   bairro?: string | null;
@@ -17,6 +17,7 @@ type ContactCtx = {
   opt_out_at?: string | null;
   consentimento_whatsapp?: boolean | null;
   whatsapp_status?: string | null;
+  recad_token?: string | null;
 };
 
 export type SendOrigin =
@@ -58,12 +59,20 @@ export type SendInput = {
   text: string;
   /** Se o chamador já resolveu as variáveis, marcar true para pular render. */
   textAlreadyRendered?: boolean;
+  /** Opções de render (origin usado para montar link_atualizacao/recadastro/inscricao). */
+  renderOptions?: RenderOptions;
   /** Link estruturado (com metadados OG opcionais). Se omitido, motor detecta URL no texto. */
   link?: SendLinkMeta | null;
   attachment?: SendAttachment | null;
   origin: SendOrigin;
   /** Feature flag por instância. Se false, nunca usa POST /send-link. */
   useSendLink?: boolean;
+  /**
+   * Se true, sendMessage NÃO executa as validações internas de opt-out/consentimento/whatsapp_status
+   * (usado quando o chamador já fez pré-check e não quer duplicidade). A checagem de telefone
+   * continua sendo feita — sem telefone não há como enviar.
+   */
+  skipValidations?: boolean;
 };
 
 export type SendResult = {
@@ -95,8 +104,22 @@ function saudacaoAgora(): string {
   return "Boa noite";
 }
 
-export function renderVars(body: string, c: ContactCtx): string {
+export type RenderOptions = {
+  /** Base URL pública (ex.: https://app.example.com); usado para {{link_atualizacao}}, {{link_recadastro}}, {{link_inscricao}}. */
+  origin?: string | null;
+  /** Se true, variáveis desconhecidas viram string vazia. Padrão: false (mantém {{var}} literal). */
+  unknownAsEmpty?: boolean;
+};
+
+export function renderVars(body: string, c: ContactCtx, opts: RenderOptions = {}): string {
   const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
+  const origin = opts.origin ?? "";
+  const linkAtual = c.recad_token && origin
+    ? `${origin}/atualizacao?t=${c.recad_token}`
+    : origin
+      ? `${origin}/atualizacao`
+      : "";
+  const linkInscr = origin ? `${origin}/inscrever` : "";
   const values: Record<string, string> = {
     nome: c.nome ?? "",
     primeiro_nome: primeiro,
@@ -105,10 +128,14 @@ export function renderVars(body: string, c: ContactCtx): string {
     bairro: c.bairro ?? "",
     uf: c.uf ?? "",
     saudacao: saudacaoAgora(),
+    link_atualizacao: linkAtual,
+    link_recadastro: linkAtual,
+    link_inscricao: linkInscr,
   };
-  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
-    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
-  );
+  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) => {
+    if (Object.prototype.hasOwnProperty.call(values, k)) return values[k];
+    return opts.unknownAsEmpty ? "" : m;
+  });
 }
 
 /**
@@ -164,25 +191,31 @@ function ensureLinkInBody(text: string, linkUrl: string | null): string {
  */
 export async function sendMessage(input: SendInput): Promise<SendResult> {
   const c = input.contact;
-  const rendered = input.textAlreadyRendered ? input.text : renderVars(input.text ?? "", c);
+  const rendered = input.textAlreadyRendered
+    ? input.text
+    : renderVars(input.text ?? "", c, input.renderOptions);
 
-  // Validações comuns (não aplicam a wa.me — Território é apenas montagem de texto)
+  // Validações comuns (não aplicam a wa.me — Território é apenas montagem de texto).
+  // Quando skipValidations=true, o chamador já checou opt-out/consentimento/whatsapp_status
+  // e não queremos duplicar a decisão aqui — apenas checamos telefone (sem ele não há envio).
   if (input.origin !== "territory_wa_me") {
-    if (c.opt_out_at) {
-      return baseSkip(rendered, "opt-out");
-    }
-    if (input.origin === "campaign" && c.consentimento_whatsapp === false) {
-      return baseSkip(rendered, "sem consentimento");
+    if (!input.skipValidations) {
+      if (c.opt_out_at) {
+        return baseSkip(rendered, "opt-out");
+      }
+      if (input.origin === "campaign" && c.consentimento_whatsapp === false) {
+        return baseSkip(rendered, "sem consentimento");
+      }
+      if (
+        c.whatsapp_status === "invalido" ||
+        c.whatsapp_status === "erro_envio" ||
+        c.whatsapp_status === "opt_out"
+      ) {
+        return baseSkip(rendered, "whatsapp indisponível");
+      }
     }
     const phoneRaw = c.phone_whatsapp_candidate ?? c.phone_e164;
     if (!phoneRaw) return baseSkip(rendered, "sem telefone");
-    if (
-      c.whatsapp_status === "invalido" ||
-      c.whatsapp_status === "erro_envio" ||
-      c.whatsapp_status === "opt_out"
-    ) {
-      return baseSkip(rendered, "whatsapp indisponível");
-    }
   }
 
   const phone = (c.phone_whatsapp_candidate ?? c.phone_e164 ?? "").replace(/\D+/g, "");
