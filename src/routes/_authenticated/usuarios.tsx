@@ -83,12 +83,15 @@ function UsuariosPage() {
   const genResetLink = useServerFn(generatePasswordResetLink);
   const emailReset = useServerFn(sendPasswordResetEmail);
   const audit = useServerFn(listAccessAudit);
+  const fetchPending = useServerFn(listPendingApprovals);
+  const approve = useServerFn(approvePendingAgitador);
 
   const [rows, setRows] = useState<Row[]>([]);
+  const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "operador" | "leitor" | "vrm" | "territorio">("operador");
+  const [role, setRole] = useState<InviteRole>("operador");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [inviteModal, setInviteModal] = useState<InviteModal | null>(null);
@@ -105,6 +108,8 @@ function UsuariosPage() {
       setRows(r.users as Row[]);
       const a = await audit();
       setAuditRows(a.rows as typeof auditRows);
+      const p = await fetchPending();
+      setPendingRows(p.rows as PendingRow[]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao carregar usuários.");
     } finally {
