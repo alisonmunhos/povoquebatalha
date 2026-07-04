@@ -7,7 +7,8 @@ import {
   getContactHistory, listAllTags, createTag, setContactTag,
   deleteContact, getContactSourceEvents,
 } from "@/lib/contacts.functions";
-import { listContactTerritoryLogs } from "@/lib/territory-logs.functions";
+import { listContactLogsUnified } from "@/lib/contact-logs.functions";
+import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2 } from "lucide-react";
@@ -310,7 +311,16 @@ function ContatoFicha() {
             )}
           </Section>
 
-          <TerritorioLogsSection contactId={id} />
+          <TerritorioLogsSection
+            contactId={id}
+            contact={{
+              nome: (c?.nome ?? null) as string | null,
+              phone_e164: (c?.phone_e164 ?? null) as string | null,
+              bairro: (c?.bairro ?? null) as string | null,
+              cidade: (c?.cidade ?? null) as string | null,
+              uf: (c?.uf ?? null) as string | null,
+            }}
+          />
         </aside>
       </div>
     </div>
@@ -408,26 +418,37 @@ function HistList({ title, items }: { title: string; items: Array<{ key: string;
   );
 }
 
-function TerritorioLogsSection({ contactId }: { contactId: string }) {
-  const listFn = useServerFn(listContactTerritoryLogs);
-  const q = useQuery({ queryKey: ["territory-logs", contactId], queryFn: () => listFn({ data: { contactId } }) });
+function TerritorioLogsSection({ contactId, contact }: { contactId: string; contact: { nome: string | null; phone_e164: string | null; bairro: string | null; cidade: string | null; uf: string | null } }) {
+  const listFn = useServerFn(listContactLogsUnified);
+  const q = useQuery({ queryKey: ["contact-logs-unified", contactId], queryFn: () => listFn({ data: { contactId } }) });
+  const [open, setOpen] = useState(false);
   return (
-    <Section title={<span className="flex items-center gap-2"><History className="h-4 w-4" /> Território</span>}>
+    <Section title={<span className="flex items-center gap-2"><History className="h-4 w-4" /> Histórico de campo</span>}>
       {q.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
       {q.data && q.data.rows.length === 0 && (
-        <p className="text-xs text-muted-foreground">Sem registros territoriais.</p>
+        <p className="text-xs text-muted-foreground">Sem registros de Território ou Agitação.</p>
       )}
       {q.data && q.data.rows.length > 0 && (
         <ul className="space-y-1.5 text-xs">
-          {q.data.rows.map((r: { id: string; action: string; note: string | null; created_at: string }) => (
-            <li key={r.id} className="border-l-2 border-muted pl-2">
+          {q.data.rows.slice(0, 5).map((r) => (
+            <li key={`${r.source}:${r.id}`} className="border-l-2 border-muted pl-2">
               <span className="text-muted-foreground">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
               {" · "}<span className="font-medium">{r.action}</span>
-              {r.note && <span className="text-muted-foreground"> · {r.note}</span>}
+              {" · "}<span className="text-[10px] uppercase text-muted-foreground">{r.source}</span>
+              {r.note && <div className="text-muted-foreground mt-0.5">{r.note}</div>}
             </li>
           ))}
         </ul>
       )}
+      <button onClick={() => setOpen(true)} className="mt-2 text-xs text-primary hover:underline">
+        Abrir histórico completo →
+      </button>
+      <TerritoryContactLogDrawer
+        contact={{ id: contactId, ...contact }}
+        open={open}
+        onOpenChange={setOpen}
+        context="ficha"
+      />
     </Section>
   );
 }

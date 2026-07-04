@@ -1,8 +1,12 @@
 // Botão global "+ Adicionar contato".
 // Duas ações por tipo (Cadastro completo / Receber informações):
-// 1) Preencher agora → formulário inline que cria o contato imediatamente com
-//    source_user_id = usuário logado (aparece na lista de Agitação dele).
-// 2) Gerar link rastreável → mesmo comportamento anterior (compartilhar via WhatsApp).
+// 1) Preencher agora → formulário progressivo:
+//    Fase 1: Nome + WhatsApp → "Salvar rápido" (cria contato imediatamente, sem
+//    disparar automação; a tela NÃO fecha).
+//    Fase 2 (revelada após salvar): formas de ajuda (botões grandes), demais
+//    campos da ficha, Coletivo Alicerce OBRIGATÓRIO. Ao salvar cadastro
+//    completo dispara a mesma automação de confirmação do /recadastro.
+// 2) Gerar link rastreável → comportamento anterior.
 import { useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -11,11 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Plus, Copy, ExternalLink, MessageCircle, Loader2,
-  ClipboardList, Megaphone, ArrowLeft, PencilLine, Link2, Check,
+  ClipboardList, Megaphone, ArrowLeft, PencilLine, Link2, Check, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createTrackedLink } from "@/lib/tracked-links.functions";
-import { createInlineContact } from "@/lib/inline-contact.functions";
+import { quickSaveContact, completeInlineContact } from "@/lib/inline-contact.functions";
+import { useCepLookup, formatCep } from "@/hooks/use-cep";
 
 type SourceModule =
   | "gestao_base" | "territorio" | "agitacao" | "mapa"
@@ -47,6 +52,20 @@ function moduleLabel(m: SourceModule): string {
   };
   return map[m];
 }
+
+// Mesmas opções de /recadastro (FORMAS_AJUDA_OPTS).
+const FORMAS_AJUDA_OPTS: Array<{ value: string; label: string }> = [
+  { value: "panfletagem_banquinha", label: "Panfletagem / Banquinha" },
+  { value: "compartilhar_whatsapp", label: "Compartilhar material no WhatsApp" },
+  { value: "compartilhar_redes", label: "Compartilhar nas redes sociais" },
+  { value: "participar_eventos", label: "Participar de eventos" },
+  { value: "ajudar_organizacao", label: "Ajudar na organização" },
+  { value: "mobilizar_bairro", label: "Mobilizar pessoas do bairro" },
+  { value: "adesivar_carro", label: "Quero adesivar meu carro" },
+  { value: "plaquinha_casa", label: "Quero colocar uma plaquinha na frente de casa" },
+  { value: "receber_panfletos", label: "Receber panfletos e adesivos" },
+  { value: "outro", label: "Outro" },
+];
 
 type Props = { userName?: string | null; className?: string; compact?: boolean };
 
@@ -98,7 +117,7 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
     : step.kind === "choose_action"
       ? (step.type === "cadastro_completo" ? "Formulário de cadastro" : "Receber informações")
       : step.kind === "fill"
-        ? "Preencher contato agora"
+        ? "Novo contato"
         : "Link gerado";
 
   return (
@@ -109,7 +128,7 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
           <DialogDescription>
             {step.kind === "choose_type" && "Escolha o tipo de cadastro. Você poderá preencher agora ou gerar um link para a pessoa preencher."}
             {step.kind === "choose_action" && "Preencha na hora ou envie um link rastreável para a pessoa preencher sozinha."}
-            {step.kind === "fill" && "Os dados serão salvos e vinculados a você."}
+            {step.kind === "fill" && "Comece com nome e WhatsApp. Depois complete a ficha se quiser."}
             {step.kind === "link" && "Link rastreável — copie, abra ou envie por WhatsApp."}
           </DialogDescription>
         </DialogHeader>
@@ -160,11 +179,11 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
         )}
 
         {step.kind === "fill" && (
-          <InlineFillForm
+          <ProgressiveFillForm
             type={step.type}
             module={module}
-            onCancel={() => setStep({ kind: "choose_action", type: step.type })}
-            onSaved={() => { toast.success("Contato salvo."); onClose(); }}
+            onBack={() => setStep({ kind: "choose_action", type: step.type })}
+            onDone={() => onClose()}
           />
         )}
 
@@ -219,136 +238,272 @@ function ActionCard({
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
+function BackButton({ onClick, label = "Voltar" }: { onClick: () => void; label?: string }) {
   return (
     <Button variant="ghost" size="sm" onClick={onClick} className="mt-2">
-      <ArrowLeft className="h-3.5 w-3.5" /> Voltar
+      <ArrowLeft className="h-3.5 w-3.5" /> {label}
     </Button>
   );
 }
 
-function InlineFillForm({
-  type, module, onCancel, onSaved,
-}: { type: FormType; module: SourceModule; onCancel: () => void; onSaved: () => void }) {
-  const save = useServerFn(createInlineContact);
-  const isFull = type === "cadastro_completo";
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [f, setF] = useState({
-    nome: "", phone: "", email: "",
-    cep: "", endereco: "", numero: "",
-    bairro: "", cidade: "", uf: "",
-    observacoes: "",
-    consentimento_whatsapp: true,
-  });
+function ProgressiveFillForm({
+  type, module, onBack, onDone,
+}: { type: FormType; module: SourceModule; onBack: () => void; onDone: () => void }) {
+  const quickFn = useServerFn(quickSaveContact);
+  const completeFn = useServerFn(completeInlineContact);
+  const cepHook = useCepLookup();
 
-  function upd<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
-    setF((prev) => ({ ...prev, [k]: v }));
+  // Fase 1
+  const [nome, setNome] = useState("");
+  const [phone, setPhone] = useState("");
+  const [savingQuick, setSavingQuick] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [contactId, setContactId] = useState<string | null>(null);
+
+  // Fase 2
+  const [formasAjuda, setFormasAjuda] = useState<string[]>([]);
+  const [email, setEmail] = useState("");
+  const [profissao, setProfissao] = useState("");
+  const [cep, setCep] = useState("");
+  const [endereco, setEndereco] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
+  const [referencia, setReferencia] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [uf, setUf] = useState("");
+  const [comoConheceu, setComoConheceu] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [coletivoAlicerce, setColetivoAlicerce] = useState<"" | "sim" | "nao">("");
+  const [savingFull, setSavingFull] = useState(false);
+  const [fullError, setFullError] = useState<string | null>(null);
+
+  function toggleForma(v: string) {
+    setFormasAjuda((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!f.consentimento_whatsapp) {
-      setError("É preciso confirmar a autorização de contato por WhatsApp.");
-      return;
+  async function onCepChange(v: string) {
+    const formatted = formatCep(v);
+    setCep(formatted);
+    const digits = formatted.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    const res = await cepHook.lookup(digits);
+    if (res) {
+      if (res.endereco) setEndereco(res.endereco);
+      if (res.bairro) setBairro(res.bairro);
+      if (res.cidade) setCidade(res.cidade);
+      if (res.uf) setUf(res.uf);
     }
-    setSubmitting(true);
+  }
+
+  async function saveQuick(e: React.FormEvent) {
+    e.preventDefault();
+    setQuickError(null);
+    if (nome.trim().length < 2) { setQuickError("Digite o nome."); return; }
+    if (phone.trim().length < 8) { setQuickError("Digite o WhatsApp com DDD."); return; }
+    setSavingQuick(true);
     try {
-      await save({
+      const r = await quickFn({ data: { source_module: module, form_type: type, nome: nome.trim(), phone: phone.trim() } });
+      setContactId(r.contact_id);
+      toast.success("Contato salvo. Complete os dados abaixo quando quiser.");
+    } catch (err) {
+      setQuickError(err instanceof Error ? err.message : "Erro ao salvar.");
+    } finally {
+      setSavingQuick(false);
+    }
+  }
+
+  async function saveComplete(e: React.FormEvent) {
+    e.preventDefault();
+    setFullError(null);
+    if (!contactId) { setFullError("Salve o contato antes."); return; }
+    if (coletivoAlicerce === "") { setFullError("Informe se faz parte do Coletivo Alicerce."); return; }
+    setSavingFull(true);
+    try {
+      await completeFn({
         data: {
-          form_type: type,
+          contact_id: contactId,
           source_module: module,
-          nome: f.nome.trim(),
-          phone: f.phone.trim(),
-          email: f.email.trim(),
-          cidade: f.cidade.trim(),
-          uf: f.uf.trim(),
-          bairro: f.bairro.trim(),
-          endereco: isFull ? f.endereco.trim() : "",
-          numero: isFull ? f.numero.trim() : "",
-          cep: isFull ? f.cep.trim() : "",
-          observacoes: f.observacoes.trim(),
-          consentimento_whatsapp: f.consentimento_whatsapp,
+          form_type: type,
+          nome: nome.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          profissao: profissao.trim(),
+          cep: cep.trim(),
+          endereco: endereco.trim(),
+          numero: numero.trim(),
+          complemento: complemento.trim(),
+          referencia: referencia.trim(),
+          bairro: bairro.trim(),
+          cidade: cidade.trim(),
+          uf: uf.trim(),
+          como_conheceu: comoConheceu.trim(),
+          observacoes: observacoes.trim(),
+          formas_ajuda: formasAjuda,
+          formas_ajuda_outro: "",
+          coletivo_alicerce: coletivoAlicerce === "sim",
         },
       });
-      onSaved();
+      toast.success("Cadastro completo salvo. Mensagem de confirmação enviada.");
+      onDone();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar.");
+      setFullError(err instanceof Error ? err.message : "Erro ao salvar.");
     } finally {
-      setSubmitting(false);
+      setSavingFull(false);
     }
   }
 
+  const savedQuick = !!contactId;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <Field label="Nome *">
-        <Input required maxLength={120} value={f.nome} onChange={(e) => upd("nome", e.target.value)} />
-      </Field>
-      <Field label="WhatsApp (com DDD) *">
-        <Input required inputMode="tel" placeholder="(11) 91234-5678" value={f.phone} onChange={(e) => upd("phone", e.target.value)} />
-      </Field>
-      {isFull && (
-        <Field label="E-mail">
-          <Input type="email" value={f.email} onChange={(e) => upd("email", e.target.value)} />
-        </Field>
-      )}
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Cidade" className="col-span-2">
-          <Input maxLength={120} value={f.cidade} onChange={(e) => upd("cidade", e.target.value)} />
-        </Field>
-        <Field label="UF">
-          <Input maxLength={2} value={f.uf} onChange={(e) => upd("uf", e.target.value.toUpperCase())} />
-        </Field>
-      </div>
-      <Field label="Bairro">
-        <Input maxLength={120} value={f.bairro} onChange={(e) => upd("bairro", e.target.value)} />
-      </Field>
-      {isFull && (
-        <>
-          <div className="grid grid-cols-3 gap-2">
-            <Field label="CEP">
-              <Input maxLength={12} value={f.cep} onChange={(e) => upd("cep", e.target.value)} />
-            </Field>
-            <Field label="Endereço" className="col-span-2">
-              <Input maxLength={240} value={f.endereco} onChange={(e) => upd("endereco", e.target.value)} />
-            </Field>
+    <div className="space-y-6">
+      {/* Fase 1 — Nome + WhatsApp + Salvar rápido */}
+      <form onSubmit={saveQuick} className="space-y-3 rounded-xl border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold">Passo 1 — Dados básicos</div>
+            <div className="text-xs text-muted-foreground">Salva na hora. Sem consentimento aqui: se completar depois, o WhatsApp de confirmação é disparado automaticamente.</div>
           </div>
-          <Field label="Número">
-            <Input maxLength={20} value={f.numero} onChange={(e) => upd("numero", e.target.value)} />
-          </Field>
-        </>
+          {savedQuick && <span className="text-emerald-700 text-xs inline-flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Salvo</span>}
+        </div>
+        <Field label="Nome *">
+          <Input required disabled={savedQuick} maxLength={120} value={nome} onChange={(e) => setNome(e.target.value)} />
+        </Field>
+        <Field label="WhatsApp (com DDD) *">
+          <Input required disabled={savedQuick} inputMode="tel" placeholder="(11) 91234-5678" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        {quickError && <p className="text-sm text-destructive">{quickError}</p>}
+        {!savedQuick && (
+          <div className="flex justify-between gap-2 pt-1">
+            <BackButton onClick={onBack} />
+            <Button type="submit" disabled={savingQuick}>
+              {savingQuick ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {savingQuick ? "Salvando…" : "Salvar rápido"}
+            </Button>
+          </div>
+        )}
+      </form>
+
+      {/* Fase 2 — só após salvar */}
+      {savedQuick && (
+        <form onSubmit={saveComplete} className="space-y-5">
+          {/* Formas de ajuda — botões grandes */}
+          <section className="space-y-2">
+            <div className="text-sm font-semibold">Como pode ajudar?</div>
+            <div className="text-xs text-muted-foreground">Toque nas formas que fizerem sentido.</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+              {FORMAS_AJUDA_OPTS.map((o) => {
+                const active = formasAjuda.includes(o.value);
+                return (
+                  <button
+                    type="button"
+                    key={o.value}
+                    onClick={() => toggleForma(o.value)}
+                    className={`text-left rounded-lg border-2 px-3 py-3 text-sm font-medium transition-colors ${
+                      active
+                        ? "border-emerald-600 bg-emerald-600 text-white"
+                        : "border-input bg-background hover:border-emerald-300 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {active && <Check className="h-4 w-4 shrink-0" />}
+                      {o.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Ficha completa — mesmos campos da Gestão da Base */}
+          <section className="space-y-3">
+            <div className="text-sm font-semibold border-b pb-1">Dados adicionais</div>
+            <Field label="E-mail">
+              <Input type="email" maxLength={255} value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+            <Field label="Profissão / ocupação">
+              <Input maxLength={120} value={profissao} onChange={(e) => setProfissao(e.target.value)} />
+            </Field>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Field label={cepHook.loading ? "CEP (buscando…)" : "CEP"}>
+                <Input maxLength={9} value={cep} inputMode="numeric" onChange={(e) => onCepChange(e.target.value)} />
+              </Field>
+              <Field label="UF">
+                <Input maxLength={2} value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} />
+              </Field>
+              <Field label="Cidade">
+                <Input maxLength={120} value={cidade} onChange={(e) => setCidade(e.target.value)} />
+              </Field>
+            </div>
+            <Field label="Bairro">
+              <Input maxLength={120} value={bairro} onChange={(e) => setBairro(e.target.value)} />
+            </Field>
+            <div className="grid grid-cols-3 gap-2">
+              <Field label="Endereço (rua)" className="col-span-2">
+                <Input maxLength={240} value={endereco} onChange={(e) => setEndereco(e.target.value)} />
+              </Field>
+              <Field label="Número">
+                <Input maxLength={20} value={numero} onChange={(e) => setNumero(e.target.value)} />
+              </Field>
+            </div>
+            <Field label="Complemento">
+              <Input maxLength={120} value={complemento} onChange={(e) => setComplemento(e.target.value)} />
+            </Field>
+            <Field label="Ponto de referência">
+              <Input maxLength={240} value={referencia} onChange={(e) => setReferencia(e.target.value)} />
+            </Field>
+
+            <Field label="Como conheceu a campanha?">
+              <Input maxLength={240} value={comoConheceu} onChange={(e) => setComoConheceu(e.target.value)} />
+            </Field>
+            <Field label="Observações">
+              <textarea
+                rows={3}
+                maxLength={2000}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </Field>
+          </section>
+
+          {/* Coletivo Alicerce — obrigatório */}
+          <section className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
+            <div className="text-sm font-semibold text-amber-900">Faz parte do Coletivo Alicerce? *</div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setColetivoAlicerce("sim")}
+                className={`flex-1 rounded-md px-4 py-2 text-sm font-medium border-2 ${
+                  coletivoAlicerce === "sim"
+                    ? "bg-emerald-600 border-emerald-600 text-white"
+                    : "bg-background border-input hover:border-emerald-300"
+                }`}
+              >Sim</button>
+              <button
+                type="button"
+                onClick={() => setColetivoAlicerce("nao")}
+                className={`flex-1 rounded-md px-4 py-2 text-sm font-medium border-2 ${
+                  coletivoAlicerce === "nao"
+                    ? "bg-rose-600 border-rose-600 text-white"
+                    : "bg-background border-input hover:border-rose-300"
+                }`}
+              >Não</button>
+            </div>
+          </section>
+
+          {fullError && <p className="text-sm text-destructive">{fullError}</p>}
+          <div className="flex justify-between gap-2 pt-1">
+            <Button type="button" variant="ghost" onClick={onDone}>Fechar sem completar</Button>
+            <Button type="submit" disabled={savingFull}>
+              {savingFull ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {savingFull ? "Salvando…" : "Salvar cadastro completo"}
+            </Button>
+          </div>
+        </form>
       )}
-      <Field label="Observações">
-        <textarea
-          rows={2}
-          maxLength={2000}
-          value={f.observacoes}
-          onChange={(e) => upd("observacoes", e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        />
-      </Field>
-      <label className="flex items-start gap-2 text-xs text-muted-foreground border rounded-md p-3 bg-muted/30">
-        <input
-          type="checkbox"
-          className="mt-0.5 h-4 w-4"
-          checked={f.consentimento_whatsapp}
-          onChange={(e) => upd("consentimento_whatsapp", e.target.checked)}
-        />
-        <span>
-          A pessoa autoriza receber comunicações da campanha por WhatsApp
-          (pode cancelar respondendo "SAIR").
-        </span>
-      </label>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex justify-between gap-2 pt-1">
-        <BackButton onClick={onCancel} />
-        <Button type="submit" disabled={submitting}>
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          {submitting ? "Salvando…" : "Salvar contato"}
-        </Button>
-      </div>
-    </form>
+    </div>
   );
 }
 

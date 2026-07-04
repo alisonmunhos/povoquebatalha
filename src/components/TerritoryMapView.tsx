@@ -4,15 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listMapContacts, getMapContactDetail, listMapFacets } from "@/lib/map.functions";
 import { getGeocodingStats, runGeocodingBatch, regeocodeOne } from "@/lib/geocoding.functions";
-import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { logTerritoryAction, resetTerritoryContact } from "@/lib/territory-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "sonner";
 import {
-  RefreshCw, AlertTriangle, X, Send, ExternalLink, LocateFixed, ChevronDown,
+  RefreshCw, AlertTriangle, X, ExternalLink, LocateFixed, ChevronDown,
   Copy, Navigation, MessageCircle, CheckCircle2, UserX, StickyNote, RotateCcw,
   History, Plus, Minus, Maximize2, Minimize2, Phone, MapPin, Crosshair,
 } from "lucide-react";
@@ -716,8 +714,6 @@ function escapeHtml(s: string) {
 // ---------- Contact detail panel ----------
 export function MapDetailPanel({ contactId, onClose, overlay = false }: { contactId: string; onClose: () => void; overlay?: boolean }) {
   const detailFn = useServerFn(getMapContactDetail);
-  const quickFn = useServerFn(listQuickReplies);
-  const sendFn = useServerFn(sendDirectMessage);
   const logFn = useServerFn(logTerritoryAction);
   const resetFn = useServerFn(resetTerritoryContact);
   const qc = useQueryClient();
@@ -726,11 +722,7 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
     queryKey: ["map-detail", contactId],
     queryFn: () => detailFn({ data: { id: contactId } }),
   });
-  const quickReplies = useQuery({ queryKey: ["quick-replies"], queryFn: () => quickFn() });
 
-  const [message, setMessage] = useState("");
-  const [templateId, setTemplateId] = useState<string>("");
-  const [showSend, setShowSend] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [showHistory, setShowHistory] = useState(false);
@@ -739,15 +731,10 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
     qc.invalidateQueries({ queryKey: ["map-contacts"] });
     qc.invalidateQueries({ queryKey: ["map-detail", contactId] });
     qc.invalidateQueries({ queryKey: ["territory-contacts"] });
-    qc.invalidateQueries({ queryKey: ["territory-contact-logs"] });
+    qc.invalidateQueries({ queryKey: ["contact-logs-unified"] });
     qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
   };
 
-  const send = useMutation({
-    mutationFn: () => sendFn({ data: { contact_id: contactId, message, origem: "mapa", template_id: templateId || undefined } }),
-    onSuccess: () => { toast.success("Mensagem enviada."); setMessage(""); setTemplateId(""); setShowSend(false); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const logField = useMutation({
     mutationFn: (v: { action: "contato_realizado" | "nao_encontrado" | "observacao" | "whatsapp_aberto"; note?: string }) =>
@@ -1069,48 +1056,8 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
                 >
                   Abrir ficha completa <ExternalLink className="h-3 w-3" />
                 </Link>
-                {!c.opt_out_at && c.phone_e164 && !showSend && (
-                  <button
-                    onClick={() => setShowSend(true)}
-                    className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-md border hover:bg-muted"
-                  >
-                    <Send className="h-3 w-3" /> Envio rápido pelo app
-                  </button>
-                )}
               </div>
 
-              {/* Envio rápido (colapsável) */}
-              {!c.opt_out_at && c.phone_e164 && showSend && (
-                <div className="border-t pt-4 space-y-2">
-                  <div className="text-sm font-semibold flex items-center gap-1"><Send className="h-3.5 w-3.5" /> Envio rápido</div>
-                  <select
-                    className="w-full border rounded-md h-9 px-2 text-sm bg-background"
-                    value={templateId}
-                    onChange={(e) => {
-                      setTemplateId(e.target.value);
-                      const t = (quickReplies.data ?? []).find((q) => q.id === e.target.value);
-                      if (t) setMessage(t.body);
-                    }}
-                  >
-                    <option value="">Escolher template (opcional)</option>
-                    {(quickReplies.data ?? []).map((q) => (
-                      <option key={q.id} value={q.id}>{q.title}</option>
-                    ))}
-                  </select>
-                  <Textarea
-                    rows={4}
-                    placeholder="Escreva a mensagem…"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
-                  <Button size="sm" className="w-full" disabled={!message.trim() || send.isPending} onClick={() => send.mutate()}>
-                    {send.isPending ? "Enviando…" : "Enviar WhatsApp"}
-                  </Button>
-                  <p className="text-[11px] text-muted-foreground">
-                    Suporta variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{cidade}}"}, {"{{bairro}}"}.
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>

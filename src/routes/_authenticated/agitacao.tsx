@@ -4,12 +4,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin } from "lucide-react";
+import { Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History } from "lucide-react";
 import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 
 export const Route = createFileRoute("/_authenticated/agitacao")({
   head: () => ({ meta: [{ title: "Agitação — Povo que Batalha" }] }),
@@ -24,6 +25,10 @@ function AgitacaoPage() {
   const [semContato, setSemContato] = useState(false);
   const [obsFor, setObsFor] = useState<{ id: string; nome: string } | null>(null);
   const [obsText, setObsText] = useState("");
+  const [histFor, setHistFor] = useState<{
+    id: string; nome: string | null; phone_e164: string | null;
+    bairro: string | null; cidade: string | null; uf: string | null;
+  } | null>(null);
 
   const q = useQuery({
     queryKey: ["agitacao", search, pendentes, semContato],
@@ -130,11 +135,25 @@ function AgitacaoPage() {
                 <Button size="sm" variant="ghost" onClick={() => { setObsFor({ id: c.id, nome: c.nome ?? "" }); setObsText(""); }}>
                   <StickyNote className="h-3.5 w-3.5" /> Observação
                 </Button>
+                <Button size="sm" variant="ghost" onClick={() => setHistFor({
+                  id: c.id, nome: c.nome ?? null, phone_e164: c.phone_e164 ?? null,
+                  bairro: c.bairro ?? null, cidade: c.cidade ?? null, uf: c.uf ?? null,
+                })}>
+                  <History className="h-3.5 w-3.5" /> Histórico
+                </Button>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      <TerritoryContactLogDrawer
+        contact={histFor}
+        open={!!histFor}
+        onOpenChange={(o) => { if (!o) setHistFor(null); }}
+        context="agitacao"
+      />
+
 
       {obsFor && (
         <Dialog open onOpenChange={(v) => { if (!v) setObsFor(null); }}>
