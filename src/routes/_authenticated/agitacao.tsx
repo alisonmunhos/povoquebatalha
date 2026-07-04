@@ -135,11 +135,25 @@ function AgitacaoPage() {
                 <Button size="sm" variant="ghost" onClick={() => { setObsFor({ id: c.id, nome: c.nome ?? "" }); setObsText(""); }}>
                   <StickyNote className="h-3.5 w-3.5" /> Observação
                 </Button>
+                <Button size="sm" variant="ghost" onClick={() => setHistFor({
+                  id: c.id, nome: c.nome ?? null, phone_e164: c.phone_e164 ?? null,
+                  bairro: c.bairro ?? null, cidade: c.cidade ?? null, uf: c.uf ?? null,
+                })}>
+                  <History className="h-3.5 w-3.5" /> Histórico
+                </Button>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      <TerritoryContactLogDrawer
+        contact={histFor}
+        open={!!histFor}
+        onOpenChange={(o) => { if (!o) setHistFor(null); }}
+        context="agitacao"
+      />
+
 
       {obsFor && (
         <Dialog open onOpenChange={(v) => { if (!v) setObsFor(null); }}>
