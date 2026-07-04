@@ -106,6 +106,9 @@ export const logAgitacaoAction = createServerFn({ method: "POST" })
       user_id: context.userId,
       action: data.action,
       note: data.observacao ?? null,
+      // Observação e "pediu atualização" já nascem pendentes (follow-up) — Frente 3.
+      follow_up_status:
+        data.action === "observacao" || data.action === "pediu_atualizacao" ? "pendente" : null,
     });
     if (error) throw new Error(error.message);
     return { ok: true as const };
