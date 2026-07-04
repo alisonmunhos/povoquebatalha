@@ -140,6 +140,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           bairro: d.bairro || null,
           como_conheceu: d.como_conheceu || null,
           profissao: d.profissao || null,
+          instituicao: d.instituicao || null,
           coletivo_alicerce: d.coletivo_alicerce ?? null,
           participa_movimento_social: d.participa_movimento_social ?? null,
           movimento_social_nome: d.movimento_social_nome || null,
