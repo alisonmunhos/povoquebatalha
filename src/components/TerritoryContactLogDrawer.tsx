@@ -344,7 +344,7 @@ function LogCard({
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuContent align="end" className="w-52 z-[1300]">
             {followable && status !== "pendente" && (
               <DropdownMenuItem onClick={() => onSetFollowUp("pendente")}>
                 <CircleDot className="h-4 w-4 mr-2 text-amber-600" /> Marcar como pendente
