@@ -519,4 +519,38 @@ export const rejectPendingAgitador = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+// Lista leve de usuários do sistema (id + nome + e-mail + papéis) para popular
+// dropdowns como "captado por" nos filtros do CRM. Disponível para qualquer
+// usuário autenticado — não expõe informação sensível além de nome/e-mail.
+export const listSystemUserOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: users, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    if (error) throw error;
+    const ids = users.users.map((u) => u.id);
+    const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
+    const [{ data: profs }, { data: roles }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("id, full_name").in("id", safeIds),
+      supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", safeIds),
+    ]);
+    const nameById = new Map<string, string | null>();
+    (profs ?? []).forEach((p: { id: string; full_name: string | null }) => nameById.set(p.id, p.full_name));
+    const rolesById = new Map<string, string[]>();
+    (roles ?? []).forEach((r: { user_id: string; role: string }) => {
+      const arr = rolesById.get(r.user_id) ?? [];
+      arr.push(r.role);
+      rolesById.set(r.user_id, arr);
+    });
+    return {
+      users: users.users.map((u) => ({
+        id: u.id,
+        email: u.email ?? "",
+        full_name: nameById.get(u.id) ?? null,
+        roles: rolesById.get(u.id) ?? [],
+      })),
+    };
+  });
+
+
 
