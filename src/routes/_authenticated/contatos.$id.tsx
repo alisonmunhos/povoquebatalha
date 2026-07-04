@@ -489,6 +489,17 @@ const MODULE_LABEL: Record<string, string> = {
   link_publico: "Links públicos",
 };
 
+const SYSTEM_ROLE_LABEL: Record<string, string> = {
+  admin: "Admin",
+  operador: "Operador",
+  vrm: "VRM",
+  comunicacao: "Comunicação",
+  agitador: "Agitador",
+  leitor: "Leitor",
+  territorio: "Território (descontinuado)",
+};
+
+
 function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; contact: ContactSourceLike }) {
   const fn = useServerFn(getContactSourceEvents);
   const q = useQuery({ queryKey: ["contact-source", contactId], queryFn: () => fn({ data: { id: contactId } }) });
