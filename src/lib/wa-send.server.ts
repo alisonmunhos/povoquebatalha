@@ -3,6 +3,11 @@
 // validações de opt-out/consentimento/telefone, e retorno padronizado com
 // endpoint_used / preview_status / fallback_reason.
 //
+// IMPORTANTE: disparos automáticos (campanhas, automações) usam SEMPRE o
+// telefone principal (`phone_whatsapp_candidate` → `phone_e164`). O campo
+// `phone_secundario_e164` é apenas informativo/manual e para reconhecimento
+// de mensagens recebidas (ver src/routes/api/public/zapi/$evento.ts).
+//
 // Nunca importar deste arquivo fora de handlers de server-fn / server routes.
 // Import típico:  const { sendMessage } = await import("@/lib/wa-send.server");
 
