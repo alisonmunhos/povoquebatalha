@@ -712,6 +712,7 @@ export type Database = {
             | null
           id: string
           import_id: string | null
+          instituicao: string | null
           is_system_user: boolean
           last_source_module:
             | Database["public"]["Enums"]["source_module"]
@@ -801,6 +802,7 @@ export type Database = {
             | null
           id?: string
           import_id?: string | null
+          instituicao?: string | null
           is_system_user?: boolean
           last_source_module?:
             | Database["public"]["Enums"]["source_module"]
@@ -892,6 +894,7 @@ export type Database = {
             | null
           id?: string
           import_id?: string | null
+          instituicao?: string | null
           is_system_user?: boolean
           last_source_module?:
             | Database["public"]["Enums"]["source_module"]

@@ -99,6 +99,7 @@ type PreviewRow = {
   phone: ParsedPhone;
   extras: {
     profissao?: string | null;
+    instituicao?: string | null;
     cep?: string | null;
     endereco?: string | null;
     numero?: string | null;
@@ -239,7 +240,11 @@ export const buildPreview = createServerFn({ method: "POST" })
       // Extras
       const observacoes: string[] = [];
       for (const o of getAll("observacoes")) observacoes.push(`${o.col}: ${o.value}`);
-      const inst = getBy("instituicao"); if (inst) observacoes.push(`Instituição: ${inst}`);
+      const inst = getBy("instituicao");
+      // `instituicao` agora vai como campo estruturado (ver `extras.instituicao` abaixo).
+      // Mantida a duplicação em observações para preservar a informação em bases já importadas
+      // antes desta mudança — pode ser removida no futuro, quando não houver mais planilhas antigas.
+      if (inst) observacoes.push(`Instituição: ${inst}`);
       const tags: string[] = [];
       for (const t of getAll("tag")) {
         // permitir múltiplos valores separados por vírgula/;
@@ -261,6 +266,7 @@ export const buildPreview = createServerFn({ method: "POST" })
         linha, nome, email, phone, problemas,
         extras: {
           profissao: getBy("profissao"),
+          instituicao: inst,
           cep: getBy("cep"),
           endereco: getBy("endereco"),
           numero: getBy("numero"),
@@ -422,6 +428,7 @@ export const commitImport = createServerFn({ method: "POST" })
           phone_raw: p.phone.phone_original,
           email: p.email,
           profissao: ex.profissao ?? null,
+          instituicao: ex.instituicao ?? null,
           cep: ex.cep ?? null,
           endereco: ex.endereco ?? null,
           numero: ex.numero ?? null,
@@ -485,6 +492,7 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("email", p.email);
             fillIfEmpty("phone_raw", p.phone.phone_original);
             fillIfEmpty("profissao", ex.profissao ?? null);
+            fillIfEmpty("instituicao", ex.instituicao ?? null);
             fillIfEmpty("cep", ex.cep ?? null);
             fillIfEmpty("endereco", ex.endereco ?? null);
             fillIfEmpty("numero", ex.numero ?? null);

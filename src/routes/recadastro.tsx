@@ -107,6 +107,7 @@ export function Recadastro() {
       uf,
       como_conheceu: String(fd.get("como_conheceu") ?? ""),
       profissao: String(fd.get("profissao") ?? ""),
+      instituicao: String(fd.get("instituicao") ?? ""),
       coletivo_alicerce: coletivoAlicerce === "sim" ? true : coletivoAlicerce === "nao" ? false : undefined,
       participa_movimento_social: movSocial === "sim" ? true : movSocial === "nao" ? false : undefined,
       movimento_social_nome: movSocial === "sim" ? String(fd.get("movimento_social_nome") ?? "") : "",
@@ -167,6 +168,10 @@ export function Recadastro() {
             <Field label="WhatsApp (com DDD) *" name="phone" required placeholder="(11) 91234-5678" inputMode="tel" maxLength={20} />
             <Field label="E-mail" name="email" type="email" maxLength={255} />
             <Field label="Profissão / ocupação" name="profissao" maxLength={120} />
+            <div>
+              <Field label="Onde você trabalha?" name="instituicao" maxLength={240} />
+              <p className="mt-1 text-xs text-muted-foreground">Ex: Escola Municipal Getúlio Vargas, Secretaria de Saúde, Mercado Central, Autônomo(a). Se for funcionário público, o nome do local (escola, posto de saúde, etc.) já é suficiente — não precisa saber o nome oficial do órgão.</p>
+            </div>
           </section>
 
           <section className="space-y-5">

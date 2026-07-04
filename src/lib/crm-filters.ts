@@ -14,6 +14,7 @@ export const crmFilterSchema = z.object({
 
   // Perfil
   profissao: z.string().trim().optional(),
+  instituicao: z.string().trim().optional(),
   profissoes: z.array(z.string()).optional(),
   coletivo_alicerce: z.boolean().optional(),
   tipo_contato: z.string().optional(),
@@ -75,6 +76,7 @@ const SEARCH_COLS = [
   "phone_e164",
   "email",
   "profissao",
+  "instituicao",
   "observacoes",
   "bairro",
   "cidade",
@@ -118,6 +120,7 @@ export function applyCrmFilters<T extends {
 
   // Perfil
   if (f.profissao) q = q.ilike("profissao", `%${safe(f.profissao)}%`);
+  if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
   if (f.profissoes?.length) {
     q = q.or(f.profissoes.map((v) => `profissao.ilike.${safe(v)}`).join(","));
   }

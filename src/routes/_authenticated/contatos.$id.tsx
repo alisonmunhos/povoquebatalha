@@ -75,7 +75,7 @@ function ContatoFicha() {
         cep: c.cep ? formatCep(c.cep) : "", endereco: c.endereco ?? "", numero: c.numero ?? "",
         complemento: c.complemento ?? "", referencia: c.referencia ?? "",
         bairro: c.bairro ?? "", cidade: c.cidade ?? "", uf: c.uf ?? "",
-        profissao: c.profissao ?? "", coletivo_alicerce: c.coletivo_alicerce ?? false,
+        profissao: c.profissao ?? "", instituicao: (c as { instituicao?: string | null }).instituicao ?? "", coletivo_alicerce: c.coletivo_alicerce ?? false,
         participa_movimento_social: c.participa_movimento_social ?? false,
         movimento_social_nome: c.movimento_social_nome ?? "",
         tipo_contato: c.tipo_contato ?? "apoiador",
@@ -230,6 +230,10 @@ function ContatoFicha() {
 
           <Section title="Perfil e organização">
             <Row><Field label="Profissão / ocupação" value={form.profissao} onChange={(v) => set("profissao", v)} /></Row>
+            <Row>
+              <Field label="Onde trabalha" value={form.instituicao} onChange={(v) => set("instituicao", v)} placeholder="Ex: Escola Municipal Getúlio Vargas, Secretaria de Saúde, Autônomo(a)" />
+              <p className="text-xs text-muted-foreground mt-1">Nome do local (escola, posto de saúde, empresa, coletivo, órgão). Opcional.</p>
+            </Row>
             <Row>
               <label className="text-sm font-medium">Tipo de contato</label>
               <select value={String(form.tipo_contato ?? "")} onChange={(e) => set("tipo_contato", e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
