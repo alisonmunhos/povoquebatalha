@@ -240,7 +240,11 @@ export const buildPreview = createServerFn({ method: "POST" })
       // Extras
       const observacoes: string[] = [];
       for (const o of getAll("observacoes")) observacoes.push(`${o.col}: ${o.value}`);
-      const inst = getBy("instituicao"); if (inst) observacoes.push(`Instituição: ${inst}`);
+      const inst = getBy("instituicao");
+      // `instituicao` agora vai como campo estruturado (ver `extras.instituicao` abaixo).
+      // Mantida a duplicação em observações para preservar a informação em bases já importadas
+      // antes desta mudança — pode ser removida no futuro, quando não houver mais planilhas antigas.
+      if (inst) observacoes.push(`Instituição: ${inst}`);
       const tags: string[] = [];
       for (const t of getAll("tag")) {
         // permitir múltiplos valores separados por vírgula/;
