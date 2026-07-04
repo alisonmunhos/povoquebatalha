@@ -140,6 +140,21 @@ function Contatos() {
     toast.success(`${selected.size} contato(s) atualizados`);
     q.refetch();
   }
+  async function doCreateTag() {
+    const nome = newTagName.trim();
+    if (!nome) return toast.error("Digite um nome para a tag");
+    try {
+      const row = await createTagFn({ data: { nome } });
+      await optionsQ.refetch();
+      setBulkTagId(row.id);
+      setNewTagName("");
+      setCreatingTag(false);
+      toast.success(`Tag "${row.nome}" criada — pronta para aplicar`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar tag");
+    }
+  }
+
   async function doBulkArchive(archived: boolean) {
     if (!selected.size) return;
     if (archived && !confirm(`Arquivar ${selected.size} contato(s)?\n\nEles deixam de aparecer na listagem padrão, mas o histórico é preservado.`)) return;
