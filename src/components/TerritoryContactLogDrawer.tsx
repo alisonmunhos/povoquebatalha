@@ -137,8 +137,13 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange, context
   };
 
   const followMut = useMutation({
-    mutationFn: (v: { source: LogSource; logId: string; status: "pendente" | "concluido" | null }) =>
-      followFn({ data: v }),
+    mutationFn: async (v: { source: LogSource; logId: string; status: "pendente" | "concluido" | null }) => {
+      const r = await followFn({ data: v });
+      if (!r.ok || (r.updated ?? 0) === 0) {
+        throw new Error("Sem permissão para editar este registro.");
+      }
+      return r;
+    },
     onSuccess: (_r, v) => {
       toast.success(
         v.status === "concluido"
@@ -156,7 +161,13 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange, context
   });
 
   const hideMut = useMutation({
-    mutationFn: (v: { source: LogSource; logId: string; hidden: boolean }) => hideFn({ data: v }),
+    mutationFn: async (v: { source: LogSource; logId: string; hidden: boolean }) => {
+      const r = await hideFn({ data: v });
+      if (!r.ok || (r.updated ?? 0) === 0) {
+        throw new Error("Sem permissão para editar este registro.");
+      }
+      return r;
+    },
     onSuccess: (_r, v) => {
       toast.success(v.hidden ? "Registro ocultado" : "Registro reexibido");
       invalidate();
@@ -333,7 +344,7 @@ function LogCard({
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuContent align="end" className="w-52 z-[1300]">
             {followable && status !== "pendente" && (
               <DropdownMenuItem onClick={() => onSetFollowUp("pendente")}>
                 <CircleDot className="h-4 w-4 mr-2 text-amber-600" /> Marcar como pendente
