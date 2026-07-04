@@ -15,8 +15,11 @@ import { parsePhoneBR, type ParsedPhone } from "@/lib/phone";
 export const FIELD_KEYS = [
   "ignore",
   "nome",
+  "nome_social",
   "phone_raw",
+  "phone_secundario_raw",
   "email",
+  "email_secundario",
   "profissao",
   "cidade",
   "uf",
@@ -25,8 +28,12 @@ export const FIELD_KEYS = [
   "numero",
   "complemento",
   "bairro",
+  "referencia",
   "observacoes",
   "tag",
+  "tipo_contato",
+  "coletivo_alicerce",
+  "participa_movimento_social",
   "origem_detalhe",
   "movimento_social",
   "instituicao",
@@ -37,6 +44,8 @@ export type FieldKey = (typeof FIELD_KEYS)[number];
 const ENCODINGS = ["auto", "utf-8", "utf-8-bom", "iso-8859-1", "windows-1252"] as const;
 export type EncodingOption = (typeof ENCODINGS)[number];
 
+const TIPO_CONTATO_VALIDOS = new Set(["apoiador", "voluntario", "lista_divulgacao", "importado", "outro"]);
+
 function normalize(s: string) {
   return s
     .toString()
@@ -44,6 +53,38 @@ function normalize(s: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
+}
+
+function parseBool(v: string | null | undefined): boolean | null {
+  if (v == null) return null;
+  const s = normalize(v);
+  if (!s) return null;
+  if (["sim", "s", "1", "true", "verdadeiro", "yes", "y", "x"].includes(s)) return true;
+  if (["nao", "n", "0", "false", "falso", "no"].includes(s)) return false;
+  return null;
+}
+
+function parseTipoContato(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const s = normalize(v);
+  if (!s) return null;
+  const map: Record<string, string> = {
+    apoiador: "apoiador",
+    apoiadora: "apoiador",
+    voluntario: "voluntario",
+    voluntaria: "voluntario",
+    volunt: "voluntario",
+    listadedivulgacao: "lista_divulgacao",
+    listadivulgacao: "lista_divulgacao",
+    divulgacao: "lista_divulgacao",
+    importado: "importado",
+    outro: "outro",
+    outros: "outro",
+  };
+  const hit = map[s];
+  if (hit && TIPO_CONTATO_VALIDOS.has(hit)) return hit;
+  if (TIPO_CONTATO_VALIDOS.has(s)) return s;
+  return null;
 }
 
 function suggestMapping(headers: string[]): Record<string, FieldKey> {
