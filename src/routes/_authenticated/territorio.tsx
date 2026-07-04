@@ -295,16 +295,24 @@ function FieldAction() {
               </select>
             </label>
             <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-              Ordenar:
+              Classificação:
               <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as SortBy); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
+                <option value="inclusion">Ordem de inclusão (padrão)</option>
+                <option value="alphabetical">Alfabética (por nome)</option>
+                <option value="recent">Mais recentes → mais antigos</option>
+                <option value="oldest">Mais antigos → mais recentes</option>
                 <option value="nao_abordado_first">Não abordados primeiro</option>
-                <option value="recent_action">Ações mais recentes</option>
-                <option value="alphabetical">Alfabético</option>
               </select>
             </label>
           </div>
         </div>
       </details>
+
+      {filtersPaused && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-900 text-xs px-3 py-2">
+          Mostrando resultado da busca <span className="opacity-70">(filtros de status pausados enquanto houver texto na busca)</span>
+        </div>
+      )}
 
       <div className="rounded-xl border bg-card">
         <details className="border-b bg-muted/30 rounded-t-xl">
