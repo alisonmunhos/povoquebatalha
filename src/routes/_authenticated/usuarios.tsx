@@ -129,9 +129,11 @@ function UsuariosPage() {
     e.preventDefault();
     setSubmitting(true); setMsg(null); setErr(null);
     try {
-      const r = await invite({ data: { email, role, redirectOrigin: window.location.origin } });
+      const trimmedName = fullName.trim();
+      const r = await invite({ data: { email, role, redirectOrigin: window.location.origin, full_name: trimmedName || null } });
       setInviteModal({ email: r.email ?? email, role: r.role ?? role, link: r.actionLink ?? null });
       setEmail("");
+      setFullName("");
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao enviar convite.");
