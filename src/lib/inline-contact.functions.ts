@@ -68,7 +68,7 @@ export const quickSaveContact = createServerFn({ method: "POST" })
         _source_module: data.source_module,
         _source_form_type: data.form_type,
         _source_link_id: null as unknown as string,
-        _event_type: "quick_save",
+        _event_type: existing ? "contato_atualizado" : "contato_criado",
         _metadata: { via: "preenchido_por_agitador", stage: "quick" },
       });
     } catch { /* non-blocking */ }
