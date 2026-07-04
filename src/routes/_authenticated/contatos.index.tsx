@@ -323,13 +323,43 @@ function Contatos() {
             {/* Tags */}
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
-              <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
-                <option value="">— escolher tag —</option>
-                {(filterOptions?.tags ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-              <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
-              <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
+              {creatingTag ? (
+                <>
+                  <Input
+                    autoFocus
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); doCreateTag(); }
+                      if (e.key === "Escape") { setCreatingTag(false); setNewTagName(""); }
+                    }}
+                    placeholder="Nome da nova tag"
+                    className="h-8 w-40 text-xs text-foreground"
+                  />
+                  <Button size="sm" variant="secondary" onClick={doCreateTag}>Criar</Button>
+                  <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={() => { setCreatingTag(false); setNewTagName(""); }}>Cancelar</Button>
+                </>
+              ) : (
+                <>
+                  <select
+                    value={bulkTagId}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__new__") { setCreatingTag(true); return; }
+                      setBulkTagId(v);
+                    }}
+                    className="text-xs h-8 rounded-md text-foreground px-2"
+                  >
+                    <option value="">— escolher tag —</option>
+                    <option value="__new__">+ Criar nova tag…</option>
+                    {(filterOptions?.tags ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
+                  <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
+                </>
+              )}
             </div>
+
 
             <div className="h-6 w-px bg-primary-foreground/30" />
 
