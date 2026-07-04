@@ -173,6 +173,11 @@ export function applyCrmFilters<T extends {
   if (f.captado_ate) q = q.lte("source_captured_at", f.captado_ate);
 
   // Comunicação
+  if (f.email_contains) q = q.ilike("email", `%${safe(f.email_contains)}%`);
+  if (f.tem_email_secundario === "sim") q = q.not("email_secundario", "is", null);
+  if (f.tem_email_secundario === "nao") q = q.is("email_secundario", null);
+  if (f.tem_phone_secundario === "sim") q = q.not("phone_secundario_raw", "is", null);
+  if (f.tem_phone_secundario === "nao") q = q.is("phone_secundario_raw", null);
   if (f.consent === "sim") q = q.eq("consentimento_whatsapp", true);
   if (f.consent === "nao") q = q.eq("consentimento_whatsapp", false);
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);
