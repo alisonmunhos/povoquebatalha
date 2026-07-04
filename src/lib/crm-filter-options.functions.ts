@@ -96,7 +96,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
 
     for (const c of contacts ?? []) {
       bump(cidades, c.cidade);
-      bump(bairros, c.bairro);
+      const cidadeK = c.cidade ? normKey(c.cidade) : "";
+      const cidadeMatch = cidadesFiltro.length === 0 || (cidadeK && cidadesFiltro.includes(cidadeK));
+      if (cidadeMatch) bump(bairros, c.bairro);
       bump(ufs, c.uf, (s) => s.toUpperCase());
       bump(profissoes, c.profissao);
       bump(tipos_contato, c.tipo_contato, (s) => s);
