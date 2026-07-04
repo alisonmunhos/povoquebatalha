@@ -32,6 +32,7 @@ const schema = z.object({
   bairro: z.string().trim().max(120).optional().or(z.literal("")),
   como_conheceu: z.string().trim().max(240).optional().or(z.literal("")),
   profissao: z.string().trim().max(120).optional().or(z.literal("")),
+  instituicao: z.string().trim().max(240).optional().or(z.literal("")),
   coletivo_alicerce: z.boolean().optional(),
   participa_movimento_social: z.boolean().optional(),
   movimento_social_nome: z.string().trim().max(160).optional().or(z.literal("")),
