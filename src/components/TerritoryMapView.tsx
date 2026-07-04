@@ -1069,48 +1069,8 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
                 >
                   Abrir ficha completa <ExternalLink className="h-3 w-3" />
                 </Link>
-                {!c.opt_out_at && c.phone_e164 && !showSend && (
-                  <button
-                    onClick={() => setShowSend(true)}
-                    className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-md border hover:bg-muted"
-                  >
-                    <Send className="h-3 w-3" /> Envio rápido pelo app
-                  </button>
-                )}
               </div>
 
-              {/* Envio rápido (colapsável) */}
-              {!c.opt_out_at && c.phone_e164 && showSend && (
-                <div className="border-t pt-4 space-y-2">
-                  <div className="text-sm font-semibold flex items-center gap-1"><Send className="h-3.5 w-3.5" /> Envio rápido</div>
-                  <select
-                    className="w-full border rounded-md h-9 px-2 text-sm bg-background"
-                    value={templateId}
-                    onChange={(e) => {
-                      setTemplateId(e.target.value);
-                      const t = (quickReplies.data ?? []).find((q) => q.id === e.target.value);
-                      if (t) setMessage(t.body);
-                    }}
-                  >
-                    <option value="">Escolher template (opcional)</option>
-                    {(quickReplies.data ?? []).map((q) => (
-                      <option key={q.id} value={q.id}>{q.title}</option>
-                    ))}
-                  </select>
-                  <Textarea
-                    rows={4}
-                    placeholder="Escreva a mensagem…"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
-                  <Button size="sm" className="w-full" disabled={!message.trim() || send.isPending} onClick={() => send.mutate()}>
-                    {send.isPending ? "Enviando…" : "Enviar WhatsApp"}
-                  </Button>
-                  <p className="text-[11px] text-muted-foreground">
-                    Suporta variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{cidade}}"}, {"{{bairro}}"}.
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>
