@@ -188,6 +188,24 @@ export function applyCrmFilters<T extends {
   if (f.tem_email_secundario === "nao") q = q.is("email_secundario", null);
   if (f.tem_phone_secundario === "sim") q = q.not("phone_secundario_raw", "is", null);
   if (f.tem_phone_secundario === "nao") q = q.is("phone_secundario_raw", null);
+  // "Apto para envio" = consentimento_whatsapp true, sem opt_out, não bloqueado, telefone válido
+  if (f.apto_envio === "sim") {
+    q = q.eq("consentimento_whatsapp", true)
+         .is("opt_out_at", null)
+         .not("lifecycle_status", "eq", "nao_enviar")
+         .eq("phone_status", "valido");
+  }
+  if (f.apto_envio === "nao") {
+    q = q.or([
+      "consentimento_whatsapp.is.null",
+      "consentimento_whatsapp.eq.false",
+      "opt_out_at.not.is.null",
+      "lifecycle_status.eq.nao_enviar",
+      "phone_status.neq.valido",
+      "phone_status.is.null",
+    ].join(","));
+  }
+
   if (f.consent === "sim") q = q.eq("consentimento_whatsapp", true);
   if (f.consent === "nao") q = q.eq("consentimento_whatsapp", false);
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);
