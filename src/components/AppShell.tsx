@@ -64,17 +64,16 @@ export function AppShell() {
   const roles = rolesRaw ?? [];
   const currentPath = router.state.location.pathname;
 
-  const isTerritorioOnly =
-    !!rolesRaw &&
-    roles.includes("territorio") &&
-    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador");
+  // Hooks — mantém a ordem estável entre renders (regras dos hooks).
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => { setMobileOpen(false); }, [currentPath]);
 
   const isAgitadorOnly =
     !!rolesRaw &&
     roles.includes("agitador") &&
-    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "territorio" || r === "comunicacao");
+    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao");
 
-  const canAddContact = roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "territorio" || r === "agitador");
+  const canAddContact = roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador");
 
   const hasRoles = roles.length > 0;
   function canSee(item: NavItem) {
