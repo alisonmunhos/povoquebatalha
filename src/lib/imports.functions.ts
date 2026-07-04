@@ -266,6 +266,7 @@ export const buildPreview = createServerFn({ method: "POST" })
         linha, nome, email, phone, problemas,
         extras: {
           profissao: getBy("profissao"),
+          instituicao: inst,
           cep: getBy("cep"),
           endereco: getBy("endereco"),
           numero: getBy("numero"),
