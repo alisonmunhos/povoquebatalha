@@ -69,7 +69,9 @@ function ContatoFicha() {
       const c = q.data.contact;
       setForm({
         nome: c.nome ?? "", nome_social: c.nome_social ?? "", email: c.email ?? "",
+        email_secundario: (c as { email_secundario?: string | null }).email_secundario ?? "",
         phone_raw: c.phone_raw ?? c.phone_e164 ?? "",
+        phone_secundario_raw: (c as { phone_secundario_raw?: string | null }).phone_secundario_raw ?? "",
         cep: c.cep ? formatCep(c.cep) : "", endereco: c.endereco ?? "", numero: c.numero ?? "",
         complemento: c.complemento ?? "", referencia: c.referencia ?? "",
         bairro: c.bairro ?? "", cidade: c.cidade ?? "", uf: c.uf ?? "",
