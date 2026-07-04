@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/territorio")({
 
 type FieldStatus = "nao_abordado" | "contato_realizado" | "nao_encontrado" | "observacao";
 type Period = "today" | "week" | "all";
-type SortBy = "nao_abordado_first" | "recent_action" | "alphabetical";
+type SortBy = "inclusion" | "alphabetical" | "recent" | "oldest" | "nao_abordado_first";
 
 type LastAction = { action: string; note: string | null; created_at: string; user_id: string } | null;
 
