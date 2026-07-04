@@ -138,18 +138,24 @@ function FieldAction() {
   const [page, setPage] = useState(1);
   const [fieldStatus, setFieldStatus] = useState<FieldStatus[]>([]);
   const [period, setPeriod] = useState<Period>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("nao_abordado_first");
+  const [sortBy, setSortBy] = useState<SortBy>("inclusion");
 
   const sinceDays = period === "today" ? 1 : period === "week" ? 7 : undefined;
 
+  // Regra: a busca textual tem prioridade sobre os chips de filtro.
+  // Quando há texto na busca, ignoramos os filtros de status ao consultar o backend.
+  const searchActive = search.trim().length > 0;
+  const filtersPaused = searchActive && fieldStatus.length > 0;
+  const effectiveFieldStatus = searchActive ? undefined : (fieldStatus.length ? fieldStatus : undefined);
+
   const contacts = useQuery({
-    queryKey: ["territory-contacts", { search, page, fieldStatus, sinceDays, sortBy }],
+    queryKey: ["territory-contacts", { search, page, effectiveFieldStatus, sinceDays, sortBy }],
     queryFn: () => listFn({
       data: {
         search: search || undefined,
         page,
         pageSize: 30,
-        fieldStatus: fieldStatus.length ? fieldStatus : undefined,
+        fieldStatus: effectiveFieldStatus,
         sinceDays,
         sortBy,
         actionScope: "all",
