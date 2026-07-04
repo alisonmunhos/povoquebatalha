@@ -61,8 +61,18 @@ export const countSegment = createServerFn({ method: "POST" })
     const { data: seg } = await context.supabase.from("segments").select("tipo,filtro,member_ids").eq("id", data.id).single();
     if (!seg) return { total: 0 };
     if (seg.tipo === "estatico") return { total: (seg.member_ids as string[] | null)?.length ?? 0 };
+    const filtro = (seg.filtro ?? {}) as CrmFilters;
     let q = context.supabase.from("contacts").select("id", { count: "exact", head: true });
-    q = applyCrmFilters(q as never, (seg.filtro ?? {}) as CrmFilters) as typeof q;
+    q = applyCrmFilters(q as never, filtro) as typeof q;
+    if (filtro.tag_ids?.length) {
+      const { data: rels } = await context.supabase
+        .from("contact_tags")
+        .select("contact_id")
+        .in("tag_id", filtro.tag_ids as string[]);
+      const ids = Array.from(new Set((rels ?? []).map((r: { contact_id: string }) => r.contact_id)));
+      if (!ids.length) return { total: 0 };
+      q = q.in("id", ids);
+    }
     const { count } = await q;
     return { total: count ?? 0 };
   });
