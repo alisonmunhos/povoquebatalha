@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/territorio")({
 
 type FieldStatus = "nao_abordado" | "contato_realizado" | "nao_encontrado" | "observacao";
 type Period = "today" | "week" | "all";
-type SortBy = "nao_abordado_first" | "recent_action" | "alphabetical";
+type SortBy = "inclusion" | "alphabetical" | "recent" | "oldest" | "nao_abordado_first";
 
 type LastAction = { action: string; note: string | null; created_at: string; user_id: string } | null;
 
@@ -138,18 +138,24 @@ function FieldAction() {
   const [page, setPage] = useState(1);
   const [fieldStatus, setFieldStatus] = useState<FieldStatus[]>([]);
   const [period, setPeriod] = useState<Period>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("nao_abordado_first");
+  const [sortBy, setSortBy] = useState<SortBy>("inclusion");
 
   const sinceDays = period === "today" ? 1 : period === "week" ? 7 : undefined;
 
+  // Regra: a busca textual tem prioridade sobre os chips de filtro.
+  // Quando há texto na busca, ignoramos os filtros de status ao consultar o backend.
+  const searchActive = search.trim().length > 0;
+  const filtersPaused = searchActive && fieldStatus.length > 0;
+  const effectiveFieldStatus = searchActive ? undefined : (fieldStatus.length ? fieldStatus : undefined);
+
   const contacts = useQuery({
-    queryKey: ["territory-contacts", { search, page, fieldStatus, sinceDays, sortBy }],
+    queryKey: ["territory-contacts", { search, page, effectiveFieldStatus, sinceDays, sortBy }],
     queryFn: () => listFn({
       data: {
         search: search || undefined,
         page,
         pageSize: 30,
-        fieldStatus: fieldStatus.length ? fieldStatus : undefined,
+        fieldStatus: effectiveFieldStatus,
         sinceDays,
         sortBy,
         actionScope: "all",
@@ -204,10 +210,10 @@ function FieldAction() {
   };
 
   const clearFilters = () => {
-    setFieldStatus([]); setPeriod("all"); setSortBy("nao_abordado_first"); setPage(1);
+    setFieldStatus([]); setPeriod("all"); setSortBy("inclusion"); setPage(1);
   };
 
-  const activeFilterCount = fieldStatus.length + (period !== "all" ? 1 : 0) + (sortBy !== "nao_abordado_first" ? 1 : 0);
+  const activeFilterCount = fieldStatus.length + (period !== "all" ? 1 : 0) + (sortBy !== "inclusion" ? 1 : 0);
 
   const s = summary.data;
   const hasSummaryActivity = !!s && (s.contato_realizado + s.nao_encontrado + s.observacao + s.whatsapp_aberto) > 0;
@@ -253,11 +259,13 @@ function FieldAction() {
             {activeFilterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>}
           </div>
           <div className="flex items-center gap-3">
-            {activeFilterCount > 0 && (
-              <button onClick={(e) => { e.preventDefault(); clearFilters(); }} className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-                <XCircle className="h-3 w-3" /> limpar
-              </button>
-            )}
+            <button
+              onClick={(e) => { e.preventDefault(); clearFilters(); }}
+              disabled={activeFilterCount === 0}
+              className="text-[11px] inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground"
+            >
+              <XCircle className="h-3 w-3" /> Limpar filtros
+            </button>
             <span className="text-muted-foreground text-xs group-open:rotate-180 transition-transform">▾</span>
           </div>
         </summary>
@@ -287,16 +295,24 @@ function FieldAction() {
               </select>
             </label>
             <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-              Ordenar:
+              Classificação:
               <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as SortBy); setPage(1); }} className="h-7 rounded border bg-background px-1.5 text-xs">
+                <option value="inclusion">Ordem de inclusão (padrão)</option>
+                <option value="alphabetical">Alfabética (por nome)</option>
+                <option value="recent">Mais recentes → mais antigos</option>
+                <option value="oldest">Mais antigos → mais recentes</option>
                 <option value="nao_abordado_first">Não abordados primeiro</option>
-                <option value="recent_action">Ações mais recentes</option>
-                <option value="alphabetical">Alfabético</option>
               </select>
             </label>
           </div>
         </div>
       </details>
+
+      {filtersPaused && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-900 text-xs px-3 py-2">
+          Mostrando resultado da busca <span className="opacity-70">(filtros de status pausados enquanto houver texto na busca)</span>
+        </div>
+      )}
 
       <div className="rounded-xl border bg-card">
         <details className="border-b bg-muted/30 rounded-t-xl">

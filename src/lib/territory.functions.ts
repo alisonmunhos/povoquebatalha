@@ -122,7 +122,7 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
     pageSize: z.number().int().min(1).max(100).default(30),
     fieldStatus: z.array(fieldStatusEnum).optional(),
     sinceDays: z.number().int().min(1).max(365).optional(),
-    sortBy: z.enum(["nao_abordado_first", "recent_action", "alphabetical"]).default("nao_abordado_first"),
+    sortBy: z.enum(["inclusion", "recent", "oldest", "alphabetical", "nao_abordado_first", "recent_action"]).default("inclusion"),
     // "own" = apenas ações minhas para filtro/status; "all" = de todos (padrão)
     actionScope: z.enum(["own", "all"]).default("all"),
   }).parse(d ?? {}))
@@ -210,11 +210,10 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
     // Ordenação
     if (data.sortBy === "alphabetical") {
       q = q.order("nome", { ascending: true, nullsFirst: false });
-    } else if (data.sortBy === "recent_action") {
-      // sem meio direto no PostgREST — ordenamos por created_at desc como aproximação; refino no client
-      q = q.order("created_at", { ascending: false });
+    } else if (data.sortBy === "oldest") {
+      q = q.order("created_at", { ascending: true });
     } else {
-      // nao_abordado_first: aproxima ordenando por created_at desc; refino no client
+      // inclusion / recent / recent_action / nao_abordado_first: created_at desc (refino no client quando preciso)
       q = q.order("created_at", { ascending: false });
     }
 
