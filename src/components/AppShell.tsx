@@ -37,7 +37,7 @@ const groups: NavGroup[] = [
     label: "Território",
     items: [
       { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm"] },
-      { to: "/agitacao", label: "Agitação", icon: Zap, hint: "Captação rápida por WhatsApp.", roles: ["admin", "vrm", "agitador"] },
+      { to: "/agitacao", label: "Agitação", icon: Zap, hint: "Captação rápida por WhatsApp.", roles: ["admin", "operador", "vrm", "comunicacao", "leitor", "agitador"] },
     ],
   },
 
@@ -73,7 +73,7 @@ export function AppShell() {
     roles.includes("agitador") &&
     !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao");
 
-  const canAddContact = roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador");
+  const canAddContact = roles.length > 0;
 
   const hasRoles = roles.length > 0;
   function canSee(item: NavItem) {
