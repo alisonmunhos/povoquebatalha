@@ -6,7 +6,7 @@ import { z } from "zod";
 import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
-import { setOptOut, archiveContact, deleteContactsBulk } from "@/lib/contacts.functions";
+import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
 import { formatPhoneBR } from "@/lib/phone";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
@@ -49,6 +49,8 @@ function Contatos() {
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
   const deleteBulkFn = useServerFn(deleteContactsBulk);
+  const createTagFn = useServerFn(createTag);
+
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -63,7 +65,10 @@ function Contatos() {
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTagId, setBulkTagId] = useState<string>("");
+  const [creatingTag, setCreatingTag] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
   const [bulkLifecycle, setBulkLifecycle] = useState<string>("");
+
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
   const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
 
@@ -135,6 +140,21 @@ function Contatos() {
     toast.success(`${selected.size} contato(s) atualizados`);
     q.refetch();
   }
+  async function doCreateTag() {
+    const nome = newTagName.trim();
+    if (!nome) return toast.error("Digite um nome para a tag");
+    try {
+      const row = await createTagFn({ data: { nome } });
+      await optionsQ.refetch();
+      setBulkTagId(row.id);
+      setNewTagName("");
+      setCreatingTag(false);
+      toast.success(`Tag "${row.nome}" criada — pronta para aplicar`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar tag");
+    }
+  }
+
   async function doBulkArchive(archived: boolean) {
     if (!selected.size) return;
     if (archived && !confirm(`Arquivar ${selected.size} contato(s)?\n\nEles deixam de aparecer na listagem padrão, mas o histórico é preservado.`)) return;
@@ -303,13 +323,43 @@ function Contatos() {
             {/* Tags */}
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
-              <select value={bulkTagId} onChange={(e) => setBulkTagId(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
-                <option value="">— escolher tag —</option>
-                {(filterOptions?.tags ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-              <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
-              <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
+              {creatingTag ? (
+                <>
+                  <Input
+                    autoFocus
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); doCreateTag(); }
+                      if (e.key === "Escape") { setCreatingTag(false); setNewTagName(""); }
+                    }}
+                    placeholder="Nome da nova tag"
+                    className="h-8 w-40 text-xs text-foreground"
+                  />
+                  <Button size="sm" variant="secondary" onClick={doCreateTag}>Criar</Button>
+                  <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={() => { setCreatingTag(false); setNewTagName(""); }}>Cancelar</Button>
+                </>
+              ) : (
+                <>
+                  <select
+                    value={bulkTagId}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__new__") { setCreatingTag(true); return; }
+                      setBulkTagId(v);
+                    }}
+                    className="text-xs h-8 rounded-md text-foreground px-2"
+                  >
+                    <option value="">— escolher tag —</option>
+                    <option value="__new__">+ Criar nova tag…</option>
+                    {(filterOptions?.tags ?? []).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <Button size="sm" variant="secondary" onClick={() => doBulkTag(true)}><TagIcon className="h-3 w-3 mr-1" /> Aplicar tag</Button>
+                  <Button size="sm" variant="secondary" onClick={() => doBulkTag(false)}>Remover tag</Button>
+                </>
+              )}
             </div>
+
 
             <div className="h-6 w-px bg-primary-foreground/30" />
 
