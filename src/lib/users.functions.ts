@@ -152,7 +152,7 @@ export const inviteUser = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("user_roles")
         .upsert({ user_id: userId, role: data.role }, { onConflict: "user_id,role" });
-      const profilePatch: Record<string, unknown> = { invited_by: context.userId };
+      const profilePatch: { invited_by: string; full_name?: string } = { invited_by: context.userId };
       if (fullName) profilePatch.full_name = fullName;
       await supabaseAdmin
         .from("profiles")
