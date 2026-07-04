@@ -66,7 +66,9 @@ const updateSchema = z.object({
   nome: z.string().trim().min(2).max(120).optional(),
   nome_social: z.string().trim().max(120).nullable().optional(),
   email: z.string().trim().email().max(255).nullable().optional().or(z.literal("")),
+  email_secundario: z.string().trim().email().max(255).nullable().optional().or(z.literal("")),
   phone_raw: z.string().trim().max(40).nullable().optional(),
+  phone_secundario_raw: z.string().trim().max(40).nullable().optional(),
   cep: z.string().trim().max(12).nullable().optional(),
   endereco: z.string().trim().max(240).nullable().optional(),
   numero: z.string().trim().max(20).nullable().optional(),
@@ -106,6 +108,7 @@ export const updateContact = createServerFn({ method: "POST" })
     // Empty email -> null
     const payload: Record<string, unknown> = { ...rest };
     if (payload.email === "") payload.email = null;
+    if (payload.email_secundario === "") payload.email_secundario = null;
     if (payload.uf && typeof payload.uf === "string") payload.uf = payload.uf.toUpperCase();
 
     // Phone change: trigger contacts_phone_fill recomputes everything via phone_raw

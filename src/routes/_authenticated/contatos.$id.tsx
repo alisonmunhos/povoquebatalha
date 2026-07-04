@@ -69,7 +69,9 @@ function ContatoFicha() {
       const c = q.data.contact;
       setForm({
         nome: c.nome ?? "", nome_social: c.nome_social ?? "", email: c.email ?? "",
+        email_secundario: (c as { email_secundario?: string | null }).email_secundario ?? "",
         phone_raw: c.phone_raw ?? c.phone_e164 ?? "",
+        phone_secundario_raw: (c as { phone_secundario_raw?: string | null }).phone_secundario_raw ?? "",
         cep: c.cep ? formatCep(c.cep) : "", endereco: c.endereco ?? "", numero: c.numero ?? "",
         complemento: c.complemento ?? "", referencia: c.referencia ?? "",
         bairro: c.bairro ?? "", cidade: c.cidade ?? "", uf: c.uf ?? "",
@@ -192,9 +194,14 @@ function ContatoFicha() {
             <Row><Field label="Nome completo *" value={form.nome} onChange={(v) => set("nome", v)} /></Row>
             <Row><Field label="Nome social / apelido" value={form.nome_social} onChange={(v) => set("nome_social", v)} /></Row>
             <Row><Field label="E-mail" value={form.email} onChange={(v) => set("email", v)} type="email" /></Row>
+            <Row><Field label="E-mail secundário" value={form.email_secundario} onChange={(v) => set("email_secundario", v)} type="email" placeholder="Opcional — preservado em mesclagens" /></Row>
             <Row>
               <Field label="WhatsApp / telefone" value={form.phone_raw} onChange={(v) => set("phone_raw", v)} placeholder="(11) 91234-5678" />
               {form.phone_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(phonePreview.phone_e164 ?? "") || "—"} ({phonePreview.phone_status})</p> : null}
+            </Row>
+            <Row>
+              <Field label="Telefone secundário" value={form.phone_secundario_raw} onChange={(v) => set("phone_secundario_raw", v)} placeholder="Opcional — reconhecido em mensagens recebidas" />
+              {form.phone_secundario_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(parsePhoneBR(String(form.phone_secundario_raw ?? "")).phone_e164 ?? "") || "—"}</p> : null}
             </Row>
           </Section>
 

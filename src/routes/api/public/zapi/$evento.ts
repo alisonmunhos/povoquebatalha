@@ -186,10 +186,13 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
                 const digits = phone.replace(/\D+/g, "");
                 const last8 = digits.length >= 8 ? digits.slice(-8) : null;
                 if (last8) {
+                  // Casa contra o telefone principal OU secundário — evita duplicar
+                  // contato quando a pessoa manda mensagem pelo número secundário.
                   const { data: c } = await supabaseAdmin
                     .from("contacts")
-                    .select("id")
-                    .eq("phone_last8", last8)
+                    .select("id, phone_last8, phone_secundario_last8")
+                    .or(`phone_last8.eq.${last8},phone_secundario_last8.eq.${last8}`)
+                    .limit(1)
                     .maybeSingle();
                   contactId = c?.id ?? null;
                 }

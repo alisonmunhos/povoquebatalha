@@ -696,6 +696,7 @@ export type Database = {
           created_by_source_user_id: string | null
           custom_fields: Json
           email: string | null
+          email_secundario: string | null
           endereco: string | null
           endereco_completo: string | null
           formas_ajuda: Json
@@ -742,6 +743,9 @@ export type Database = {
           phone_last8: string | null
           phone_last9: string | null
           phone_raw: string | null
+          phone_secundario_e164: string | null
+          phone_secundario_last8: string | null
+          phone_secundario_raw: string | null
           phone_status:
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
@@ -781,6 +785,7 @@ export type Database = {
           created_by_source_user_id?: string | null
           custom_fields?: Json
           email?: string | null
+          email_secundario?: string | null
           endereco?: string | null
           endereco_completo?: string | null
           formas_ajuda?: Json
@@ -827,6 +832,9 @@ export type Database = {
           phone_last8?: string | null
           phone_last9?: string | null
           phone_raw?: string | null
+          phone_secundario_e164?: string | null
+          phone_secundario_last8?: string | null
+          phone_secundario_raw?: string | null
           phone_status?:
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
@@ -868,6 +876,7 @@ export type Database = {
           created_by_source_user_id?: string | null
           custom_fields?: Json
           email?: string | null
+          email_secundario?: string | null
           endereco?: string | null
           endereco_completo?: string | null
           formas_ajuda?: Json
@@ -914,6 +923,9 @@ export type Database = {
           phone_last8?: string | null
           phone_last9?: string | null
           phone_raw?: string | null
+          phone_secundario_e164?: string | null
+          phone_secundario_last8?: string | null
+          phone_secundario_raw?: string | null
           phone_status?:
             | Database["public"]["Enums"]["contact_phone_status"]
             | null
