@@ -44,6 +44,9 @@ export const crmFilterSchema = z.object({
   sem_origem_rastreada: z.boolean().optional(),
   captado_desde: z.string().optional(),
   captado_ate: z.string().optional(),
+  is_system_user: z.enum(["sim", "nao"]).optional(),
+  system_roles: z.array(z.string()).optional(),
+
 
   tag_ids: z.array(z.string().uuid()).optional(),
   segment_id: z.string().uuid().optional(),
