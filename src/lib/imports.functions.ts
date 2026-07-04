@@ -155,6 +155,14 @@ type PreviewRow = {
   extras: {
     profissao?: string | null;
     instituicao?: string | null;
+    nome_social?: string | null;
+    referencia?: string | null;
+    email_secundario?: string | null;
+    phone_secundario_raw?: string | null;
+    phone_secundario?: ParsedPhone | null;
+    tipo_contato?: string | null;
+    coletivo_alicerce?: boolean | null;
+    participa_movimento_social?: boolean | null;
     cep?: string | null;
     endereco?: string | null;
     numero?: string | null;
