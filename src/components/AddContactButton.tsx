@@ -205,15 +205,18 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
 }
 
 function TypeCard({
-  icon, title, desc, onClick,
-}: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
+  icon, title, desc, busy, onClick,
+}: { icon: React.ReactNode; title: string; desc: string; busy?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-left rounded-xl border bg-card hover:border-primary/50 hover:bg-primary/5 transition-colors p-4"
+      disabled={busy}
+      className="text-left rounded-xl border bg-card hover:border-primary/50 hover:bg-primary/5 transition-colors p-4 disabled:opacity-60 disabled:cursor-not-allowed"
     >
-      <div className="flex items-center gap-2 text-primary">{icon}</div>
+      <div className="flex items-center gap-2 text-primary">
+        {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : icon}
+      </div>
       <div className="mt-2 font-semibold text-sm">{title}</div>
       <div className="text-xs text-muted-foreground mt-1">{desc}</div>
     </button>
