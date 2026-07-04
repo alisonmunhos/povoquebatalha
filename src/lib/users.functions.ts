@@ -293,6 +293,20 @@ export const setUserRole = createServerFn({ method: "POST" })
       .from("user_roles")
       .insert({ user_id: data.userId, role: data.role });
     if (error) throw new Error(error.message);
+    // Sincroniza papel no contato vinculado (se houver)
+    try {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("contact_id")
+        .eq("id", data.userId)
+        .maybeSingle();
+      if (prof?.contact_id) {
+        await supabaseAdmin
+          .from("contacts")
+          .update({ system_role: data.role, is_system_user: true })
+          .eq("id", prof.contact_id);
+      }
+    } catch { /* non-blocking */ }
     await audit(context, data.userId, "papel_alterado", { role: data.role });
     return { ok: true as const };
   });
