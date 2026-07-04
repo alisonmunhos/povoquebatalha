@@ -193,13 +193,8 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Formas de ajuda">
           <MultiSelectFilter options={opts.formas_ajuda} value={filters.formas_ajuda ?? []} onChange={(v) => set("formas_ajuda", v)} placeholder="Todas as formas" />
         </Field>
-        <Field label="Origem do contato">
-          <MultiSelectFilter options={mergeLabels(opts.origens, ORIGEM)} value={filters.origens ?? []} onChange={(v) => set("origens", v)} placeholder="Todas as origens" />
-        </Field>
-        <Field label="Detalhe de origem">
-          <MultiSelectFilter options={opts.origem_detalhes} value={filters.origem_detalhes ?? []} onChange={(v) => set("origem_detalhes", v)} placeholder="Todos os detalhes" />
-        </Field>
       </Section>
+
 
 
       <Section icon={<MessageCircle className="h-4 w-4" />} title="Comunicação">
