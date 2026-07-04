@@ -44,6 +44,9 @@ export const crmFilterSchema = z.object({
   sem_origem_rastreada: z.boolean().optional(),
   captado_desde: z.string().optional(),
   captado_ate: z.string().optional(),
+  is_system_user: z.enum(["sim", "nao"]).optional(),
+  system_roles: z.array(z.string()).optional(),
+
 
   tag_ids: z.array(z.string().uuid()).optional(),
   segment_id: z.string().uuid().optional(),
@@ -171,6 +174,10 @@ export function applyCrmFilters<T extends {
   if (f.sem_origem_rastreada) q = q.is("primary_source_module", null);
   if (f.captado_desde) q = q.gte("source_captured_at", f.captado_desde);
   if (f.captado_ate) q = q.lte("source_captured_at", f.captado_ate);
+  if (f.is_system_user === "sim") q = q.eq("is_system_user", true);
+  if (f.is_system_user === "nao") q = q.or("is_system_user.is.null,is_system_user.eq.false");
+  if (f.system_roles?.length) q = q.in("system_role", f.system_roles);
+
 
   // Comunicação
   if (f.email_contains) q = q.ilike("email", `%${safe(f.email_contains)}%`);

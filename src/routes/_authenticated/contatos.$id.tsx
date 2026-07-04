@@ -474,7 +474,9 @@ type ContactSourceLike = {
   last_source_user_id?: string | null;
   source_link_id?: string | null;
   is_system_user?: boolean | null;
+  system_role?: string | null;
 };
+
 
 const MODULE_LABEL: Record<string, string> = {
   gestao_base: "Gestão da Base",
@@ -486,6 +488,17 @@ const MODULE_LABEL: Record<string, string> = {
   relacionamento: "Relacionamento",
   link_publico: "Links públicos",
 };
+
+const SYSTEM_ROLE_LABEL: Record<string, string> = {
+  admin: "Admin",
+  operador: "Operador",
+  vrm: "VRM",
+  comunicacao: "Comunicação",
+  agitador: "Agitador",
+  leitor: "Leitor",
+  territorio: "Território (descontinuado)",
+};
+
 
 function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; contact: ContactSourceLike }) {
   const fn = useServerFn(getContactSourceEvents);
@@ -505,8 +518,11 @@ function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; cont
           <>
             <dt className="text-muted-foreground">Usuário do sistema</dt>
             <dd>Sim (vinculado a login)</dd>
+            <dt className="text-muted-foreground">Papel no sistema</dt>
+            <dd>{contact.system_role ? (SYSTEM_ROLE_LABEL[contact.system_role] ?? contact.system_role) : "—"}</dd>
           </>
         )}
+
       </dl>
       <div className="mt-3">
         <div className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground mb-1">Histórico de captação</div>
