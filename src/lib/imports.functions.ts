@@ -99,6 +99,7 @@ type PreviewRow = {
   phone: ParsedPhone;
   extras: {
     profissao?: string | null;
+    instituicao?: string | null;
     cep?: string | null;
     endereco?: string | null;
     numero?: string | null;
