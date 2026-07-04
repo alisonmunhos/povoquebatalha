@@ -1,7 +1,7 @@
 // Módulo Agitação — mobile-first, sem mapa.
 // Cards de contatos captados pelo próprio usuário, com ações rápidas.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import {
@@ -12,13 +12,22 @@ import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 
 export const Route = createFileRoute("/_authenticated/agitacao")({
   head: () => ({ meta: [{ title: "Agitação — Povo que Batalha" }] }),
   component: AgitacaoPage,
 });
+
+type AgitacaoAction = "whatsapp_aberto" | "contato_realizado" | "pediu_atualizacao" | "nao_respondeu" | "observacao";
+
+const ACTION_TOAST: Record<AgitacaoAction, string> = {
+  whatsapp_aberto: "WhatsApp registrado",
+  contato_realizado: "Contato confirmado",
+  pediu_atualizacao: "Registrado como pediu atualização",
+  nao_respondeu: "Marcado como não respondeu",
+  observacao: "Observação salva",
+};
 
 type AgitacaoContact = {
   id: string;
@@ -36,11 +45,10 @@ type AgitacaoContact = {
 function AgitacaoPage() {
   const listFn = useServerFn(listMyAgitacaoContacts);
   const logFn = useServerFn(logAgitacaoAction);
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [pendentes, setPendentes] = useState(false);
   const [semContato, setSemContato] = useState(false);
-  const [obsFor, setObsFor] = useState<{ id: string; nome: string } | null>(null);
-  const [obsText, setObsText] = useState("");
   const [histFor, setHistFor] = useState<AgitacaoContact | null>(null);
   const [detailFor, setDetailFor] = useState<AgitacaoContact | null>(null);
 
@@ -50,27 +58,20 @@ function AgitacaoPage() {
       listFn({ data: { search: search || undefined, pendentes_atualizacao: pendentes, sem_contato_realizado: semContato, limit: 200 } }),
   });
 
-  async function log(contactId: string, action: "whatsapp_aberto" | "contato_realizado" | "pediu_atualizacao" | "nao_respondeu", note?: string) {
-    try {
-      await logFn({ data: { contact_id: contactId, action, observacao: note ?? null } });
-      q.refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao registrar");
-    }
-  }
+  const logMut = useMutation({
+    mutationFn: (v: { contactId: string; action: AgitacaoAction; note?: string }) =>
+      logFn({ data: { contact_id: v.contactId, action: v.action, observacao: v.note ?? null } }),
+    onSuccess: (_r, vars) => {
+      toast.success(ACTION_TOAST[vars.action] ?? "Registrado");
+      qc.invalidateQueries({ queryKey: ["agitacao"] });
+      qc.invalidateQueries({ queryKey: ["territory-contact-logs"] });
+    },
+    onError: (e) => toast.error("Não foi possível registrar", { description: e instanceof Error ? e.message : "Tente novamente." }),
+  });
 
-  async function saveObs() {
-    if (!obsFor) return;
-    try {
-      await logFn({ data: { contact_id: obsFor.id, action: "observacao", observacao: obsText.trim() || null } });
-      toast.success("Observação salva");
-      setObsFor(null);
-      setObsText("");
-      q.refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
-    }
-  }
+  const pendingKey = logMut.isPending && logMut.variables
+    ? `${logMut.variables.contactId}:${logMut.variables.action}`
+    : null;
 
   function waLink(phoneE164: string | null, raw: string | null): string {
     const digits = (phoneE164 ?? raw ?? "").replace(/\D/g, "");
@@ -161,8 +162,8 @@ function AgitacaoPage() {
         <AgitacaoDetailSheet
           contact={detailFor}
           onClose={() => setDetailFor(null)}
-          onLog={(action, note) => log(detailFor.id, action, note)}
-          onOpenObs={() => { setObsFor({ id: detailFor.id, nome: detailFor.nome ?? "" }); setObsText(""); }}
+          onLog={(action, note) => logMut.mutateAsync({ contactId: detailFor.id, action, note })}
+          pendingAction={pendingKey && pendingKey.startsWith(`${detailFor.id}:`) ? (pendingKey.split(":")[1] as AgitacaoAction) : null}
           onOpenHistory={() => setHistFor(detailFor)}
           waLink={waLink}
         />
@@ -174,39 +175,23 @@ function AgitacaoPage() {
         onOpenChange={(o) => { if (!o) setHistFor(null); }}
         context="agitacao"
       />
-
-
-      {obsFor && (
-        <Dialog open onOpenChange={(v) => { if (!v) setObsFor(null); }}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Observação — {obsFor.nome}</DialogTitle></DialogHeader>
-            <textarea
-              className="w-full h-32 rounded-md border bg-background p-2 text-sm"
-              value={obsText}
-              onChange={(e) => setObsText(e.target.value)}
-              placeholder="Escreva o que aconteceu, o que combinou, dificuldades…"
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setObsFor(null)}>Cancelar</Button>
-              <Button onClick={saveObs}>Salvar</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
 
 function AgitacaoDetailSheet({
-  contact, onClose, onLog, onOpenObs, onOpenHistory, waLink,
+  contact, onClose, onLog, pendingAction, onOpenHistory, waLink,
 }: {
   contact: AgitacaoContact;
   onClose: () => void;
-  onLog: (action: "whatsapp_aberto" | "contato_realizado" | "pediu_atualizacao" | "nao_respondeu", note?: string) => void | Promise<void>;
-  onOpenObs: () => void;
+  onLog: (action: AgitacaoAction, note?: string) => Promise<unknown>;
+  pendingAction: AgitacaoAction | null;
   onOpenHistory: () => void;
   waLink: (e: string | null, r: string | null) => string;
 }) {
+  const [obsOpen, setObsOpen] = useState(false);
+  const [obsText, setObsText] = useState("");
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -215,6 +200,17 @@ function AgitacaoDetailSheet({
 
   const location = [contact.bairro, contact.cidade, contact.uf].filter(Boolean).join(" · ");
   const canWa = !!(contact.phone_e164 || contact.phone_raw);
+  const isBusy = pendingAction !== null;
+
+  async function saveObs() {
+    const text = obsText.trim();
+    if (!text) return;
+    try {
+      await onLog("observacao", text);
+      setObsOpen(false);
+      setObsText("");
+    } catch { /* toast já tratado */ }
+  }
 
   return (
     <>
@@ -252,28 +248,69 @@ function AgitacaoDetailSheet({
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ação de campo</div>
             <div className="grid grid-cols-2 gap-2">
               <a
-                href={canWa ? waLink(contact.phone_e164, contact.phone_raw) : undefined}
-                onClick={() => { if (canWa) onLog("whatsapp_aberto"); }}
+                href={canWa && !isBusy ? waLink(contact.phone_e164, contact.phone_raw) : undefined}
+                onClick={(e) => {
+                  if (!canWa || isBusy) { e.preventDefault(); return; }
+                  onLog("whatsapp_aberto").catch(() => {});
+                }}
                 target="_blank" rel="noreferrer"
-                aria-disabled={!canWa}
+                aria-disabled={!canWa || isBusy}
                 className={`h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium ${
-                  canWa ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-muted text-muted-foreground pointer-events-none"
+                  canWa && !isBusy ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-muted text-muted-foreground pointer-events-none"
                 }`}
               >
-                <MessageCircle className="h-4 w-4" /> Abrir WhatsApp
+                {pendingAction === "whatsapp_aberto"
+                  ? (<><Loader2 className="h-4 w-4 animate-spin" /> Registrando…</>)
+                  : (<><MessageCircle className="h-4 w-4" /> Abrir WhatsApp</>)}
               </a>
               <button
-                onClick={() => onLog("contato_realizado")}
-                className="h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium border hover:bg-accent"
+                disabled={isBusy}
+                onClick={() => { onLog("contato_realizado").catch(() => {}); }}
+                className="h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium border hover:bg-accent disabled:opacity-60 disabled:pointer-events-none"
               >
-                <CheckCircle2 className="h-4 w-4" /> Confirmado
+                {pendingAction === "contato_realizado"
+                  ? (<><Loader2 className="h-4 w-4 animate-spin" /> Registrando…</>)
+                  : (<><CheckCircle2 className="h-4 w-4" /> Confirmado</>)}
               </button>
-              <button
-                onClick={onOpenObs}
-                className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent col-span-2"
-              >
-                <StickyNote className="h-3.5 w-3.5" /> Observação
-              </button>
+
+              {!obsOpen ? (
+                <button
+                  disabled={isBusy}
+                  onClick={() => setObsOpen(true)}
+                  className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent col-span-2 disabled:opacity-60"
+                >
+                  <StickyNote className="h-3.5 w-3.5" /> Observação
+                </button>
+              ) : (
+                <div className="col-span-2 space-y-2 rounded-md border bg-background p-2">
+                  <textarea
+                    autoFocus
+                    value={obsText}
+                    onChange={(e) => setObsText(e.target.value)}
+                    maxLength={2000}
+                    rows={3}
+                    placeholder="Escreva o que aconteceu, o que combinou, dificuldades…"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => { setObsOpen(false); setObsText(""); }}
+                      disabled={pendingAction === "observacao"}
+                      className="h-9 px-3 rounded-md border text-xs disabled:opacity-60"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      disabled={!obsText.trim() || pendingAction === "observacao"}
+                      onClick={saveObs}
+                      className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs disabled:opacity-50 inline-flex items-center gap-1.5"
+                    >
+                      {pendingAction === "observacao" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
