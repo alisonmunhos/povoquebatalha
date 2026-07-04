@@ -49,8 +49,10 @@ function toOptions(map: Counter): FilterOption[] {
  */
 export const getContactFilterOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => z.object({ cidades: z.array(z.string()).optional() }).optional().parse(d))
+  .handler(async ({ data, context }) => {
     const sb = context.supabase;
+    const cidadesFiltro = (data?.cidades ?? []).map((c) => normKey(c));
 
     // Contatos ativos (arquivados fora)
     const { data: contacts, error } = await sb
