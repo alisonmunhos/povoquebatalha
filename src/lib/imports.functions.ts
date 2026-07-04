@@ -428,6 +428,7 @@ export const commitImport = createServerFn({ method: "POST" })
           phone_raw: p.phone.phone_original,
           email: p.email,
           profissao: ex.profissao ?? null,
+          instituicao: ex.instituicao ?? null,
           cep: ex.cep ?? null,
           endereco: ex.endereco ?? null,
           numero: ex.numero ?? null,
