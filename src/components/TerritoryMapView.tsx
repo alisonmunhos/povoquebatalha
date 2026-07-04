@@ -4,15 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listMapContacts, getMapContactDetail, listMapFacets } from "@/lib/map.functions";
 import { getGeocodingStats, runGeocodingBatch, regeocodeOne } from "@/lib/geocoding.functions";
-import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { logTerritoryAction, resetTerritoryContact } from "@/lib/territory-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "sonner";
 import {
-  RefreshCw, AlertTriangle, X, Send, ExternalLink, LocateFixed, ChevronDown,
+  RefreshCw, AlertTriangle, X, ExternalLink, LocateFixed, ChevronDown,
   Copy, Navigation, MessageCircle, CheckCircle2, UserX, StickyNote, RotateCcw,
   History, Plus, Minus, Maximize2, Minimize2, Phone, MapPin, Crosshair,
 } from "lucide-react";
