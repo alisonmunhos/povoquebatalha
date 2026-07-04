@@ -1,9 +1,13 @@
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, MapPin, User, Users, MessageCircle, History, FileUp, SlidersHorizontal, Zap } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { MultiSelectFilter, SingleSelectFilter, type MultiOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { listSystemUserOptions } from "@/lib/users.functions";
 import { cn } from "@/lib/utils";
+
 
 export type FilterOptionsBundle = {
   cidades: MultiOption[];
