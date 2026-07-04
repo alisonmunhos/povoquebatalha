@@ -105,38 +105,6 @@ export function AppShell() {
     router.navigate({ to: "/auth" });
   }
 
-  // Territorio-only: mini-app shell (no sidebar, no top nav)
-  if (isTerritorioOnly) {
-    return (
-      <div className="min-h-dvh bg-background flex flex-col">
-        <header className="border-b bg-card sticky top-0 z-10">
-          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <Compass className="h-5 w-5 text-primary shrink-0" />
-              <div className="min-w-0">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground leading-tight">Modo Território</div>
-                <div className="text-sm font-semibold truncate">Povo que Batalha</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <AddContactButton compact userName={user?.email ?? null} />
-              <button
-                onClick={handleLogout}
-                className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                aria-label="Sair"
-              >
-                <LogOut className="h-4 w-4" /> Sair
-              </button>
-            </div>
-          </div>
-        </header>
-        <main className="flex-1 min-w-0">
-          <Outlet />
-        </main>
-      </div>
-    );
-  }
-
   // Agitador-only: mini-app shell (só Agitação)
   if (isAgitadorOnly) {
     return (
@@ -168,9 +136,6 @@ export function AppShell() {
       </div>
     );
   }
-
-  const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => { setMobileOpen(false); }, [currentPath]);
 
   const SidebarInner = (
     <>
