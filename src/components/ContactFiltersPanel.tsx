@@ -189,10 +189,11 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Status do telefone">
           <MultiSelectFilter options={PHONE_STATUS} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
         </Field>
-        <Field label="Status do WhatsApp">
+        <Field label="Status do WhatsApp" hint="⚠️ Ainda não é atualizado automaticamente pelo sistema — não use para decisões por enquanto.">
           <MultiSelectFilter options={WPP_STATUS} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
         </Field>
-        <Field label="Ciclo de vida">
+        <Field label="Ciclo de vida" hint="Status atribuído manualmente ou por importação. Diferente do 'Status do telefone', que é calculado automaticamente a partir do número.">
+
           <MultiSelectFilter options={LIFECYCLE} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
         </Field>
       </Section>
