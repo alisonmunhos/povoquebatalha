@@ -1,9 +1,15 @@
+// ⚠️ Ao adicionar um campo novo na ficha de contato, sempre volte aqui:
+//   (1) reconhecer no mapeamento de importação CSV (FIELD_KEYS + suggestMapping)
+//   (2) adicionar como filtro em src/lib/crm-filters.ts + ContactFiltersPanel.tsx
+//   (3) persistir de verdade no commitImport (payload e fillIfEmpty), não só em observações.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { hasRole } from "@/lib/authz";
 import { parsePhoneBR, type ParsedPhone } from "@/lib/phone";
+
+
 
 
 export const FIELD_KEYS = [
