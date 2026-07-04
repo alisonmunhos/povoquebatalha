@@ -75,7 +75,7 @@ function ContatoFicha() {
         cep: c.cep ? formatCep(c.cep) : "", endereco: c.endereco ?? "", numero: c.numero ?? "",
         complemento: c.complemento ?? "", referencia: c.referencia ?? "",
         bairro: c.bairro ?? "", cidade: c.cidade ?? "", uf: c.uf ?? "",
-        profissao: c.profissao ?? "", coletivo_alicerce: c.coletivo_alicerce ?? false,
+        profissao: c.profissao ?? "", instituicao: (c as { instituicao?: string | null }).instituicao ?? "", coletivo_alicerce: c.coletivo_alicerce ?? false,
         participa_movimento_social: c.participa_movimento_social ?? false,
         movimento_social_nome: c.movimento_social_nome ?? "",
         tipo_contato: c.tipo_contato ?? "apoiador",
