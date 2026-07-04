@@ -78,6 +78,7 @@ const updateSchema = z.object({
   cidade: z.string().trim().max(120).nullable().optional(),
   uf: z.string().trim().length(2).nullable().optional(),
   profissao: z.string().trim().max(120).nullable().optional(),
+  instituicao: z.string().trim().max(240).nullable().optional(),
   coletivo_alicerce: z.boolean().nullable().optional(),
   participa_movimento_social: z.boolean().nullable().optional(),
   movimento_social_nome: z.string().trim().max(160).nullable().optional(),
