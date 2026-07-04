@@ -108,6 +108,7 @@ export const updateContact = createServerFn({ method: "POST" })
     // Empty email -> null
     const payload: Record<string, unknown> = { ...rest };
     if (payload.email === "") payload.email = null;
+    if (payload.email_secundario === "") payload.email_secundario = null;
     if (payload.uf && typeof payload.uf === "string") payload.uf = payload.uf.toUpperCase();
 
     // Phone change: trigger contacts_phone_fill recomputes everything via phone_raw
