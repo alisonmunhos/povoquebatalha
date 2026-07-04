@@ -59,7 +59,7 @@ export const createInlineContact = createServerFn({ method: "POST" })
       origem: (isFull ? "recadastro" : "inscricao") as "recadastro" | "inscricao",
       origem_detalhe: "preenchido_por_agitador",
       opt_out_at: null,
-      lifecycle_status: (isFull ? "recadastro_concluido" : "recadastro_concluido") as const,
+      lifecycle_status: "recadastro_concluido" as const,
     };
 
     // Procurar contato existente por phone_e164 (evita duplicar).
@@ -91,7 +91,7 @@ export const createInlineContact = createServerFn({ method: "POST" })
         _source_user_id: context.userId,
         _source_module: data.source_module,
         _source_form_type: data.form_type,
-        _source_link_id: null,
+        _source_link_id: null as unknown as string,
         _event_type: isFull ? "cadastro_completo" : "inscricao_simples",
         _metadata: { via: "preenchido_por_agitador" },
       });
