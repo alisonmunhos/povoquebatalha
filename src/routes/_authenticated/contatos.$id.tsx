@@ -311,7 +311,16 @@ function ContatoFicha() {
             )}
           </Section>
 
-          <TerritorioLogsSection contactId={id} />
+          <TerritorioLogsSection
+            contactId={id}
+            contact={{
+              nome: (c?.nome ?? null) as string | null,
+              phone_e164: (c?.phone_e164 ?? null) as string | null,
+              bairro: (c?.bairro ?? null) as string | null,
+              cidade: (c?.cidade ?? null) as string | null,
+              uf: (c?.uf ?? null) as string | null,
+            }}
+          />
         </aside>
       </div>
     </div>
