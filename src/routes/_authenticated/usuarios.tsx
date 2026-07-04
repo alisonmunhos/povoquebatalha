@@ -100,6 +100,10 @@ function UsuariosPage() {
   const [resetLink, setResetLink] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [auditRows, setAuditRows] = useState<{ id: string; event: string; created_at: string; meta: Record<string, unknown>; target_user_id: string | null; actor_id: string | null }[]>([]);
+  const [origin, setOrigin] = useState<string>("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const agitadorSignupUrl = origin ? `${origin}/cadastro-agitador` : "";
+  const agitadorSignupMessage = `Olá! Quero te convidar para ser agitador(a) voluntário(a) da Campanha do Povo que Batalha. É rápido: preencha seus dados no link abaixo e um administrador libera seu acesso.\n\n${agitadorSignupUrl}`;
 
   async function load() {
     setLoading(true);
@@ -227,6 +231,37 @@ function UsuariosPage() {
         {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
         {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
       </section>
+
+      {/* Link fixo de auto-cadastro de agitador */}
+      <section className="border rounded-xl p-5 bg-card">
+        <h2 className="font-semibold flex items-center gap-2 mb-1">
+          <LinkIcon className="h-4 w-4" /> Link de auto-cadastro de agitador
+        </h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          Link <b>fixo e reutilizável</b> — pode compartilhar com quantas pessoas quiser. Todo cadastro feito por aqui cai na aba <b>Aguardando aprovação</b> acima, para você liberar o acesso manualmente.
+        </p>
+        {agitadorSignupUrl ? (
+          <>
+            <LinkBox url={agitadorSignupUrl} />
+            <div className="flex gap-2 flex-wrap mt-2">
+              <CopyButton
+                text={agitadorSignupUrl}
+                label="Copiar link"
+                onDone={() => setMsg("Link copiado.")}
+              />
+              <CopyButton
+                text={agitadorSignupMessage}
+                label="Copiar mensagem pronta"
+                onDone={() => setMsg("Mensagem copiada.")}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Carregando…</p>
+        )}
+      </section>
+
+
 
       {/* Guia rápido de ações */}
       <section className="border rounded-xl p-4 bg-muted/30 text-xs text-muted-foreground">
