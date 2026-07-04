@@ -107,6 +107,7 @@ export function Recadastro() {
       uf,
       como_conheceu: String(fd.get("como_conheceu") ?? ""),
       profissao: String(fd.get("profissao") ?? ""),
+      instituicao: String(fd.get("instituicao") ?? ""),
       coletivo_alicerce: coletivoAlicerce === "sim" ? true : coletivoAlicerce === "nao" ? false : undefined,
       participa_movimento_social: movSocial === "sim" ? true : movSocial === "nao" ? false : undefined,
       movimento_social_nome: movSocial === "sim" ? String(fd.get("movimento_social_nome") ?? "") : "",
