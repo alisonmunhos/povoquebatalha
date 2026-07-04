@@ -259,11 +259,13 @@ function FieldAction() {
             {activeFilterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>}
           </div>
           <div className="flex items-center gap-3">
-            {activeFilterCount > 0 && (
-              <button onClick={(e) => { e.preventDefault(); clearFilters(); }} className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-                <XCircle className="h-3 w-3" /> limpar
-              </button>
-            )}
+            <button
+              onClick={(e) => { e.preventDefault(); clearFilters(); }}
+              disabled={activeFilterCount === 0}
+              className="text-[11px] inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground"
+            >
+              <XCircle className="h-3 w-3" /> Limpar filtros
+            </button>
             <span className="text-muted-foreground text-xs group-open:rotate-180 transition-transform">▾</span>
           </div>
         </summary>
