@@ -505,8 +505,11 @@ export const commitImport = createServerFn({ method: "POST" })
         const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
           nome: p.nome,
+          nome_social: ex.nome_social ?? null,
           phone_raw: p.phone.phone_original,
+          phone_secundario_raw: ex.phone_secundario_raw ?? null,
           email: p.email,
+          email_secundario: ex.email_secundario ?? null,
           profissao: ex.profissao ?? null,
           instituicao: ex.instituicao ?? null,
           cep: ex.cep ?? null,
@@ -514,15 +517,19 @@ export const commitImport = createServerFn({ method: "POST" })
           numero: ex.numero ?? null,
           complemento: ex.complemento ?? null,
           bairro: ex.bairro ?? null,
+          referencia: ex.referencia ?? null,
           cidade: ex.cidade ?? null,
           uf: ex.uf ?? null,
           origem_detalhe: ex.origem_detalhe ?? null,
-          participa_movimento_social: ex.movimento_social_nome ? true : null,
+          coletivo_alicerce: ex.coletivo_alicerce ?? null,
+          participa_movimento_social:
+            ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
+          tipo_contato: ex.tipo_contato ?? null,
           observacoes: obsText,
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
-          tipo: data.tipo,
+          tipo: ex.tipo_contato ?? data.tipo,
           import_id: data.importId,
           whatsapp_status: "desconhecido",
           phone_status: isInvalid
