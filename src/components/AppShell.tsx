@@ -36,7 +36,7 @@ const groups: NavGroup[] = [
   {
     label: "Território",
     items: [
-      { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm", "territorio"] },
+      { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm"] },
       { to: "/agitacao", label: "Agitação", icon: Zap, hint: "Captação rápida por WhatsApp.", roles: ["admin", "vrm", "agitador"] },
     ],
   },
