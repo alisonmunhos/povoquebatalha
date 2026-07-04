@@ -105,6 +105,7 @@ const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   role: RoleEnum,
   redirectOrigin: z.string().url(),
+  full_name: z.string().trim().max(160).optional().nullable(),
 });
 
 function selfOrigin(): string {
