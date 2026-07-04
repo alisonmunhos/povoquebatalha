@@ -73,7 +73,7 @@ export function AppShell() {
     roles.includes("agitador") &&
     !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao");
 
-  const canAddContact = roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "agitador");
+  const canAddContact = roles.length > 0;
 
   const hasRoles = roles.length > 0;
   function canSee(item: NavItem) {
