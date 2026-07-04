@@ -52,11 +52,14 @@ export const crmFilterSchema = z.object({
   segment_id: z.string().uuid().optional(),
 
   // Comunicação
+  // Comunicação
+  apto_envio: z.enum(["sim", "nao"]).optional(),
   consent: z.enum(["sim", "nao"]).optional(),
   optOut: z.enum(["sim", "nao"]).optional(),
   bloqueado: z.enum(["sim", "nao"]).optional(),
   archived: z.enum(["sim", "nao", "todos"]).default("nao"),
   phone_status: z.string().optional(),
+
   phone_statuses: z.array(z.string()).optional(),
   whatsapp_status: z.string().optional(),
   whatsapp_statuses: z.array(z.string()).optional(),
