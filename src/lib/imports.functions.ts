@@ -576,8 +576,11 @@ export const commitImport = createServerFn({ method: "POST" })
               if (value != null && (existing as Record<string, unknown>)[key] == null) merge[key] = value;
             };
             fillIfEmpty("nome", p.nome);
+            fillIfEmpty("nome_social", ex.nome_social ?? null);
             fillIfEmpty("email", p.email);
+            fillIfEmpty("email_secundario", ex.email_secundario ?? null);
             fillIfEmpty("phone_raw", p.phone.phone_original);
+            fillIfEmpty("phone_secundario_raw", ex.phone_secundario_raw ?? null);
             fillIfEmpty("profissao", ex.profissao ?? null);
             fillIfEmpty("instituicao", ex.instituicao ?? null);
             fillIfEmpty("cep", ex.cep ?? null);
@@ -585,10 +588,17 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("numero", ex.numero ?? null);
             fillIfEmpty("complemento", ex.complemento ?? null);
             fillIfEmpty("bairro", ex.bairro ?? null);
+            fillIfEmpty("referencia", ex.referencia ?? null);
             fillIfEmpty("cidade", ex.cidade ?? null);
             fillIfEmpty("uf", ex.uf ?? null);
             fillIfEmpty("origem_detalhe", ex.origem_detalhe ?? null);
             fillIfEmpty("movimento_social_nome", ex.movimento_social_nome ?? null);
+            fillIfEmpty("coletivo_alicerce", ex.coletivo_alicerce);
+            fillIfEmpty(
+              "participa_movimento_social",
+              ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
+            );
+            fillIfEmpty("tipo_contato", ex.tipo_contato ?? null);
             if (obsText) {
               const cur = (existing as Record<string, unknown>).observacoes as string | null;
               merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
