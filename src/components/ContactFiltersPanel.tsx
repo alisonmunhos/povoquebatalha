@@ -72,6 +72,16 @@ const SIM_NAO: MultiOption[] = [
   { value: "nao", label: "Não" },
 ];
 
+const SYSTEM_ROLES: MultiOption[] = [
+  { value: "admin", label: "Admin" },
+  { value: "operador", label: "Operador" },
+  { value: "vrm", label: "VRM" },
+  { value: "comunicacao", label: "Comunicação" },
+  { value: "agitador", label: "Agitador" },
+  { value: "leitor", label: "Leitor" },
+];
+
+
 /** Mescla opções dinâmicas da base com um mapa fixo de rótulos amigáveis. */
 function mergeLabels(dynamic: MultiOption[] | undefined, labels: MultiOption[]): MultiOption[] {
   const labelMap = new Map(labels.map((l) => [l.value.toLowerCase(), l.label]));
