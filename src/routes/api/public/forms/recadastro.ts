@@ -233,6 +233,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
                 participa_movimento_social: d.participa_movimento_social ?? null,
                 movimento_social_nome: d.movimento_social_nome || null,
                 profissao: d.profissao || null,
+                instituicao: d.instituicao || null,
                 formas_ajuda: formasAjuda,
                 formas_ajuda_outro: formasAjudaOutro,
                 consentimento_whatsapp: true,
