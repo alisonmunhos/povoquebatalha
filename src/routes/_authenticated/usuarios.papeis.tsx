@@ -91,7 +91,7 @@ function PapeisPage() {
         <div>
           <p className="text-blue-900">
             Os papéis são cumulativos por prioridade: se alguém tiver mais de um papel, o de maior privilégio prevalece
-            (Admin &gt; Operador &gt; Comunicação &gt; VRM &gt; Território &gt; Leitor).
+            (Admin &gt; Operador &gt; Comunicação &gt; VRM &gt; Agitador &gt; Leitor).
           </p>
         </div>
       </div>
