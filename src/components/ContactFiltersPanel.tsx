@@ -198,6 +198,14 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
 
 
       <Section icon={<MessageCircle className="h-4 w-4" />} title="Comunicação">
+        <Field label="Apto para envio" hint="Atalho: consentimento WhatsApp = sim, sem opt-out, não bloqueado e telefone válido.">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.apto_envio}
+            onChange={(v) => set("apto_envio", v as "sim" | "nao" | undefined)}
+            placeholder="Qualquer"
+          />
+        </Field>
         <Field label="E-mail contém…" hint="Busca livre no campo e-mail">
           <Input value={filters.email_contains ?? ""} onChange={(e) => set("email_contains", e.target.value || undefined)} placeholder="Ex.: gmail.com" />
         </Field>
@@ -207,6 +215,10 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Tem telefone secundário">
           <SingleSelectFilter options={SIM_NAO} value={filters.tem_phone_secundario} onChange={(v) => set("tem_phone_secundario", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
+        <div className="col-span-full mt-2 pt-2 border-t border-dashed">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Detalhado / avançado</p>
+          <p className="text-[10px] text-muted-foreground">Use "Apto para envio" acima como atalho. Os filtros abaixo permitem ajuste fino.</p>
+        </div>
         <Field label="Consentimento WhatsApp">
           <SingleSelectFilter options={SIM_NAO} value={filters.consent} onChange={(v) => set("consent", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
@@ -223,10 +235,10 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
           <MultiSelectFilter options={WPP_STATUS} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
         </Field>
         <Field label="Ciclo de vida" hint="Status atribuído manualmente ou por importação. Diferente do 'Status do telefone', que é calculado automaticamente a partir do número.">
-
           <MultiSelectFilter options={LIFECYCLE} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
         </Field>
       </Section>
+
 
       <Section icon={<History className="h-4 w-4" />} title="Histórico de mensagens">
         <Field label="Recebeu campanha">
