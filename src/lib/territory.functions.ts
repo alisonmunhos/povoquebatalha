@@ -122,7 +122,7 @@ export const listTerritoryContacts = createServerFn({ method: "POST" })
     pageSize: z.number().int().min(1).max(100).default(30),
     fieldStatus: z.array(fieldStatusEnum).optional(),
     sinceDays: z.number().int().min(1).max(365).optional(),
-    sortBy: z.enum(["nao_abordado_first", "recent_action", "alphabetical"]).default("nao_abordado_first"),
+    sortBy: z.enum(["inclusion", "recent", "oldest", "alphabetical", "nao_abordado_first", "recent_action"]).default("inclusion"),
     // "own" = apenas ações minhas para filtro/status; "all" = de todos (padrão)
     actionScope: z.enum(["own", "all"]).default("all"),
   }).parse(d ?? {}))
