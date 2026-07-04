@@ -210,10 +210,10 @@ function FieldAction() {
   };
 
   const clearFilters = () => {
-    setFieldStatus([]); setPeriod("all"); setSortBy("nao_abordado_first"); setPage(1);
+    setFieldStatus([]); setPeriod("all"); setSortBy("inclusion"); setPage(1);
   };
 
-  const activeFilterCount = fieldStatus.length + (period !== "all" ? 1 : 0) + (sortBy !== "nao_abordado_first" ? 1 : 0);
+  const activeFilterCount = fieldStatus.length + (period !== "all" ? 1 : 0) + (sortBy !== "inclusion" ? 1 : 0);
 
   const s = summary.data;
   const hasSummaryActivity = !!s && (s.contato_realizado + s.nao_encontrado + s.observacao + s.whatsapp_aberto) > 0;
