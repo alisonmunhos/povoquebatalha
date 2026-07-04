@@ -4,12 +4,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin } from "lucide-react";
+import { Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History } from "lucide-react";
 import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 
 export const Route = createFileRoute("/_authenticated/agitacao")({
   head: () => ({ meta: [{ title: "Agitação — Povo que Batalha" }] }),
