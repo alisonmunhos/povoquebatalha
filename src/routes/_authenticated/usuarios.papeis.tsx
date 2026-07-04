@@ -54,15 +54,6 @@ const ROWS: Row[] = [
     config: "—",
   },
   {
-    papel: "Território",
-    cor: "bg-amber-100 text-amber-800",
-    descricao: "Militante de campo, atua em uma região específica. Otimizado para celular.",
-    base: "Só vê contatos dentro do seu escopo (bairro/UF configurado). Edita notas e status básicos.",
-    comunicacao: "Abre WhatsApp e registra ações de campo (contato feito, não encontrado, observação). Sem inbox global nem campanhas.",
-    territorio: "Home do usuário. Vê o mapa e a lista da sua região.",
-    config: "—",
-  },
-  {
     papel: "Agitador",
     cor: "bg-orange-100 text-orange-800",
     descricao: "Voluntário de captação em campo. Só acessa o módulo de agitação para cadastrar novos contatos.",
@@ -100,7 +91,7 @@ function PapeisPage() {
         <div>
           <p className="text-blue-900">
             Os papéis são cumulativos por prioridade: se alguém tiver mais de um papel, o de maior privilégio prevalece
-            (Admin &gt; Operador &gt; Comunicação &gt; VRM &gt; Território &gt; Leitor).
+            (Admin &gt; Operador &gt; Comunicação &gt; VRM &gt; Agitador &gt; Leitor).
           </p>
         </div>
       </div>

@@ -1,16 +1,21 @@
 // Botão global "+ Adicionar contato".
-// Gera um link rastreável (tracked_form_links) e mostra 2 cards:
-// - Formulário de cadastro (source_form_type=cadastro_completo, rota /atualizacao?ref=TOKEN)
-// - Receber informações (source_form_type=receber_informacoes, rota /inscrever?ref=TOKEN)
+// Duas ações por tipo (Cadastro completo / Receber informações):
+// 1) Preencher agora → formulário inline que cria o contato imediatamente com
+//    source_user_id = usuário logado (aparece na lista de Agitação dele).
+// 2) Gerar link rastreável → mesmo comportamento anterior (compartilhar via WhatsApp).
 import { useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Copy, ExternalLink, MessageCircle, Loader2, ClipboardList, Megaphone } from "lucide-react";
+import {
+  Plus, Copy, ExternalLink, MessageCircle, Loader2,
+  ClipboardList, Megaphone, ArrowLeft, PencilLine, Link2, Check,
+} from "lucide-react";
 import { toast } from "sonner";
 import { createTrackedLink } from "@/lib/tracked-links.functions";
+import { createInlineContact } from "@/lib/inline-contact.functions";
 
 type SourceModule =
   | "gestao_base" | "territorio" | "agitacao" | "mapa"
@@ -62,44 +67,54 @@ export function AddContactButton({ userName, className, compact }: Props) {
   );
 }
 
+type Step =
+  | { kind: "choose_type" }
+  | { kind: "choose_action"; type: FormType }
+  | { kind: "fill"; type: FormType }
+  | { kind: "link"; type: FormType; token: string };
+
 function AddContactModal({ userName, onClose }: { userName?: string | null; onClose: () => void }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const module = deriveModuleFromPath(path);
   const create = useServerFn(createTrackedLink);
 
-  const [busy, setBusy] = useState<FormType | null>(null);
-  const [selected, setSelected] = useState<{ token: string; type: FormType } | null>(null);
+  const [step, setStep] = useState<Step>({ kind: "choose_type" });
+  const [busy, setBusy] = useState(false);
 
-  async function generate(type: FormType) {
-    setBusy(type);
+  async function generateLink(type: FormType) {
+    setBusy(true);
     try {
       const r = await create({ data: { source_module: module, source_form_type: type } });
-      setSelected({ token: r.link.token, type });
+      setStep({ kind: "link", type, token: r.link.token });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
-  const publicPath = selected
-    ? selected.type === "cadastro_completo" ? "/atualizacao" : "/inscrever"
-    : "";
-  const publicUrl = selected
-    ? `${window.location.origin}${publicPath}?ref=${selected.token}`
-    : "";
+  const title = step.kind === "choose_type"
+    ? "Adicionar contato"
+    : step.kind === "choose_action"
+      ? (step.type === "cadastro_completo" ? "Formulário de cadastro" : "Receber informações")
+      : step.kind === "fill"
+        ? "Preencher contato agora"
+        : "Link gerado";
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Adicionar contato</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Gere um link rastreável para o contato preencher os dados. Vamos registrar quem captou e por qual módulo.
+            {step.kind === "choose_type" && "Escolha o tipo de cadastro. Você poderá preencher agora ou gerar um link para a pessoa preencher."}
+            {step.kind === "choose_action" && "Preencha na hora ou envie um link rastreável para a pessoa preencher sozinha."}
+            {step.kind === "fill" && "Os dados serão salvos e vinculados a você."}
+            {step.kind === "link" && "Link rastreável — copie, abra ou envie por WhatsApp."}
           </DialogDescription>
         </DialogHeader>
 
-        {!selected && (
+        {step.kind === "choose_type" && (
           <>
             <div className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
               Registrado como criado por{" "}
@@ -110,23 +125,59 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
               <TypeCard
                 icon={<ClipboardList className="h-6 w-6" />}
                 title="Formulário de cadastro"
-                desc="Ficha completa: dados pessoais, endereço, participação e consentimento."
-                busy={busy === "cadastro_completo"}
-                onClick={() => generate("cadastro_completo")}
+                desc="Ficha completa: dados pessoais, endereço e consentimento."
+                onClick={() => setStep({ kind: "choose_action", type: "cadastro_completo" })}
               />
               <TypeCard
                 icon={<Megaphone className="h-6 w-6" />}
                 title="Receber informações"
-                desc="Formulário curto — só nome, WhatsApp e cidade para receber comunicados."
-                busy={busy === "receber_informacoes"}
-                onClick={() => generate("receber_informacoes")}
+                desc="Formulário curto — nome, WhatsApp e cidade para receber comunicados."
+                onClick={() => setStep({ kind: "choose_action", type: "receber_informacoes" })}
               />
             </div>
           </>
         )}
 
-        {selected && (
-          <LinkResult url={publicUrl} onBack={() => setSelected(null)} />
+        {step.kind === "choose_action" && (
+          <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <ActionCard
+                icon={<PencilLine className="h-5 w-5" />}
+                title="Preencher agora"
+                desc="Digite os dados com a pessoa do lado. Salva imediatamente."
+                onClick={() => setStep({ kind: "fill", type: step.type })}
+              />
+              <ActionCard
+                icon={<Link2 className="h-5 w-5" />}
+                title="Gerar link"
+                desc="Envie por WhatsApp para a pessoa preencher sozinha."
+                busy={busy}
+                onClick={() => generateLink(step.type)}
+              />
+            </div>
+            <BackButton onClick={() => setStep({ kind: "choose_type" })} />
+          </div>
+        )}
+
+        {step.kind === "fill" && (
+          <InlineFillForm
+            type={step.type}
+            module={module}
+            onCancel={() => setStep({ kind: "choose_action", type: step.type })}
+            onSaved={() => { toast.success("Contato salvo."); onClose(); }}
+          />
+        )}
+
+        {step.kind === "link" && (
+          <>
+            <LinkResult
+              url={(() => {
+                const p = step.type === "cadastro_completo" ? "/atualizacao" : "/inscrever";
+                return `${window.location.origin}${p}?ref=${step.token}`;
+              })()}
+            />
+            <BackButton onClick={() => setStep({ kind: "choose_action", type: step.type })} />
+          </>
         )}
       </DialogContent>
     </Dialog>
@@ -134,8 +185,24 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
 }
 
 function TypeCard({
+  icon, title, desc, onClick,
+}: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left rounded-xl border bg-card hover:border-primary/50 hover:bg-primary/5 transition-colors p-4"
+    >
+      <div className="flex items-center gap-2 text-primary">{icon}</div>
+      <div className="mt-2 font-semibold text-sm">{title}</div>
+      <div className="text-xs text-muted-foreground mt-1">{desc}</div>
+    </button>
+  );
+}
+
+function ActionCard({
   icon, title, desc, busy, onClick,
-}: { icon: React.ReactNode; title: string; desc: string; busy: boolean; onClick: () => void }) {
+}: { icon: React.ReactNode; title: string; desc: string; busy?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -144,7 +211,7 @@ function TypeCard({
       className="text-left rounded-xl border bg-card hover:border-primary/50 hover:bg-primary/5 transition-colors p-4 disabled:opacity-60 disabled:cursor-not-allowed"
     >
       <div className="flex items-center gap-2 text-primary">
-        {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : icon}
+        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : icon}
       </div>
       <div className="mt-2 font-semibold text-sm">{title}</div>
       <div className="text-xs text-muted-foreground mt-1">{desc}</div>
@@ -152,11 +219,152 @@ function TypeCard({
   );
 }
 
-function LinkResult({ url, onBack }: { url: string; onBack: () => void }) {
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="sm" onClick={onClick} className="mt-2">
+      <ArrowLeft className="h-3.5 w-3.5" /> Voltar
+    </Button>
+  );
+}
+
+function InlineFillForm({
+  type, module, onCancel, onSaved,
+}: { type: FormType; module: SourceModule; onCancel: () => void; onSaved: () => void }) {
+  const save = useServerFn(createInlineContact);
+  const isFull = type === "cadastro_completo";
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [f, setF] = useState({
+    nome: "", phone: "", email: "",
+    cep: "", endereco: "", numero: "",
+    bairro: "", cidade: "", uf: "",
+    observacoes: "",
+    consentimento_whatsapp: true,
+  });
+
+  function upd<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
+    setF((prev) => ({ ...prev, [k]: v }));
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!f.consentimento_whatsapp) {
+      setError("É preciso confirmar a autorização de contato por WhatsApp.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await save({
+        data: {
+          form_type: type,
+          source_module: module,
+          nome: f.nome.trim(),
+          phone: f.phone.trim(),
+          email: f.email.trim(),
+          cidade: f.cidade.trim(),
+          uf: f.uf.trim(),
+          bairro: f.bairro.trim(),
+          endereco: isFull ? f.endereco.trim() : "",
+          numero: isFull ? f.numero.trim() : "",
+          cep: isFull ? f.cep.trim() : "",
+          observacoes: f.observacoes.trim(),
+          consentimento_whatsapp: f.consentimento_whatsapp,
+        },
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <Field label="Nome *">
+        <Input required maxLength={120} value={f.nome} onChange={(e) => upd("nome", e.target.value)} />
+      </Field>
+      <Field label="WhatsApp (com DDD) *">
+        <Input required inputMode="tel" placeholder="(11) 91234-5678" value={f.phone} onChange={(e) => upd("phone", e.target.value)} />
+      </Field>
+      {isFull && (
+        <Field label="E-mail">
+          <Input type="email" value={f.email} onChange={(e) => upd("email", e.target.value)} />
+        </Field>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <Field label="Cidade" className="col-span-2">
+          <Input maxLength={120} value={f.cidade} onChange={(e) => upd("cidade", e.target.value)} />
+        </Field>
+        <Field label="UF">
+          <Input maxLength={2} value={f.uf} onChange={(e) => upd("uf", e.target.value.toUpperCase())} />
+        </Field>
+      </div>
+      <Field label="Bairro">
+        <Input maxLength={120} value={f.bairro} onChange={(e) => upd("bairro", e.target.value)} />
+      </Field>
+      {isFull && (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="CEP">
+              <Input maxLength={12} value={f.cep} onChange={(e) => upd("cep", e.target.value)} />
+            </Field>
+            <Field label="Endereço" className="col-span-2">
+              <Input maxLength={240} value={f.endereco} onChange={(e) => upd("endereco", e.target.value)} />
+            </Field>
+          </div>
+          <Field label="Número">
+            <Input maxLength={20} value={f.numero} onChange={(e) => upd("numero", e.target.value)} />
+          </Field>
+        </>
+      )}
+      <Field label="Observações">
+        <textarea
+          rows={2}
+          maxLength={2000}
+          value={f.observacoes}
+          onChange={(e) => upd("observacoes", e.target.value)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+      </Field>
+      <label className="flex items-start gap-2 text-xs text-muted-foreground border rounded-md p-3 bg-muted/30">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4"
+          checked={f.consentimento_whatsapp}
+          onChange={(e) => upd("consentimento_whatsapp", e.target.checked)}
+        />
+        <span>
+          A pessoa autoriza receber comunicações da campanha por WhatsApp
+          (pode cancelar respondendo "SAIR").
+        </span>
+      </label>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex justify-between gap-2 pt-1">
+        <BackButton onClick={onCancel} />
+        <Button type="submit" disabled={submitting}>
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          {submitting ? "Salvando…" : "Salvar contato"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
+}
+
+function LinkResult({ url }: { url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(`Olá! Preenche seu cadastro por aqui, por favor:\n${url}`)}`;
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted-foreground">Link rastreável gerado — pode copiar, abrir ou enviar por WhatsApp.</div>
       <div className="flex gap-2">
         <Input readOnly value={url} className="font-mono text-xs" />
       </div>
@@ -174,7 +382,6 @@ function LinkResult({ url, onBack }: { url: string; onBack: () => void }) {
             <MessageCircle className="h-3.5 w-3.5" /> Compartilhar WhatsApp
           </a>
         </Button>
-        <Button variant="ghost" size="sm" onClick={onBack}>Gerar outro</Button>
       </div>
     </div>
   );

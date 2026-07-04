@@ -61,12 +61,11 @@ const ROLE_LABEL: Record<string, string> = {
   operador: "Operador",
   vrm: "VRM",
   comunicacao: "Comunicação",
-  territorio: "Território",
   agitador: "Agitador",
   leitor: "Leitor",
 };
 
-type InviteRole = "admin" | "operador" | "leitor" | "vrm" | "territorio" | "agitador" | "comunicacao";
+type InviteRole = "admin" | "operador" | "leitor" | "vrm" | "agitador" | "comunicacao";
 
 type PendingRow = { id: string; email: string; full_name: string | null; created_at: string; phone: string | null };
 
@@ -213,7 +212,6 @@ function UsuariosPage() {
             <option value="operador">Operador</option>
             <option value="vrm">VRM (Relacionamento)</option>
             <option value="comunicacao">Comunicação</option>
-            <option value="territorio">Território</option>
             <option value="agitador">Agitador</option>
             <option value="leitor">Leitor</option>
           </select>
