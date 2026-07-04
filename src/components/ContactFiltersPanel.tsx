@@ -247,6 +247,12 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
       </Section>
 
       <Section icon={<Zap className="h-4 w-4" />} title="Origem e captação">
+        <Field label="Origem do contato" hint="Como a pessoa entrou na base (atualização, inscrição, importação, manual).">
+          <MultiSelectFilter options={mergeLabels(opts.origens, ORIGEM)} value={filters.origens ?? []} onChange={(v) => set("origens", v)} placeholder="Todas as origens" />
+        </Field>
+        <Field label="Detalhe de origem">
+          <MultiSelectFilter options={opts.origem_detalhes} value={filters.origem_detalhes ?? []} onChange={(v) => set("origem_detalhes", v)} placeholder="Todos os detalhes" />
+        </Field>
         <Field label="Módulo de origem">
           <MultiSelectFilter
             options={[
@@ -289,10 +295,32 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Captado até">
           <Input type="date" value={filters.captado_ate ?? ""} onChange={(e) => set("captado_ate", e.target.value || undefined)} />
         </Field>
-        <Field label="ID do captador (UUID)" hint="Cole o ID do usuário para filtrar quem captou">
-          <Input value={filters.source_user_id ?? ""} onChange={(e) => set("source_user_id", e.target.value || undefined)} placeholder="uuid do usuário" />
+        <Field label="Captado por" hint={systemUsersQ.isLoading ? "Carregando lista de usuários…" : "Escolha um usuário do sistema."}>
+          <SingleSelectFilter
+            options={systemUserOptions}
+            value={filters.source_user_id}
+            onChange={(v) => set("source_user_id", v)}
+            placeholder="Qualquer usuário"
+          />
+        </Field>
+        <Field label="É usuário do sistema" hint="Contato vinculado a uma conta de login.">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.is_system_user}
+            onChange={(v) => set("is_system_user", v as "sim" | "nao" | undefined)}
+            placeholder="Qualquer"
+          />
+        </Field>
+        <Field label="Papel no sistema">
+          <MultiSelectFilter
+            options={SYSTEM_ROLES}
+            value={filters.system_roles ?? []}
+            onChange={(v) => set("system_roles", v)}
+            placeholder="Qualquer papel"
+          />
         </Field>
       </Section>
+
 
       <Section icon={<FileUp className="h-4 w-4" />} title="Importação">
         <Field label="Lote(s) de importação">
