@@ -1881,6 +1881,7 @@ export type Database = {
         }
         Returns: string
       }
+      detect_contact_duplicates_for: { Args: { _id: string }; Returns: number }
       link_or_create_user_contact: {
         Args: {
           _email: string
