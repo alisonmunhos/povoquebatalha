@@ -716,8 +716,6 @@ function escapeHtml(s: string) {
 // ---------- Contact detail panel ----------
 export function MapDetailPanel({ contactId, onClose, overlay = false }: { contactId: string; onClose: () => void; overlay?: boolean }) {
   const detailFn = useServerFn(getMapContactDetail);
-  const quickFn = useServerFn(listQuickReplies);
-  const sendFn = useServerFn(sendDirectMessage);
   const logFn = useServerFn(logTerritoryAction);
   const resetFn = useServerFn(resetTerritoryContact);
   const qc = useQueryClient();
@@ -726,11 +724,7 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
     queryKey: ["map-detail", contactId],
     queryFn: () => detailFn({ data: { id: contactId } }),
   });
-  const quickReplies = useQuery({ queryKey: ["quick-replies"], queryFn: () => quickFn() });
 
-  const [message, setMessage] = useState("");
-  const [templateId, setTemplateId] = useState<string>("");
-  const [showSend, setShowSend] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [showHistory, setShowHistory] = useState(false);
@@ -739,15 +733,10 @@ export function MapDetailPanel({ contactId, onClose, overlay = false }: { contac
     qc.invalidateQueries({ queryKey: ["map-contacts"] });
     qc.invalidateQueries({ queryKey: ["map-detail", contactId] });
     qc.invalidateQueries({ queryKey: ["territory-contacts"] });
-    qc.invalidateQueries({ queryKey: ["territory-contact-logs"] });
+    qc.invalidateQueries({ queryKey: ["contact-logs-unified"] });
     qc.invalidateQueries({ queryKey: ["territory-summary-today"] });
   };
 
-  const send = useMutation({
-    mutationFn: () => sendFn({ data: { contact_id: contactId, message, origem: "mapa", template_id: templateId || undefined } }),
-    onSuccess: () => { toast.success("Mensagem enviada."); setMessage(""); setTemplateId(""); setShowSend(false); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const logField = useMutation({
     mutationFn: (v: { action: "contato_realizado" | "nao_encontrado" | "observacao" | "whatsapp_aberto"; note?: string }) =>
