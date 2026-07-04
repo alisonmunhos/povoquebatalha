@@ -518,8 +518,11 @@ function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; cont
           <>
             <dt className="text-muted-foreground">Usuário do sistema</dt>
             <dd>Sim (vinculado a login)</dd>
+            <dt className="text-muted-foreground">Papel no sistema</dt>
+            <dd>{contact.system_role ? (SYSTEM_ROLE_LABEL[contact.system_role] ?? contact.system_role) : "—"}</dd>
           </>
         )}
+
       </dl>
       <div className="mt-3">
         <div className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground mb-1">Histórico de captação</div>
