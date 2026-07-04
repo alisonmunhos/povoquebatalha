@@ -1,3 +1,7 @@
+// ⚠️ Ao adicionar um campo novo na ficha de contato, sempre volte aqui:
+//   (1) reconhecer no mapeamento de importação CSV (src/lib/imports.functions.ts)
+//   (2) adicionar como filtro aqui e em src/components/ContactFiltersPanel.tsx
+//   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
 
 export const crmFilterSchema = z.object({
