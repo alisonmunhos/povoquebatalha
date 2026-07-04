@@ -100,6 +100,10 @@ function UsuariosPage() {
   const [resetLink, setResetLink] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [auditRows, setAuditRows] = useState<{ id: string; event: string; created_at: string; meta: Record<string, unknown>; target_user_id: string | null; actor_id: string | null }[]>([]);
+  const [origin, setOrigin] = useState<string>("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const agitadorSignupUrl = origin ? `${origin}/cadastro-agitador` : "";
+  const agitadorSignupMessage = `Olá! Quero te convidar para ser agitador(a) voluntário(a) da Campanha do Povo que Batalha. É rápido: preencha seus dados no link abaixo e um administrador libera seu acesso.\n\n${agitadorSignupUrl}`;
 
   async function load() {
     setLoading(true);
