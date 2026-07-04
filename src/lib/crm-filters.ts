@@ -84,9 +84,6 @@ const SEARCH_COLS = [
   "movimento_social_nome",
   "formas_ajuda_outro",
 ];
-  "movimento_social_nome",
-  "formas_ajuda_outro",
-];
 
 export function applyCrmFilters<T extends {
   ilike: (col: string, v: string) => T;
