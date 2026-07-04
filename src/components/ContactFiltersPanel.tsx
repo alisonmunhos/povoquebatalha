@@ -68,6 +68,16 @@ const SIM_NAO: MultiOption[] = [
   { value: "nao", label: "Não" },
 ];
 
+/** Mescla opções dinâmicas da base com um mapa fixo de rótulos amigáveis. */
+function mergeLabels(dynamic: MultiOption[] | undefined, labels: MultiOption[]): MultiOption[] {
+  const labelMap = new Map(labels.map((l) => [l.value.toLowerCase(), l.label]));
+  const list = (dynamic ?? []).map((o) => ({
+    ...o,
+    label: labelMap.get(o.value.toLowerCase()) ?? o.label,
+  }));
+  return list.length ? list : labels;
+}
+
 type Props = {
   filters: CrmFilters;
   onChange: (f: CrmFilters) => void;
@@ -104,14 +114,6 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
             placeholder="Somente ativos"
           />
         </Field>
-        <Field label="Coletivo Alicerce">
-          <SingleSelectFilter
-            options={SIM_NAO}
-            value={filters.coletivo_alicerce === undefined ? undefined : filters.coletivo_alicerce ? "sim" : "nao"}
-            onChange={(v) => set("coletivo_alicerce", v === undefined ? undefined : v === "sim")}
-            placeholder="Qualquer"
-          />
-        </Field>
         <Field label="Tags">
           <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
         </Field>
@@ -124,20 +126,25 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Cidade">
           <MultiSelectFilter options={opts.cidades} value={filters.cidades ?? []} onChange={(v) => set("cidades", v)} placeholder="Qualquer cidade" />
         </Field>
-        <Field label="Bairro">
+        <Field label="Bairro" hint={filters.cidades?.length ? "Mostrando só bairros da(s) cidade(s) selecionada(s)." : undefined}>
           <MultiSelectFilter options={opts.bairros} value={filters.bairros ?? []} onChange={(v) => set("bairros", v)} placeholder="Qualquer bairro" />
         </Field>
       </Section>
 
       <Section icon={<User className="h-4 w-4" />} title="Perfil">
         <Field label="Tipo de contato">
-          <MultiSelectFilter options={TIPO_CONTATO} value={filters.tipos_contato ?? []} onChange={(v) => set("tipos_contato", v)} placeholder="Qualquer tipo" />
-        </Field>
-        <Field label="Profissão / ocupação">
-          <MultiSelectFilter options={opts.profissoes} value={filters.profissoes ?? []} onChange={(v) => set("profissoes", v)} placeholder="Qualquer profissão" />
+          <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} value={filters.tipos_contato ?? []} onChange={(v) => set("tipos_contato", v)} placeholder="Qualquer tipo" />
         </Field>
         <Field label="Profissão contém…" hint="Busca livre no campo profissão">
           <Input value={filters.profissao ?? ""} onChange={(e) => set("profissao", e.target.value || undefined)} placeholder="Ex.: professor" />
+        </Field>
+        <Field label="Coletivo Alicerce">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.coletivo_alicerce === undefined ? undefined : filters.coletivo_alicerce ? "sim" : "nao"}
+            onChange={(v) => set("coletivo_alicerce", v === undefined ? undefined : v === "sim")}
+            placeholder="Qualquer"
+          />
         </Field>
         <Field label="Participa de movimento social">
           <SingleSelectFilter
@@ -146,9 +153,6 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
             onChange={(v) => set("participa_movimento_social", v === undefined ? undefined : v === "sim")}
             placeholder="Qualquer"
           />
-        </Field>
-        <Field label="Nome do movimento social">
-          <MultiSelectFilter options={opts.movimentos_sociais} value={filters.movimentos_sociais ?? []} onChange={(v) => set("movimentos_sociais", v)} placeholder="Qualquer movimento" />
         </Field>
         <Field label="Movimento contém…" hint="Busca livre no nome do movimento">
           <Input value={filters.movimento_social_contains ?? ""} onChange={(e) => set("movimento_social_contains", e.target.value || undefined)} placeholder="Ex.: MST" />
@@ -160,12 +164,13 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
           <MultiSelectFilter options={opts.formas_ajuda} value={filters.formas_ajuda ?? []} onChange={(v) => set("formas_ajuda", v)} placeholder="Todas as formas" />
         </Field>
         <Field label="Origem do contato">
-          <MultiSelectFilter options={ORIGEM} value={filters.origens ?? []} onChange={(v) => set("origens", v)} placeholder="Todas as origens" />
+          <MultiSelectFilter options={mergeLabels(opts.origens, ORIGEM)} value={filters.origens ?? []} onChange={(v) => set("origens", v)} placeholder="Todas as origens" />
         </Field>
         <Field label="Detalhe de origem">
           <MultiSelectFilter options={opts.origem_detalhes} value={filters.origem_detalhes ?? []} onChange={(v) => set("origem_detalhes", v)} placeholder="Todos os detalhes" />
         </Field>
       </Section>
+
 
       <Section icon={<MessageCircle className="h-4 w-4" />} title="Comunicação">
         <Field label="E-mail contém…" hint="Busca livre no campo e-mail">
