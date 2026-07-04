@@ -44,8 +44,8 @@ const LIFECYCLE: MultiOption[] = [
   { value: "recadastro_concluido", label: "Atualização concluída" },
   { value: "nao_respondeu", label: "Não respondeu" },
   { value: "telefone_invalido", label: "Telefone inválido" },
-  { value: "precisa_revisao", label: "Precisa revisão" },
-  { value: "duplicado_possivel", label: "Duplicado possível" },
+  { value: "precisa_revisao", label: "Ciclo: precisa revisão (manual)" },
+  { value: "duplicado_possivel", label: "Ciclo: duplicado possível (manual)" },
   { value: "duplicado_mesclado", label: "Duplicado mesclado" },
   { value: "nao_enviar", label: "Não enviar (bloqueado)" },
 ];
