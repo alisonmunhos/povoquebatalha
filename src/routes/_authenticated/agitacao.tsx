@@ -25,6 +25,10 @@ function AgitacaoPage() {
   const [semContato, setSemContato] = useState(false);
   const [obsFor, setObsFor] = useState<{ id: string; nome: string } | null>(null);
   const [obsText, setObsText] = useState("");
+  const [histFor, setHistFor] = useState<{
+    id: string; nome: string | null; phone_e164: string | null;
+    bairro: string | null; cidade: string | null; uf: string | null;
+  } | null>(null);
 
   const q = useQuery({
     queryKey: ["agitacao", search, pendentes, semContato],
