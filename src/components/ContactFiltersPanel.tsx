@@ -113,6 +113,22 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
     tags: [], segmentos: [], campanhas: [], mensagens: [], importacoes: [],
   };
 
+  const systemUsersFn = useServerFn(listSystemUserOptions);
+  const systemUsersQ = useQuery({
+    queryKey: ["system-user-options"],
+    queryFn: () => systemUsersFn(),
+    staleTime: 5 * 60_000,
+  });
+  const systemUserOptions = useMemo<MultiOption[]>(() => {
+    const arr = (systemUsersQ.data?.users ?? []).map((u) => ({
+      value: u.id,
+      label: u.full_name && u.full_name.trim().length > 0 ? u.full_name : u.email || u.id,
+    }));
+    arr.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    return arr;
+  }, [systemUsersQ.data]);
+
+
   return (
     <div className="border rounded-xl bg-card divide-y">
       <Section icon={<SlidersHorizontal className="h-4 w-4" />} title="Filtros rápidos" defaultOpen>
