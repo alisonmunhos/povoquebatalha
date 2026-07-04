@@ -49,6 +49,8 @@ function Contatos() {
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
   const deleteBulkFn = useServerFn(deleteContactsBulk);
+  const createTagFn = useServerFn(createTag);
+
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
   const [confirmDelete, setConfirmDelete] = useState(false);
