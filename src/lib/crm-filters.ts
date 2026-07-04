@@ -14,6 +14,7 @@ export const crmFilterSchema = z.object({
 
   // Perfil
   profissao: z.string().trim().optional(),
+  instituicao: z.string().trim().optional(),
   profissoes: z.array(z.string()).optional(),
   coletivo_alicerce: z.boolean().optional(),
   tipo_contato: z.string().optional(),
