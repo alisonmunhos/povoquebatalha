@@ -6,7 +6,9 @@ import { z } from "zod";
 
 export const crmFilterSchema = z.object({
   // Busca geral
-  search: z.string().trim().optional(),
+  email_contains: z.string().trim().optional(),
+  tem_email_secundario: z.enum(["sim", "nao"]).optional(),
+  tem_phone_secundario: z.enum(["sim", "nao"]).optional(),
 
   // Localização
   cidade: z.string().trim().optional(),
