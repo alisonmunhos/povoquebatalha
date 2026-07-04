@@ -92,8 +92,12 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
   for (const h of headers) {
     const n = normalize(h);
     if (!n) { map[h] = "ignore"; continue; }
-    if (/(nomecompleto|nomesocial|nome|name|contato|pessoa)/.test(n)) map[h] = "nome";
+    // ordem importa: variantes mais específicas antes das genéricas
+    if (/(nomesocial|apelido|nomefantasia)/.test(n)) map[h] = "nome_social";
+    else if (/(nomecompleto|^nome$|name|contato|pessoa)/.test(n)) map[h] = "nome";
+    else if (/(whatsapp|telefone|celular|phone|whats|fone|mobile).*(2|secund|alternat|alt|extra|adicional)/.test(n)) map[h] = "phone_secundario_raw";
     else if (/(whatsapp|telefone|celular|phone|whats|fone|^tel$|mobile)/.test(n)) map[h] = "phone_raw";
+    else if (/(email|mail|eletronic).*(2|secund|alternat|alt|extra|adicional)/.test(n)) map[h] = "email_secundario";
     else if (/(email|mail|eletronic)/.test(n)) map[h] = "email";
     else if (/(profissao|ocupacao|cargo|funcao)/.test(n)) map[h] = "profissao";
     else if (/(cidade|municipio|city)/.test(n)) map[h] = "cidade";
@@ -103,10 +107,14 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
     else if (/^(numero|num|number)$/.test(n)) map[h] = "numero";
     else if (/(complemento|apto|apartamento)/.test(n)) map[h] = "complemento";
     else if (/(bairro|neighborhood|district)/.test(n)) map[h] = "bairro";
+    else if (/(referencia|pontoreferencia|pontodereferencia)/.test(n)) map[h] = "referencia";
     else if (/(observ|obs|comentario|nota|detalhe|informac|historico|anotac|note)/.test(n)) map[h] = "observacoes";
+    else if (/(alicerce|^coletivo$)/.test(n)) map[h] = "coletivo_alicerce";
+    else if (/(participamovimento|participacoletivo|militante|movimentosocialsimnao)/.test(n)) map[h] = "participa_movimento_social";
     else if (/(movimento)/.test(n)) map[h] = "movimento_social";
-    else if (/(instituicao|organizacao|secretaria|orgao|coletivo)/.test(n)) map[h] = "instituicao";
+    else if (/(instituicao|organizacao|secretaria|orgao|localdetrabalho|ondetrabalha|empresa)/.test(n)) map[h] = "instituicao";
     else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
+    else if (/(^tipo$|tipocontato|tipodecontato|categoriacontato|categoriadecontato)/.test(n)) map[h] = "tipo_contato";
     else if (/(tag|grupo|categoria|segmento|nucleo|setor)/.test(n)) map[h] = "tag";
     else map[h] = "ignore";
   }
