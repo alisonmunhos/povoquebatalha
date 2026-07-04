@@ -54,15 +54,6 @@ const ROWS: Row[] = [
     config: "—",
   },
   {
-    papel: "Território",
-    cor: "bg-amber-100 text-amber-800",
-    descricao: "Militante de campo, atua em uma região específica. Otimizado para celular.",
-    base: "Só vê contatos dentro do seu escopo (bairro/UF configurado). Edita notas e status básicos.",
-    comunicacao: "Abre WhatsApp e registra ações de campo (contato feito, não encontrado, observação). Sem inbox global nem campanhas.",
-    territorio: "Home do usuário. Vê o mapa e a lista da sua região.",
-    config: "—",
-  },
-  {
     papel: "Agitador",
     cor: "bg-orange-100 text-orange-800",
     descricao: "Voluntário de captação em campo. Só acessa o módulo de agitação para cadastrar novos contatos.",

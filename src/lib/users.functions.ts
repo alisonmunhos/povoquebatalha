@@ -26,7 +26,6 @@ const ALL_ROLES = [
   "operador",
   "leitor",
   "vrm",
-  "territorio",
   "agitador",
   "comunicacao",
 ] as const satisfies readonly AppRole[];

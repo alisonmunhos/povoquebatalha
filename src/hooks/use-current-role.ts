@@ -33,8 +33,8 @@ export function useCurrentUserRole(): AppRole {
         .select("role")
         .eq("user_id", userId);
       const roles = (data ?? []).map((r) => r.role as string);
-      // Prioridade: admin > operador > comunicacao > vrm > territorio > agitador > leitor
-      const priority: AppRole[] = ["admin", "operador", "comunicacao", "vrm", "territorio", "agitador", "leitor"];
+      // Prioridade: admin > operador > comunicacao > vrm > agitador > leitor
+      const priority: AppRole[] = ["admin", "operador", "comunicacao", "vrm", "agitador", "leitor"];
       const found = priority.find((p) => roles.includes(p as string)) ?? null;
       cache = { userId, role: found };
       if (!cancelled) setRole(found);
