@@ -76,10 +76,14 @@ const SEARCH_COLS = [
   "phone_e164",
   "email",
   "profissao",
+  "instituicao",
   "observacoes",
   "bairro",
   "cidade",
   "origem_detalhe",
+  "movimento_social_nome",
+  "formas_ajuda_outro",
+];
   "movimento_social_nome",
   "formas_ajuda_outro",
 ];
