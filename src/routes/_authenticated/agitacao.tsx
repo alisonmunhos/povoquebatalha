@@ -6,11 +6,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import {
   Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
-  X, ExternalLink,
+  X, ExternalLink, Filter, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 
@@ -20,14 +19,41 @@ export const Route = createFileRoute("/_authenticated/agitacao")({
 });
 
 type AgitacaoAction = "whatsapp_aberto" | "contato_realizado" | "pediu_atualizacao" | "nao_respondeu" | "observacao";
+type FieldStatus = "nao_abordado" | "confirmado" | "sem_resposta" | "observacao" | "pediu_atualizacao";
+type SortBy = "inclusion" | "alphabetical" | "recent" | "oldest" | "nao_abordado_first";
 
 const ACTION_TOAST: Record<AgitacaoAction, string> = {
   whatsapp_aberto: "WhatsApp registrado",
   contato_realizado: "Contato confirmado",
   pediu_atualizacao: "Registrado como pediu atualização",
-  nao_respondeu: "Marcado como não respondeu",
+  nao_respondeu: "Marcado como sem resposta",
   observacao: "Observação salva",
 };
+
+// Vocabulário do Agitação (bate com labels do TerritoryContactLogDrawer contexto="agitacao").
+const ACTION_LABEL: Record<string, string> = {
+  contato_realizado: "Confirmado",
+  nao_respondeu: "Sem resposta",
+  observacao: "Observação",
+  whatsapp_aberto: "WhatsApp aberto",
+  pediu_atualizacao: "Pediu atualização",
+};
+
+const ACTION_TONE: Record<string, string> = {
+  contato_realizado: "bg-emerald-100 text-emerald-800",
+  nao_respondeu: "bg-amber-100 text-amber-800",
+  observacao: "bg-sky-100 text-sky-800",
+  whatsapp_aberto: "bg-emerald-50 text-emerald-700",
+  pediu_atualizacao: "bg-violet-100 text-violet-800",
+};
+
+function formatShortTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+}
+
+type LastAction = { action: string; note: string | null; created_at: string; user_id: string } | null;
 
 type AgitacaoContact = {
   id: string;
@@ -40,6 +66,7 @@ type AgitacaoContact = {
   lifecycle_status: string | null;
   source_form_type: string | null;
   contato_realizado: boolean;
+  last_action: LastAction;
 };
 
 function AgitacaoPage() {
@@ -47,15 +74,24 @@ function AgitacaoPage() {
   const logFn = useServerFn(logAgitacaoAction);
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [pendentes, setPendentes] = useState(false);
-  const [semContato, setSemContato] = useState(false);
+  const [fieldStatus, setFieldStatus] = useState<FieldStatus[]>([]);
+  const [sortBy, setSortBy] = useState<SortBy>("inclusion");
   const [histFor, setHistFor] = useState<AgitacaoContact | null>(null);
   const [detailFor, setDetailFor] = useState<AgitacaoContact | null>(null);
 
+  const searchActive = search.trim().length > 0;
+  const filtersPaused = searchActive && fieldStatus.length > 0;
+  const effectiveFieldStatus = searchActive ? undefined : (fieldStatus.length ? fieldStatus : undefined);
+
   const q = useQuery({
-    queryKey: ["agitacao", search, pendentes, semContato],
+    queryKey: ["agitacao", search, effectiveFieldStatus, sortBy],
     queryFn: () =>
-      listFn({ data: { search: search || undefined, pendentes_atualizacao: pendentes, sem_contato_realizado: semContato, limit: 200 } }),
+      listFn({ data: {
+        search: search || undefined,
+        fieldStatus: effectiveFieldStatus,
+        sortBy,
+        limit: 200,
+      } }),
   });
 
   const logMut = useMutation({
@@ -79,6 +115,13 @@ function AgitacaoPage() {
   }
 
   const stats = q.data?.stats;
+  const counts = q.data?.counts;
+
+  const toggleStatus = (s: FieldStatus) => {
+    setFieldStatus((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  };
+  const clearFilters = () => { setFieldStatus([]); setSortBy("inclusion"); };
+  const activeFilterCount = fieldStatus.length + (sortBy !== "inclusion" ? 1 : 0);
 
   return (
     <div className="min-h-dvh bg-muted/20">
@@ -98,66 +141,123 @@ function AgitacaoPage() {
           <Kpi label="Novos 7d" v={stats?.novos_7d ?? 0} />
         </div>
 
-        {/* Busca + filtros */}
-        <div className="space-y-2">
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome, telefone, cidade ou bairro" className="pl-9" />
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Toggle active={pendentes} onClick={() => setPendentes(v => !v)}>Pendentes de atualização</Toggle>
-            <Toggle active={semContato} onClick={() => setSemContato(v => !v)}>Sem contato realizado</Toggle>
-          </div>
+        {/* Busca */}
+        <div className="relative">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome, telefone, cidade ou bairro" className="pl-9 h-11" />
         </div>
+
+        {/* Filtros + classificação */}
+        <details className="rounded-xl border bg-card group" open>
+          <summary className="cursor-pointer list-none p-3 flex items-center justify-between select-none">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" /> Filtros
+              {activeFilterCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">{activeFilterCount}</span>}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => { e.preventDefault(); clearFilters(); }}
+                disabled={activeFilterCount === 0}
+                className="text-[11px] inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground"
+              >
+                <XCircle className="h-3 w-3" /> Limpar filtros
+              </button>
+              <span className="text-muted-foreground text-xs group-open:rotate-180 transition-transform">▾</span>
+            </div>
+          </summary>
+          <div className="px-3 pb-3 space-y-2.5">
+            <div className="flex flex-wrap gap-1.5">
+              <FilterChip active={fieldStatus.includes("nao_abordado")} onClick={() => toggleStatus("nao_abordado")}>
+                Ainda não abordado {counts && `(${counts.nao_abordado})`}
+              </FilterChip>
+              <FilterChip active={fieldStatus.includes("confirmado")} onClick={() => toggleStatus("confirmado")} tone="emerald">
+                Confirmado {counts && `(${counts.confirmado})`}
+              </FilterChip>
+              <FilterChip active={fieldStatus.includes("sem_resposta")} onClick={() => toggleStatus("sem_resposta")} tone="amber">
+                Sem resposta {counts && `(${counts.sem_resposta})`}
+              </FilterChip>
+              <FilterChip active={fieldStatus.includes("observacao")} onClick={() => toggleStatus("observacao")} tone="sky">
+                Com observação {counts && `(${counts.observacao})`}
+              </FilterChip>
+              <FilterChip active={fieldStatus.includes("pediu_atualizacao")} onClick={() => toggleStatus("pediu_atualizacao")} tone="violet">
+                Pediu atualização {counts && `(${counts.pediu_atualizacao})`}
+              </FilterChip>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-center pt-1">
+              <label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                Classificação:
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} className="h-7 rounded border bg-background px-1.5 text-xs">
+                  <option value="inclusion">Ordem de inclusão (padrão)</option>
+                  <option value="alphabetical">Alfabética (por nome)</option>
+                  <option value="recent">Mais recentes → mais antigos</option>
+                  <option value="oldest">Mais antigos → mais recentes</option>
+                  <option value="nao_abordado_first">Não abordados primeiro</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </details>
+
+        {filtersPaused && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-900 text-xs px-3 py-2">
+            Mostrando resultado da busca <span className="opacity-70">(filtros de status pausados enquanto houver texto na busca)</span>
+          </div>
+        )}
 
         {/* Lista */}
         {q.isLoading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando…</div>}
         {q.data && q.data.rows.length === 0 && (
           <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
-            Nenhum contato ainda. Use o botão <strong>Adicionar contato</strong> no topo para gerar um link e começar a captar.
+            Nenhum contato encontrado com esses filtros.
           </div>
         )}
         <div className="space-y-2">
-          {(q.data?.rows ?? []).map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setDetailFor(c as AgitacaoContact)}
-              className="w-full text-left rounded-xl border bg-card p-3 relative hover:border-primary/40 hover:bg-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
-            >
-              {/* Ícone histórico no canto */}
+          {(q.data?.rows ?? []).map((c) => {
+            const la = c.last_action;
+            return (
               <button
+                key={c.id}
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setHistFor(c as AgitacaoContact); }}
-                aria-label="Ver histórico"
-                title="Ver histórico"
-                className="absolute top-2 right-2 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() => setDetailFor(c as AgitacaoContact)}
+                className="w-full text-left rounded-xl border bg-card p-3 relative hover:border-primary/40 hover:bg-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
-                <History className="h-4 w-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setHistFor(c as AgitacaoContact); }}
+                  aria-label="Ver histórico"
+                  title="Ver histórico"
+                  className="absolute top-2 right-2 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <History className="h-4 w-4" />
+                </button>
 
-              <div className="min-w-0 pr-9">
-                <div className="font-medium truncate">{c.nome ?? "Sem nome"}</div>
-                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Phone className="h-3 w-3" />{c.phone_e164 ?? c.phone_raw ?? "—"}
-                </div>
-                {(c.cidade || c.bairro) && (
+                <div className="min-w-0 pr-9">
+                  <div className="font-medium truncate">{c.nome ?? "Sem nome"}</div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />{[c.bairro, c.cidade, c.uf].filter(Boolean).join(" · ")}
+                    <Phone className="h-3 w-3" />{c.phone_e164 ?? c.phone_raw ?? "—"}
                   </div>
-                )}
-                <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                  <Tag>{c.source_form_type === "cadastro_completo" ? "Cadastro completo" : "Recebe informações"}</Tag>
-                  {c.lifecycle_status && <Tag>{c.lifecycle_status.replace(/_/g, " ")}</Tag>}
-                  {c.contato_realizado && <Tag ok>✓ realizado</Tag>}
+                  {(c.cidade || c.bairro) && (
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />{[c.bairro, c.cidade, c.uf].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-1 text-[10px] items-center">
+                    {la && (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded ${ACTION_TONE[la.action] ?? "bg-muted text-muted-foreground"}`}>
+                        {ACTION_LABEL[la.action] ?? la.action} · {formatShortTime(la.created_at)}
+                      </span>
+                    )}
+                    <Tag>{c.source_form_type === "cadastro_completo" ? "Cadastro completo" : "Recebe informações"}</Tag>
+                    {c.lifecycle_status && <Tag>{c.lifecycle_status.replace(/_/g, " ")}</Tag>}
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Painel de detalhe deslizando de baixo pra cima */}
       {detailFor && (
         <AgitacaoDetailSheet
           contact={detailFor}
@@ -214,14 +314,8 @@ function AgitacaoDetailSheet({
 
   return (
     <>
-      <div
-        className="fixed inset-0 bg-black/40 z-[1100] animate-in fade-in"
-        onClick={onClose}
-        aria-hidden
-      />
-      <aside
-        className="fixed bottom-0 inset-x-0 z-[1101] w-full border-t bg-card overflow-hidden max-h-[85vh] rounded-t-2xl shadow-2xl animate-in slide-in-from-bottom flex flex-col"
-      >
+      <div className="fixed inset-0 bg-black/40 z-[1100] animate-in fade-in" onClick={onClose} aria-hidden />
+      <aside className="fixed bottom-0 inset-x-0 z-[1101] w-full border-t bg-card overflow-hidden max-h-[85vh] rounded-t-2xl shadow-2xl animate-in slide-in-from-bottom flex flex-col">
         <div className="flex justify-center pt-2 pb-1">
           <span className="block h-1.5 w-10 rounded-full bg-muted-foreground/40" />
         </div>
@@ -345,18 +439,24 @@ function Kpi({ label, v }: { label: string; v: number }) {
   );
 }
 
-function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function FilterChip({ active, onClick, children, tone }: { active: boolean; onClick: () => void; children: React.ReactNode; tone?: "emerald" | "amber" | "sky" | "violet" }) {
+  const toneCls = active
+    ? tone === "emerald" ? "bg-emerald-600 text-white border-emerald-600"
+      : tone === "amber" ? "bg-amber-500 text-white border-amber-500"
+      : tone === "sky" ? "bg-sky-600 text-white border-sky-600"
+      : tone === "violet" ? "bg-violet-600 text-white border-violet-600"
+      : "bg-primary text-primary-foreground border-primary"
+    : "bg-background hover:bg-muted";
   return (
-    <button type="button" onClick={onClick}
-      className={`px-2.5 py-1 rounded-full border ${active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}>
+    <button type="button" onClick={onClick} className={`px-2.5 py-1 rounded-full border text-xs ${toneCls}`}>
       {children}
     </button>
   );
 }
 
-function Tag({ children, ok }: { children: React.ReactNode; ok?: boolean }) {
+function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded ${ok ? "bg-emerald-100 text-emerald-800" : "bg-muted text-muted-foreground"}`}>
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
       {children}
     </span>
   );
