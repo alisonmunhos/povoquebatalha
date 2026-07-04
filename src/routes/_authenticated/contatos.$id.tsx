@@ -231,6 +231,10 @@ function ContatoFicha() {
           <Section title="Perfil e organização">
             <Row><Field label="Profissão / ocupação" value={form.profissao} onChange={(v) => set("profissao", v)} /></Row>
             <Row>
+              <Field label="Onde trabalha" value={form.instituicao} onChange={(v) => set("instituicao", v)} placeholder="Ex: Escola Municipal Getúlio Vargas, Secretaria de Saúde, Autônomo(a)" />
+              <p className="text-xs text-muted-foreground mt-1">Nome do local (escola, posto de saúde, empresa, coletivo, órgão). Opcional.</p>
+            </Row>
+            <Row>
               <label className="text-sm font-medium">Tipo de contato</label>
               <select value={String(form.tipo_contato ?? "")} onChange={(e) => set("tipo_contato", e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                 {TIPO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
