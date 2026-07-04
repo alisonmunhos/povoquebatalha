@@ -474,7 +474,9 @@ type ContactSourceLike = {
   last_source_user_id?: string | null;
   source_link_id?: string | null;
   is_system_user?: boolean | null;
+  system_role?: string | null;
 };
+
 
 const MODULE_LABEL: Record<string, string> = {
   gestao_base: "Gestão da Base",
