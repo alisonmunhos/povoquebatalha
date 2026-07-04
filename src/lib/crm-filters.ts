@@ -120,6 +120,7 @@ export function applyCrmFilters<T extends {
 
   // Perfil
   if (f.profissao) q = q.ilike("profissao", `%${safe(f.profissao)}%`);
+  if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
   if (f.profissoes?.length) {
     q = q.or(f.profissoes.map((v) => `profissao.ilike.${safe(v)}`).join(","));
   }
