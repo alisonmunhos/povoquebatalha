@@ -6,7 +6,7 @@ import { z } from "zod";
 import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
-import { setOptOut, archiveContact, deleteContactsBulk } from "@/lib/contacts.functions";
+import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
 import { formatPhoneBR } from "@/lib/phone";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
