@@ -87,9 +87,9 @@ export function AddContactButton({ userName, className, compact }: Props) {
 }
 
 type Step =
-  | { kind: "choose_type" }
-  | { kind: "choose_action"; type: FormType }
-  | { kind: "fill"; type: FormType }
+  | { kind: "choose_action" }
+  | { kind: "fill" }
+  | { kind: "choose_link_type" }
   | { kind: "link"; type: FormType; token: string };
 
 function AddContactModal({ userName, onClose }: { userName?: string | null; onClose: () => void }) {
@@ -97,7 +97,7 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
   const module = deriveModuleFromPath(path);
   const create = useServerFn(createTrackedLink);
 
-  const [step, setStep] = useState<Step>({ kind: "choose_type" });
+  const [step, setStep] = useState<Step>({ kind: "choose_action" });
   const [busy, setBusy] = useState(false);
 
   async function generateLink(type: FormType) {
@@ -112,12 +112,12 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
     }
   }
 
-  const title = step.kind === "choose_type"
+  const title = step.kind === "choose_action"
     ? "Adicionar contato"
-    : step.kind === "choose_action"
-      ? (step.type === "cadastro_completo" ? "Formulário de cadastro" : "Receber informações")
-      : step.kind === "fill"
-        ? "Novo contato"
+    : step.kind === "fill"
+      ? "Novo contato"
+      : step.kind === "choose_link_type"
+        ? "Gerar link — escolha o tipo"
         : "Link gerado";
 
   return (
@@ -126,14 +126,14 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {step.kind === "choose_type" && "Escolha o tipo de cadastro. Você poderá preencher agora ou gerar um link para a pessoa preencher."}
-            {step.kind === "choose_action" && "Preencha na hora ou envie um link rastreável para a pessoa preencher sozinha."}
+            {step.kind === "choose_action" && "Preencha na hora ou gere um link rastreável para a pessoa preencher sozinha."}
             {step.kind === "fill" && "Comece com nome e WhatsApp. Depois complete a ficha se quiser."}
+            {step.kind === "choose_link_type" && "Escolha o formulário para onde o link vai apontar."}
             {step.kind === "link" && "Link rastreável — copie, abra ou envie por WhatsApp."}
           </DialogDescription>
         </DialogHeader>
 
-        {step.kind === "choose_type" && (
+        {step.kind === "choose_action" && (
           <>
             <div className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
               Registrado como criado por{" "}
@@ -141,48 +141,49 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
               {" · "}Origem: <strong className="text-foreground">{moduleLabel(module)}</strong>
             </div>
             <div className="grid sm:grid-cols-2 gap-3 mt-2">
-              <TypeCard
-                icon={<ClipboardList className="h-6 w-6" />}
-                title="Formulário de cadastro"
-                desc="Ficha completa: dados pessoais, endereço e consentimento."
-                onClick={() => setStep({ kind: "choose_action", type: "cadastro_completo" })}
-              />
-              <TypeCard
-                icon={<Megaphone className="h-6 w-6" />}
-                title="Receber informações"
-                desc="Formulário curto — nome, WhatsApp e cidade para receber comunicados."
-                onClick={() => setStep({ kind: "choose_action", type: "receber_informacoes" })}
-              />
-            </div>
-          </>
-        )}
-
-        {step.kind === "choose_action" && (
-          <div className="space-y-3">
-            <div className="grid sm:grid-cols-2 gap-3">
               <ActionCard
                 icon={<PencilLine className="h-5 w-5" />}
                 title="Preencher agora"
-                desc="Digite os dados com a pessoa do lado. Salva imediatamente."
-                onClick={() => setStep({ kind: "fill", type: step.type })}
+                desc="Digite com a pessoa do lado. Salva na hora e permite completar a ficha depois."
+                onClick={() => setStep({ kind: "fill" })}
               />
               <ActionCard
                 icon={<Link2 className="h-5 w-5" />}
                 title="Gerar link"
                 desc="Envie por WhatsApp para a pessoa preencher sozinha."
-                busy={busy}
-                onClick={() => generateLink(step.type)}
+                onClick={() => setStep({ kind: "choose_link_type" })}
               />
             </div>
-            <BackButton onClick={() => setStep({ kind: "choose_type" })} />
+          </>
+        )}
+
+        {step.kind === "choose_link_type" && (
+          <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <TypeCard
+                icon={<ClipboardList className="h-6 w-6" />}
+                title="Formulário de cadastro"
+                desc="Ficha completa: dados pessoais, endereço e consentimento."
+                busy={busy}
+                onClick={() => generateLink("cadastro_completo")}
+              />
+              <TypeCard
+                icon={<Megaphone className="h-6 w-6" />}
+                title="Receber informações"
+                desc="Formulário curto — nome, WhatsApp e cidade para receber comunicados."
+                busy={busy}
+                onClick={() => generateLink("receber_informacoes")}
+              />
+            </div>
+            <BackButton onClick={() => setStep({ kind: "choose_action" })} />
           </div>
         )}
 
         {step.kind === "fill" && (
           <ProgressiveFillForm
-            type={step.type}
+            type="cadastro_completo"
             module={module}
-            onBack={() => setStep({ kind: "choose_action", type: step.type })}
+            onBack={() => setStep({ kind: "choose_action" })}
             onDone={() => onClose()}
           />
         )}
@@ -195,7 +196,7 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
                 return `${window.location.origin}${p}?ref=${step.token}`;
               })()}
             />
-            <BackButton onClick={() => setStep({ kind: "choose_action", type: step.type })} />
+            <BackButton onClick={() => setStep({ kind: "choose_link_type" })} />
           </>
         )}
       </DialogContent>
@@ -204,15 +205,18 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
 }
 
 function TypeCard({
-  icon, title, desc, onClick,
-}: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
+  icon, title, desc, busy, onClick,
+}: { icon: React.ReactNode; title: string; desc: string; busy?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-left rounded-xl border bg-card hover:border-primary/50 hover:bg-primary/5 transition-colors p-4"
+      disabled={busy}
+      className="text-left rounded-xl border bg-card hover:border-primary/50 hover:bg-primary/5 transition-colors p-4 disabled:opacity-60 disabled:cursor-not-allowed"
     >
-      <div className="flex items-center gap-2 text-primary">{icon}</div>
+      <div className="flex items-center gap-2 text-primary">
+        {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : icon}
+      </div>
       <div className="mt-2 font-semibold text-sm">{title}</div>
       <div className="text-xs text-muted-foreground mt-1">{desc}</div>
     </button>

@@ -1,10 +1,13 @@
 // Módulo Agitação — mobile-first, sem mapa.
 // Cards de contatos captados pelo próprio usuário, com ações rápidas.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
+  X, ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { Button } from "@/components/ui/button";
@@ -17,6 +20,19 @@ export const Route = createFileRoute("/_authenticated/agitacao")({
   component: AgitacaoPage,
 });
 
+type AgitacaoContact = {
+  id: string;
+  nome: string | null;
+  phone_e164: string | null;
+  phone_raw: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  lifecycle_status: string | null;
+  source_form_type: string | null;
+  contato_realizado: boolean;
+};
+
 function AgitacaoPage() {
   const listFn = useServerFn(listMyAgitacaoContacts);
   const logFn = useServerFn(logAgitacaoAction);
@@ -25,10 +41,8 @@ function AgitacaoPage() {
   const [semContato, setSemContato] = useState(false);
   const [obsFor, setObsFor] = useState<{ id: string; nome: string } | null>(null);
   const [obsText, setObsText] = useState("");
-  const [histFor, setHistFor] = useState<{
-    id: string; nome: string | null; phone_e164: string | null;
-    bairro: string | null; cidade: string | null; uf: string | null;
-  } | null>(null);
+  const [histFor, setHistFor] = useState<AgitacaoContact | null>(null);
+  const [detailFor, setDetailFor] = useState<AgitacaoContact | null>(null);
 
   const q = useQuery({
     queryKey: ["agitacao", search, pendentes, semContato],
@@ -104,48 +118,55 @@ function AgitacaoPage() {
         )}
         <div className="space-y-2">
           {(q.data?.rows ?? []).map((c) => (
-            <div key={c.id} className="rounded-xl border bg-card p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{c.nome ?? "Sem nome"}</div>
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setDetailFor(c as AgitacaoContact)}
+              className="w-full text-left rounded-xl border bg-card p-3 relative hover:border-primary/40 hover:bg-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              {/* Ícone histórico no canto */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setHistFor(c as AgitacaoContact); }}
+                aria-label="Ver histórico"
+                title="Ver histórico"
+                className="absolute top-2 right-2 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <History className="h-4 w-4" />
+              </button>
+
+              <div className="min-w-0 pr-9">
+                <div className="font-medium truncate">{c.nome ?? "Sem nome"}</div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Phone className="h-3 w-3" />{c.phone_e164 ?? c.phone_raw ?? "—"}
+                </div>
+                {(c.cidade || c.bairro) && (
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Phone className="h-3 w-3" />{c.phone_e164 ?? c.phone_raw ?? "—"}
+                    <MapPin className="h-3 w-3" />{[c.bairro, c.cidade, c.uf].filter(Boolean).join(" · ")}
                   </div>
-                  {(c.cidade || c.bairro) && (
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />{[c.bairro, c.cidade, c.uf].filter(Boolean).join(" · ")}
-                    </div>
-                  )}
-                  <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                    <Tag>{c.source_form_type === "cadastro_completo" ? "Cadastro completo" : "Recebe informações"}</Tag>
-                    {c.lifecycle_status && <Tag>{c.lifecycle_status.replace(/_/g, " ")}</Tag>}
-                    {c.contato_realizado && <Tag ok>✓ realizado</Tag>}
-                  </div>
+                )}
+                <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                  <Tag>{c.source_form_type === "cadastro_completo" ? "Cadastro completo" : "Recebe informações"}</Tag>
+                  {c.lifecycle_status && <Tag>{c.lifecycle_status.replace(/_/g, " ")}</Tag>}
+                  {c.contato_realizado && <Tag ok>✓ realizado</Tag>}
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" asChild onClick={() => log(c.id, "whatsapp_aberto")}>
-                  <a href={waLink(c.phone_e164, c.phone_raw)} target="_blank" rel="noreferrer">
-                    <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                  </a>
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => log(c.id, "contato_realizado")}>
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Marcar realizado
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => { setObsFor({ id: c.id, nome: c.nome ?? "" }); setObsText(""); }}>
-                  <StickyNote className="h-3.5 w-3.5" /> Observação
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setHistFor({
-                  id: c.id, nome: c.nome ?? null, phone_e164: c.phone_e164 ?? null,
-                  bairro: c.bairro ?? null, cidade: c.cidade ?? null, uf: c.uf ?? null,
-                })}>
-                  <History className="h-3.5 w-3.5" /> Histórico
-                </Button>
-              </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
+
+      {/* Painel de detalhe deslizando de baixo pra cima */}
+      {detailFor && (
+        <AgitacaoDetailSheet
+          contact={detailFor}
+          onClose={() => setDetailFor(null)}
+          onLog={(action, note) => log(detailFor.id, action, note)}
+          onOpenObs={() => { setObsFor({ id: detailFor.id, nome: detailFor.nome ?? "" }); setObsText(""); }}
+          onOpenHistory={() => setHistFor(detailFor)}
+          waLink={waLink}
+        />
+      )}
 
       <TerritoryContactLogDrawer
         contact={histFor}
@@ -173,6 +194,108 @@ function AgitacaoPage() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+function AgitacaoDetailSheet({
+  contact, onClose, onLog, onOpenObs, onOpenHistory, waLink,
+}: {
+  contact: AgitacaoContact;
+  onClose: () => void;
+  onLog: (action: "whatsapp_aberto" | "contato_realizado" | "pediu_atualizacao" | "nao_respondeu", note?: string) => void | Promise<void>;
+  onOpenObs: () => void;
+  onOpenHistory: () => void;
+  waLink: (e: string | null, r: string | null) => string;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const location = [contact.bairro, contact.cidade, contact.uf].filter(Boolean).join(" · ");
+  const canWa = !!(contact.phone_e164 || contact.phone_raw);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/40 z-[1100] animate-in fade-in"
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        className="fixed bottom-0 inset-x-0 z-[1101] w-full border-t bg-card overflow-hidden max-h-[85vh] rounded-t-2xl shadow-2xl animate-in slide-in-from-bottom flex flex-col"
+      >
+        <div className="flex justify-center pt-2 pb-1">
+          <span className="block h-1.5 w-10 rounded-full bg-muted-foreground/40" />
+        </div>
+
+        <div className="px-4 pb-3 pt-1 border-b flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-base truncate">{contact.nome ?? "Sem nome"}</div>
+            {location && <div className="text-xs text-muted-foreground truncate">{location}</div>}
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-muted shrink-0" aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+          {(contact.phone_e164 || contact.phone_raw) && (
+            <div className="flex items-center gap-2 text-sm">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-mono">{contact.phone_e164 ?? contact.phone_raw}</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ação de campo</div>
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={canWa ? waLink(contact.phone_e164, contact.phone_raw) : undefined}
+                onClick={() => { if (canWa) onLog("whatsapp_aberto"); }}
+                target="_blank" rel="noreferrer"
+                aria-disabled={!canWa}
+                className={`h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium ${
+                  canWa ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-muted text-muted-foreground pointer-events-none"
+                }`}
+              >
+                <MessageCircle className="h-4 w-4" /> Abrir WhatsApp
+              </a>
+              <button
+                onClick={() => onLog("contato_realizado")}
+                className="h-11 rounded-md inline-flex items-center justify-center gap-1.5 text-sm font-medium border hover:bg-accent"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Confirmado
+              </button>
+              <button
+                onClick={onOpenObs}
+                className="h-10 rounded-md inline-flex items-center justify-center gap-1.5 text-xs font-medium border hover:bg-accent col-span-2"
+              >
+                <StickyNote className="h-3.5 w-3.5" /> Observação
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-t pt-3">
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-md border hover:bg-muted"
+            >
+              <History className="h-3.5 w-3.5" /> Ver histórico
+            </button>
+            <Link
+              to="/contatos/$id"
+              params={{ id: contact.id }}
+              className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-md border hover:bg-muted"
+            >
+              Abrir ficha completa <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
 
