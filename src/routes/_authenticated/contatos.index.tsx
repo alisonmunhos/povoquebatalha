@@ -206,8 +206,8 @@ function Contatos() {
     recadastro_concluido: "Cadastro concluído",
     nao_respondeu: "Não respondeu",
     telefone_invalido: "Telefone inválido",
-    precisa_revisao: "Precisa revisão",
-    duplicado_possivel: "Possível duplicado",
+    precisa_revisao: "Ciclo: precisa revisão (manual)",
+    duplicado_possivel: "Ciclo: duplicado possível (manual)",
     duplicado_mesclado: "Mesclado",
     nao_enviar: "Não enviar",
   };
