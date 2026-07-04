@@ -13,11 +13,12 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  listContactTerritoryLogs,
-  setTerritoryLogFollowUp,
-  setTerritoryLogHidden,
-  type ContactTerritoryLogRow,
-} from "@/lib/territory-logs.functions";
+  listContactLogsUnified,
+  setContactLogFollowUp,
+  setContactLogHidden,
+  type ContactLogRow,
+  type LogSource,
+} from "@/lib/contact-logs.functions";
 import {
   MessageCircle,
   CheckCircle2,
@@ -42,25 +43,47 @@ type Contact = {
   uf: string | null;
 };
 
+type Context = "territorio" | "agitacao" | "ficha";
+
 type Props = {
   contact: Contact | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Contexto de abertura — só muda rótulos das ações; a lista sempre é unificada. */
+  context?: Context;
 };
 
-const ACTION_LABEL: Record<string, string> = {
+// Rótulos padrão (Território / ficha). Agitação usa overrides.
+const ACTION_LABEL_DEFAULT: Record<string, string> = {
   contato_realizado: "Contato feito",
   nao_encontrado: "Não encontrado",
   observacao: "Observação",
   whatsapp_aberto: "WhatsApp aberto",
   pediu_atualizacao: "Pediu atualização",
+  nao_respondeu: "Não respondeu",
 };
+
+const ACTION_LABEL_AGITACAO: Record<string, string> = {
+  ...ACTION_LABEL_DEFAULT,
+  contato_realizado: "Confirmado",
+  nao_encontrado: "Sem resposta",
+  nao_respondeu: "Sem resposta",
+};
+
+function labelFor(action: string, source: LogSource, context: Context): string {
+  // Se o contexto atual é Agitação e o log é de Agitação, usa vocabulário do módulo.
+  if (context === "agitacao" && source === "agitacao") {
+    return ACTION_LABEL_AGITACAO[action] ?? action;
+  }
+  return ACTION_LABEL_DEFAULT[action] ?? action;
+}
 
 function actionIcon(action: string) {
   switch (action) {
     case "contato_realizado":
       return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
     case "nao_encontrado":
+    case "nao_respondeu":
       return <UserX className="h-4 w-4 text-amber-600" />;
     case "observacao":
       return <StickyNote className="h-4 w-4 text-sky-600" />;
@@ -73,20 +96,30 @@ function actionIcon(action: string) {
   }
 }
 
+function sourceBadge(source: LogSource) {
+  const tone = source === "agitacao"
+    ? "bg-orange-100 text-orange-800"
+    : "bg-indigo-100 text-indigo-800";
+  const label = source === "agitacao" ? "Agitação" : "Território";
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${tone}`}>{label}</span>
+  );
+}
+
 function canFollowUp(action: string) {
   return action === "observacao" || action === "pediu_atualizacao";
 }
 
-export function TerritoryContactLogDrawer({ contact, open, onOpenChange }: Props) {
-  const listFn = useServerFn(listContactTerritoryLogs);
-  const followFn = useServerFn(setTerritoryLogFollowUp);
-  const hideFn = useServerFn(setTerritoryLogHidden);
+export function TerritoryContactLogDrawer({ contact, open, onOpenChange, context = "territorio" }: Props) {
+  const listFn = useServerFn(listContactLogsUnified);
+  const followFn = useServerFn(setContactLogFollowUp);
+  const hideFn = useServerFn(setContactLogHidden);
   const qc = useQueryClient();
 
   const [showHidden, setShowHidden] = useState(false);
 
   const query = useQuery({
-    queryKey: ["territory-contact-logs", contact?.id, { showHidden }],
+    queryKey: ["contact-logs-unified", contact?.id, { showHidden }],
     queryFn: () =>
       listFn({
         data: { contactId: contact!.id, includeHidden: showHidden, limit: 200 },
@@ -96,13 +129,15 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange }: Props
 
   const invalidate = () => {
     if (contact?.id) {
+      qc.invalidateQueries({ queryKey: ["contact-logs-unified", contact.id] });
       qc.invalidateQueries({ queryKey: ["territory-contact-logs", contact.id] });
     }
     qc.invalidateQueries({ queryKey: ["territory-contacts"] });
+    qc.invalidateQueries({ queryKey: ["agitacao"] });
   };
 
   const followMut = useMutation({
-    mutationFn: (v: { logId: string; status: "pendente" | "concluido" | null }) =>
+    mutationFn: (v: { source: LogSource; logId: string; status: "pendente" | "concluido" | null }) =>
       followFn({ data: v }),
     onSuccess: (_r, v) => {
       toast.success(
@@ -121,7 +156,7 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange }: Props
   });
 
   const hideMut = useMutation({
-    mutationFn: (v: { logId: string; hidden: boolean }) => hideFn({ data: v }),
+    mutationFn: (v: { source: LogSource; logId: string; hidden: boolean }) => hideFn({ data: v }),
     onSuccess: (_r, v) => {
       toast.success(v.hidden ? "Registro ocultado" : "Registro reexibido");
       invalidate();
@@ -208,10 +243,11 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange }: Props
             )}
             {rows.map((row) => (
               <LogCard
-                key={row.id}
+                key={`${row.source}:${row.id}`}
                 row={row}
-                onSetFollowUp={(status) => followMut.mutate({ logId: row.id, status })}
-                onSetHidden={(hidden) => hideMut.mutate({ logId: row.id, hidden })}
+                context={context}
+                onSetFollowUp={(status) => followMut.mutate({ source: row.source, logId: row.id, status })}
+                onSetHidden={(hidden) => hideMut.mutate({ source: row.source, logId: row.id, hidden })}
                 busy={
                   (followMut.isPending && followMut.variables?.logId === row.id) ||
                   (hideMut.isPending && hideMut.variables?.logId === row.id)
@@ -227,16 +263,18 @@ export function TerritoryContactLogDrawer({ contact, open, onOpenChange }: Props
 
 function LogCard({
   row,
+  context,
   onSetFollowUp,
   onSetHidden,
   busy,
 }: {
-  row: ContactTerritoryLogRow;
+  row: ContactLogRow;
+  context: Context;
   onSetFollowUp: (status: "pendente" | "concluido" | null) => void;
   onSetHidden: (hidden: boolean) => void;
   busy: boolean;
 }) {
-  const label = ACTION_LABEL[row.action] ?? row.action;
+  const label = labelFor(row.action, row.source, context);
   const isHidden = !!row.hidden_at;
   const followable = canFollowUp(row.action);
   const status = row.follow_up_status;
@@ -265,6 +303,7 @@ function LogCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">{label}</span>
+            {sourceBadge(row.source)}
             {status === "pendente" && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
                 pendente
