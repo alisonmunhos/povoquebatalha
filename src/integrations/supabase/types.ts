@@ -758,6 +758,7 @@ export type Database = {
             | Database["public"]["Enums"]["source_form_type"]
             | null
           source_link_id: string | null
+          system_role: Database["public"]["Enums"]["app_role"] | null
           tipo: string | null
           tipo_contato: string | null
           uf: string | null
@@ -842,6 +843,7 @@ export type Database = {
             | Database["public"]["Enums"]["source_form_type"]
             | null
           source_link_id?: string | null
+          system_role?: Database["public"]["Enums"]["app_role"] | null
           tipo?: string | null
           tipo_contato?: string | null
           uf?: string | null
@@ -928,6 +930,7 @@ export type Database = {
             | Database["public"]["Enums"]["source_form_type"]
             | null
           source_link_id?: string | null
+          system_role?: Database["public"]["Enums"]["app_role"] | null
           tipo?: string | null
           tipo_contato?: string | null
           uf?: string | null

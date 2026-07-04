@@ -92,6 +92,7 @@ function UsuariosPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<InviteRole>("operador");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -128,9 +129,11 @@ function UsuariosPage() {
     e.preventDefault();
     setSubmitting(true); setMsg(null); setErr(null);
     try {
-      const r = await invite({ data: { email, role, redirectOrigin: window.location.origin } });
+      const trimmedName = fullName.trim();
+      const r = await invite({ data: { email, role, redirectOrigin: window.location.origin, full_name: trimmedName || null } });
       setInviteModal({ email: r.email ?? email, role: r.role ?? role, link: r.actionLink ?? null });
       setEmail("");
+      setFullName("");
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao enviar convite.");
@@ -202,31 +205,46 @@ function UsuariosPage() {
         <h2 className="font-semibold flex items-center gap-2 mb-3">
           <UserPlus className="h-4 w-4" /> Convidar novo usuário
         </h2>
-        <form onSubmit={onInvite} className="grid sm:grid-cols-[1fr_180px_auto] gap-3">
-          <input
-            type="email" required placeholder="email@exemplo.com"
-            value={email} onChange={(e) => setEmail(e.target.value)}
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
-          />
-          <select
-            value={role} onChange={(e) => setRole(e.target.value as InviteRole)}
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
-          >
-            <option value="admin">Admin</option>
-            <option value="operador">Operador</option>
-            <option value="vrm">VRM (Relacionamento)</option>
-            <option value="comunicacao">Comunicação</option>
-            <option value="agitador">Agitador</option>
-            <option value="leitor">Leitor</option>
-          </select>
-          <button type="submit" disabled={submitting}
-            className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 h-10">
-            {submitting ? "Enviando…" : "Enviar convite"}
-          </button>
+        <form onSubmit={onInvite} className="space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Nome completo (recomendado)</label>
+              <input
+                type="text" placeholder="Ex: Maria da Silva"
+                value={fullName} onChange={(e) => setFullName(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">E-mail *</label>
+              <input
+                type="email" required placeholder="email@exemplo.com"
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
+              />
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-[1fr_auto] gap-3">
+            <select
+              value={role} onChange={(e) => setRole(e.target.value as InviteRole)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
+            >
+              <option value="admin">Admin</option>
+              <option value="operador">Operador</option>
+              <option value="vrm">VRM (Relacionamento)</option>
+              <option value="comunicacao">Comunicação</option>
+              <option value="agitador">Agitador</option>
+              <option value="leitor">Leitor</option>
+            </select>
+            <button type="submit" disabled={submitting}
+              className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 h-10">
+              {submitting ? "Enviando…" : "Enviar convite"}
+            </button>
+          </div>
         </form>
         <p className="mt-3 text-xs text-muted-foreground flex items-start gap-1.5">
           <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          Ao enviar, também geramos um link direto que você pode copiar e enviar por WhatsApp caso o e-mail não chegue.
+          Preencher o nome ajuda a manter a ficha do contato correta. Sem nome, usamos o e-mail como identificação inicial. Um link direto também é gerado caso o e-mail não chegue.
         </p>
         {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
         {err && <p className="mt-3 text-sm text-destructive">{err}</p>}

@@ -105,6 +105,7 @@ const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   role: RoleEnum,
   redirectOrigin: z.string().url(),
+  full_name: z.string().trim().max(160).optional().nullable(),
 });
 
 function selfOrigin(): string {
@@ -138,9 +139,12 @@ export const inviteUser = createServerFn({ method: "POST" })
     if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const redirectTo = `${self}/aceitar-convite`;
+    const fullName = data.full_name && data.full_name.length > 0 ? data.full_name : null;
+    const inviteOptions: { redirectTo: string; data?: Record<string, unknown> } = { redirectTo };
+    if (fullName) inviteOptions.data = { full_name: fullName };
     const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       data.email,
-      { redirectTo },
+      inviteOptions,
     );
     if (error) throw new Error(error.message);
     const userId = invited.user?.id;
@@ -148,24 +152,28 @@ export const inviteUser = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("user_roles")
         .upsert({ user_id: userId, role: data.role }, { onConflict: "user_id,role" });
+      const profilePatch: { invited_by: string; full_name?: string } = { invited_by: context.userId };
+      if (fullName) profilePatch.full_name = fullName;
       await supabaseAdmin
         .from("profiles")
-        .update({ invited_by: context.userId })
+        .update(profilePatch)
         .eq("id", userId);
     }
     // Sempre gerar também um link direto (fallback caso o e-mail não chegue)
     let actionLink: string | null = null;
     try {
+      const linkOptions: { redirectTo: string; data?: Record<string, unknown> } = { redirectTo };
+      if (fullName) linkOptions.data = { full_name: fullName };
       const { data: link } = await supabaseAdmin.auth.admin.generateLink({
         type: "invite",
         email: data.email,
-        options: { redirectTo },
+        options: linkOptions,
       });
       actionLink = link?.properties?.action_link ?? null;
     } catch {
       /* non-blocking */
     }
-    await audit(context, userId ?? null, "convite_enviado", { email: data.email, role: data.role });
+    await audit(context, userId ?? null, "convite_enviado", { email: data.email, role: data.role, full_name: fullName });
     return { ok: true as const, userId, actionLink, email: data.email, role: data.role };
   });
 
@@ -293,6 +301,20 @@ export const setUserRole = createServerFn({ method: "POST" })
       .from("user_roles")
       .insert({ user_id: data.userId, role: data.role });
     if (error) throw new Error(error.message);
+    // Sincroniza papel no contato vinculado (se houver)
+    try {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("contact_id")
+        .eq("id", data.userId)
+        .maybeSingle();
+      if (prof?.contact_id) {
+        await supabaseAdmin
+          .from("contacts")
+          .update({ system_role: data.role, is_system_user: true })
+          .eq("id", prof.contact_id);
+      }
+    } catch { /* non-blocking */ }
     await audit(context, data.userId, "papel_alterado", { role: data.role });
     return { ok: true as const };
   });
