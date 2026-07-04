@@ -325,11 +325,28 @@ export const buildPreview = createServerFn({ method: "POST" })
         }
       }
 
+      const phoneSecRaw = getBy("phone_secundario_raw");
+      const phoneSec = phoneSecRaw ? parsePhoneBR(phoneSecRaw, data.defaultDdd ?? null) : null;
+      const tipoContato = parseTipoContato(getBy("tipo_contato"));
+      const coletivoAlicerce = parseBool(getBy("coletivo_alicerce"));
+      const movNome = getBy("movimento_social");
+      let participaMov = parseBool(getBy("participa_movimento_social"));
+      // Se veio nome de movimento sem coluna de participação explícita, assume que participa.
+      if (participaMov == null && movNome) participaMov = true;
+
       preview.push({
         linha, nome, email, phone, problemas,
         extras: {
           profissao: getBy("profissao"),
           instituicao: inst,
+          nome_social: getBy("nome_social"),
+          referencia: getBy("referencia"),
+          email_secundario: getBy("email_secundario")?.toLowerCase() ?? null,
+          phone_secundario_raw: phoneSecRaw,
+          phone_secundario: phoneSec,
+          tipo_contato: tipoContato,
+          coletivo_alicerce: coletivoAlicerce,
+          participa_movimento_social: participaMov,
           cep: getBy("cep"),
           endereco: getBy("endereco"),
           numero: getBy("numero"),
@@ -338,7 +355,7 @@ export const buildPreview = createServerFn({ method: "POST" })
           cidade: getBy("cidade"),
           uf: (getBy("uf") ?? "").toUpperCase().slice(0, 2) || null,
           origem_detalhe: getBy("origem_detalhe"),
-          movimento_social_nome: getBy("movimento_social"),
+          movimento_social_nome: movNome,
           observacoes,
           tags,
           raw: Object.keys(rawExtras).length ? rawExtras : undefined,
