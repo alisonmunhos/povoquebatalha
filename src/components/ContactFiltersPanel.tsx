@@ -68,6 +68,16 @@ const SIM_NAO: MultiOption[] = [
   { value: "nao", label: "Não" },
 ];
 
+/** Mescla opções dinâmicas da base com um mapa fixo de rótulos amigáveis. */
+function mergeLabels(dynamic: MultiOption[] | undefined, labels: MultiOption[]): MultiOption[] {
+  const labelMap = new Map(labels.map((l) => [l.value.toLowerCase(), l.label]));
+  const list = (dynamic ?? []).map((o) => ({
+    ...o,
+    label: labelMap.get(o.value.toLowerCase()) ?? o.label,
+  }));
+  return list.length ? list : labels;
+}
+
 type Props = {
   filters: CrmFilters;
   onChange: (f: CrmFilters) => void;
