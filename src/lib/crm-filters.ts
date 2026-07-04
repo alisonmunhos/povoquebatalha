@@ -1,8 +1,15 @@
+// ⚠️ Ao adicionar um campo novo na ficha de contato, sempre volte aqui:
+//   (1) reconhecer no mapeamento de importação CSV (src/lib/imports.functions.ts)
+//   (2) adicionar como filtro aqui e em src/components/ContactFiltersPanel.tsx
+//   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
 
 export const crmFilterSchema = z.object({
   // Busca geral
   search: z.string().trim().optional(),
+  email_contains: z.string().trim().optional(),
+  tem_email_secundario: z.enum(["sim", "nao"]).optional(),
+  tem_phone_secundario: z.enum(["sim", "nao"]).optional(),
 
   // Localização
   cidade: z.string().trim().optional(),
@@ -166,6 +173,11 @@ export function applyCrmFilters<T extends {
   if (f.captado_ate) q = q.lte("source_captured_at", f.captado_ate);
 
   // Comunicação
+  if (f.email_contains) q = q.ilike("email", `%${safe(f.email_contains)}%`);
+  if (f.tem_email_secundario === "sim") q = q.not("email_secundario", "is", null);
+  if (f.tem_email_secundario === "nao") q = q.is("email_secundario", null);
+  if (f.tem_phone_secundario === "sim") q = q.not("phone_secundario_raw", "is", null);
+  if (f.tem_phone_secundario === "nao") q = q.is("phone_secundario_raw", null);
   if (f.consent === "sim") q = q.eq("consentimento_whatsapp", true);
   if (f.consent === "nao") q = q.eq("consentimento_whatsapp", false);
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);

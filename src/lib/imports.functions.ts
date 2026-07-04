@@ -1,3 +1,7 @@
+// ⚠️ Ao adicionar um campo novo na ficha de contato, sempre volte aqui:
+//   (1) reconhecer no mapeamento de importação CSV (FIELD_KEYS + suggestMapping)
+//   (2) adicionar como filtro em src/lib/crm-filters.ts + ContactFiltersPanel.tsx
+//   (3) persistir de verdade no commitImport (payload e fillIfEmpty), não só em observações.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as XLSX from "xlsx";
@@ -6,11 +10,16 @@ import { hasRole } from "@/lib/authz";
 import { parsePhoneBR, type ParsedPhone } from "@/lib/phone";
 
 
+
+
 export const FIELD_KEYS = [
   "ignore",
   "nome",
+  "nome_social",
   "phone_raw",
+  "phone_secundario_raw",
   "email",
+  "email_secundario",
   "profissao",
   "cidade",
   "uf",
@@ -19,8 +28,12 @@ export const FIELD_KEYS = [
   "numero",
   "complemento",
   "bairro",
+  "referencia",
   "observacoes",
   "tag",
+  "tipo_contato",
+  "coletivo_alicerce",
+  "participa_movimento_social",
   "origem_detalhe",
   "movimento_social",
   "instituicao",
@@ -31,6 +44,8 @@ export type FieldKey = (typeof FIELD_KEYS)[number];
 const ENCODINGS = ["auto", "utf-8", "utf-8-bom", "iso-8859-1", "windows-1252"] as const;
 export type EncodingOption = (typeof ENCODINGS)[number];
 
+const TIPO_CONTATO_VALIDOS = new Set(["apoiador", "voluntario", "lista_divulgacao", "importado", "outro"]);
+
 function normalize(s: string) {
   return s
     .toString()
@@ -40,13 +55,49 @@ function normalize(s: string) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function parseBool(v: string | null | undefined): boolean | null {
+  if (v == null) return null;
+  const s = normalize(v);
+  if (!s) return null;
+  if (["sim", "s", "1", "true", "verdadeiro", "yes", "y", "x"].includes(s)) return true;
+  if (["nao", "n", "0", "false", "falso", "no"].includes(s)) return false;
+  return null;
+}
+
+function parseTipoContato(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const s = normalize(v);
+  if (!s) return null;
+  const map: Record<string, string> = {
+    apoiador: "apoiador",
+    apoiadora: "apoiador",
+    voluntario: "voluntario",
+    voluntaria: "voluntario",
+    volunt: "voluntario",
+    listadedivulgacao: "lista_divulgacao",
+    listadivulgacao: "lista_divulgacao",
+    divulgacao: "lista_divulgacao",
+    importado: "importado",
+    outro: "outro",
+    outros: "outro",
+  };
+  const hit = map[s];
+  if (hit && TIPO_CONTATO_VALIDOS.has(hit)) return hit;
+  if (TIPO_CONTATO_VALIDOS.has(s)) return s;
+  return null;
+}
+
 function suggestMapping(headers: string[]): Record<string, FieldKey> {
   const map: Record<string, FieldKey> = {};
   for (const h of headers) {
     const n = normalize(h);
     if (!n) { map[h] = "ignore"; continue; }
-    if (/(nomecompleto|nomesocial|nome|name|contato|pessoa)/.test(n)) map[h] = "nome";
+    // ordem importa: variantes mais específicas antes das genéricas
+    if (/(nomesocial|apelido|nomefantasia)/.test(n)) map[h] = "nome_social";
+    else if (/(nomecompleto|^nome$|name|contato|pessoa)/.test(n)) map[h] = "nome";
+    else if (/(whatsapp|telefone|celular|phone|whats|fone|mobile).*(2|secund|alternat|alt|extra|adicional)/.test(n)) map[h] = "phone_secundario_raw";
     else if (/(whatsapp|telefone|celular|phone|whats|fone|^tel$|mobile)/.test(n)) map[h] = "phone_raw";
+    else if (/(email|mail|eletronic).*(2|secund|alternat|alt|extra|adicional)/.test(n)) map[h] = "email_secundario";
     else if (/(email|mail|eletronic)/.test(n)) map[h] = "email";
     else if (/(profissao|ocupacao|cargo|funcao)/.test(n)) map[h] = "profissao";
     else if (/(cidade|municipio|city)/.test(n)) map[h] = "cidade";
@@ -56,10 +107,14 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
     else if (/^(numero|num|number)$/.test(n)) map[h] = "numero";
     else if (/(complemento|apto|apartamento)/.test(n)) map[h] = "complemento";
     else if (/(bairro|neighborhood|district)/.test(n)) map[h] = "bairro";
+    else if (/(referencia|pontoreferencia|pontodereferencia)/.test(n)) map[h] = "referencia";
     else if (/(observ|obs|comentario|nota|detalhe|informac|historico|anotac|note)/.test(n)) map[h] = "observacoes";
+    else if (/(alicerce|^coletivo$)/.test(n)) map[h] = "coletivo_alicerce";
+    else if (/(participamovimento|participacoletivo|militante|movimentosocialsimnao)/.test(n)) map[h] = "participa_movimento_social";
     else if (/(movimento)/.test(n)) map[h] = "movimento_social";
-    else if (/(instituicao|organizacao|secretaria|orgao|coletivo)/.test(n)) map[h] = "instituicao";
+    else if (/(instituicao|organizacao|secretaria|orgao|localdetrabalho|ondetrabalha|empresa)/.test(n)) map[h] = "instituicao";
     else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
+    else if (/(^tipo$|tipocontato|tipodecontato|categoriacontato|categoriadecontato)/.test(n)) map[h] = "tipo_contato";
     else if (/(tag|grupo|categoria|segmento|nucleo|setor)/.test(n)) map[h] = "tag";
     else map[h] = "ignore";
   }
@@ -100,6 +155,14 @@ type PreviewRow = {
   extras: {
     profissao?: string | null;
     instituicao?: string | null;
+    nome_social?: string | null;
+    referencia?: string | null;
+    email_secundario?: string | null;
+    phone_secundario_raw?: string | null;
+    phone_secundario?: ParsedPhone | null;
+    tipo_contato?: string | null;
+    coletivo_alicerce?: boolean | null;
+    participa_movimento_social?: boolean | null;
     cep?: string | null;
     endereco?: string | null;
     numero?: string | null;
@@ -262,11 +325,28 @@ export const buildPreview = createServerFn({ method: "POST" })
         }
       }
 
+      const phoneSecRaw = getBy("phone_secundario_raw");
+      const phoneSec = phoneSecRaw ? parsePhoneBR(phoneSecRaw, data.defaultDdd ?? null) : null;
+      const tipoContato = parseTipoContato(getBy("tipo_contato"));
+      const coletivoAlicerce = parseBool(getBy("coletivo_alicerce"));
+      const movNome = getBy("movimento_social");
+      let participaMov = parseBool(getBy("participa_movimento_social"));
+      // Se veio nome de movimento sem coluna de participação explícita, assume que participa.
+      if (participaMov == null && movNome) participaMov = true;
+
       preview.push({
         linha, nome, email, phone, problemas,
         extras: {
           profissao: getBy("profissao"),
           instituicao: inst,
+          nome_social: getBy("nome_social"),
+          referencia: getBy("referencia"),
+          email_secundario: getBy("email_secundario")?.toLowerCase() ?? null,
+          phone_secundario_raw: phoneSecRaw,
+          phone_secundario: phoneSec,
+          tipo_contato: tipoContato,
+          coletivo_alicerce: coletivoAlicerce,
+          participa_movimento_social: participaMov,
           cep: getBy("cep"),
           endereco: getBy("endereco"),
           numero: getBy("numero"),
@@ -275,7 +355,7 @@ export const buildPreview = createServerFn({ method: "POST" })
           cidade: getBy("cidade"),
           uf: (getBy("uf") ?? "").toUpperCase().slice(0, 2) || null,
           origem_detalhe: getBy("origem_detalhe"),
-          movimento_social_nome: getBy("movimento_social"),
+          movimento_social_nome: movNome,
           observacoes,
           tags,
           raw: Object.keys(rawExtras).length ? rawExtras : undefined,
@@ -425,8 +505,11 @@ export const commitImport = createServerFn({ method: "POST" })
         const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
           nome: p.nome,
+          nome_social: ex.nome_social ?? null,
           phone_raw: p.phone.phone_original,
+          phone_secundario_raw: ex.phone_secundario_raw ?? null,
           email: p.email,
+          email_secundario: ex.email_secundario ?? null,
           profissao: ex.profissao ?? null,
           instituicao: ex.instituicao ?? null,
           cep: ex.cep ?? null,
@@ -434,15 +517,19 @@ export const commitImport = createServerFn({ method: "POST" })
           numero: ex.numero ?? null,
           complemento: ex.complemento ?? null,
           bairro: ex.bairro ?? null,
+          referencia: ex.referencia ?? null,
           cidade: ex.cidade ?? null,
           uf: ex.uf ?? null,
           origem_detalhe: ex.origem_detalhe ?? null,
-          participa_movimento_social: ex.movimento_social_nome ? true : null,
+          coletivo_alicerce: ex.coletivo_alicerce ?? null,
+          participa_movimento_social:
+            ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
+          tipo_contato: ex.tipo_contato ?? null,
           observacoes: obsText,
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
-          tipo: data.tipo,
+          tipo: ex.tipo_contato ?? data.tipo,
           import_id: data.importId,
           whatsapp_status: "desconhecido",
           phone_status: isInvalid
@@ -489,8 +576,11 @@ export const commitImport = createServerFn({ method: "POST" })
               if (value != null && (existing as Record<string, unknown>)[key] == null) merge[key] = value;
             };
             fillIfEmpty("nome", p.nome);
+            fillIfEmpty("nome_social", ex.nome_social ?? null);
             fillIfEmpty("email", p.email);
+            fillIfEmpty("email_secundario", ex.email_secundario ?? null);
             fillIfEmpty("phone_raw", p.phone.phone_original);
+            fillIfEmpty("phone_secundario_raw", ex.phone_secundario_raw ?? null);
             fillIfEmpty("profissao", ex.profissao ?? null);
             fillIfEmpty("instituicao", ex.instituicao ?? null);
             fillIfEmpty("cep", ex.cep ?? null);
@@ -498,10 +588,17 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("numero", ex.numero ?? null);
             fillIfEmpty("complemento", ex.complemento ?? null);
             fillIfEmpty("bairro", ex.bairro ?? null);
+            fillIfEmpty("referencia", ex.referencia ?? null);
             fillIfEmpty("cidade", ex.cidade ?? null);
             fillIfEmpty("uf", ex.uf ?? null);
             fillIfEmpty("origem_detalhe", ex.origem_detalhe ?? null);
             fillIfEmpty("movimento_social_nome", ex.movimento_social_nome ?? null);
+            fillIfEmpty("coletivo_alicerce", ex.coletivo_alicerce);
+            fillIfEmpty(
+              "participa_movimento_social",
+              ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
+            );
+            fillIfEmpty("tipo_contato", ex.tipo_contato ?? null);
             if (obsText) {
               const cur = (existing as Record<string, unknown>).observacoes as string | null;
               merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;

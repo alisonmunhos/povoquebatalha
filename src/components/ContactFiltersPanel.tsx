@@ -168,6 +168,15 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
       </Section>
 
       <Section icon={<MessageCircle className="h-4 w-4" />} title="Comunicação">
+        <Field label="E-mail contém…" hint="Busca livre no campo e-mail">
+          <Input value={filters.email_contains ?? ""} onChange={(e) => set("email_contains", e.target.value || undefined)} placeholder="Ex.: gmail.com" />
+        </Field>
+        <Field label="Tem e-mail secundário">
+          <SingleSelectFilter options={SIM_NAO} value={filters.tem_email_secundario} onChange={(v) => set("tem_email_secundario", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
+        </Field>
+        <Field label="Tem telefone secundário">
+          <SingleSelectFilter options={SIM_NAO} value={filters.tem_phone_secundario} onChange={(v) => set("tem_phone_secundario", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
+        </Field>
         <Field label="Consentimento WhatsApp">
           <SingleSelectFilter options={SIM_NAO} value={filters.consent} onChange={(v) => set("consent", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
