@@ -37,6 +37,11 @@ export const FIELD_KEYS = [
   "origem_detalhe",
   "movimento_social",
   "instituicao",
+  "quem_indicou",
+  "rede_social",
+  "zona_eleitoral",
+  "faixa_etaria",
+  "disponibilidade",
   "raw",
 ] as const;
 export type FieldKey = (typeof FIELD_KEYS)[number];
@@ -87,6 +92,64 @@ function parseTipoContato(v: string | null | undefined): string | null {
   return null;
 }
 
+const FAIXA_ETARIA_VALIDAS = new Set(["16_17", "18_24", "25_34", "35_44", "45_59", "60_mais"]);
+
+function parseFaixaEtaria(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const n = normalize(v);
+  const map: Record<string, string> = {
+    "1617": "16_17",
+    "1824": "18_24",
+    "2534": "25_34",
+    "3544": "35_44",
+    "4559": "45_59",
+    "60": "60_mais",
+    "60mais": "60_mais",
+    "maisde60": "60_mais",
+    "acimade60": "60_mais",
+  };
+  return map[n] ?? null;
+}
+
+const DIAS_SEMANA_ALIASES: Record<string, string> = {
+  segunda: "segunda", seg: "segunda",
+  terca: "terca", ter: "terca",
+  quarta: "quarta", qua: "quarta",
+  quinta: "quinta", qui: "quinta",
+  sexta: "sexta", sex: "sexta",
+  sabado: "sabado", sab: "sabado",
+  domingo: "domingo", dom: "domingo",
+};
+const PERIODOS_ALIASES: Record<string, string> = {
+  manha: "manha", am: "manha",
+  tarde: "tarde", pm: "tarde",
+  noite: "noite",
+};
+
+/** Reconhece um pedaço de texto livre como "<dia>_<periodo>" (ex.: "Segunda de manhã" → "segunda_manha"). */
+function parseDisponibilidadeItem(v: string): string | null {
+  const n = normalize(v);
+  if (!n) return null;
+  for (const [alias, dia] of Object.entries(DIAS_SEMANA_ALIASES)) {
+    if (!n.includes(alias)) continue;
+    for (const [palias, periodo] of Object.entries(PERIODOS_ALIASES)) {
+      if (n.includes(palias)) return `${dia}_${periodo}`;
+    }
+  }
+  return null;
+}
+
+/** Aceita múltiplos valores separados por vírgula/;, igual ao padrão já usado pras tags. */
+function parseDisponibilidade(v: string | null | undefined): string[] {
+  if (!v) return [];
+  const out: string[] = [];
+  for (const piece of v.split(/[,;|]/)) {
+    const slug = parseDisponibilidadeItem(piece);
+    if (slug && !out.includes(slug)) out.push(slug);
+  }
+  return out;
+}
+
 function suggestMapping(headers: string[]): Record<string, FieldKey> {
   const map: Record<string, FieldKey> = {};
   for (const h of headers) {
@@ -113,6 +176,11 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
     else if (/(participamovimento|participacoletivo|militante|movimentosocialsimnao)/.test(n)) map[h] = "participa_movimento_social";
     else if (/(movimento)/.test(n)) map[h] = "movimento_social";
     else if (/(instituicao|organizacao|secretaria|orgao|localdetrabalho|ondetrabalha|empresa)/.test(n)) map[h] = "instituicao";
+    else if (/(quemindicou|indicadopor|indicacao|quemconvidou)/.test(n)) map[h] = "quem_indicou";
+    else if (/(redesocial|instagram|facebook|tiktok|twitter|arroba)/.test(n)) map[h] = "rede_social";
+    else if (/(zonaeleitoral|localdevotacao|localvotacao|tituloeleitor|sessaoeleitoral)/.test(n)) map[h] = "zona_eleitoral";
+    else if (/(faixaetaria|faixadeidade|^idade$)/.test(n)) map[h] = "faixa_etaria";
+    else if (/(disponibilidade|diasdisponiveis|horariodisponivel|quandopodeajudar)/.test(n)) map[h] = "disponibilidade";
     else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
     else if (/(^tipo$|tipocontato|tipodecontato|categoriacontato|categoriadecontato)/.test(n)) map[h] = "tipo_contato";
     else if (/(tag|grupo|categoria|segmento|nucleo|setor)/.test(n)) map[h] = "tag";
@@ -172,6 +240,11 @@ type PreviewRow = {
     uf?: string | null;
     origem_detalhe?: string | null;
     movimento_social_nome?: string | null;
+    quem_indicou?: string | null;
+    rede_social?: string | null;
+    zona_eleitoral?: string | null;
+    faixa_etaria?: string | null;
+    disponibilidade?: string[];
     observacoes?: string[];
     tags?: string[];
     raw?: Record<string, string>;
@@ -333,6 +406,8 @@ export const buildPreview = createServerFn({ method: "POST" })
       let participaMov = parseBool(getBy("participa_movimento_social"));
       // Se veio nome de movimento sem coluna de participação explícita, assume que participa.
       if (participaMov == null && movNome) participaMov = true;
+      const faixaEtaria = parseFaixaEtaria(getBy("faixa_etaria"));
+      const disponibilidade = parseDisponibilidade(getBy("disponibilidade"));
 
       preview.push({
         linha, nome, email, phone, problemas,
@@ -356,6 +431,11 @@ export const buildPreview = createServerFn({ method: "POST" })
           uf: (getBy("uf") ?? "").toUpperCase().slice(0, 2) || null,
           origem_detalhe: getBy("origem_detalhe"),
           movimento_social_nome: movNome,
+          quem_indicou: getBy("quem_indicou"),
+          rede_social: getBy("rede_social"),
+          zona_eleitoral: getBy("zona_eleitoral"),
+          faixa_etaria: faixaEtaria,
+          disponibilidade,
           observacoes,
           tags,
           raw: Object.keys(rawExtras).length ? rawExtras : undefined,
@@ -525,11 +605,15 @@ export const commitImport = createServerFn({ method: "POST" })
           participa_movimento_social:
             ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
-          tipo_contato: ex.tipo_contato ?? null,
+          quem_indicou: ex.quem_indicou ?? null,
+          rede_social: ex.rede_social ?? null,
+          zona_eleitoral: ex.zona_eleitoral ?? null,
+          faixa_etaria: ex.faixa_etaria ?? null,
+          disponibilidade: ex.disponibilidade ?? [],
+          tipo_contato: ex.tipo_contato ?? data.tipo,
           observacoes: obsText,
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
-          tipo: ex.tipo_contato ?? data.tipo,
           import_id: data.importId,
           whatsapp_status: "desconhecido",
           phone_status: isInvalid
@@ -568,6 +652,21 @@ export const commitImport = createServerFn({ method: "POST" })
           }
         }
 
+        async function registerImportSource(contactId: string, eventType: "contato_criado" | "contato_atualizado") {
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            await supabaseAdmin.rpc("apply_contact_source", {
+              _contact_id: contactId,
+              _source_user_id: context.userId,
+              _source_module: "importacao",
+              _source_form_type: null as unknown as string,
+              _source_link_id: null as unknown as string,
+              _event_type: eventType,
+              _metadata: { via: "import", import_id: data.importId },
+            });
+          } catch { /* non-blocking */ }
+        }
+
         if (dup && dup.match === "forte") {
           const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
           if (existing) {
@@ -599,12 +698,17 @@ export const commitImport = createServerFn({ method: "POST" })
               ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
             );
             fillIfEmpty("tipo_contato", ex.tipo_contato ?? null);
+            fillIfEmpty("quem_indicou", ex.quem_indicou ?? null);
+            fillIfEmpty("rede_social", ex.rede_social ?? null);
+            fillIfEmpty("zona_eleitoral", ex.zona_eleitoral ?? null);
+            fillIfEmpty("faixa_etaria", ex.faixa_etaria ?? null);
             if (obsText) {
               const cur = (existing as Record<string, unknown>).observacoes as string | null;
               merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
             }
             await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
             await applyTagsTo(dup.contact_id);
+            await registerImportSource(dup.contact_id, "contato_atualizado");
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
@@ -630,6 +734,7 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         await applyTagsTo(ins.id);
+        await registerImportSource(ins.id, "contato_criado");
         await sb.from("import_rows").update({ status: "criado", contact_id: ins.id }).eq("id", row.id);
         criados++;
       }

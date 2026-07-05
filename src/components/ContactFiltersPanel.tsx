@@ -19,6 +19,11 @@ export type FilterOptionsBundle = {
   origem_detalhes: MultiOption[];
   formas_ajuda: MultiOption[];
   movimentos_sociais: MultiOption[];
+  quem_indicou: MultiOption[];
+  rede_social: MultiOption[];
+  zona_eleitoral: MultiOption[];
+  disponibilidade: MultiOption[];
+  faixa_etaria: MultiOption[];
   tags: (MultiOption & { cor?: string | null })[];
   segmentos: { value: string; label: string; tipo: string }[];
   campanhas: { value: string; label: string; status: string }[];
@@ -58,6 +63,7 @@ const ORIGEM: MultiOption[] = [
   { value: "inscricao", label: "Inscrição" },
   { value: "import", label: "Importação" },
   { value: "manual", label: "Manual" },
+  { value: "formulario_publico", label: "Formulário personalizado" },
 ];
 const TIPO_CONTATO: MultiOption[] = [
   { value: "apoiador", label: "Apoiador" },
@@ -65,6 +71,15 @@ const TIPO_CONTATO: MultiOption[] = [
   { value: "lista_divulgacao", label: "Lista de divulgação" },
   { value: "importado", label: "Importado" },
   { value: "outro", label: "Outro" },
+];
+
+const FAIXA_ETARIA: MultiOption[] = [
+  { value: "16_17", label: "16-17 anos" },
+  { value: "18_24", label: "18-24 anos" },
+  { value: "25_34", label: "25-34 anos" },
+  { value: "35_44", label: "35-44 anos" },
+  { value: "45_59", label: "45-59 anos" },
+  { value: "60_mais", label: "60+ anos" },
 ];
 
 const SIM_NAO: MultiOption[] = [
@@ -110,6 +125,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
   const opts = options ?? {
     cidades: [], bairros: [], ufs: [], profissoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
+    quem_indicou: [], rede_social: [], zona_eleitoral: [], disponibilidade: [], faixa_etaria: [],
     tags: [], segmentos: [], campanhas: [], mensagens: [], importacoes: [],
   };
 
@@ -187,11 +203,26 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Movimento contém…" hint="Busca livre no nome do movimento">
           <Input value={filters.movimento_social_contains ?? ""} onChange={(e) => set("movimento_social_contains", e.target.value || undefined)} placeholder="Ex.: MST" />
         </Field>
+        <Field label="Faixa etária">
+          <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} value={filters.faixas_etarias ?? []} onChange={(v) => set("faixas_etarias", v)} placeholder="Qualquer faixa" />
+        </Field>
+        <Field label="Rede social contém…" hint="Busca livre no campo rede social">
+          <Input value={filters.rede_social ?? ""} onChange={(e) => set("rede_social", e.target.value || undefined)} placeholder="Ex.: @usuario" />
+        </Field>
+        <Field label="Quem indicou contém…">
+          <Input value={filters.quem_indicou ?? ""} onChange={(e) => set("quem_indicou", e.target.value || undefined)} placeholder="Ex.: Maria" />
+        </Field>
+        <Field label="Zona eleitoral / local de votação contém…">
+          <Input value={filters.zona_eleitoral ?? ""} onChange={(e) => set("zona_eleitoral", e.target.value || undefined)} placeholder="Ex.: Escola Municipal..." />
+        </Field>
       </Section>
 
       <Section icon={<Users className="h-4 w-4" />} title="Participação">
         <Field label="Formas de ajuda">
           <MultiSelectFilter options={opts.formas_ajuda} value={filters.formas_ajuda ?? []} onChange={(v) => set("formas_ajuda", v)} placeholder="Todas as formas" />
+        </Field>
+        <Field label="Disponibilidade">
+          <MultiSelectFilter options={opts.disponibilidade} value={filters.disponibilidade ?? []} onChange={(v) => set("disponibilidade", v)} placeholder="Qualquer dia/período" />
         </Field>
       </Section>
 

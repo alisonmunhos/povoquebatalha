@@ -4,6 +4,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type FilterOption = { value: string; label: string; count: number };
 
+// Faixas etárias são um conjunto fixo, não derivado do banco (mesmo padrão de TIPO_CONTATO).
+export const FAIXA_ETARIA_OPTIONS: { value: string; label: string }[] = [
+  { value: "16_17", label: "16-17 anos" },
+  { value: "18_24", label: "18-24 anos" },
+  { value: "25_34", label: "25-34 anos" },
+  { value: "35_44", label: "35-44 anos" },
+  { value: "45_59", label: "45-59 anos" },
+  { value: "60_mais", label: "60+ anos" },
+];
+
 /** Remove acentos e normaliza espaços. */
 function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -58,7 +68,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -93,6 +103,18 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const origem_detalhes: Counter = new Map();
     const formas_ajuda: Counter = new Map();
     const movimentos_sociais: Counter = new Map();
+    const quem_indicou: Counter = new Map();
+    const rede_social: Counter = new Map();
+    const zona_eleitoral: Counter = new Map();
+    const disponibilidade: Counter = new Map();
+
+    const DIA_LABELS: Record<string, string> = {
+      segunda: "Segunda", terca: "Terça", quarta: "Quarta", quinta: "Quinta",
+      sexta: "Sexta", sabado: "Sábado", domingo: "Domingo",
+    };
+    const PERIODO_LABELS: Record<string, string> = {
+      manha: "Manhã", tarde: "Tarde", noite: "Noite",
+    };
 
     for (const c of contacts ?? []) {
       bump(cidades, c.cidade);
@@ -105,6 +127,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
       bump(movimentos_sociais, c.movimento_social_nome);
+      bump(quem_indicou, c.quem_indicou);
+      bump(rede_social, c.rede_social);
+      bump(zona_eleitoral, c.zona_eleitoral);
       const arr = c.formas_ajuda as unknown;
       if (Array.isArray(arr)) {
         for (const item of arr) {
@@ -114,6 +139,17 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
           const cur = formas_ajuda.get(canonical);
           if (cur) cur.count += 1;
           else formas_ajuda.set(canonical, { label, count: 1 });
+        }
+      }
+      const disp = c.disponibilidade as unknown;
+      if (Array.isArray(disp)) {
+        for (const slug of disp) {
+          if (typeof slug !== "string" || !slug) continue;
+          const [dia, periodo] = slug.split("_");
+          const label = `${DIA_LABELS[dia] ?? dia} - ${PERIODO_LABELS[periodo] ?? periodo}`;
+          const cur = disponibilidade.get(slug);
+          if (cur) cur.count += 1;
+          else disponibilidade.set(slug, { label, count: 1 });
         }
       }
     }
@@ -194,6 +230,13 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
         .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
       movimentos_sociais: toOptions(movimentos_sociais),
+      quem_indicou: toOptions(quem_indicou),
+      rede_social: toOptions(rede_social),
+      zona_eleitoral: toOptions(zona_eleitoral),
+      disponibilidade: [...disponibilidade.entries()]
+        .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
+      faixa_etaria: FAIXA_ETARIA_OPTIONS.map((o) => ({ ...o, count: 0 })),
       tags: tagsOpts,
       segmentos: segmentsOpts,
       campanhas: campaignsOpts,

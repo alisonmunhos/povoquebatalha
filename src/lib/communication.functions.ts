@@ -361,6 +361,19 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
     }).select("id").single();
     if (error || !novo) throw error ?? new Error("Falha ao criar contato.");
 
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.rpc("apply_contact_source", {
+        _contact_id: novo.id,
+        _source_user_id: context.userId,
+        _source_module: "inbox",
+        _source_form_type: null as unknown as string,
+        _source_link_id: null as unknown as string,
+        _event_type: "contato_criado",
+        _metadata: { via: "inbox_quick_create" },
+      });
+    } catch { /* non-blocking */ }
+
     // Vincula histórico da conversa (todas as mensagens daquele from_phone/LID).
     if (conv.from_phone) {
       await context.supabase.from("inbound_messages")

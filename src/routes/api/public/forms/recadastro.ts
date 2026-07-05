@@ -177,14 +177,17 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
           savedId = newRow?.id ?? null;
         }
 
-        // Registrar origem/captação via tracked link (Bloco B)
-        if (savedId && d.ref_token) {
+        // Registrar origem/captação via tracked link (Bloco B), com fallback
+        // para módulo + data quando não há link rastreável ativo.
+        if (savedId) {
           try {
-            const { data: link } = await supabaseAdmin
-              .from("tracked_form_links")
-              .select("id, created_by_user_id, source_module, source_form_type, is_active, expires_at")
-              .eq("token", d.ref_token)
-              .maybeSingle();
+            const { data: link } = d.ref_token
+              ? await supabaseAdmin
+                  .from("tracked_form_links")
+                  .select("id, created_by_user_id, source_module, source_form_type, is_active, expires_at")
+                  .eq("token", d.ref_token)
+                  .maybeSingle()
+              : { data: null };
             const linkExpired = link?.expires_at ? new Date(link.expires_at).getTime() < Date.now() : false;
             if (link && link.is_active && !linkExpired) {
               await supabaseAdmin.rpc("apply_contact_source", {
@@ -195,6 +198,16 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
                 _source_link_id: link.id,
                 _event_type: "cadastro_completo",
                 _metadata: { via: "recadastro_form" },
+              });
+            } else {
+              await supabaseAdmin.rpc("apply_contact_source", {
+                _contact_id: savedId,
+                _source_user_id: null as unknown as string,
+                _source_module: "formulario_publico",
+                _source_form_type: "cadastro_completo",
+                _source_link_id: null as unknown as string,
+                _event_type: "cadastro_completo",
+                _metadata: { via: "recadastro_form_sem_ref" },
               });
             }
           } catch { /* ignore */ }
