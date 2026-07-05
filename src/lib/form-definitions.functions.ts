@@ -8,6 +8,14 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff, requireAdmin } from "@/lib/authz";
 import { insertTrackedLink } from "@/lib/tracked-links.functions";
 import { CORE_CATALOG_FIELDS } from "@/lib/form-field-catalog";
+import type { Database } from "@/integrations/supabase/types";
+
+type TemplateRow = Database["public"]["Tables"]["message_templates"]["Row"];
+type AutomationRow = Database["public"]["Tables"]["automations"]["Row"];
+type TrackedLinkRow = Pick<
+  Database["public"]["Tables"]["tracked_form_links"]["Row"],
+  "id" | "token" | "use_count" | "is_active"
+>;
 
 export const listFormDefinitions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
