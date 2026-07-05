@@ -33,24 +33,37 @@ const createSchema = z.object({
   label: z.string().trim().max(120).optional().nullable(),
 });
 
+/** Lógica de inserção compartilhada, reaproveitada por createTrackedLink e por
+ * mintFormTrackedLink (Entrada de Dados) — ambos rodam sob requireSupabaseAuth,
+ * então recebem o mesmo `context.supabase` (client autenticado por RLS). */
+export async function insertTrackedLink(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  createdByUserId: string,
+  input: { source_module: (typeof SOURCE_MODULES)[number]; source_form_type: (typeof SOURCE_FORM_TYPES)[number]; label?: string | null },
+) {
+  const token = genToken();
+  const { data: row, error } = await supabase
+    .from("tracked_form_links")
+    .insert({
+      token,
+      created_by_user_id: createdByUserId,
+      source_module: input.source_module,
+      source_form_type: input.source_form_type,
+      label: input.label ?? null,
+      is_active: true,
+    })
+    .select("id, token, source_module, source_form_type, created_at")
+    .single();
+  if (error) throw new Error(error.message);
+  return row as { id: string; token: string; source_module: string; source_form_type: string; created_at: string };
+}
+
 export const createTrackedLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const token = genToken();
-    const { data: row, error } = await context.supabase
-      .from("tracked_form_links")
-      .insert({
-        token,
-        created_by_user_id: context.userId,
-        source_module: data.source_module,
-        source_form_type: data.source_form_type,
-        label: data.label ?? null,
-        is_active: true,
-      })
-      .select("id, token, source_module, source_form_type, created_at")
-      .single();
-    if (error) throw new Error(error.message);
+    const row = await insertTrackedLink(context.supabase, context.userId, data);
     return { link: row };
   });
 

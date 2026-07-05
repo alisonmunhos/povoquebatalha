@@ -88,6 +88,14 @@ const updateSchema = z.object({
     .optional(),
   formas_ajuda: z.array(z.string().max(60)).max(20).optional(),
   formas_ajuda_outro: z.string().trim().max(240).nullable().optional(),
+  quem_indicou: z.string().trim().max(160).nullable().optional(),
+  rede_social: z.string().trim().max(160).nullable().optional(),
+  zona_eleitoral: z.string().trim().max(240).nullable().optional(),
+  faixa_etaria: z
+    .enum(["16_17", "18_24", "25_34", "35_44", "45_59", "60_mais"])
+    .nullable()
+    .optional(),
+  disponibilidade: z.array(z.string().max(20)).max(21).optional(),
   consentimento_whatsapp: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(120).nullable().optional(),
   observacoes: z.string().trim().max(4000).nullable().optional(),

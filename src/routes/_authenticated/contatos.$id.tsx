@@ -22,6 +22,24 @@ const TIPO_OPTIONS = [
   { v: "outro", l: "Outro" },
 ] as const;
 
+const FAIXA_ETARIA_OPTIONS = [
+  { v: "16_17", l: "16-17 anos" },
+  { v: "18_24", l: "18-24 anos" },
+  { v: "25_34", l: "25-34 anos" },
+  { v: "35_44", l: "35-44 anos" },
+  { v: "45_59", l: "45-59 anos" },
+  { v: "60_mais", l: "60+ anos" },
+] as const;
+
+const DIAS_SEMANA = [
+  { v: "segunda", l: "Segunda" }, { v: "terca", l: "Terça" }, { v: "quarta", l: "Quarta" },
+  { v: "quinta", l: "Quinta" }, { v: "sexta", l: "Sexta" }, { v: "sabado", l: "Sábado" },
+  { v: "domingo", l: "Domingo" },
+] as const;
+const PERIODOS_DIA = [
+  { v: "manha", l: "Manhã" }, { v: "tarde", l: "Tarde" }, { v: "noite", l: "Noite" },
+] as const;
+
 const FORMAS_AJUDA = [
   { v: "panfletagem_banquinha", l: "Panfletagem / Banquinha" },
   { v: "compartilhar_whatsapp", l: "Compartilhar material no WhatsApp" },
@@ -81,6 +99,13 @@ function ContatoFicha() {
         tipo_contato: c.tipo_contato ?? "apoiador",
         formas_ajuda: Array.isArray(c.formas_ajuda) ? c.formas_ajuda : [],
         formas_ajuda_outro: (c as { formas_ajuda_outro?: string | null }).formas_ajuda_outro ?? "",
+        quem_indicou: (c as { quem_indicou?: string | null }).quem_indicou ?? "",
+        rede_social: (c as { rede_social?: string | null }).rede_social ?? "",
+        zona_eleitoral: (c as { zona_eleitoral?: string | null }).zona_eleitoral ?? "",
+        faixa_etaria: (c as { faixa_etaria?: string | null }).faixa_etaria ?? "",
+        disponibilidade: Array.isArray((c as { disponibilidade?: unknown }).disponibilidade)
+          ? (c as { disponibilidade?: string[] }).disponibilidade
+          : [],
         consentimento_whatsapp: c.consentimento_whatsapp,
         origem_detalhe: c.origem_detalhe ?? "",
         observacoes: c.observacoes ?? "",
@@ -96,6 +121,10 @@ function ContatoFicha() {
   const toggleAjuda = (v: string) => {
     const cur = (form.formas_ajuda as string[]) ?? [];
     set("formas_ajuda", cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
+  };
+  const toggleDisponibilidade = (v: string) => {
+    const cur = (form.disponibilidade as string[]) ?? [];
+    set("disponibilidade", cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
   };
 
   async function onCep(v: string) {
@@ -273,6 +302,42 @@ function ContatoFicha() {
                 </div>
               )}
             </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Disponibilidade</p>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+                {DIAS_SEMANA.map((dia) => (
+                  <div key={dia.v}>
+                    <p className="text-xs text-muted-foreground mb-1">{dia.l}</p>
+                    {PERIODOS_DIA.map((periodo) => {
+                      const slug = `${dia.v}_${periodo.v}`;
+                      return (
+                        <label key={slug} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={((form.disponibilidade as string[]) ?? []).includes(slug)}
+                            onChange={() => toggleDisponibilidade(slug)}
+                          />
+                          {periodo.l}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Row>
+              <label className="text-sm font-medium">Faixa etária</label>
+              <select value={String(form.faixa_etaria ?? "")} onChange={(e) => set("faixa_etaria", e.target.value || null)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <option value="">—</option>
+                {FAIXA_ETARIA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </Row>
+            <Row><Field label="Rede social" value={form.rede_social} onChange={(v) => set("rede_social", v)} placeholder="Ex.: @usuario" /></Row>
+            <Row><Field label="Quem indicou" value={form.quem_indicou} onChange={(v) => set("quem_indicou", v)} /></Row>
+            <Row>
+              <Field label="Zona eleitoral / local de votação" value={form.zona_eleitoral} onChange={(v) => set("zona_eleitoral", v)} />
+              <p className="text-xs text-muted-foreground mt-1">Opcional. Usado só para organização territorial da campanha.</p>
+            </Row>
           </Section>
 
           <Section title="Consentimento & status">

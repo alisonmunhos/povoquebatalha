@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
-  MessageCircle, Menu, X, Zap,
+  MessageCircle, Menu, X, Zap, ClipboardList,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,7 @@ const groups: NavGroup[] = [
       { to: "/duplicidades", label: "Duplicidades", icon: Copy, roles: ["admin", "operador"] },
       { to: "/tags", label: "Tags", icon: Tags, roles: ["admin", "operador"] },
       { to: "/segmentos", label: "Segmentos", icon: Filter, roles: ["admin", "operador", "vrm"] },
+      { to: "/entrada-dados", label: "Entrada de Dados", icon: ClipboardList, hint: "Monte formulários públicos personalizados.", roles: ["admin"] },
     ],
   },
   {
