@@ -8,6 +8,14 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff, requireAdmin } from "@/lib/authz";
 import { insertTrackedLink } from "@/lib/tracked-links.functions";
 import { CORE_CATALOG_FIELDS } from "@/lib/form-field-catalog";
+import type { Database } from "@/integrations/supabase/types";
+
+type TemplateRow = Database["public"]["Tables"]["message_templates"]["Row"];
+type AutomationRow = Database["public"]["Tables"]["automations"]["Row"];
+type TrackedLinkRow = Pick<
+  Database["public"]["Tables"]["tracked_form_links"]["Row"],
+  "id" | "token" | "use_count" | "is_active"
+>;
 
 export const listFormDefinitions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -37,8 +45,8 @@ export const getFormDefinition = createServerFn({ method: "GET" })
       .select("*")
       .eq("form_definition_id", data.id)
       .order("order_index", { ascending: true });
-    let template: unknown = null;
-    let automation: unknown = null;
+    let template: TemplateRow | null = null;
+    let automation: AutomationRow | null = null;
     if (form.event_key) {
       const { data: tpl } = await context.supabase
         .from("message_templates")
@@ -55,7 +63,7 @@ export const getFormDefinition = createServerFn({ method: "GET" })
         .maybeSingle();
       automation = auto ?? null;
     }
-    let trackedLink: unknown = null;
+    let trackedLink: TrackedLinkRow | null = null;
     if (form.tracked_form_link_id) {
       const { data: link } = await context.supabase
         .from("tracked_form_links")
