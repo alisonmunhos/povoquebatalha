@@ -171,7 +171,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           nome,
           phone_raw: phoneRaw,
           consentimento_whatsapp: true,
-          origem: "formulario_publico" as const,
+          origem: "manual" as const,
           origem_detalhe: form.title,
           lifecycle_status: "recadastro_concluido" as const,
           opt_out_at: null,
