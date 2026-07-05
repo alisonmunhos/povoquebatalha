@@ -184,6 +184,9 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Profissão contém…" hint="Busca livre no campo profissão">
           <Input value={filters.profissao ?? ""} onChange={(e) => set("profissao", e.target.value || undefined)} placeholder="Ex.: professor" />
         </Field>
+        <Field label="Onde trabalha contém…" hint="Busca livre no campo instituição/local de trabalho">
+          <Input value={filters.instituicao ?? ""} onChange={(e) => set("instituicao", e.target.value || undefined)} placeholder="Ex.: Escola Municipal..." />
+        </Field>
         <Field label="Coletivo Alicerce">
           <SingleSelectFilter
             options={SIM_NAO}
