@@ -250,7 +250,9 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             if (g && g.status !== "erro") {
               await supabaseAdmin.from("contacts").update({
                 latitude: g.latitude, longitude: g.longitude,
-                geocoding_provider: g.provider, geocoding_status: g.status, geocoded_at: new Date().toISOString(),
+                geocoding_provider: g.provider,
+                geocoding_status: g.status === "aproximado" ? "aproximado" : "localizado",
+                geocoded_at: new Date().toISOString(),
               }).eq("id", savedId);
             }
           } catch { /* non-blocking */ }

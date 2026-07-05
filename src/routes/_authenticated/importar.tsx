@@ -52,6 +52,11 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   origem_detalhe: "Origem da importação",
   movimento_social: "Movimento social (nome)",
   instituicao: "Instituição / Organização",
+  quem_indicou: "Quem indicou",
+  rede_social: "Rede social",
+  zona_eleitoral: "Zona eleitoral",
+  faixa_etaria: "Faixa etária",
+  disponibilidade: "Disponibilidade",
   raw: "Guardar como dado bruto",
 };
 

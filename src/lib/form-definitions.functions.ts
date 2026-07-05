@@ -37,8 +37,8 @@ export const getFormDefinition = createServerFn({ method: "GET" })
       .select("*")
       .eq("form_definition_id", data.id)
       .order("order_index", { ascending: true });
-    let template: unknown = null;
-    let automation: unknown = null;
+    let template: Record<string, unknown> | null = null;
+    let automation: Record<string, unknown> | null = null;
     if (form.event_key) {
       const { data: tpl } = await context.supabase
         .from("message_templates")
@@ -47,22 +47,22 @@ export const getFormDefinition = createServerFn({ method: "GET" })
         .eq("kind", "system")
         .is("archived_at", null)
         .maybeSingle();
-      template = tpl ?? null;
+      template = (tpl as Record<string, unknown> | null) ?? null;
       const { data: auto } = await context.supabase
         .from("automations")
         .select("*")
         .eq("event_key", form.event_key)
         .maybeSingle();
-      automation = auto ?? null;
+      automation = (auto as Record<string, unknown> | null) ?? null;
     }
-    let trackedLink: unknown = null;
+    let trackedLink: Record<string, unknown> | null = null;
     if (form.tracked_form_link_id) {
       const { data: link } = await context.supabase
         .from("tracked_form_links")
         .select("id,token,use_count,is_active")
         .eq("id", form.tracked_form_link_id)
         .maybeSingle();
-      trackedLink = link ?? null;
+      trackedLink = (link as Record<string, unknown> | null) ?? null;
     }
     return { form, questions: questions ?? [], template, automation, trackedLink };
   });
