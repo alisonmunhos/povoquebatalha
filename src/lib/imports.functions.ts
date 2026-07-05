@@ -525,11 +525,10 @@ export const commitImport = createServerFn({ method: "POST" })
           participa_movimento_social:
             ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
-          tipo_contato: ex.tipo_contato ?? null,
+          tipo_contato: ex.tipo_contato ?? data.tipo,
           observacoes: obsText,
           origem: "import" as const,
           consentimento_whatsapp: data.consentimentoWhatsapp,
-          tipo: ex.tipo_contato ?? data.tipo,
           import_id: data.importId,
           whatsapp_status: "desconhecido",
           phone_status: isInvalid
@@ -566,6 +565,21 @@ export const commitImport = createServerFn({ method: "POST" })
               await sb.from("contact_tags").insert({ contact_id: contactId, tag_id: tagId }).select().maybeSingle();
             }
           }
+        }
+
+        async function registerImportSource(contactId: string, eventType: "contato_criado" | "contato_atualizado") {
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            await supabaseAdmin.rpc("apply_contact_source", {
+              _contact_id: contactId,
+              _source_user_id: context.userId,
+              _source_module: "importacao",
+              _source_form_type: null as unknown as string,
+              _source_link_id: null as unknown as string,
+              _event_type: eventType,
+              _metadata: { via: "import", import_id: data.importId },
+            });
+          } catch { /* non-blocking */ }
         }
 
         if (dup && dup.match === "forte") {
@@ -605,6 +619,7 @@ export const commitImport = createServerFn({ method: "POST" })
             }
             await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
             await applyTagsTo(dup.contact_id);
+            await registerImportSource(dup.contact_id, "contato_atualizado");
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
@@ -630,6 +645,7 @@ export const commitImport = createServerFn({ method: "POST" })
         }
 
         await applyTagsTo(ins.id);
+        await registerImportSource(ins.id, "contato_criado");
         await sb.from("import_rows").update({ status: "criado", contact_id: ins.id }).eq("id", row.id);
         criados++;
       }

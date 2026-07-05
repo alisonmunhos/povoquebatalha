@@ -101,6 +101,23 @@ export const Route = createFileRoute("/api/public/forms/cadastro-agitador")({
         });
         const contactId = contactIdRaw as string | null;
 
+        // Registrar origem/captação (auto-cadastro público, sem link rastreável)
+        if (contactId) {
+          try {
+            await supabaseAdmin.rpc("apply_contact_source", {
+              _contact_id: contactId,
+              _source_user_id: null as unknown as string,
+              _source_module: "formulario_publico",
+              _source_form_type: "cadastro_completo",
+              _source_link_id: null as unknown as string,
+              _event_type: "cadastro_completo",
+              _metadata: { via: "cadastro_agitador" },
+            });
+          } catch {
+            /* non-blocking */
+          }
+        }
+
         // Aplicar tag "Agitador pendente" (categoria interno)
         if (contactId) {
           try {
