@@ -33,9 +33,10 @@ function WhatsAppPage() {
   });
 
   const [showQr, setShowQr] = useState(false);
-  const qr = useSuspenseQuery({
-    queryKey: ["zapi-qr", showQr],
-    queryFn: () => (showQr ? qrFn() : Promise.resolve(null)),
+  const qr = useQuery({
+    queryKey: ["zapi-qr"],
+    queryFn: () => qrFn(),
+    enabled: showQr,
     refetchInterval: showQr ? 6000 : false,
   });
 
