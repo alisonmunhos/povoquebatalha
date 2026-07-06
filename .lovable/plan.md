@@ -1,68 +1,27 @@
 ## Diagnóstico
 
-Analisei a ficha `/contatos/:id` (`src/routes/_authenticated/contatos.$id.tsx`) e a server fn `updateContact` (`src/lib/contacts.functions.ts`). Vejo três causas possíveis, e o fluxo atual é pesado demais para uma correção simples de telefone.
+No app publicado, ao clicar em **Mostrar QR Code** nada aparece na tela. Causa técnica:
 
-**Por que "Salvar alterações" parece não fazer nada**
-1. O `save()` envia o formulário inteiro (30+ campos) através de um Zod schema estrito. Se **qualquer** campo estiver fora do padrão (e-mail com espaço, UF em minúscula, telefone acima de 40 caracteres, formas_ajuda com slug longo), o Zod lança e mostra um `toast.error` com mensagem críptica em inglês que some em 3s. O usuário vê "nada acontece".
-2. Não há `console.error` no catch — a falha some sem deixar rastro.
-3. Depois do save, o refetch é só da query da ficha; a listagem e os facets da tela anterior continuam com o status antigo, reforçando a sensação de "não salvou".
-4. Bônus: o `session_replay` mostra o body em `data-selector-active="true"` — quando o modo de seleção da Lovable está ligado, cliques em botões vão para o seletor, não para o `onClick`. Isso pode ter contribuído em alguns testes.
+- Em `src/routes/_authenticated/whatsapp.tsx` o QR é buscado com `useSuspenseQuery` e um `queryKey` que muda conforme `showQr` (`["zapi-qr", showQr]`).
+- Quando `showQr` vira `true`, o query key muda e o `useSuspenseQuery` **suspende o componente inteiro**. Como não existe um `<Suspense>` local ao redor do card do QR, o suspend sobe até o boundary do router — no build de produção isso resulta em tela em branco / "nada acontece" (no preview em dev o comportamento é mais permissivo, por isso funciona lá).
+- Também confirmei via logs do worker publicado que a rota do server function do QR chega a ser chamada, mas o clique nem chega a renderizar o painel para o usuário porque o componente suspendeu antes.
 
-**Por que fica complexo pro seu uso real**
-Pra consertar 1 telefone que falta DDD, você é obrigado a rodar o save do formulário inteiro. O certo é ter uma ação dedicada para o telefone.
+## Plano de ação (mínimo e focado)
 
----
+Alterar **apenas** `src/routes/_authenticated/whatsapp.tsx`:
 
-## Plano de ação
+1. Trocar o `useSuspenseQuery` do QR por `useQuery` com `enabled: showQr` e sem `queryFn` condicional. Assim:
+   - Enquanto `showQr` for `false`, a query fica desabilitada (não roda, não suspende).
+   - Ao clicar, roda em background sem congelar a página.
+2. Ajustar a renderização do card `{showQr && (...)}` para os três estados vindos de `useQuery`:
+   - `qr.isLoading` → "Carregando…"
+   - `qr.data?.ok && qr.data.image` → `<img>` do QR
+   - `qr.isError` ou `qr.data?.ok === false` → mensagem em português com o erro (usar `qr.error?.message` ou `qr.data.error`) e um botão "Tentar novamente" que chama `qr.refetch()`.
+3. Manter o `refetchInterval: 6000` só quando `showQr` estiver ligado (Z-API renova o QR a cada poucos segundos).
+4. Não mexer em `getZapiQr` no servidor, nem no cliente Z-API, nem em envs — o problema é 100% de renderização no cliente.
 
-### Passo 1 — Botão "Salvar telefone" ao lado do campo (ficha)
-Adicionar, logo abaixo do campo **WhatsApp / telefone** na ficha, um bloco compacto:
-- Chip mostrando o status atual ("Falta DDD", "Número OK", "Número inválido").
-- Quando falta DDD e o número tem 8-9 dígitos, sugestão automática pelo `suggestDddFor(cidade, uf)` (já existe). Botão "Aplicar DDD 51 (Porto Alegre)" que prefixa e salva num clique.
-- Dropdown alternativo com todos os DDDs (`ALL_DDDS`) pro caso da sugestão estar errada.
-- Botão **Salvar telefone** que envia SÓ `{ id, phone_raw }` (não depende do resto do form estar válido).
-- Após salvar: `q.refetch()` da ficha + `queryClient.invalidateQueries({ queryKey: ["contacts-*"] })` para atualizar listagem, facets e chips.
+## Observações
 
-Isso resolve 90% dos casos com 1 clique, sem depender do "Salvar alterações" global.
-
-### Passo 2 — Robustecer o "Salvar alterações" global
-No `save()` da ficha:
-- Fazer o `parse` do form no cliente com `updateSchema.safeParse` **antes** de chamar o servidor. Em caso de erro, montar mensagem em português citando o campo e destacar a borda do input em vermelho.
-- Adicionar `console.error("updateContact failed:", e)` no catch.
-- Trocar toast genérico por mensagem específica ("E-mail inválido", "Telefone muito longo", etc.).
-- Após sucesso, invalidar também as queries da lista: `["contacts-rich", "contacts-quick-counts", "contacts-status-facets"]`.
-
-### Passo 3 — Normalizar o schema para aceitar entrada humana
-Ajustes pequenos no `updateSchema` para reduzir rejeições espúrias:
-- `phone_raw`: aumentar para `max(60)` e converter string vazia em `null`.
-- `uf`: aceitar minúsculo e normalizar no handler (já faz `toUpperCase`, mas o `.length(2)` roda antes).
-- `email`: quando string vazia, converter para `null` antes do parse.
-- `formas_ajuda`/`disponibilidade`: subir `max` do item para 60 (compatível com slugs atuais).
-
-Sem migration, sem mudar o banco.
-
-### Passo 4 — Confirmar que o status muda visualmente
-Depois de aplicar DDD:
-- O trigger `contacts_phone_fill` já recalcula `phone_e164`, `phone_status`, `phone_last8` automaticamente (confirmado nos triggers do banco).
-- A ficha refaz o fetch e mostra o novo chip "Número OK".
-- A listagem atualiza contagem no chip "Números OK" / "Falta DDD" via invalidação.
-
-### Passo 5 — Validação real no navegador
-Playwright abrindo `/contatos`, filtrando "Falta DDD", entrando na primeira ficha, clicando "Aplicar DDD 51", confirmando que:
-1. Toast "Telefone atualizado — Número OK".
-2. Chip da ficha muda para "Número OK".
-3. Voltando à listagem, o contato sai do filtro "Falta DDD".
-
-Screenshot de cada etapa.
-
----
-
-## Arquivos afetados
-
-- `src/routes/_authenticated/contatos.$id.tsx` — bloco de telefone + robustecer save + invalidar caches.
-- `src/lib/contacts.functions.ts` — nova fn `saveContactPhone({ id, phone_raw })` que só toca no telefone; pequenos ajustes no `updateSchema`.
-- Nenhuma mudança no banco, nenhum enum novo, nenhum trigger tocado.
-
-## Riscos
-
-Baixo. A ação nova é escopo mínimo (1 campo). O save global fica com validação mais tolerante mas continua respeitando os limites do banco. Nada apagado.
+- Nada de mudanças de banco, envs, políticas ou automações.
+- Após publicar (botão "Update" no dialog de Publish), a correção passa a valer no `.lovable.app`. Alterações de frontend só chegam ao publicado depois desse clique.
+- Se depois de publicar o QR ainda vier com erro, o texto exato aparecerá no card (hoje ficava escondido pelo suspend) e a partir dele conseguimos agir com precisão.

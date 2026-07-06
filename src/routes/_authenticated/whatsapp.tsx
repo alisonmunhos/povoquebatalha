@@ -33,9 +33,10 @@ function WhatsAppPage() {
   });
 
   const [showQr, setShowQr] = useState(false);
-  const qr = useSuspenseQuery({
-    queryKey: ["zapi-qr", showQr],
-    queryFn: () => (showQr ? qrFn() : Promise.resolve(null)),
+  const qr = useQuery({
+    queryKey: ["zapi-qr"],
+    queryFn: () => qrFn(),
+    enabled: showQr,
     refetchInterval: showQr ? 6000 : false,
   });
 
@@ -173,8 +174,22 @@ function WhatsAppPage() {
               alt="QR Code Z-API"
               className="mt-3 w-full max-w-xs border rounded"
             />
-          ) : qr.data && !qr.data.ok ? (
-            <p className="mt-3 text-sm text-destructive">{qr.data.error}</p>
+          ) : qr.isError || (qr.data && !qr.data.ok) ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-destructive">
+                {qr.data && !qr.data.ok
+                  ? qr.data.error
+                  : qr.error instanceof Error
+                    ? qr.error.message
+                    : "Não foi possível carregar o QR Code."}
+              </p>
+              <button
+                onClick={() => qr.refetch()}
+                className="text-xs rounded-md border px-3 py-1.5 hover:bg-muted inline-flex items-center gap-1.5"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
+              </button>
+            </div>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">Carregando…</p>
           )}
