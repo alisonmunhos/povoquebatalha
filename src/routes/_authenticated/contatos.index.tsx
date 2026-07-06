@@ -55,6 +55,7 @@ function Contatos() {
   const createTagFn = useServerFn(createTag);
   const checkWppFn = useServerFn(checkWhatsappForContacts);
   const quickCountsFn = useServerFn(contactsQuickCounts);
+  const facetsFn = useServerFn(contactsStatusFacets);
 
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
