@@ -214,6 +214,11 @@ function Contatos() {
     queryFn: () => quickCountsFn(),
     staleTime: 30_000,
   });
+  const facetsQ = useQuery({
+    queryKey: ["contacts-status-facets"],
+    queryFn: () => facetsFn(),
+    staleTime: 30_000,
+  });
 
   function applyQuickFilter(patch: Partial<CrmFilters>) {
     setFilters((f) => ({ archived: "nao", ...patch }));
