@@ -62,8 +62,8 @@ export function ActiveFiltersChips({
   if (filters.consent) chips.push({ key: "cs", label: `Consentimento: ${filters.consent}`, onRemove: remove("consent") });
   if (filters.optOut) chips.push({ key: "oo", label: `Opt-out: ${filters.optOut}`, onRemove: remove("optOut") });
   if (filters.bloqueado) chips.push({ key: "bl", label: `Bloqueado: ${filters.bloqueado}`, onRemove: remove("bloqueado") });
-  for (const v of filters.phone_statuses ?? []) chips.push({ key: `ps-${v}`, label: `Telefone: ${v}`, onRemove: removeFromArr("phone_statuses", v) });
-  for (const v of filters.whatsapp_statuses ?? []) chips.push({ key: `ws-${v}`, label: `WhatsApp: ${v}`, onRemove: removeFromArr("whatsapp_statuses", v) });
+  for (const v of filters.phone_statuses ?? []) chips.push({ key: `ps-${v}`, label: `Número: ${PHONE_STATUS_LABEL[v] ?? v}`, onRemove: removeFromArr("phone_statuses", v) });
+  for (const v of filters.whatsapp_statuses ?? []) chips.push({ key: `ws-${v}`, label: `WhatsApp: ${WHATSAPP_STATUS_LABEL[v] ?? v}`, onRemove: removeFromArr("whatsapp_statuses", v) });
   for (const v of filters.lifecycle_statuses ?? []) chips.push({ key: `ls-${v}`, label: `Status: ${LIFECYCLE_LABEL[v] ?? v}`, onRemove: removeFromArr("lifecycle_statuses", v) });
   if (filters.archived && filters.archived !== "nao")
     chips.push({ key: "ar", label: `Arquivados: ${filters.archived}`, onRemove: () => onChange({ ...filters, archived: "nao" }) });
