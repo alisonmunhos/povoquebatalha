@@ -1,20 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   getContact, updateContact, archiveContact, setOptOut,
   getContactHistory, listAllTags, createTag, setContactTag,
-  deleteContact, getContactSourceEvents,
+  deleteContact, getContactSourceEvents, saveContactPhone,
 } from "@/lib/contacts.functions";
 import { listContactLogsUnified } from "@/lib/contact-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
-import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
+import { PHONE_STATUS_LABEL, PHONE_STATUS_BADGE, suggestDddFor, ALL_DDDS } from "@/lib/phone-labels";
+
 
 const TIPO_OPTIONS = [
   { v: "apoiador", l: "Apoiador" }, { v: "voluntario", l: "Voluntário" },
