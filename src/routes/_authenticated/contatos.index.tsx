@@ -483,7 +483,14 @@ function Contatos() {
               <th className="text-left px-3 py-3">
                 <ColumnSortHeader label="Nome" state={nameSortState} onCycle={cycleNameSort} />
               </th>
-              <th className="text-left px-3 py-3">WhatsApp</th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Número"
+                  options={numeroOpts}
+                  selected={filters.phone_statuses ?? []}
+                  onChange={(v) => setListFilter("phone_statuses", v)}
+                />
+              </th>
               <th className="text-left px-3 py-3">
                 <ColumnFilterHeader
                   label="Cidade"
