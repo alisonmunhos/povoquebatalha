@@ -538,7 +538,13 @@ function Contatos() {
                   <td className="px-3 py-3 font-medium">
                     <Link to="/contatos/$id" params={{ id: c.id }} className="hover:underline">{c.nome}</Link>
                   </td>
-                  <td className="px-3 py-3 tabular-nums text-muted-foreground">{formatPhoneBR(c.phone_e164)}</td>
+                  <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                    {c.phone_e164
+                      ? formatPhoneBR(c.phone_e164)
+                      : c.phone_raw
+                        ? <span className="italic opacity-70" title="Número original, sem DDD normalizado">{c.phone_raw}</span>
+                        : "—"}
+                  </td>
                   <td className="px-3 py-3 text-muted-foreground">{c.cidade || "—"}</td>
                   <td className="px-3 py-3 text-muted-foreground">{c.bairro || "—"}</td>
                   <td className="px-3 py-3">
