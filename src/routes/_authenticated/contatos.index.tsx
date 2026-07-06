@@ -279,7 +279,7 @@ function Contatos() {
     setSort((s) => (s === "name" ? "name-desc" : s === "name-desc" ? "recent" : "name"));
     setPage(1);
   }
-  function setListFilter(key: "cidades" | "bairros" | "tag_ids" | "lifecycle_statuses", values: string[]) {
+  function setListFilter(key: "cidades" | "bairros" | "tag_ids" | "lifecycle_statuses" | "phone_statuses", values: string[]) {
     setFilters((f) => {
       const next = { ...f } as CrmFilters;
       if (values.length === 0) delete (next as Record<string, unknown>)[key];
