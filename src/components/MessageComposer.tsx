@@ -121,24 +121,45 @@ export function MessageComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.link_url]);
 
-  function insertVariable(name: string) {
-    const token = `{{${name}}}`;
+  function insertAtCursor(text: string) {
     const el = textareaRef.current;
     if (!el) {
-      onChange({ ...value, body: (value.body ?? "") + token });
+      onChange({ ...value, body: (value.body ?? "") + text });
       return;
     }
     const start = el.selectionStart ?? value.body.length;
     const end = el.selectionEnd ?? value.body.length;
-    const next = value.body.slice(0, start) + token + value.body.slice(end);
+    const next = value.body.slice(0, start) + text + value.body.slice(end);
     onChange({ ...value, body: next });
-    // reposiciona cursor após inserção
     requestAnimationFrame(() => {
       el.focus();
-      const pos = start + token.length;
+      const pos = start + text.length;
       el.setSelectionRange(pos, pos);
     });
   }
+
+  function wrapSelection(before: string, after: string = before) {
+    const el = textareaRef.current;
+    if (!el) {
+      onChange({ ...value, body: (value.body ?? "") + before + after });
+      return;
+    }
+    const start = el.selectionStart ?? value.body.length;
+    const end = el.selectionEnd ?? value.body.length;
+    const sel = value.body.slice(start, end);
+    const next = value.body.slice(0, start) + before + sel + after + value.body.slice(end);
+    onChange({ ...value, body: next });
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + before.length + sel.length + after.length;
+      el.setSelectionRange(sel ? pos : start + before.length, pos);
+    });
+  }
+
+  function insertVariable(name: string) {
+    insertAtCursor(`{{${name}}}`);
+  }
+
 
   async function onAttach(file: File) {
     if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
