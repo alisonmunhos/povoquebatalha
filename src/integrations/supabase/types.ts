@@ -1283,8 +1283,10 @@ export type Database = {
           event_key: string
           id: string
           is_active: boolean
+          is_fixed: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
+          success_screen_order: string
           title: string
           tracked_form_link_id: string | null
           updated_at: string
@@ -1298,8 +1300,10 @@ export type Database = {
           event_key: string
           id?: string
           is_active?: boolean
+          is_fixed?: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
+          success_screen_order?: string
           title: string
           tracked_form_link_id?: string | null
           updated_at?: string
@@ -1313,8 +1317,10 @@ export type Database = {
           event_key?: string
           id?: string
           is_active?: boolean
+          is_fixed?: boolean
           slug?: string
           source_form_type?: Database["public"]["Enums"]["source_form_type"]
+          success_screen_order?: string
           title?: string
           tracked_form_link_id?: string | null
           updated_at?: string
