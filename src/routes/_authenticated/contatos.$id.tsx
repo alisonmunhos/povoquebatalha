@@ -204,7 +204,7 @@ function ContatoFicha() {
     }
   }
 
-  const tagIds2Unused = null; void tagIds2Unused;
+  
   const tagIds = new Set((q.data.tags ?? []).map((t) => t!.id));
   const phoneDigits = (c.phone_e164 ?? "").replace(/\D/g, "");
 
