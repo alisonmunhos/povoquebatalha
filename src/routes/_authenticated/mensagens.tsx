@@ -21,7 +21,8 @@ export const Route = createFileRoute("/_authenticated/mensagens")({
 type Tpl = {
   id: string; kind: "system" | "quick_reply"; event_key: string | null; shortcut: string | null;
   title: string; category: string | null; body: string; variables: unknown;
-  link: string | null; media_url: string | null;
+  link: string | null; link_title: string | null; link_description: string | null; link_image: string | null;
+  media_url: string | null;
   media_path: string | null; media_mime: string | null; media_filename: string | null;
   active: boolean; updated_at: string;
 };
