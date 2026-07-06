@@ -47,7 +47,15 @@ type Props = {
   showPreview?: boolean;
   bodyRows?: number;
   bodyPlaceholder?: string;
+  /** Lista de variáveis exibidas como chips clicáveis (default: COMPOSER_VARIABLES). */
+  variables?: ReadonlyArray<(typeof MESSAGE_VARIABLES)[number]>;
+  /** Mostra barra de formatação WhatsApp (negrito/itálico/riscado/mono/lista). */
+  showFormatting?: boolean;
+  /** Mostra chips de emojis rápidos. */
+  showEmojis?: boolean;
 };
+
+const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️", "🔗", "📍", "⏰", "😀", "👍", "🔥"];
 
 /** Renderiza variáveis com valores de exemplo (mesmo motor usado no envio real). */
 function renderExample(body: string): string {
@@ -68,6 +76,9 @@ export function MessageComposer({
   showPreview = true,
   bodyRows = 7,
   bodyPlaceholder = "Escreva sua mensagem. Use as variáveis abaixo para personalizar.",
+  variables = COMPOSER_VARIABLES,
+  showFormatting = true,
+  showEmojis = true,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const signUpload = useServerFn(signCampaignMediaUpload);
