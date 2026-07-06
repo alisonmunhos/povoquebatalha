@@ -225,35 +225,44 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     const rendered = renderVars(data.message ?? "", c);
     const hasMedia = Boolean(data.media_path);
     if (!hasMedia && !rendered.trim()) throw new Error("Escreva uma mensagem ou anexe um arquivo.");
-    const phoneDigits = phone.replace(/\D+/g, "");
 
-    let zaap: { zaapId?: string; messageId?: string; id?: string } | null = null;
-    let sendError: string | null = null;
-    try {
-      const { zapi } = await import("@/integrations/zapi/client.server");
-      if (hasMedia && data.media_path) {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { data: signed, error: sErr } = await supabaseAdmin
-          .storage.from("campaign-media").createSignedUrl(data.media_path, 60 * 60);
-        if (sErr || !signed?.signedUrl) throw new Error("Falha ao gerar URL do anexo.");
-        const mime = (data.media_mime ?? "").toLowerCase();
-        if (mime.startsWith("image/")) {
-          zaap = await zapi.sendImage(phoneDigits, signed.signedUrl, rendered || undefined);
-        } else if (mime.startsWith("audio/")) {
-          zaap = await zapi.sendAudio(phoneDigits, signed.signedUrl);
-          if (rendered.trim()) await zapi.sendText(phoneDigits, rendered);
-        } else {
-          // Documento (PDF, etc.): deriva extensão do filename
-          const ext = (data.media_filename ?? "").split(".").pop()?.toLowerCase() ?? "pdf";
-          zaap = await zapi.sendDocument(phoneDigits, signed.signedUrl, data.media_filename ?? "arquivo", ext);
-          if (rendered.trim()) await zapi.sendText(phoneDigits, rendered);
-        }
-      } else {
-        zaap = await zapi.sendText(phoneDigits, rendered);
-      }
-    } catch (e) {
-      sendError = e instanceof Error ? e.message : String(e);
+    // Assina anexo (se houver) para o motor unificado.
+    let attachment: { signedUrl: string; mime: string; filename: string } | null = null;
+    if (hasMedia && data.media_path) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: signed, error: sErr } = await supabaseAdmin
+        .storage.from("campaign-media").createSignedUrl(data.media_path, 60 * 60);
+      if (sErr || !signed?.signedUrl) throw new Error("Falha ao gerar URL do anexo.");
+      attachment = {
+        signedUrl: signed.signedUrl,
+        mime: data.media_mime ?? "application/octet-stream",
+        filename: data.media_filename ?? data.media_path.split("/").pop() ?? "arquivo",
+      };
     }
+
+    const { sendMessage, readUseSendLinkFlag, detectUrl } = await import("@/lib/wa-send.server");
+    const useSendLink = await readUseSendLinkFlag();
+    const detectedUrl = detectUrl(rendered);
+    const linkMeta = detectedUrl
+      ? { url: detectedUrl, title: null, description: null, image: null, status: "preview_provavel" as const }
+      : null;
+
+    const result = await sendMessage({
+      contact: c,
+      text: rendered,
+      textAlreadyRendered: true,
+      link: linkMeta,
+      attachment,
+      useSendLink,
+      origin: "inbox",
+      skipValidations: true, // já validamos opt-out/consent/whatsapp_status acima
+    });
+
+    const sendError = result.ok ? null : (result.error ?? result.fallback_reason ?? "erro desconhecido");
+    const zaap: { zaapId?: string; messageId?: string; id?: string } = {
+      zaapId: result.zaap_id ?? undefined,
+      messageId: result.message_id ?? undefined,
+    };
 
     // Conteúdo salvo: se veio anexo sem texto, marca [anexo]
     const conteudoSalvo = rendered.trim() || (hasMedia ? `[anexo: ${data.media_filename ?? "arquivo"}]` : "");
@@ -269,12 +278,18 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         conteudo: conteudoSalvo,
         status: sendError ? "erro" : "enviado",
         erro: sendError,
-        zaap_id: zaap?.zaapId ?? null,
-        message_id: zaap?.messageId ?? zaap?.id ?? null,
+        zaap_id: zaap.zaapId ?? null,
+        message_id: zaap.messageId ?? zaap.id ?? null,
         media_path: data.media_path ?? null,
         media_mime: data.media_mime ?? null,
         media_filename: data.media_filename ?? null,
-      })
+        endpoint_used: result.endpoint_used,
+        preview_status: result.preview_status,
+        link_url: result.link_url,
+        link_title: result.link_title,
+        link_description: result.link_description,
+        link_image: result.link_image,
+      } as never)
       .select().single();
     if (insErr) throw insErr;
 
