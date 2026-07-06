@@ -21,6 +21,7 @@ import { Route as AceitarConviteRouteImport } from './routes/aceitar-convite'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
+import { Route as FSlugRouteImport } from './routes/f.$slug'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedTerritorioRouteImport } from './routes/_authenticated/territorio'
@@ -37,11 +38,13 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
+import { Route as AuthenticatedEntradaDadosIndexRouteImport } from './routes/_authenticated/entrada-dados.index'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as AuthenticatedUsuariosPapeisRouteImport } from './routes/_authenticated/usuarios.papeis'
+import { Route as AuthenticatedEntradaDadosIdRouteImport } from './routes/_authenticated/entrada-dados.$id'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
 import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
@@ -52,6 +55,7 @@ import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/publi
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
 import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public/forms/inscrever'
 import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
+import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/forms/$slug'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
@@ -111,6 +115,11 @@ const IndexRoute = IndexRouteImport.update({
 const OptOutTokenRoute = OptOutTokenRouteImport.update({
   id: '/opt-out/$token',
   path: '/opt-out/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FSlugRoute = FSlugRouteImport.update({
+  id: '/f/$slug',
+  path: '/f/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
@@ -196,6 +205,12 @@ const AuthenticatedAgitacaoRoute = AuthenticatedAgitacaoRouteImport.update({
   path: '/agitacao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEntradaDadosIndexRoute =
+  AuthenticatedEntradaDadosIndexRouteImport.update({
+    id: '/entrada-dados/',
+    path: '/entrada-dados/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedContatosIndexRoute =
   AuthenticatedContatosIndexRouteImport.update({
     id: '/contatos/',
@@ -224,6 +239,12 @@ const AuthenticatedUsuariosPapeisRoute =
     id: '/papeis',
     path: '/papeis',
     getParentRoute: () => AuthenticatedUsuariosRoute,
+  } as any)
+const AuthenticatedEntradaDadosIdRoute =
+  AuthenticatedEntradaDadosIdRouteImport.update({
+    id: '/entrada-dados/$id',
+    path: '/entrada-dados/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   id: '/contatos/$id',
@@ -281,6 +302,11 @@ const ApiPublicFormsCadastroAgitadorRoute =
     path: '/api/public/forms/cadastro-agitador',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicFormsSlugRoute = ApiPublicFormsSlugRouteImport.update({
+  id: '/api/public/forms/$slug',
+  path: '/api/public/forms/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   id: '/api/public/cep/$cep',
   path: '/api/public/cep/$cep',
@@ -314,17 +340,21 @@ export interface FileRoutesByFullPath {
   '/territorio': typeof AuthenticatedTerritorioRoute
   '/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
+  '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
+  '/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
@@ -358,17 +388,21 @@ export interface FileRoutesByTo {
   '/territorio': typeof AuthenticatedTerritorioRoute
   '/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
+  '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
+  '/entrada-dados': typeof AuthenticatedEntradaDadosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
@@ -405,17 +439,21 @@ export interface FileRoutesById {
   '/_authenticated/territorio': typeof AuthenticatedTerritorioRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
+  '/_authenticated/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/_authenticated/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
+  '/_authenticated/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
@@ -452,17 +490,21 @@ export interface FileRouteTypes {
     | '/territorio'
     | '/usuarios'
     | '/whatsapp'
+    | '/f/$slug'
     | '/opt-out/$token'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
     | '/contatos/$id'
+    | '/entrada-dados/$id'
     | '/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/campanhas/'
     | '/comunicacao/'
     | '/contatos/'
+    | '/entrada-dados/'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
@@ -496,17 +538,21 @@ export interface FileRouteTypes {
     | '/territorio'
     | '/usuarios'
     | '/whatsapp'
+    | '/f/$slug'
     | '/opt-out/$token'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
     | '/contatos/$id'
+    | '/entrada-dados/$id'
     | '/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/campanhas'
     | '/comunicacao'
     | '/contatos'
+    | '/entrada-dados'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
@@ -542,17 +588,21 @@ export interface FileRouteTypes {
     | '/_authenticated/territorio'
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
+    | '/f/$slug'
     | '/opt-out/$token'
     | '/_authenticated/campanhas/$id'
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
     | '/_authenticated/contatos/$id'
+    | '/_authenticated/entrada-dados/$id'
     | '/_authenticated/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/_authenticated/campanhas/'
     | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
+    | '/_authenticated/entrada-dados/'
     | '/api/public/cep/$cep'
+    | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/inscrever'
     | '/api/public/forms/opt-out'
@@ -573,9 +623,11 @@ export interface RootRouteChildren {
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  FSlugRoute: typeof FSlugRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
+  ApiPublicFormsSlugRoute: typeof ApiPublicFormsSlugRoute
   ApiPublicFormsCadastroAgitadorRoute: typeof ApiPublicFormsCadastroAgitadorRoute
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
@@ -668,6 +720,13 @@ declare module '@tanstack/react-router' {
       path: '/opt-out/$token'
       fullPath: '/opt-out/$token'
       preLoaderRoute: typeof OptOutTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/f/$slug': {
+      id: '/f/$slug'
+      path: '/f/$slug'
+      fullPath: '/f/$slug'
+      preLoaderRoute: typeof FSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/whatsapp': {
@@ -782,6 +841,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgitacaoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/entrada-dados/': {
+      id: '/_authenticated/entrada-dados/'
+      path: '/entrada-dados'
+      fullPath: '/entrada-dados/'
+      preLoaderRoute: typeof AuthenticatedEntradaDadosIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/contatos/': {
       id: '/_authenticated/contatos/'
       path: '/contatos'
@@ -816,6 +882,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/usuarios/papeis'
       preLoaderRoute: typeof AuthenticatedUsuariosPapeisRouteImport
       parentRoute: typeof AuthenticatedUsuariosRoute
+    }
+    '/_authenticated/entrada-dados/$id': {
+      id: '/_authenticated/entrada-dados/$id'
+      path: '/entrada-dados/$id'
+      fullPath: '/entrada-dados/$id'
+      preLoaderRoute: typeof AuthenticatedEntradaDadosIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/contatos/$id': {
       id: '/_authenticated/contatos/$id'
@@ -887,6 +960,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormsCadastroAgitadorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/forms/$slug': {
+      id: '/api/public/forms/$slug'
+      path: '/api/public/forms/$slug'
+      fullPath: '/api/public/forms/$slug'
+      preLoaderRoute: typeof ApiPublicFormsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cep/$cep': {
       id: '/api/public/cep/$cep'
       path: '/api/public/cep/$cep'
@@ -948,8 +1028,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedCampanhasIdRoute: typeof AuthenticatedCampanhasIdRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
+  AuthenticatedEntradaDadosIdRoute: typeof AuthenticatedEntradaDadosIdRoute
   AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
   AuthenticatedContatosIndexRoute: typeof AuthenticatedContatosIndexRoute
+  AuthenticatedEntradaDadosIndexRoute: typeof AuthenticatedEntradaDadosIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -971,8 +1053,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedCampanhasIdRoute: AuthenticatedCampanhasIdRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
+  AuthenticatedEntradaDadosIdRoute: AuthenticatedEntradaDadosIdRoute,
   AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
   AuthenticatedContatosIndexRoute: AuthenticatedContatosIndexRoute,
+  AuthenticatedEntradaDadosIndexRoute: AuthenticatedEntradaDadosIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -990,9 +1074,11 @@ const rootRouteChildren: RootRouteChildren = {
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  FSlugRoute: FSlugRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
+  ApiPublicFormsSlugRoute: ApiPublicFormsSlugRoute,
   ApiPublicFormsCadastroAgitadorRoute: ApiPublicFormsCadastroAgitadorRoute,
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,
   ApiPublicFormsOptOutRoute: ApiPublicFormsOptOutRoute,

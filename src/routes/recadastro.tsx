@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { z } from "zod";
 import { PublicFormRenderer } from "@/components/PublicFormRenderer";
 
@@ -21,6 +21,9 @@ export const Route = createFileRoute("/recadastro")({
 });
 
 export function Recadastro() {
-  const { t, ref } = Route.useSearch();
+  // strict: false porque este componente também é renderizado sob /atualizacao
+  // (atualizacao.tsx reaproveita Recadastro como component) — Route.useSearch()
+  // exigiria estar exatamente na rota /recadastro e quebra nesse outro contexto.
+  const { t, ref } = useSearch({ strict: false }) as { t?: string; ref?: string };
   return <PublicFormRenderer slug="recadastro-fixo" refToken={ref} recadToken={t} />;
 }

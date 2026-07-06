@@ -367,7 +367,7 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
         _contact_id: novo.id,
         _source_user_id: context.userId,
         _source_module: "inbox",
-        _source_form_type: null as unknown as string,
+        _source_form_type: null as unknown as "cadastro_completo" | "receber_informacoes",
         _source_link_id: null as unknown as string,
         _event_type: "contato_criado",
         _metadata: { via: "inbox_quick_create" },

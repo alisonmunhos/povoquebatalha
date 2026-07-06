@@ -7,7 +7,7 @@ import { FIXED_FORM_PUBLIC_PATHS } from "@/lib/form-field-catalog";
 import { Plus, ClipboardList, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/entrada-dados")({
+export const Route = createFileRoute("/_authenticated/entrada-dados/")({
   head: () => ({ meta: [{ title: "Entrada de Dados" }] }),
   component: EntradaDadosLista,
 });

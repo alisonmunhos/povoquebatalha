@@ -695,10 +695,12 @@ export type Database = {
           created_by: string | null
           created_by_source_user_id: string | null
           custom_fields: Json
+          disponibilidade: Json
           email: string | null
           email_secundario: string | null
           endereco: string | null
           endereco_completo: string | null
+          faixa_etaria: string | null
           formas_ajuda: Json
           formas_ajuda_outro: string | null
           geocoded_at: string | null
@@ -755,8 +757,10 @@ export type Database = {
             | Database["public"]["Enums"]["source_module"]
             | null
           profissao: string | null
+          quem_indicou: string | null
           quer_voluntariar: boolean | null
           recad_token: string | null
+          rede_social: string | null
           referencia: string | null
           source_captured_at: string | null
           source_form_type:
@@ -769,6 +773,7 @@ export type Database = {
           uf: string | null
           updated_at: string
           whatsapp_status: Database["public"]["Enums"]["whatsapp_status"] | null
+          zona_eleitoral: string | null
         }
         Insert: {
           arquivado_at?: string | null
@@ -785,10 +790,12 @@ export type Database = {
           created_by?: string | null
           created_by_source_user_id?: string | null
           custom_fields?: Json
+          disponibilidade?: Json
           email?: string | null
           email_secundario?: string | null
           endereco?: string | null
           endereco_completo?: string | null
+          faixa_etaria?: string | null
           formas_ajuda?: Json
           formas_ajuda_outro?: string | null
           geocoded_at?: string | null
@@ -845,8 +852,10 @@ export type Database = {
             | Database["public"]["Enums"]["source_module"]
             | null
           profissao?: string | null
+          quem_indicou?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
+          rede_social?: string | null
           referencia?: string | null
           source_captured_at?: string | null
           source_form_type?:
@@ -861,6 +870,7 @@ export type Database = {
           whatsapp_status?:
             | Database["public"]["Enums"]["whatsapp_status"]
             | null
+          zona_eleitoral?: string | null
         }
         Update: {
           arquivado_at?: string | null
@@ -877,10 +887,12 @@ export type Database = {
           created_by?: string | null
           created_by_source_user_id?: string | null
           custom_fields?: Json
+          disponibilidade?: Json
           email?: string | null
           email_secundario?: string | null
           endereco?: string | null
           endereco_completo?: string | null
+          faixa_etaria?: string | null
           formas_ajuda?: Json
           formas_ajuda_outro?: string | null
           geocoded_at?: string | null
@@ -937,8 +949,10 @@ export type Database = {
             | Database["public"]["Enums"]["source_module"]
             | null
           profissao?: string | null
+          quem_indicou?: string | null
           quer_voluntariar?: boolean | null
           recad_token?: string | null
+          rede_social?: string | null
           referencia?: string | null
           source_captured_at?: string | null
           source_form_type?:
@@ -953,6 +967,7 @@ export type Database = {
           whatsapp_status?:
             | Database["public"]["Enums"]["whatsapp_status"]
             | null
+          zona_eleitoral?: string | null
         }
         Relationships: [
           {
@@ -1161,6 +1176,158 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_custom_answers: {
+        Row: {
+          answer_text: string | null
+          contact_id: string
+          created_at: string
+          form_definition_id: string
+          id: string
+          question_id: string
+          question_label: string
+        }
+        Insert: {
+          answer_text?: string | null
+          contact_id: string
+          created_at?: string
+          form_definition_id: string
+          id?: string
+          question_id: string
+          question_label: string
+        }
+        Update: {
+          answer_text?: string | null
+          contact_id?: string
+          created_at?: string
+          form_definition_id?: string
+          id?: string
+          question_id?: string
+          question_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_custom_answers_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_custom_answers_form_definition_id_fkey"
+            columns: ["form_definition_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_custom_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_definition_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_definition_questions: {
+        Row: {
+          catalog_field_key: string | null
+          created_at: string
+          form_definition_id: string
+          help_text: string | null
+          id: string
+          label: string
+          order_index: number
+          required: boolean
+          source: string
+        }
+        Insert: {
+          catalog_field_key?: string | null
+          created_at?: string
+          form_definition_id: string
+          help_text?: string | null
+          id?: string
+          label: string
+          order_index: number
+          required?: boolean
+          source: string
+        }
+        Update: {
+          catalog_field_key?: string | null
+          created_at?: string
+          form_definition_id?: string
+          help_text?: string | null
+          id?: string
+          label?: string
+          order_index?: number
+          required?: boolean
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_definition_questions_form_definition_id_fkey"
+            columns: ["form_definition_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_definitions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_key: string
+          id: string
+          is_active: boolean
+          slug: string
+          source_form_type: Database["public"]["Enums"]["source_form_type"]
+          title: string
+          tracked_form_link_id: string | null
+          updated_at: string
+          updated_by: string | null
+          whatsapp_button_enabled: boolean
+          whatsapp_button_message: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_key: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          source_form_type: Database["public"]["Enums"]["source_form_type"]
+          title: string
+          tracked_form_link_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          whatsapp_button_enabled?: boolean
+          whatsapp_button_message?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_key?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          source_form_type?: Database["public"]["Enums"]["source_form_type"]
+          title?: string
+          tracked_form_link_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          whatsapp_button_enabled?: boolean
+          whatsapp_button_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_definitions_tracked_form_link_id_fkey"
+            columns: ["tracked_form_link_id"]
+            isOneToOne: false
+            referencedRelation: "tracked_form_links"
             referencedColumns: ["id"]
           },
         ]
