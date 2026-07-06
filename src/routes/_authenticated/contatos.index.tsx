@@ -517,8 +517,8 @@ function Contatos() {
               </th>
               <th className="text-left px-3 py-3">
                 <ColumnFilterHeader
-                  label="Status"
-                  options={statusOpts}
+                  label="Cadastro"
+                  options={cadastroOpts}
                   selected={filters.lifecycle_statuses ?? []}
                   onChange={(v) => setListFilter("lifecycle_statuses", v)}
                   align="end"
