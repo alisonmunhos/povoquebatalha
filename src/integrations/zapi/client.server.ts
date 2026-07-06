@@ -104,6 +104,11 @@ export const zapi = {
         linkType: payload.linkType ?? "LARGE",
       }),
     }),
+  // Verifica se um número existe no WhatsApp. Z-API: GET /phone-exists/{phone}
+  phoneExists: (phone: string) =>
+    zapiFetch<{ exists?: boolean; inputPhone?: string }>(`/phone-exists/${encodeURIComponent(phone)}`, {
+      method: "GET",
+    }),
 };
 
 export function hasZapiEnv(): boolean {

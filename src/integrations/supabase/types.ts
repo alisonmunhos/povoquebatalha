@@ -772,6 +772,7 @@ export type Database = {
           tipo_contato: string | null
           uf: string | null
           updated_at: string
+          whatsapp_checked_at: string | null
           whatsapp_status: Database["public"]["Enums"]["whatsapp_status"] | null
           zona_eleitoral: string | null
         }
@@ -867,6 +868,7 @@ export type Database = {
           tipo_contato?: string | null
           uf?: string | null
           updated_at?: string
+          whatsapp_checked_at?: string | null
           whatsapp_status?:
             | Database["public"]["Enums"]["whatsapp_status"]
             | null
@@ -964,6 +966,7 @@ export type Database = {
           tipo_contato?: string | null
           uf?: string | null
           updated_at?: string
+          whatsapp_checked_at?: string | null
           whatsapp_status?:
             | Database["public"]["Enums"]["whatsapp_status"]
             | null
