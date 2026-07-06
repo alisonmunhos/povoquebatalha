@@ -7,7 +7,7 @@ import {
   saveFormConfirmationMessage, mintFormTrackedLink,
 } from "@/lib/form-definitions.functions";
 import { FORM_FIELD_CATALOG, CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
-import { generateQrDataUrl } from "@/lib/qr-code.client";
+
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
