@@ -42,6 +42,8 @@ export const FIELD_KEYS = [
   "zona_eleitoral",
   "faixa_etaria",
   "disponibilidade",
+  "formas_ajuda",
+  "formas_ajuda_outro",
   "raw",
 ] as const;
 export type FieldKey = (typeof FIELD_KEYS)[number];
@@ -150,6 +152,46 @@ function parseDisponibilidade(v: string | null | undefined): string[] {
   return out;
 }
 
+// Mesmo conjunto canônico usado em crm-filter-options.functions.ts (FA_LABELS) e
+// contatos.$id.tsx (FORMAS_AJUDA) — mantido em sincronia manualmente.
+const FORMAS_AJUDA_VALIDAS = [
+  "panfletagem_banquinha", "compartilhar_whatsapp", "compartilhar_redes", "participar_eventos",
+  "ajudar_organizacao", "mobilizar_bairro", "adesivar_carro", "plaquinha_casa", "receber_panfletos", "outro",
+];
+const FORMAS_AJUDA_NORM_MAP: Record<string, string> = Object.fromEntries(
+  FORMAS_AJUDA_VALIDAS.map((v) => [normalize(v), v]),
+);
+const FORMAS_AJUDA_ALIASES: Record<string, string> = {
+  panfletagem: "panfletagem_banquinha", banquinha: "panfletagem_banquinha",
+  whatsapp: "compartilhar_whatsapp",
+  redessociais: "compartilhar_redes", redessocial: "compartilhar_redes", instagram: "compartilhar_redes", facebook: "compartilhar_redes",
+  eventos: "participar_eventos",
+  organizacao: "ajudar_organizacao",
+  mobilizar: "mobilizar_bairro",
+  adesivo: "adesivar_carro", carro: "adesivar_carro",
+  plaquinha: "plaquinha_casa",
+  panfletos: "receber_panfletos",
+};
+
+function parseFormasAjudaItem(v: string): string | null {
+  const n = normalize(v);
+  if (!n) return null;
+  if (FORMAS_AJUDA_NORM_MAP[n]) return FORMAS_AJUDA_NORM_MAP[n];
+  if (FORMAS_AJUDA_ALIASES[n]) return FORMAS_AJUDA_ALIASES[n];
+  return null;
+}
+
+/** Aceita múltiplos valores separados por vírgula/;, igual ao padrão já usado pra disponibilidade. */
+function parseFormasAjuda(v: string | null | undefined): string[] {
+  if (!v) return [];
+  const out: string[] = [];
+  for (const piece of v.split(/[,;|]/)) {
+    const slug = parseFormasAjudaItem(piece);
+    if (slug && !out.includes(slug)) out.push(slug);
+  }
+  return out;
+}
+
 function suggestMapping(headers: string[]): Record<string, FieldKey> {
   const map: Record<string, FieldKey> = {};
   for (const h of headers) {
@@ -181,6 +223,8 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
     else if (/(zonaeleitoral|localdevotacao|localvotacao|tituloeleitor|sessaoeleitoral)/.test(n)) map[h] = "zona_eleitoral";
     else if (/(faixaetaria|faixadeidade|^idade$)/.test(n)) map[h] = "faixa_etaria";
     else if (/(disponibilidade|diasdisponiveis|horariodisponivel|quandopodeajudar)/.test(n)) map[h] = "disponibilidade";
+    else if (/(formas.*ajuda.*outro|ajudaoutro)/.test(n)) map[h] = "formas_ajuda_outro";
+    else if (/(formas.*ajuda|comoajudar|comovoceajuda)/.test(n)) map[h] = "formas_ajuda";
     else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
     else if (/(^tipo$|tipocontato|tipodecontato|categoriacontato|categoriadecontato)/.test(n)) map[h] = "tipo_contato";
     else if (/(tag|grupo|categoria|segmento|nucleo|setor)/.test(n)) map[h] = "tag";
@@ -245,6 +289,8 @@ type PreviewRow = {
     zona_eleitoral?: string | null;
     faixa_etaria?: string | null;
     disponibilidade?: string[];
+    formas_ajuda?: string[];
+    formas_ajuda_outro?: string | null;
     observacoes?: string[];
     tags?: string[];
     raw?: Record<string, string>;
@@ -408,6 +454,7 @@ export const buildPreview = createServerFn({ method: "POST" })
       if (participaMov == null && movNome) participaMov = true;
       const faixaEtaria = parseFaixaEtaria(getBy("faixa_etaria"));
       const disponibilidade = parseDisponibilidade(getBy("disponibilidade"));
+      const formasAjuda = parseFormasAjuda(getBy("formas_ajuda"));
 
       preview.push({
         linha, nome, email, phone, problemas,
@@ -436,6 +483,8 @@ export const buildPreview = createServerFn({ method: "POST" })
           zona_eleitoral: getBy("zona_eleitoral"),
           faixa_etaria: faixaEtaria,
           disponibilidade,
+          formas_ajuda: formasAjuda,
+          formas_ajuda_outro: getBy("formas_ajuda_outro"),
           observacoes,
           tags,
           raw: Object.keys(rawExtras).length ? rawExtras : undefined,
@@ -610,6 +659,8 @@ export const commitImport = createServerFn({ method: "POST" })
           zona_eleitoral: ex.zona_eleitoral ?? null,
           faixa_etaria: ex.faixa_etaria ?? null,
           disponibilidade: ex.disponibilidade ?? [],
+          formas_ajuda: ex.formas_ajuda ?? [],
+          formas_ajuda_outro: ex.formas_ajuda_outro ?? null,
           tipo_contato: ex.tipo_contato ?? data.tipo,
           observacoes: obsText,
           origem: "import" as const,
@@ -702,6 +753,7 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("rede_social", ex.rede_social ?? null);
             fillIfEmpty("zona_eleitoral", ex.zona_eleitoral ?? null);
             fillIfEmpty("faixa_etaria", ex.faixa_etaria ?? null);
+            fillIfEmpty("formas_ajuda_outro", ex.formas_ajuda_outro ?? null);
             if (obsText) {
               const cur = (existing as Record<string, unknown>).observacoes as string | null;
               merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
