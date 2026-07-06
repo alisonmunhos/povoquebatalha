@@ -523,7 +523,7 @@ function Contatos() {
                     {c.arquivado_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Arquivado</span>}
                     {c.opt_out_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Opt-out</span>}
                     {!c.opt_out_at && c.consentimento_whatsapp && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">Ativo</span>}
-                    {c.phone_status && c.phone_status !== "valido" && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">{c.phone_status}</span>}
+                    {c.phone_status && c.phone_status !== "valido" && <span className={"text-[10px] uppercase px-1.5 py-0.5 rounded " + (PHONE_STATUS_BADGE[c.phone_status] ?? "bg-amber-100 text-amber-700")}>{PHONE_STATUS_LABEL[c.phone_status] ?? c.phone_status}</span>}
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="inline-flex gap-1">
