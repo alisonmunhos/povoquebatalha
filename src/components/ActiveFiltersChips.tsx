@@ -1,21 +1,10 @@
 import { X } from "lucide-react";
 import type { CrmFilters } from "@/lib/crm-filters";
 import type { FilterOptionsBundle } from "@/components/ContactFiltersPanel";
+import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/lib/phone-labels";
 
 type Chip = { key: string; label: string; onRemove: () => void };
 
-const LIFECYCLE_LABEL: Record<string, string> = {
-  importado_aguardando_recadastro: "Importado (aguardando)",
-  link_enviado: "Link enviado",
-  recadastro_iniciado: "Atualização iniciada",
-  recadastro_concluido: "Atualização concluída",
-  nao_respondeu: "Não respondeu",
-  telefone_invalido: "Telefone inválido",
-  precisa_revisao: "Precisa revisão",
-  duplicado_possivel: "Duplicado possível",
-  duplicado_mesclado: "Duplicado mesclado",
-  nao_enviar: "Não enviar",
-};
 
 export function ActiveFiltersChips({
   filters,
