@@ -33,12 +33,12 @@ import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/m
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
-import { Route as AuthenticatedEntradaDadosRouteImport } from './routes/_authenticated/entrada-dados'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
+import { Route as AuthenticatedEntradaDadosIndexRouteImport } from './routes/_authenticated/entrada-dados.index'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
@@ -178,12 +178,6 @@ const AuthenticatedImportarRoute = AuthenticatedImportarRouteImport.update({
   path: '/importar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedEntradaDadosRoute =
-  AuthenticatedEntradaDadosRouteImport.update({
-    id: '/entrada-dados',
-    path: '/entrada-dados',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedDuplicidadesRoute =
   AuthenticatedDuplicidadesRouteImport.update({
     id: '/duplicidades',
@@ -211,6 +205,12 @@ const AuthenticatedAgitacaoRoute = AuthenticatedAgitacaoRouteImport.update({
   path: '/agitacao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEntradaDadosIndexRoute =
+  AuthenticatedEntradaDadosIndexRouteImport.update({
+    id: '/entrada-dados/',
+    path: '/entrada-dados/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedContatosIndexRoute =
   AuthenticatedContatosIndexRouteImport.update({
     id: '/contatos/',
@@ -242,9 +242,9 @@ const AuthenticatedUsuariosPapeisRoute =
   } as any)
 const AuthenticatedEntradaDadosIdRoute =
   AuthenticatedEntradaDadosIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => AuthenticatedEntradaDadosRoute,
+    id: '/entrada-dados/$id',
+    path: '/entrada-dados/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   id: '/contatos/$id',
@@ -329,7 +329,6 @@ export interface FileRoutesByFullPath {
   '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
-  '/entrada-dados': typeof AuthenticatedEntradaDadosRouteWithChildren
   '/importar': typeof AuthenticatedImportarRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
@@ -353,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
+  '/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -377,7 +377,6 @@ export interface FileRoutesByTo {
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
-  '/entrada-dados': typeof AuthenticatedEntradaDadosRouteWithChildren
   '/importar': typeof AuthenticatedImportarRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
@@ -401,6 +400,7 @@ export interface FileRoutesByTo {
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
+  '/entrada-dados': typeof AuthenticatedEntradaDadosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -428,7 +428,6 @@ export interface FileRoutesById {
   '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
-  '/_authenticated/entrada-dados': typeof AuthenticatedEntradaDadosRouteWithChildren
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
@@ -452,6 +451,7 @@ export interface FileRoutesById {
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
+  '/_authenticated/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -479,7 +479,6 @@ export interface FileRouteTypes {
     | '/comunicacao'
     | '/dashboard'
     | '/duplicidades'
-    | '/entrada-dados'
     | '/importar'
     | '/inbox'
     | '/links'
@@ -503,6 +502,7 @@ export interface FileRouteTypes {
     | '/campanhas/'
     | '/comunicacao/'
     | '/contatos/'
+    | '/entrada-dados/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -527,7 +527,6 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/dashboard'
     | '/duplicidades'
-    | '/entrada-dados'
     | '/importar'
     | '/inbox'
     | '/links'
@@ -551,6 +550,7 @@ export interface FileRouteTypes {
     | '/campanhas'
     | '/comunicacao'
     | '/contatos'
+    | '/entrada-dados'
     | '/api/public/cep/$cep'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -577,7 +577,6 @@ export interface FileRouteTypes {
     | '/_authenticated/comunicacao'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
-    | '/_authenticated/entrada-dados'
     | '/_authenticated/importar'
     | '/_authenticated/inbox'
     | '/_authenticated/links'
@@ -601,6 +600,7 @@ export interface FileRouteTypes {
     | '/_authenticated/campanhas/'
     | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
+    | '/_authenticated/entrada-dados/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -806,13 +806,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedImportarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/entrada-dados': {
-      id: '/_authenticated/entrada-dados'
-      path: '/entrada-dados'
-      fullPath: '/entrada-dados'
-      preLoaderRoute: typeof AuthenticatedEntradaDadosRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/duplicidades': {
       id: '/_authenticated/duplicidades'
       path: '/duplicidades'
@@ -846,6 +839,13 @@ declare module '@tanstack/react-router' {
       path: '/agitacao'
       fullPath: '/agitacao'
       preLoaderRoute: typeof AuthenticatedAgitacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/entrada-dados/': {
+      id: '/_authenticated/entrada-dados/'
+      path: '/entrada-dados'
+      fullPath: '/entrada-dados/'
+      preLoaderRoute: typeof AuthenticatedEntradaDadosIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/contatos/': {
@@ -885,10 +885,10 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/entrada-dados/$id': {
       id: '/_authenticated/entrada-dados/$id'
-      path: '/$id'
+      path: '/entrada-dados/$id'
       fullPath: '/entrada-dados/$id'
       preLoaderRoute: typeof AuthenticatedEntradaDadosIdRouteImport
-      parentRoute: typeof AuthenticatedEntradaDadosRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/contatos/$id': {
       id: '/_authenticated/contatos/$id'
@@ -996,20 +996,6 @@ const AuthenticatedComunicacaoRouteWithChildren =
     AuthenticatedComunicacaoRouteChildren,
   )
 
-interface AuthenticatedEntradaDadosRouteChildren {
-  AuthenticatedEntradaDadosIdRoute: typeof AuthenticatedEntradaDadosIdRoute
-}
-
-const AuthenticatedEntradaDadosRouteChildren: AuthenticatedEntradaDadosRouteChildren =
-  {
-    AuthenticatedEntradaDadosIdRoute: AuthenticatedEntradaDadosIdRoute,
-  }
-
-const AuthenticatedEntradaDadosRouteWithChildren =
-  AuthenticatedEntradaDadosRoute._addFileChildren(
-    AuthenticatedEntradaDadosRouteChildren,
-  )
-
 interface AuthenticatedUsuariosRouteChildren {
   AuthenticatedUsuariosPapeisRoute: typeof AuthenticatedUsuariosPapeisRoute
 }
@@ -1029,7 +1015,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
-  AuthenticatedEntradaDadosRoute: typeof AuthenticatedEntradaDadosRouteWithChildren
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
@@ -1043,8 +1028,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedCampanhasIdRoute: typeof AuthenticatedCampanhasIdRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
+  AuthenticatedEntradaDadosIdRoute: typeof AuthenticatedEntradaDadosIdRoute
   AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
   AuthenticatedContatosIndexRoute: typeof AuthenticatedContatosIndexRoute
+  AuthenticatedEntradaDadosIndexRoute: typeof AuthenticatedEntradaDadosIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1053,7 +1040,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComunicacaoRoute: AuthenticatedComunicacaoRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
-  AuthenticatedEntradaDadosRoute: AuthenticatedEntradaDadosRouteWithChildren,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
@@ -1067,8 +1053,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedCampanhasIdRoute: AuthenticatedCampanhasIdRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
+  AuthenticatedEntradaDadosIdRoute: AuthenticatedEntradaDadosIdRoute,
   AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
   AuthenticatedContatosIndexRoute: AuthenticatedContatosIndexRoute,
+  AuthenticatedEntradaDadosIndexRoute: AuthenticatedEntradaDadosIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

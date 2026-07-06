@@ -6,7 +6,7 @@ import { listFormDefinitions, createFormDefinition } from "@/lib/form-definition
 import { Plus, ClipboardList, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/entrada-dados")({
+export const Route = createFileRoute("/_authenticated/entrada-dados/")({
   head: () => ({ meta: [{ title: "Entrada de Dados" }] }),
   component: EntradaDadosLista,
 });
