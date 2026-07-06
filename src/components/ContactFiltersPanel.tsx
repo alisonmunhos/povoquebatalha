@@ -33,31 +33,31 @@ export type FilterOptionsBundle = {
 };
 
 const PHONE_STATUS: MultiOption[] = [
-  { value: "valido", label: "Válido" },
-  { value: "precisa_revisao", label: "Precisa revisão" },
-  { value: "invalido", label: "Inválido" },
-  { value: "sem_ddd", label: "Sem DDD" },
-  { value: "sem_nono_digito", label: "Sem 9º dígito" },
-  { value: "duplicado_possivel", label: "Duplicado possível" },
+  { value: "valido", label: "Número OK" },
+  { value: "precisa_revisao", label: "Falta DDD" },
+  { value: "sem_ddd", label: "Falta DDD (sem sugestão)" },
+  { value: "sem_nono_digito", label: "Falta 9º dígito" },
+  { value: "invalido", label: "Número inválido" },
+  { value: "duplicado_possivel", label: "Possível duplicado" },
 ];
 const WPP_STATUS: MultiOption[] = [
-  { value: "desconhecido", label: "Desconhecido" },
-  { value: "confirmado", label: "Confirmado" },
-  { value: "invalido", label: "Inválido" },
-  { value: "erro_envio", label: "Erro de envio" },
+  { value: "desconhecido", label: "Não verificado" },
+  { value: "confirmado", label: "Confirmado no WhatsApp" },
+  { value: "invalido", label: "Não tem WhatsApp" },
+  { value: "erro_envio", label: "Erro no envio" },
   { value: "opt_out", label: "Opt-out" },
 ];
 const LIFECYCLE: MultiOption[] = [
-  { value: "importado_aguardando_recadastro", label: "Importado (aguardando atualização)" },
+  { value: "recadastro_concluido", label: "Cadastro completo" },
+  { value: "importado_aguardando_recadastro", label: "Só importado (sem cadastro)" },
+  { value: "recadastro_iniciado", label: "Cadastro iniciado" },
   { value: "link_enviado", label: "Link enviado" },
-  { value: "recadastro_iniciado", label: "Atualização iniciada" },
-  { value: "recadastro_concluido", label: "Atualização concluída" },
   { value: "nao_respondeu", label: "Não respondeu" },
   { value: "telefone_invalido", label: "Telefone inválido" },
-  { value: "precisa_revisao", label: "Ciclo: precisa revisão (manual)" },
-  { value: "duplicado_possivel", label: "Ciclo: duplicado possível (manual)" },
-  { value: "duplicado_mesclado", label: "Duplicado mesclado" },
-  { value: "nao_enviar", label: "Não enviar (bloqueado)" },
+  { value: "precisa_revisao", label: "Precisa revisão (manual)" },
+  { value: "duplicado_possivel", label: "Possível duplicado (manual)" },
+  { value: "duplicado_mesclado", label: "Mesclado" },
+  { value: "nao_enviar", label: "Bloqueado (não enviar)" },
 ];
 const ORIGEM: MultiOption[] = [
   { value: "recadastro", label: "Atualização" },
@@ -164,7 +164,17 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Tags">
           <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
         </Field>
+        <Field label="Cadastro (ciclo de vida)" hint="Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização.">
+          <MultiSelectFilter options={LIFECYCLE} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
+        </Field>
+        <Field label="Status do número" hint="Qualidade técnica do telefone. 'Falta DDD' = precisa completar o código de área.">
+          <MultiSelectFilter options={PHONE_STATUS} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
+        </Field>
+        <Field label="Confirmado no WhatsApp?" hint="Preenchido só após você rodar 'Verificar no WhatsApp'.">
+          <MultiSelectFilter options={WPP_STATUS} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
+        </Field>
       </Section>
+
 
       <Section icon={<MapPin className="h-4 w-4" />} title="Localização">
         <Field label="UF">
@@ -266,15 +276,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Bloqueado para envio">
           <SingleSelectFilter options={SIM_NAO} value={filters.bloqueado} onChange={(v) => set("bloqueado", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
-        <Field label="Status do telefone">
-          <MultiSelectFilter options={PHONE_STATUS} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
-        </Field>
-        <Field label="Status do WhatsApp" hint="⚠️ Ainda não é atualizado automaticamente pelo sistema — não use para decisões por enquanto.">
-          <MultiSelectFilter options={WPP_STATUS} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
-        </Field>
-        <Field label="Ciclo de vida" hint="Status atribuído manualmente ou por importação. Diferente do 'Status do telefone', que é calculado automaticamente a partir do número.">
-          <MultiSelectFilter options={LIFECYCLE} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
-        </Field>
+        {/* Status do telefone / WhatsApp / Ciclo de vida foram promovidos para "Filtros rápidos" no topo. */}
       </Section>
 
 

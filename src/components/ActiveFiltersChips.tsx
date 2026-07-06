@@ -1,21 +1,10 @@
 import { X } from "lucide-react";
 import type { CrmFilters } from "@/lib/crm-filters";
 import type { FilterOptionsBundle } from "@/components/ContactFiltersPanel";
+import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/lib/phone-labels";
 
 type Chip = { key: string; label: string; onRemove: () => void };
 
-const LIFECYCLE_LABEL: Record<string, string> = {
-  importado_aguardando_recadastro: "Importado (aguardando)",
-  link_enviado: "Link enviado",
-  recadastro_iniciado: "Atualização iniciada",
-  recadastro_concluido: "Atualização concluída",
-  nao_respondeu: "Não respondeu",
-  telefone_invalido: "Telefone inválido",
-  precisa_revisao: "Precisa revisão",
-  duplicado_possivel: "Duplicado possível",
-  duplicado_mesclado: "Duplicado mesclado",
-  nao_enviar: "Não enviar",
-};
 
 export function ActiveFiltersChips({
   filters,
@@ -73,8 +62,8 @@ export function ActiveFiltersChips({
   if (filters.consent) chips.push({ key: "cs", label: `Consentimento: ${filters.consent}`, onRemove: remove("consent") });
   if (filters.optOut) chips.push({ key: "oo", label: `Opt-out: ${filters.optOut}`, onRemove: remove("optOut") });
   if (filters.bloqueado) chips.push({ key: "bl", label: `Bloqueado: ${filters.bloqueado}`, onRemove: remove("bloqueado") });
-  for (const v of filters.phone_statuses ?? []) chips.push({ key: `ps-${v}`, label: `Telefone: ${v}`, onRemove: removeFromArr("phone_statuses", v) });
-  for (const v of filters.whatsapp_statuses ?? []) chips.push({ key: `ws-${v}`, label: `WhatsApp: ${v}`, onRemove: removeFromArr("whatsapp_statuses", v) });
+  for (const v of filters.phone_statuses ?? []) chips.push({ key: `ps-${v}`, label: `Número: ${PHONE_STATUS_LABEL[v] ?? v}`, onRemove: removeFromArr("phone_statuses", v) });
+  for (const v of filters.whatsapp_statuses ?? []) chips.push({ key: `ws-${v}`, label: `WhatsApp: ${WHATSAPP_STATUS_LABEL[v] ?? v}`, onRemove: removeFromArr("whatsapp_statuses", v) });
   for (const v of filters.lifecycle_statuses ?? []) chips.push({ key: `ls-${v}`, label: `Status: ${LIFECYCLE_LABEL[v] ?? v}`, onRemove: removeFromArr("lifecycle_statuses", v) });
   if (filters.archived && filters.archived !== "nao")
     chips.push({ key: "ar", label: `Arquivados: ${filters.archived}`, onRemove: () => onChange({ ...filters, archived: "nao" }) });

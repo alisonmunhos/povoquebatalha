@@ -7,8 +7,11 @@ import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, b
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
+import { checkWhatsappForContacts, contactsQuickCounts } from "@/lib/contacts-phone.functions";
 import { formatPhoneBR } from "@/lib/phone";
-import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2 } from "lucide-react";
+import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/phone-labels";
+import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
+import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2, PhoneCall, CheckCircle2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { toast } from "sonner";
@@ -50,10 +53,13 @@ function Contatos() {
   const archFn = useServerFn(archiveContact);
   const deleteBulkFn = useServerFn(deleteContactsBulk);
   const createTagFn = useServerFn(createTag);
+  const checkWppFn = useServerFn(checkWhatsappForContacts);
+  const quickCountsFn = useServerFn(contactsQuickCounts);
 
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Default: mostra todos os contatos (ativos + arquivados) para não "sumir" registros mesclados/arquivados
   const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
@@ -202,6 +208,30 @@ function Contatos() {
     setPage(1);
   }
 
+  const countsQ = useQuery({
+    queryKey: ["contacts-quick-counts"],
+    queryFn: () => quickCountsFn(),
+    staleTime: 30_000,
+  });
+
+  function applyQuickFilter(patch: Partial<CrmFilters>) {
+    setFilters((f) => ({ archived: "nao", ...patch }));
+    setPage(1);
+  }
+
+  async function doBulkCheckWhatsapp() {
+    if (!selected.size) return;
+    if (!confirm(`Consultar Z-API para ${selected.size} número(s)?\n\nCada número consome 1 chamada da sua conta Z-API.`)) return;
+    try {
+      const r = await checkWppFn({ data: { contact_ids: [...selected] } });
+      toast.success(`WhatsApp: ${r.confirmed} confirmado(s) · ${r.invalid} sem WhatsApp · ${r.skipped} ignorados`);
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao verificar WhatsApp");
+    }
+  }
+
+
   const activeCount =
     Object.entries(filters).filter(([k, v]) => {
       if (k === "archived") return v && v !== "nao";
@@ -220,19 +250,7 @@ function Contatos() {
     count: t.count,
     color: (t as { cor?: string | null }).cor ?? null,
   }));
-  const LIFECYCLE_LABELS: Record<string, string> = {
-    importado_aguardando_recadastro: "Importado (aguardando)",
-    link_enviado: "Link enviado",
-    recadastro_iniciado: "Cadastro iniciado",
-    recadastro_concluido: "Cadastro concluído",
-    nao_respondeu: "Não respondeu",
-    telefone_invalido: "Telefone inválido",
-    precisa_revisao: "Ciclo: precisa revisão (manual)",
-    duplicado_possivel: "Ciclo: duplicado possível (manual)",
-    duplicado_mesclado: "Mesclado",
-    nao_enviar: "Não enviar",
-  };
-  const statusOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({ value: v, label: LIFECYCLE_LABELS[v] ?? v }));
+  const statusOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({ value: v, label: LIFECYCLE_LABEL[v] ?? v }));
 
   const nameSortState = sort === "name" ? "asc" : sort === "name-desc" ? "desc" : "none";
   function cycleNameSort() {
@@ -286,7 +304,26 @@ function Contatos() {
         <Button size="sm" onClick={() => setSendDlg({ open: true, mode: "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
       </div>
 
-      {/* Chips de filtros ativos */}
+      {/* Filtros rápidos por chip */}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground mr-1">Atalhos:</span>
+        <QuickChip label="Cadastro completo" active={filters.lifecycle_statuses?.[0] === "recadastro_concluido" && filters.lifecycle_statuses.length === 1} count={countsQ.data?.cadastroCompleto}
+          onClick={() => applyQuickFilter({ lifecycle_statuses: ["recadastro_concluido"] })} />
+        <QuickChip label="Só importados" active={filters.lifecycle_statuses?.[0] === "importado_aguardando_recadastro" && filters.lifecycle_statuses.length === 1} count={countsQ.data?.soImportados}
+          onClick={() => applyQuickFilter({ lifecycle_statuses: ["importado_aguardando_recadastro"] })} />
+        <QuickChip label="Números OK" count={countsQ.data?.numeroOk}
+          active={filters.phone_statuses?.length === 1 && filters.phone_statuses[0] === "valido"}
+          onClick={() => applyQuickFilter({ phone_statuses: ["valido"] })} />
+        <QuickChip label="Falta DDD" count={countsQ.data?.precisaRevisao}
+          active={!!filters.phone_statuses?.some((s) => ["precisa_revisao","sem_ddd","sem_nono_digito"].includes(s))}
+          onClick={() => applyQuickFilter({ phone_statuses: ["precisa_revisao","sem_ddd","sem_nono_digito"] })} />
+        <QuickChip label="Bloqueados" count={countsQ.data?.bloqueados} active={filters.bloqueado === "sim"}
+          onClick={() => applyQuickFilter({ bloqueado: "sim" })} />
+        <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
+          <PhoneCall className="h-3.5 w-3.5 mr-1" /> Revisar telefones
+        </Button>
+      </div>
+
       {activeCount > 0 && (
         <div className="flex items-start gap-3 flex-wrap">
           <ActiveFiltersChips filters={filters} onChange={(f) => { setFilters(f); setPage(1); }} options={filterOptions} />
@@ -368,7 +405,7 @@ function Contatos() {
               <span className="text-xs uppercase tracking-wide opacity-70">Status</span>
               <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
                 <option value="">— escolher status —</option>
-                {LIFECYCLE.map((l) => <option key={l} value={l}>{LIFECYCLE_LABELS[l] ?? l}</option>)}
+                {LIFECYCLE.map((l) => <option key={l} value={l}>{LIFECYCLE_LABEL[l] ?? l}</option>)}
               </select>
               <Button size="sm" variant="secondary" onClick={doBulkLifecycle}>Aplicar status</Button>
             </div>
@@ -378,6 +415,9 @@ function Contatos() {
             {/* Ações */}
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Ações</span>
+              <Button size="sm" variant="secondary" onClick={doBulkCheckWhatsapp} title="Consulta Z-API para confirmar quais números têm WhatsApp">
+                <CheckCircle2 className="h-3 w-3 mr-1" /> Verificar no WhatsApp
+              </Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(true)}>Não enviar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
@@ -483,7 +523,7 @@ function Contatos() {
                     {c.arquivado_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Arquivado</span>}
                     {c.opt_out_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Opt-out</span>}
                     {!c.opt_out_at && c.consentimento_whatsapp && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">Ativo</span>}
-                    {c.phone_status && c.phone_status !== "valido" && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">{c.phone_status}</span>}
+                    {c.phone_status && c.phone_status !== "valido" && <span className={"text-[10px] uppercase px-1.5 py-0.5 rounded " + (PHONE_STATUS_BADGE[c.phone_status] ?? "bg-amber-100 text-amber-700")}>{PHONE_STATUS_LABEL[c.phone_status] ?? c.phone_status}</span>}
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="inline-flex gap-1">
@@ -580,7 +620,30 @@ function Contatos() {
           }
         }}
       />
+      <PhoneReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} onDone={() => { q.refetch(); countsQ.refetch(); }} />
     </div>
     </TooltipProvider>
+  );
+}
+
+function QuickChip({ label, count, active, onClick }: { label: string; count?: number; active?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "text-xs px-2.5 py-1 rounded-full border transition " +
+        (active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background hover:bg-accent border-input text-foreground")
+      }
+    >
+      {label}
+      {typeof count === "number" && (
+        <span className={"ml-1.5 tabular-nums " + (active ? "opacity-90" : "text-muted-foreground")}>
+          {count}
+        </span>
+      )}
+    </button>
   );
 }

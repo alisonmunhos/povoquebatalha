@@ -1,90 +1,106 @@
+
 ## Diagnóstico
 
-**1. Link some no envio de teste (`mensagens` → "Enviar teste")**
+**Dados reais (1.010 contatos):**
+- `phone_status`: 623 `valido`, 318 `precisa_revisao` (só 8-9 dígitos, sem DDD), 66 `invalido` (vazios/lixo), 3 `sem_nono_digito`.
+- `lifecycle_status`: 925 `importado_aguardando_recadastro`, 16 `recadastro_concluido` (os "ativos"), 60 `telefone_invalido`, 7 `duplicado_mesclado`.
+- `whatsapp_status`: 1.010 `desconhecido` — nunca é populado; a Z-API nunca é consultada.
 
-Fluxo atual em `src/lib/messages.functions.ts` (`sendTestTemplate`):
+**Causa da confusão:**
+1. Existem 3 status paralelos (`phone_status`, `whatsapp_status`, `lifecycle_status`) com rótulos técnicos, sem hierarquia visível.
+2. Não há ação para corrigir os 318 "precisa revisão" — só ficam listados.
+3. Não há atalho para "quem virou apoiador" (preencheu cadastro).
+4. Filtro de status funciona na query, mas fica escondido dentro de "Detalhado / avançado" no painel de filtros, então parece "não funcionar".
 
-- O composer sugere `{{link_inscricao}}` / `{{link_atualizacao}}` como variáveis, mas ao salvar o template só grava `link` (URL crua) — perde `link_title/description/image`.
-- No teste chama `sendMessage({ text: "[TESTE] "+body, renderOptions: { unknownAsEmpty: true } })` **sem `origin`**. Como `renderMessageVars` monta os links a partir do `origin`, `{{link_inscricao}}` vira string vazia.
-- Como não há OG salvo e `useSendLink` não é lido, `planEndpoint` escolhe `send-text`. Deveria acrescentar `tpl.link` no corpo via `ensureLinkInBody`, mas se o body já contém `{{link_inscricao}}` (vazio) o usuário vê a mensagem sem link.
-- Além disso o preview do composer usa `window.location.origin`, então mostra o link certo — daí a divergência preview × envio.
+## Escopo aprovado
 
-**2. Motor de envio fragmentado (3 implementações diferentes)**
+DDD em massa · WhatsApp sob demanda · rótulos amigáveis · revisão completa dos filtros.
 
-| Superfície | Arquivo | Estado |
-|---|---|---|
-| Campanhas (worker) | `src/lib/campaigns.server.ts` linhas 30-100 | Reimplementa envio, escolhe endpoint na mão, não usa `sendMessage`, não conhece `send-link` |
-| Inbox / ficha / mapa | `src/lib/inbox.functions.ts` `sendDirectMessage` | Chama `zapi.sendText` direto; ignora `link_*` e feature flag |
-| Automações & teste de template | `src/lib/automations.server.ts`, `messages.functions.ts` | Já usam `sendMessage` (correto) |
-| `wa.me` (território) | `src/lib/wa-send.server.ts` | ok |
+## Passo 1 — Terminologia clara na UI (banco não muda)
 
-**3. Composer fragmentado**
+Mapa de rótulos aplicado em **filtros, badges na tabela e ficha do contato**:
 
-| Superfície | Componente | Recursos |
-|---|---|---|
-| Campanhas (aba lista) | `MessageComposer` | variáveis (subset), link+preview, anexo, preview WhatsApp — **sem emojis, sem formatação** |
-| Templates (`/mensagens`) | `MessageComposer` | idem, mas salva só `link_url` (perde OG) |
-| Wizard WhatsApp (contatos/mapa) | `SendWhatsAppWizard` (embutido) | **emojis, negrito/itálico/mono/lista**, variáveis full, link, anexo — não usa `MessageComposer` |
-| Inbox / Add contato / Ficha | textarea cru | **sem** variáveis, sem emoji, sem link estruturado |
+| Valor no banco | Rótulo antigo | Rótulo novo |
+| --- | --- | --- |
+| `phone_status=valido` | Válido | **Número OK** |
+| `phone_status=precisa_revisao` | Precisa revisão | **Falta DDD** |
+| `phone_status=invalido` | Inválido | **Número inválido** |
+| `phone_status=sem_nono_digito` | Sem 9º dígito | **Falta 9º dígito** |
+| `phone_status=sem_ddd` | Sem DDD | **Falta DDD** (mesma família) |
+| `lifecycle_status=recadastro_concluido` | Atualização concluída | **Cadastro completo** |
+| `lifecycle_status=importado_aguardando_recadastro` | Importado (aguardando) | **Só importado (sem cadastro)** |
 
-Resultado: comportamento e visual diferentes por tela, e nem todas persistem `link_title/description/image`.
+Explicação curta no topo do bloco de status: *"Número = qualidade técnica do telefone. Cadastro = a pessoa preencheu o formulário."*
 
-## Objetivo
+## Passo 2 — Filtros no lugar certo
 
-- Consertar o link no teste imediatamente.
-- Unificar composer (um único componente com emoji + formatação + variáveis + link OG + anexo + preview) e motor de envio (`sendMessage` como único caminho).
+Hoje `Status do telefone`, `WhatsApp`, `Ciclo de vida` estão dentro de "Detalhado / avançado", escondidos. Mudanças no `ContactFiltersPanel`:
 
-## Plano de execução
+1. Promover **Status do número** e **Cadastro (ciclo de vida)** para a seção principal ("Base rápida"), antes de "Detalhado".
+2. Adicionar **filtros rápidos (chips clicáveis)** no topo:
+   - `Cadastro completo` → `lifecycle_statuses=[recadastro_concluido]`
+   - `Só importados` → `lifecycle_statuses=[importado_aguardando_recadastro]`
+   - `Precisa revisão de número` → `phone_statuses=[precisa_revisao, sem_nono_digito]`
+   - `Números OK` → `phone_statuses=[valido]`
+   - `Bloqueados` → `bloqueado=sim`
+3. Manter `Status do WhatsApp` no avançado com aviso já existente ("não use para decisões") — passa a fazer sentido depois do passo 4.
+4. Reproduzir no browser antes/depois com um filtro por status e confirmar que a query retorna a contagem esperada (Ex: `Cadastro completo` = 16).
 
-### Passo 1 — Fix imediato do teste (mensagens)
+## Passo 3 — Corrigir "Falta DDD" em massa
 
-- Em `sendTestTemplate` passar `renderOptions: { origin, unknownAsEmpty: true }` (origin vindo de `process.env.PUBLIC_BASE_URL` ou header `origin` da request; fallback para published URL).
-- Passar `origin` também em `retryAutomationDelivery`/`triggerAutomationForContact` (mesmo problema latente).
-- Já que templates precisam ter OG persistido para usar `/send-link`, adicionar colunas `link_title/link_description/link_image` em `message_templates` (migration) e mapear no `MessageComposer` de `mensagens.tsx` (hoje só passa `link_url`, joga OG fora).
+Nova aba **"Revisão de números"** dentro de `/contatos` (ou botão flutuante quando filtro `precisa_revisao` está ativo):
 
-### Passo 2 — Unificar composer
+- Lista os 318 contatos com `phone_status` em `precisa_revisao`/`sem_nono_digito`/`sem_ddd`, mostrando `phone_raw`, `cidade`, `uf`, `bairro`.
+- Ação: **seleção múltipla + botão "Aplicar DDD"** com dropdown de DDDs (padrão sugerido pela cidade quando houver; senão o usuário escolhe manualmente, ex: 11, 21, 31, 71...).
+- Server function `fixContactsPhoneDdd({ contactIds, ddd })`:
+  - Para cada contato: reconstrói `phone_raw = ddd + phone_raw`, dispara o trigger `contacts_phone_fill` que já roda `private.parse_phone_br` e recalcula `phone_status`, `phone_e164`, `phone_last8`, etc.
+  - Registra no `contact_audit_log`.
+  - Retorna quantos viraram `valido` vs. quantos continuaram problemáticos.
+- Também um botão "Editar manualmente" por linha, que abre a ficha do contato no campo telefone.
 
-Estender `MessageComposer` para incluir o que hoje só existe no wizard:
-- Barra de formatação WhatsApp (`*negrito*`, `_itálico_`, `~riscado~`, `` `mono` ``, listas) preservando cursor.
-- Popover de emojis (mesma lista `QUICK_EMOJIS`, extensível).
-- Prop `variables` para permitir subset (composer) ou lista cheia (wizard).
-- Preview e chip "endpoint planejado" via `planEndpoint`.
+Reversível: se der ruim, o `contact_audit_log` guarda o valor anterior e uma tela de "desfazer último lote" (reaproveita padrão do `imports-undo`) refaz.
 
-Trocar por `MessageComposer` em:
-- `SendWhatsAppWizard` (remove ~200 linhas de composer embutido).
-- `sendDirectMessage` na inbox (`CommunicationInbox`) — hoje textarea puro; passar a compor `ComposerValue` completo com link/anexo.
-- `AddContactButton` / ficha do contato onde há mensagem WhatsApp inline (auditar e substituir).
+## Passo 4 — Checagem real de WhatsApp (sob demanda)
 
-### Passo 3 — Unificar motor
+Server function `checkWhatsappForContacts({ contactIds })`:
 
-- `sendDirectMessage` (`inbox.functions.ts`): trocar bloco `try { zapi.sendText… }` por `sendMessage({ origin: "inbox", link, attachment, ... })`. Persistir `endpoint_used`, `preview_status`, `link_*` em `direct_messages` (colunas já existem no padrão de campaigns; criar migration se faltar).
-- `campaigns.server.ts` worker: substituir o bloco 50-88 por chamada a `sendMessage`, lendo `use_send_link` via `readUseSendLinkFlag()`. Persistir os campos de retorno em `campaign_recipients` (já mapeado). Aceitar `link_title/link_description/link_image` da campanha.
-- Adicionar `origin` (base URL pública) num helper `getPublicOrigin()` reutilizável em todos os handlers para render consistente de `{{link_*}}`.
+- Chama `phone-exists-batch` da Z-API em lotes de 50 (endpoint já existe no cliente Z-API).
+- Atualiza `whatsapp_status` = `confirmado` | `invalido` (nome já usado em `WPP_STATUS`).
+- Atualiza `whatsapp_checked_at` (nova coluna — migration).
+- Registra em `contact_audit_log`.
 
-### Passo 4 — Regressão
+UI: botão **"Verificar no WhatsApp"** aparece:
+- No topo da lista de contatos quando há seleção múltipla.
+- Na ficha individual do contato.
+- Rate-limit visual: "vai consumir X chamadas Z-API, confirma?".
 
-- Roteiro manual: (a) template com `{{link_inscricao}}` → enviar teste → conferir link no WhatsApp; (b) inbox: mensagem com link → confirmar prévia; (c) campanha com link OG → confirmar `endpoint_used=send-link`; (d) wizard: emojis/formatação ainda funcionam.
-- Typecheck após cada migration.
+Filtro `Status do WhatsApp` deixa de ter o aviso "não use para decisões".
 
-## Detalhes técnicos
+## Passo 5 — Migração de dados e schema
 
-- **Migration `message_templates`**: `alter table message_templates add column link_title text, add column link_description text, add column link_image text;` — sem GRANT novo (tabela já ok), sem impacto em RLS.
-- **Migration `direct_messages`**: adicionar `endpoint_used text, preview_status text, link_title text, link_description text, link_image text` se ausentes (verificar antes; criar índice não é necessário).
-- **`getPublicOrigin()`** em `src/lib/wa-send.server.ts`: lê `process.env.PUBLIC_BASE_URL` (novo) → fallback `https://povoquebatalha.lovable.app`. Nenhum secret novo obrigatório.
-- **`MessageComposer` API nova**:
-  ```ts
-  <MessageComposer
-    value={v} onChange={setV}
-    variables={MESSAGE_VARIABLES}       // ou COMPOSER_VARIABLES
-    features={{ formatting: true, emoji: true, link: true, attachment: true, preview: true }}
-  />
-  ```
-  Retrocompatível: props antigas (`showLink`, `showAttachment`, `showPreview`) continuam funcionando.
-- **Wizard**: mantém steps (audiência, mensagem, revisão); passo "mensagem" passa a ser só `<MessageComposer .../>`.
-- **Nada é apagado no banco**; templates existentes seguem válidos (colunas OG novas ficam nulas até re-editar).
+Uma única migration:
+1. `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS whatsapp_checked_at timestamptz`.
+2. Backfill: contatos com `phone_status='invalido'` E `phone_raw` não vazio E não parece telefone → mantém como está; `phone_raw` vazio permanece.
+3. Sem mudanças em enums (mantém compatibilidade).
 
-## O que NÃO muda
+## Passo 6 — Validação
 
-- Estrutura de rotas, tabelas existentes, RLS, políticas.
-- Fluxo de opt-out, consentimento, validações.
-- Fluxo `wa.me` do território.
+- Reproduzir no preview: aplicar chip "Precisa revisão de número" → 321 contatos → selecionar tudo → aplicar DDD 11 → chip "Números OK" → contagem sobe para ~944.
+- Testar chip "Cadastro completo" → 16 contatos.
+- Testar "Verificar no WhatsApp" com 5 contatos → conferir `whatsapp_status` mudou no banco.
+- Rodar typecheck.
+
+## Arquivos afetados
+
+- `src/components/ContactFiltersPanel.tsx` — rótulos, promoção de campos, chips rápidos.
+- `src/routes/_authenticated/contatos.tsx` — chips no topo, aba/tela de revisão.
+- `src/lib/phone.ts` — helpers de sugestão de DDD por cidade (tabela estática).
+- `src/lib/contacts.functions.ts` (novo ou existente) — `fixContactsPhoneDdd`, `checkWhatsappForContacts`.
+- `src/lib/wa-send.server.ts` ou novo `wa-check.server.ts` — chamada `phone-exists-batch`.
+- Migration nova para `whatsapp_checked_at`.
+
+## Riscos e cuidados
+
+- Ação em massa de DDD sobrescreve `phone_raw`. Mitigado pelo log de auditoria + confirmação com contagem.
+- Checagem Z-API custa chamadas; sempre pedir confirmação com a contagem.
+- Nenhum contato é apagado. Nenhum enum ou trigger existente é alterado.
