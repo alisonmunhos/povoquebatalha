@@ -196,6 +196,28 @@ export function MessageComposer({
     <div className="space-y-3">
       <div>
         <label className="text-xs font-medium">Mensagem</label>
+        {(showFormatting || showEmojis) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 border rounded-md p-1 bg-muted/30">
+            {showFormatting && (
+              <>
+                <button type="button" title="Negrito (*texto*)" onClick={() => wrapSelection("*")} className="p-1.5 rounded hover:bg-background"><Bold className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Itálico (_texto_)" onClick={() => wrapSelection("_")} className="p-1.5 rounded hover:bg-background"><Italic className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Riscado (~texto~)" onClick={() => wrapSelection("~")} className="p-1.5 rounded hover:bg-background"><Strikethrough className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Monoespaçado (```texto```)" onClick={() => wrapSelection("```")} className="p-1.5 rounded hover:bg-background"><Code2 className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Lista" onClick={() => insertAtCursor("\n- ")} className="p-1.5 rounded hover:bg-background"><List className="h-3.5 w-3.5" /></button>
+              </>
+            )}
+            {showFormatting && showEmojis && <span className="w-px h-4 bg-border mx-1" />}
+            {showEmojis && (
+              <div className="flex items-center gap-1 pl-1">
+                <Smile className="h-3.5 w-3.5 text-muted-foreground" />
+                {QUICK_EMOJIS.map((e) => (
+                  <button key={e} type="button" onClick={() => insertAtCursor(e)} className="text-base leading-none hover:scale-110 transition p-0.5" title={`Inserir ${e}`}>{e}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value.body}
@@ -206,7 +228,7 @@ export function MessageComposer({
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground mr-1">Inserir variável:</span>
-          {COMPOSER_VARIABLES.map((v) => (
+          {variables.map((v) => (
             <button
               key={v}
               type="button"
@@ -219,6 +241,7 @@ export function MessageComposer({
           ))}
         </div>
       </div>
+
 
       {(showLink || showAttachment) && (
         <div className="grid md:grid-cols-2 gap-3">
