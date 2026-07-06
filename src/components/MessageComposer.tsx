@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Paperclip, Loader2, X, Link2 } from "lucide-react";
+import { Paperclip, Loader2, X, Link2, Bold, Italic, Strikethrough, Code2, List, Smile } from "lucide-react";
 import { toast } from "sonner";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
