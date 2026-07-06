@@ -38,6 +38,7 @@ export const crmFilterSchema = z.object({
   faixas_etarias: z.array(z.string()).optional(),
   rede_social: z.string().trim().optional(),
   zona_eleitoral: z.string().trim().optional(),
+  como_conheceu: z.string().trim().optional(),
   origem: z.string().optional(),
   origens: z.array(z.string()).optional(),
   origem_detalhe: z.string().optional(),
@@ -178,6 +179,7 @@ export function applyCrmFilters<T extends {
   if (f.faixas_etarias?.length) q = q.in("faixa_etaria", f.faixas_etarias);
   if (f.rede_social) q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
   if (f.zona_eleitoral) q = q.ilike("zona_eleitoral", `%${safe(f.zona_eleitoral)}%`);
+  if (f.como_conheceu) q = q.ilike("como_conheceu", `%${safe(f.como_conheceu)}%`);
   if (f.origem) q = q.eq("origem", f.origem);
   if (f.origens?.length) q = q.in("origem", f.origens);
   if (f.origem_detalhe) q = q.ilike("origem_detalhe", `%${safe(f.origem_detalhe)}%`);

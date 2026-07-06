@@ -15,7 +15,8 @@ export const listFormDefinitions = createServerFn({ method: "GET" })
     await requireStaff(context.supabase, context.userId);
     const { data, error } = await context.supabase
       .from("form_definitions")
-      .select("id,title,slug,is_active,source_form_type,created_at")
+      .select("id,title,slug,is_active,is_fixed,source_form_type,created_at")
+      .order("is_fixed", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -142,6 +143,13 @@ export const deleteFormDefinition = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
+    const { data: form, error: formErr } = await context.supabase
+      .from("form_definitions")
+      .select("is_fixed")
+      .eq("id", data.id)
+      .single();
+    if (formErr) throw formErr;
+    if (form.is_fixed) throw new Error("Este formulário é fixo (recadastro/inscrever) e não pode ser excluído.");
     const { error } = await context.supabase.from("form_definitions").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };

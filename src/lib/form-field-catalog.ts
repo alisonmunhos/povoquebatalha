@@ -12,7 +12,7 @@
 // filtro, painel de filtros, importação CSV, edição manual da ficha) — por isso este
 // catálogo é uma constante de código, não uma tabela no banco.
 
-export type FormFieldResponseType = "short_text" | "multiple_choice" | "yes_no" | "date" | "number";
+export type FormFieldResponseType = "short_text" | "multiple_choice" | "yes_no" | "date" | "number" | "address_block";
 export type FormFieldFilterKind = "text" | "multiselect" | "enum" | "boolean";
 
 export type FormCatalogOption = { value: string; label: string };
@@ -65,11 +65,14 @@ export const FORM_FIELD_CATALOG: FormCatalogField[] = [
   },
 
   // Já existem na ficha — reusam o filtro já existente.
-  { key: "cidade", responseType: "short_text", targetColumns: ["cidade"], filterKind: "text", defaultLabel: "Cidade" },
-  { key: "bairro", responseType: "short_text", targetColumns: ["bairro"], filterKind: "text", defaultLabel: "Bairro" },
-  { key: "endereco", responseType: "short_text", targetColumns: ["endereco", "numero", "complemento"], filterKind: "text", defaultLabel: "Endereço completo" },
-  { key: "uf", responseType: "short_text", targetColumns: ["uf"], filterKind: "text", defaultLabel: "UF" },
-  { key: "cep", responseType: "short_text", targetColumns: ["cep"], filterKind: "text", defaultLabel: "CEP" },
+  {
+    key: "endereco_completo", responseType: "address_block",
+    targetColumns: ["cep", "endereco", "numero", "complemento", "bairro", "referencia", "cidade", "uf"],
+    filterKind: "text", defaultLabel: "Endereço completo",
+    defaultHelpText: "CEP é opcional — se não souber, preencha o resto manualmente.",
+  },
+  { key: "email", responseType: "short_text", targetColumns: ["email"], filterKind: "text", defaultLabel: "E-mail" },
+  { key: "nome_social", responseType: "short_text", targetColumns: ["nome_social"], filterKind: "text", defaultLabel: "Nome social / apelido" },
   { key: "profissao", responseType: "short_text", targetColumns: ["profissao"], filterKind: "text", defaultLabel: "Profissão / ocupação" },
   { key: "instituicao", responseType: "short_text", targetColumns: ["instituicao"], filterKind: "text", defaultLabel: "Onde trabalha" },
   {
@@ -87,6 +90,10 @@ export const FORM_FIELD_CATALOG: FormCatalogField[] = [
       { value: "receber_panfletos", label: "Receber panfletos e adesivos" },
       { value: "outro", label: "Outro" },
     ],
+  },
+  {
+    key: "formas_ajuda_outro", responseType: "short_text", targetColumns: ["formas_ajuda_outro"], filterKind: "text",
+    defaultLabel: 'Se marcou "Outro" em "Como você pode ajudar", descreva aqui',
   },
   {
     key: "participa_movimento_social", responseType: "yes_no", targetColumns: ["participa_movimento_social"], filterKind: "boolean",
@@ -136,6 +143,10 @@ export const FORM_FIELD_CATALOG: FormCatalogField[] = [
     defaultHelpText:
       "Perguntamos isso só para organizar melhor a campanha por região — é opcional e você decide se quer responder.",
   },
+  {
+    key: "como_conheceu", responseType: "short_text", targetColumns: ["como_conheceu"], filterKind: "text",
+    defaultLabel: "Como você conheceu a campanha?",
+  },
 ];
 
 export function getCatalogField(key: string): FormCatalogField | undefined {
@@ -143,3 +154,11 @@ export function getCatalogField(key: string): FormCatalogField | undefined {
 }
 
 export const CORE_CATALOG_FIELDS = FORM_FIELD_CATALOG.filter((f) => f.core);
+
+// Os 2 formulários fixos usam slug "-fixo" internamente (pra não colidir com as rotas
+// estáticas antigas /api/public/forms/recadastro|inscrever.ts, mantidas até serem
+// validadas e removidas) — mas a URL pública de verdade é a rota fixa de sempre.
+export const FIXED_FORM_PUBLIC_PATHS: Record<string, string> = {
+  "recadastro-fixo": "/recadastro",
+  "inscrever-fixo": "/inscrever",
+};

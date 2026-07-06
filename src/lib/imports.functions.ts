@@ -40,6 +40,7 @@ export const FIELD_KEYS = [
   "quem_indicou",
   "rede_social",
   "zona_eleitoral",
+  "como_conheceu",
   "faixa_etaria",
   "disponibilidade",
   "formas_ajuda",
@@ -221,6 +222,7 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
     else if (/(quemindicou|indicadopor|indicacao|quemconvidou)/.test(n)) map[h] = "quem_indicou";
     else if (/(redesocial|instagram|facebook|tiktok|twitter|arroba)/.test(n)) map[h] = "rede_social";
     else if (/(zonaeleitoral|localdevotacao|localvotacao|tituloeleitor|sessaoeleitoral)/.test(n)) map[h] = "zona_eleitoral";
+    else if (/(comoconheceu|comosoube|comoficousabendo)/.test(n)) map[h] = "como_conheceu";
     else if (/(faixaetaria|faixadeidade|^idade$)/.test(n)) map[h] = "faixa_etaria";
     else if (/(disponibilidade|diasdisponiveis|horariodisponivel|quandopodeajudar)/.test(n)) map[h] = "disponibilidade";
     else if (/(formas.*ajuda.*outro|ajudaoutro)/.test(n)) map[h] = "formas_ajuda_outro";
@@ -287,6 +289,7 @@ type PreviewRow = {
     quem_indicou?: string | null;
     rede_social?: string | null;
     zona_eleitoral?: string | null;
+    como_conheceu?: string | null;
     faixa_etaria?: string | null;
     disponibilidade?: string[];
     formas_ajuda?: string[];
@@ -481,6 +484,7 @@ export const buildPreview = createServerFn({ method: "POST" })
           quem_indicou: getBy("quem_indicou"),
           rede_social: getBy("rede_social"),
           zona_eleitoral: getBy("zona_eleitoral"),
+          como_conheceu: getBy("como_conheceu"),
           faixa_etaria: faixaEtaria,
           disponibilidade,
           formas_ajuda: formasAjuda,
@@ -657,6 +661,7 @@ export const commitImport = createServerFn({ method: "POST" })
           quem_indicou: ex.quem_indicou ?? null,
           rede_social: ex.rede_social ?? null,
           zona_eleitoral: ex.zona_eleitoral ?? null,
+          como_conheceu: ex.como_conheceu ?? null,
           faixa_etaria: ex.faixa_etaria ?? null,
           disponibilidade: ex.disponibilidade ?? [],
           formas_ajuda: ex.formas_ajuda ?? [],
@@ -752,6 +757,7 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("quem_indicou", ex.quem_indicou ?? null);
             fillIfEmpty("rede_social", ex.rede_social ?? null);
             fillIfEmpty("zona_eleitoral", ex.zona_eleitoral ?? null);
+            fillIfEmpty("como_conheceu", ex.como_conheceu ?? null);
             fillIfEmpty("faixa_etaria", ex.faixa_etaria ?? null);
             fillIfEmpty("formas_ajuda_outro", ex.formas_ajuda_outro ?? null);
             if (obsText) {

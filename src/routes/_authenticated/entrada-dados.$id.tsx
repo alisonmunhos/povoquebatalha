@@ -6,7 +6,7 @@ import {
   getFormDefinition, updateFormDefinition, upsertFormQuestions,
   saveFormConfirmationMessage, mintFormTrackedLink, getFormQrCode,
 } from "@/lib/form-definitions.functions";
-import { FORM_FIELD_CATALOG, CORE_CATALOG_FIELDS, type FormCatalogField } from "@/lib/form-field-catalog";
+import { FORM_FIELD_CATALOG, CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -175,7 +175,11 @@ function FormBuilder() {
     }
   }
 
-  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/f/${q.data.form.slug}${linkToken ? `?ref=${linkToken}` : ""}` : "";
+  const isFixed = Boolean(q.data.form.is_fixed);
+  const basePath = isFixed
+    ? (FIXED_FORM_PUBLIC_PATHS[q.data.form.slug as string] ?? `/${q.data.form.slug}`)
+    : `/f/${q.data.form.slug}`;
+  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}${basePath}${linkToken ? `?ref=${linkToken}` : ""}` : "";
 
   async function loadQrCode() {
     if (!publicUrl) return;
@@ -195,6 +199,11 @@ function FormBuilder() {
       <Link to="/entrada-dados" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</Link>
 
       <Section title="Configurações">
+        {isFixed && (
+          <p className="text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded-md px-3 py-2">
+            Este é um formulário fixo do sistema (URL pública: <code>{basePath}</code>) — não pode ser excluído, mas todo o resto (perguntas, mensagem de confirmação, botão de WhatsApp) pode ser editado livremente, igual a um formulário novo.
+          </p>
+        )}
         <div>
           <label className="text-sm font-medium">Título</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />

@@ -10,9 +10,24 @@ import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "
 
 const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" };
 
+const addressBlockSchema = z.object({
+  cep: z.string().trim().max(12).optional(),
+  endereco: z.string().trim().max(240).optional(),
+  numero: z.string().trim().max(20).optional(),
+  complemento: z.string().trim().max(120).optional(),
+  bairro: z.string().trim().max(120).optional(),
+  referencia: z.string().trim().max(240).optional(),
+  cidade: z.string().trim().max(120).optional(),
+  uf: z.string().trim().max(2).optional(),
+});
+
 const submitSchema = z.object({
   ref_token: z.string().trim().min(8).max(48).optional().or(z.literal("")),
-  answers: z.record(z.string().uuid(), z.union([z.string(), z.array(z.string()), z.boolean(), z.null()])),
+  recad_token: z.string().uuid().optional().or(z.literal("")),
+  answers: z.record(
+    z.string().uuid(),
+    z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
+  ),
   ...honeypotSchema,
 });
 
@@ -113,18 +128,25 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
 
-        const answers = d.answers as Record<string, string | string[] | boolean | null>;
+        type AddressAnswer = { cep?: string; endereco?: string; numero?: string; complemento?: string; bairro?: string; referencia?: string; cidade?: string; uf?: string };
+        const answers = d.answers as Record<string, string | string[] | boolean | AddressAnswer | null>;
+        const isAddressAnswer = (v: unknown): v is AddressAnswer =>
+          typeof v === "object" && v !== null && !Array.isArray(v);
 
         // Valida obrigatoriedade e localiza nome/telefone (sempre presentes no catálogo core).
         let nome: string | null = null;
         let phoneRaw: string | null = null;
+        let email: string | null = null;
         let consentimento = false;
         const contactPayload: Record<string, unknown> = {};
         const customAnswers: { question_id: string; question_label: string; answer_text: string }[] = [];
 
         for (const q of (questions ?? []) as QuestionRow[]) {
           const value = answers[q.id];
-          const isEmpty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
+          const isEmpty =
+            value == null || value === "" ||
+            (Array.isArray(value) && value.length === 0) ||
+            (isAddressAnswer(value) && !Object.values(value).some((v) => v && String(v).trim()));
           if (q.required && isEmpty) {
             return new Response(JSON.stringify({ ok: false, error: `Campo obrigatório: ${q.label}` }), { status: 400, headers: cors });
           }
@@ -141,6 +163,19 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           if (catalog.key === "nome") { nome = String(value).trim(); continue; }
           if (catalog.key === "whatsapp") { phoneRaw = String(value).trim(); continue; }
           if (catalog.key === "consentimento") { consentimento = value === true; continue; }
+          if (catalog.key === "email") { email = String(value).trim(); continue; }
+
+          if (catalog.responseType === "address_block" && isAddressAnswer(value)) {
+            if (value.cep) contactPayload.cep = value.cep;
+            if (value.endereco) contactPayload.endereco = value.endereco;
+            if (value.numero) contactPayload.numero = value.numero;
+            if (value.complemento) contactPayload.complemento = value.complemento;
+            if (value.bairro) contactPayload.bairro = value.bairro;
+            if (value.referencia) contactPayload.referencia = value.referencia;
+            if (value.cidade) contactPayload.cidade = value.cidade;
+            if (value.uf) contactPayload.uf = value.uf.toUpperCase();
+            continue;
+          }
 
           for (const col of catalog.targetColumns) {
             if (catalog.filterKind === "boolean") contactPayload[col] = value === true;
@@ -165,21 +200,60 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           return new Response(JSON.stringify({ ok: false, error: "Telefone inválido" }), { status: 400, headers: cors });
         }
 
-        const { data: existing } = await supabaseAdmin.from("contacts").select("id").eq("phone_e164", phoneE164).maybeSingle();
+        // Resolução de contato, mesma prioridade de /recadastro: recad_token → telefone → e-mail.
+        let target: { id: string; phone_e164: string | null } | null = null;
+        if (d.recad_token) {
+          const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("recad_token", d.recad_token).maybeSingle();
+          if (data) target = data;
+        }
+        if (!target) {
+          const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("phone_e164", phoneE164).maybeSingle();
+          if (data) target = data;
+        }
+        if (!target && email) {
+          const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("email", email).maybeSingle();
+          if (data) target = data;
+        }
+
+        // contacts.origem é enum (recadastro|inscricao|import|manual) — reaproveita os
+        // mesmos valores que recadastro.ts/inscrever.ts sempre usaram, mapeados pelo
+        // tipo do formulário (não existe valor de enum genérico "formulario_publico").
+        const origemValue = form.source_form_type === "cadastro_completo" ? "recadastro" as const : "inscricao" as const;
         const payload = {
           ...contactPayload,
           nome,
           phone_raw: phoneRaw,
+          ...(email ? { email } : {}),
+          // Paridade com inscrever.ts: formulários de "receber informações" marcam o
+          // contato como lista de divulgação (recadastro.ts não seta tipo_contato).
+          ...(form.source_form_type === "receber_informacoes" ? { tipo_contato: "lista_divulgacao" } : {}),
           consentimento_whatsapp: true,
-          origem: "formulario_publico" as const,
+          consentimento_at: new Date().toISOString(),
+          origem: origemValue,
           origem_detalhe: form.title,
           lifecycle_status: "recadastro_concluido" as const,
           opt_out_at: null,
         };
         let savedId: string | null = null;
-        if (existing) {
-          await supabaseAdmin.from("contacts").update(payload).eq("id", existing.id);
-          savedId = existing.id;
+        if (target) {
+          if (target.phone_e164 && target.phone_e164 !== phoneE164) {
+            // Telefone diferente do já cadastrado: não sobrescreve — cria um novo
+            // contato e marca como duplicata provável pra revisão manual.
+            const { data: newRow } = await supabaseAdmin.from("contacts").insert(payload).select("id").single();
+            if (newRow) {
+              savedId = newRow.id;
+              await supabaseAdmin.from("contact_duplicates").insert({
+                contact_a: newRow.id,
+                contact_b: target.id,
+                match_type: "provavel",
+                reason: "Atualização com telefone diferente do registrado",
+              });
+              await supabaseAdmin.from("contacts").update({ lifecycle_status: "precisa_revisao" }).eq("id", newRow.id);
+            }
+          } else {
+            await supabaseAdmin.from("contacts").update(payload).eq("id", target.id);
+            savedId = target.id;
+          }
         } else {
           const { data: ins } = await supabaseAdmin.from("contacts").insert(payload).select("id").single();
           savedId = ins?.id ?? null;
