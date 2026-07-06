@@ -7,7 +7,7 @@ import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, b
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
-import { checkWhatsappForContacts, contactsQuickCounts } from "@/lib/contacts-phone.functions";
+import { checkWhatsappForContacts, contactsQuickCounts, contactsStatusFacets } from "@/lib/contacts-phone.functions";
 import { formatPhoneBR } from "@/lib/phone";
 import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/phone-labels";
 import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
@@ -55,6 +55,7 @@ function Contatos() {
   const createTagFn = useServerFn(createTag);
   const checkWppFn = useServerFn(checkWhatsappForContacts);
   const quickCountsFn = useServerFn(contactsQuickCounts);
+  const facetsFn = useServerFn(contactsStatusFacets);
 
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
@@ -213,6 +214,11 @@ function Contatos() {
     queryFn: () => quickCountsFn(),
     staleTime: 30_000,
   });
+  const facetsQ = useQuery({
+    queryKey: ["contacts-status-facets"],
+    queryFn: () => facetsFn(),
+    staleTime: 30_000,
+  });
 
   function applyQuickFilter(patch: Partial<CrmFilters>) {
     setFilters((f) => ({ archived: "nao", ...patch }));
@@ -250,14 +256,30 @@ function Contatos() {
     count: t.count,
     color: (t as { cor?: string | null }).cor ?? null,
   }));
-  const statusOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({ value: v, label: LIFECYCLE_LABEL[v] ?? v }));
+  // Coluna "Cadastro" — filtra lifecycle_status. Contagens vêm dos facets do banco;
+  // opções com count=0 aparecem cinzas para o usuário entender que aquele estado não existe hoje.
+  const lifecycleFacet = facetsQ.data?.lifecycle ?? {};
+  const cadastroOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({
+    value: v,
+    label: LIFECYCLE_LABEL[v] ?? v,
+    count: lifecycleFacet[v] ?? 0,
+  })).sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+
+  // Coluna "Número" — filtra phone_status. Mesma lógica de contagem.
+  const phoneFacet = facetsQ.data?.phone ?? {};
+  const PHONE_ORDER = ["valido", "precisa_revisao", "sem_ddd", "sem_nono_digito", "invalido", "duplicado_possivel"];
+  const numeroOpts: ColumnFilterOption[] = PHONE_ORDER.map((v) => ({
+    value: v,
+    label: PHONE_STATUS_LABEL[v] ?? v,
+    count: phoneFacet[v] ?? 0,
+  }));
 
   const nameSortState = sort === "name" ? "asc" : sort === "name-desc" ? "desc" : "none";
   function cycleNameSort() {
     setSort((s) => (s === "name" ? "name-desc" : s === "name-desc" ? "recent" : "name"));
     setPage(1);
   }
-  function setListFilter(key: "cidades" | "bairros" | "tag_ids" | "lifecycle_statuses", values: string[]) {
+  function setListFilter(key: "cidades" | "bairros" | "tag_ids" | "lifecycle_statuses" | "phone_statuses", values: string[]) {
     setFilters((f) => {
       const next = { ...f } as CrmFilters;
       if (values.length === 0) delete (next as Record<string, unknown>)[key];
@@ -461,7 +483,14 @@ function Contatos() {
               <th className="text-left px-3 py-3">
                 <ColumnSortHeader label="Nome" state={nameSortState} onCycle={cycleNameSort} />
               </th>
-              <th className="text-left px-3 py-3">WhatsApp</th>
+              <th className="text-left px-3 py-3">
+                <ColumnFilterHeader
+                  label="Número"
+                  options={numeroOpts}
+                  selected={filters.phone_statuses ?? []}
+                  onChange={(v) => setListFilter("phone_statuses", v)}
+                />
+              </th>
               <th className="text-left px-3 py-3">
                 <ColumnFilterHeader
                   label="Cidade"
@@ -488,8 +517,8 @@ function Contatos() {
               </th>
               <th className="text-left px-3 py-3">
                 <ColumnFilterHeader
-                  label="Status"
-                  options={statusOpts}
+                  label="Cadastro"
+                  options={cadastroOpts}
                   selected={filters.lifecycle_statuses ?? []}
                   onChange={(v) => setListFilter("lifecycle_statuses", v)}
                   align="end"
@@ -509,7 +538,13 @@ function Contatos() {
                   <td className="px-3 py-3 font-medium">
                     <Link to="/contatos/$id" params={{ id: c.id }} className="hover:underline">{c.nome}</Link>
                   </td>
-                  <td className="px-3 py-3 tabular-nums text-muted-foreground">{formatPhoneBR(c.phone_e164)}</td>
+                  <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                    {c.phone_e164
+                      ? formatPhoneBR(c.phone_e164)
+                      : c.phone_raw
+                        ? <span className="italic opacity-70" title="Número original, sem DDD normalizado">{c.phone_raw}</span>
+                        : "—"}
+                  </td>
                   <td className="px-3 py-3 text-muted-foreground">{c.cidade || "—"}</td>
                   <td className="px-3 py-3 text-muted-foreground">{c.bairro || "—"}</td>
                   <td className="px-3 py-3">

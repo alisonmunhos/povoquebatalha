@@ -25,7 +25,7 @@ export const LIFECYCLE_LABEL: Record<string, string> = {
   recadastro_iniciado: "Cadastro iniciado",
   recadastro_concluido: "Cadastro completo",
   nao_respondeu: "Não respondeu",
-  telefone_invalido: "Telefone inválido",
+  telefone_invalido: "Marcado telefone inválido (manual)",
   precisa_revisao: "Precisa revisão (manual)",
   duplicado_possivel: "Possível duplicado (manual)",
   duplicado_mesclado: "Mesclado",

@@ -20,7 +20,7 @@ export const listContactsRich = createServerFn({ method: "POST" })
     let q = context.supabase
       .from("contacts")
       .select(
-        "id,nome,phone_e164,phone_status,whatsapp_status,cidade,bairro,uf,origem,origem_detalhe,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,tipo_contato,coletivo_alicerce,profissao,email,created_at",
+        "id,nome,phone_raw,phone_e164,phone_status,whatsapp_status,cidade,bairro,uf,origem,origem_detalhe,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,tipo_contato,coletivo_alicerce,profissao,email,created_at",
         { count: "exact" },
       )
       .range(from, to);

@@ -137,3 +137,32 @@ export const contactsQuickCounts = createServerFn({ method: "GET" })
     ]);
     return { cadastroCompleto, soImportados, precisaRevisao, numeroOk, bloqueados, semWhatsapp };
   });
+
+// ---------- Facets por status (para dropdowns de coluna e painel) ----------
+// Retorna, em UMA chamada, quantos contatos existem hoje em cada valor de
+// lifecycle_status, phone_status e whatsapp_status. Respeita arquivado_at IS NULL.
+// Serve pra mostrar contadores nos filtros e desabilitar as opções que não têm
+// nenhum contato correspondente — evita o "cliquei e não veio nada".
+export const contactsStatusFacets = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("contacts")
+      .select("lifecycle_status,phone_status,whatsapp_status,arquivado_at")
+      .is("arquivado_at", null)
+      .limit(20000);
+    if (error) throw error;
+    const lifecycle: Record<string, number> = {};
+    const phone: Record<string, number> = {};
+    const whatsapp: Record<string, number> = {};
+    for (const r of data ?? []) {
+      const l = (r.lifecycle_status ?? "") as string;
+      const p = (r.phone_status ?? "") as string;
+      const w = (r.whatsapp_status ?? "") as string;
+      if (l) lifecycle[l] = (lifecycle[l] ?? 0) + 1;
+      if (p) phone[p] = (phone[p] ?? 0) + 1;
+      if (w) whatsapp[w] = (whatsapp[w] ?? 0) + 1;
+    }
+    return { lifecycle, phone, whatsapp };
+  });
+
