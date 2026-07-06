@@ -1,106 +1,57 @@
-
 ## Diagnóstico
 
-**Dados reais (1.010 contatos):**
-- `phone_status`: 623 `valido`, 318 `precisa_revisao` (só 8-9 dígitos, sem DDD), 66 `invalido` (vazios/lixo), 3 `sem_nono_digito`.
-- `lifecycle_status`: 925 `importado_aguardando_recadastro`, 16 `recadastro_concluido` (os "ativos"), 60 `telefone_invalido`, 7 `duplicado_mesclado`.
-- `whatsapp_status`: 1.010 `desconhecido` — nunca é populado; a Z-API nunca é consultada.
+**1. Por que o telefone some da tabela mas aparece na ficha**
+Confirmado no banco: 315 contatos `precisa_revisao` têm `phone_raw` preenchido mas `phone_e164` = NULL (o normalizador exige DDD para gerar E.164). A tabela `/contatos` mostra apenas `formatPhoneBR(c.phone_e164)` (linha 512), por isso fica em branco. A ficha lê `phone_raw`, por isso o número aparece lá.
 
-**Causa da confusão:**
-1. Existem 3 status paralelos (`phone_status`, `whatsapp_status`, `lifecycle_status`) com rótulos técnicos, sem hierarquia visível.
-2. Não há ação para corrigir os 318 "precisa revisão" — só ficam listados.
-3. Não há atalho para "quem virou apoiador" (preencheu cadastro).
-4. Filtro de status funciona na query, mas fica escondido dentro de "Detalhado / avançado" no painel de filtros, então parece "não funcionar".
+**2. Por que o dropdown "Status" da coluna não puxa "Falta DDD"**
+O dropdown da coluna **Status** está ligado apenas a `lifecycle_statuses` (opções: Só importado, Link enviado, Cadastro completo, Telefone inválido, Mesclado…). `phone_status` (Falta DDD, Número OK, Número inválido) **não existe nesse menu** — só está no painel lateral. Além disso:
+- "Telefone inválido" no dropdown é `lifecycle_status=telefone_invalido` (praticamente vazio, 60 registros só) — diferente de `phone_status=invalido` (66). Nomes iguais para coisas diferentes.
+- Sem contadores nas opções → o usuário não vê que várias delas estão zeradas (`link_enviado`, `recadastro_iniciado`, `nao_respondeu`, `precisa_revisao`, `duplicado_possivel` = 0).
 
-## Escopo aprovado
+**3. Filtros que não puxam nada**
+Opções de `lifecycle_status` são hardcoded a partir de `LIFECYCLE`, sem contagem, então aparecem valores que nunca ocorrem no banco.
 
-DDD em massa · WhatsApp sob demanda · rótulos amigáveis · revisão completa dos filtros.
+---
 
-## Passo 1 — Terminologia clara na UI (banco não muda)
+## Plano
 
-Mapa de rótulos aplicado em **filtros, badges na tabela e ficha do contato**:
+### Passo 1 — Mostrar o telefone mesmo sem E.164
+Na tabela `/contatos` (linha 512), quando `phone_e164` for null e existir `phone_raw`, exibir `phone_raw` em cinza + badge "Falta DDD". Assim o operador enxerga o número original e sabe o que revisar. O botão "Copiar WhatsApp" e o link `wa.me` continuam desabilitados enquanto não houver E.164.
 
-| Valor no banco | Rótulo antigo | Rótulo novo |
-| --- | --- | --- |
-| `phone_status=valido` | Válido | **Número OK** |
-| `phone_status=precisa_revisao` | Precisa revisão | **Falta DDD** |
-| `phone_status=invalido` | Inválido | **Número inválido** |
-| `phone_status=sem_nono_digito` | Sem 9º dígito | **Falta 9º dígito** |
-| `phone_status=sem_ddd` | Sem DDD | **Falta DDD** (mesma família) |
-| `lifecycle_status=recadastro_concluido` | Atualização concluída | **Cadastro completo** |
-| `lifecycle_status=importado_aguardando_recadastro` | Importado (aguardando) | **Só importado (sem cadastro)** |
+### Passo 2 — Reformular a coluna "Status" em duas colunas de filtro
+Substituir a coluna "Status" única por duas colunas de cabeçalho filtráveis, alinhadas ao vocabulário do painel lateral:
+- **Cadastro** → filtra `lifecycle_statuses` (Cadastro completo, Só importado, Link enviado, Bloqueado, Mesclado etc.).
+- **Número** → filtra `phone_statuses` (Número OK, Falta DDD, Falta 9º dígito, Número inválido).
 
-Explicação curta no topo do bloco de status: *"Número = qualidade técnica do telefone. Cadastro = a pessoa preencheu o formulário."*
+Cada dropdown mostra **contagem real** vinda de um novo agregado `contactsStatusFacets` (COUNT por `lifecycle_status` e por `phone_status` respeitando `archived=nao`). Opções com contagem 0 aparecem desabilitadas/cinza, para o usuário entender que não existe nenhum contato naquele estado hoje. Isso elimina o mistério de "cliquei no filtro e não veio nada".
 
-## Passo 2 — Filtros no lugar certo
+### Passo 3 — Sincronizar rótulos e remover duplicidade
+- Renomear "Telefone inválido" no dropdown de lifecycle para "Marcado telefone inválido (manual)", para não confundir com o `phone_status=invalido` real.
+- Remover do dropdown lifecycle os valores sem nenhum uso previsto pelo fluxo atual (`precisa_revisao`, `duplicado_possivel` como lifecycle — só existem como phone_status/regra de deduplicação), mantendo apenas os que fazem parte do ciclo de vida real.
+- `PHONE_STATUS_LABEL` e `LIFECYCLE_LABEL` já estão centralizados em `phone-labels.ts`; ambos dropdowns e chips ativos continuam consumindo daí.
 
-Hoje `Status do telefone`, `WhatsApp`, `Ciclo de vida` estão dentro de "Detalhado / avançado", escondidos. Mudanças no `ContactFiltersPanel`:
+### Passo 4 — Facets como fonte única
+Novo `contactsStatusFacets()` em `src/lib/contacts-phone.functions.ts` retorna:
+```
+{ lifecycle: { valor: count }, phone: { valor: count }, whatsapp: { valor: count } }
+```
+respeitando `arquivado_at IS NULL`. A tabela usa o resultado nas colunas Cadastro/Número e o painel lateral também passa a mostrar contagens ao lado de cada checkbox. Zero query extra por filtro selecionado — 1 chamada só.
 
-1. Promover **Status do número** e **Cadastro (ciclo de vida)** para a seção principal ("Base rápida"), antes de "Detalhado".
-2. Adicionar **filtros rápidos (chips clicáveis)** no topo:
-   - `Cadastro completo` → `lifecycle_statuses=[recadastro_concluido]`
-   - `Só importados` → `lifecycle_statuses=[importado_aguardando_recadastro]`
-   - `Precisa revisão de número` → `phone_statuses=[precisa_revisao, sem_nono_digito]`
-   - `Números OK` → `phone_statuses=[valido]`
-   - `Bloqueados` → `bloqueado=sim`
-3. Manter `Status do WhatsApp` no avançado com aviso já existente ("não use para decisões") — passa a fazer sentido depois do passo 4.
-4. Reproduzir no browser antes/depois com um filtro por status e confirmar que a query retorna a contagem esperada (Ex: `Cadastro completo` = 16).
+### Passo 5 — Chip rápido corrige o "Falta DDD"
+O chip **Precisa revisão** já filtra `phone_statuses = [precisa_revisao, sem_ddd, sem_nono_digito]` e abre o diálogo de aplicação de DDD. Vou verificar visualmente que ele fica ativo/destaque quando o filtro é aplicado (bug reportado: "não puxa"). Se o problema era só que o usuário buscava a opção no dropdown de coluna, o Passo 2 já resolve.
 
-## Passo 3 — Corrigir "Falta DDD" em massa
+### Passo 6 — Validação (browser)
+Rodar Playwright em `/contatos`:
+1. Abrir dropdown **Número** → confirmar opções "Número OK (623)", "Falta DDD (315)", "Número inválido (66)".
+2. Selecionar "Falta DDD" → verificar que as linhas listadas mostram `phone_raw` em cinza + badge, e a contagem bate.
+3. Abrir dropdown **Cadastro** → confirmar contagens; opções com 0 aparecem cinza.
+4. Screenshot final.
 
-Nova aba **"Revisão de números"** dentro de `/contatos` (ou botão flutuante quando filtro `precisa_revisao` está ativo):
+---
 
-- Lista os 318 contatos com `phone_status` em `precisa_revisao`/`sem_nono_digito`/`sem_ddd`, mostrando `phone_raw`, `cidade`, `uf`, `bairro`.
-- Ação: **seleção múltipla + botão "Aplicar DDD"** com dropdown de DDDs (padrão sugerido pela cidade quando houver; senão o usuário escolhe manualmente, ex: 11, 21, 31, 71...).
-- Server function `fixContactsPhoneDdd({ contactIds, ddd })`:
-  - Para cada contato: reconstrói `phone_raw = ddd + phone_raw`, dispara o trigger `contacts_phone_fill` que já roda `private.parse_phone_br` e recalcula `phone_status`, `phone_e164`, `phone_last8`, etc.
-  - Registra no `contact_audit_log`.
-  - Retorna quantos viraram `valido` vs. quantos continuaram problemáticos.
-- Também um botão "Editar manualmente" por linha, que abre a ficha do contato no campo telefone.
+## Detalhes técnicos
 
-Reversível: se der ruim, o `contact_audit_log` guarda o valor anterior e uma tela de "desfazer último lote" (reaproveita padrão do `imports-undo`) refaz.
-
-## Passo 4 — Checagem real de WhatsApp (sob demanda)
-
-Server function `checkWhatsappForContacts({ contactIds })`:
-
-- Chama `phone-exists-batch` da Z-API em lotes de 50 (endpoint já existe no cliente Z-API).
-- Atualiza `whatsapp_status` = `confirmado` | `invalido` (nome já usado em `WPP_STATUS`).
-- Atualiza `whatsapp_checked_at` (nova coluna — migration).
-- Registra em `contact_audit_log`.
-
-UI: botão **"Verificar no WhatsApp"** aparece:
-- No topo da lista de contatos quando há seleção múltipla.
-- Na ficha individual do contato.
-- Rate-limit visual: "vai consumir X chamadas Z-API, confirma?".
-
-Filtro `Status do WhatsApp` deixa de ter o aviso "não use para decisões".
-
-## Passo 5 — Migração de dados e schema
-
-Uma única migration:
-1. `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS whatsapp_checked_at timestamptz`.
-2. Backfill: contatos com `phone_status='invalido'` E `phone_raw` não vazio E não parece telefone → mantém como está; `phone_raw` vazio permanece.
-3. Sem mudanças em enums (mantém compatibilidade).
-
-## Passo 6 — Validação
-
-- Reproduzir no preview: aplicar chip "Precisa revisão de número" → 321 contatos → selecionar tudo → aplicar DDD 11 → chip "Números OK" → contagem sobe para ~944.
-- Testar chip "Cadastro completo" → 16 contatos.
-- Testar "Verificar no WhatsApp" com 5 contatos → conferir `whatsapp_status` mudou no banco.
-- Rodar typecheck.
-
-## Arquivos afetados
-
-- `src/components/ContactFiltersPanel.tsx` — rótulos, promoção de campos, chips rápidos.
-- `src/routes/_authenticated/contatos.tsx` — chips no topo, aba/tela de revisão.
-- `src/lib/phone.ts` — helpers de sugestão de DDD por cidade (tabela estática).
-- `src/lib/contacts.functions.ts` (novo ou existente) — `fixContactsPhoneDdd`, `checkWhatsappForContacts`.
-- `src/lib/wa-send.server.ts` ou novo `wa-check.server.ts` — chamada `phone-exists-batch`.
-- Migration nova para `whatsapp_checked_at`.
-
-## Riscos e cuidados
-
-- Ação em massa de DDD sobrescreve `phone_raw`. Mitigado pelo log de auditoria + confirmação com contagem.
-- Checagem Z-API custa chamadas; sempre pedir confirmação com a contagem.
-- Nenhum contato é apagado. Nenhum enum ou trigger existente é alterado.
+- Sem mudança de banco, sem migration, sem enum novo.
+- Arquivos tocados: `src/routes/_authenticated/contatos.index.tsx` (colunas + render do telefone), `src/lib/contacts-phone.functions.ts` (novo `contactsStatusFacets`), `src/components/ContactFiltersPanel.tsx` (mostrar counts vindos do facet), `src/lib/phone-labels.ts` (ajuste do rótulo lifecycle "telefone_invalido").
+- Sem alteração no motor de mensagens, sem tocar em `crm-filters.ts` (a query já suporta `phone_statuses`/`lifecycle_statuses`).
+- Risco: baixo. Nenhuma escrita, apenas leitura e apresentação.
