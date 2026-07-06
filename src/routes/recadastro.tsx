@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { Megaphone, CheckCircle2, Loader2 } from "lucide-react";
@@ -37,7 +37,7 @@ const FORMAS_AJUDA_OPTS: Array<{ value: string; label: string }> = [
 
 export function Recadastro() {
   const navigate = useNavigate();
-  const { origem, t, ref } = Route.useSearch();
+  const { origem, t, ref } = useSearch({ strict: false }) as { origem?: string; t?: string; ref?: string };
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cep, setCep] = useState("");
