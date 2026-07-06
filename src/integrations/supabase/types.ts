@@ -1707,6 +1707,7 @@ export type Database = {
           full_name: string | null
           id: string
           invited_by: string | null
+          requested_role: Database["public"]["Enums"]["app_role"] | null
           revoked_at: string | null
           status: Database["public"]["Enums"]["user_access_status"]
           suspended_at: string | null
@@ -1718,6 +1719,7 @@ export type Database = {
           full_name?: string | null
           id: string
           invited_by?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
           revoked_at?: string | null
           status?: Database["public"]["Enums"]["user_access_status"]
           suspended_at?: string | null
@@ -1729,6 +1731,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           invited_by?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
           revoked_at?: string | null
           status?: Database["public"]["Enums"]["user_access_status"]
           suspended_at?: string | null
