@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import {
   listUsers,
-  inviteUser,
   deleteUser,
   setUserRole,
   setUserStatus,
@@ -13,11 +12,10 @@ import {
   sendPasswordResetEmail,
   listAccessAudit,
   listPendingApprovals,
-  approvePendingAgitador,
-  rejectPendingAgitador,
+  approvePendingUser,
+  rejectPendingUser,
 } from "@/lib/users.functions";
 import {
-  UserPlus,
   Trash2,
   ShieldCheck,
   RefreshCw,
@@ -32,6 +30,7 @@ import {
   UserMinus,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ALL_ROLES, PUBLIC_SIGNUP_ROLES, ROLE_LABEL, type AppRole } from "@/lib/roles";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   head: () => ({ meta: [{ title: "Usuários — Campanha do Povo que Batalha" }] }),
@@ -56,25 +55,20 @@ type Row = {
     | "pendente_aprovacao";
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: "Admin",
-  operador: "Operador",
-  vrm: "VRM",
-  comunicacao: "Comunicação",
-  agitador: "Agitador",
-  leitor: "Leitor",
+type PendingRow = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  created_at: string;
+  phone: string | null;
+  requested_role: AppRole | null;
 };
-
-type InviteRole = "admin" | "operador" | "leitor" | "vrm" | "agitador" | "comunicacao";
-
-type PendingRow = { id: string; email: string; full_name: string | null; created_at: string; phone: string | null };
 
 type InviteModal = { email: string; role: string; link: string | null };
 type ResetModal = { email: string; userId: string };
 
 function UsuariosPage() {
   const fetchList = useServerFn(listUsers);
-  const invite = useServerFn(inviteUser);
   const remove = useServerFn(deleteUser);
   const updateRole = useServerFn(setUserRole);
   const setStatus = useServerFn(setUserStatus);
@@ -84,17 +78,14 @@ function UsuariosPage() {
   const emailReset = useServerFn(sendPasswordResetEmail);
   const audit = useServerFn(listAccessAudit);
   const fetchPending = useServerFn(listPendingApprovals);
-  const approve = useServerFn(approvePendingAgitador);
-  const reject = useServerFn(rejectPendingAgitador);
+  const approve = useServerFn(approvePendingUser);
+  const reject = useServerFn(rejectPendingUser);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
+  const [approveRoleByUser, setApproveRoleByUser] = useState<Record<string, AppRole>>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<InviteRole>("operador");
-  const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [inviteModal, setInviteModal] = useState<InviteModal | null>(null);
   const [resetModal, setResetModal] = useState<ResetModal | null>(null);
@@ -103,8 +94,11 @@ function UsuariosPage() {
   const [auditRows, setAuditRows] = useState<{ id: string; event: string; created_at: string; meta: Record<string, unknown>; target_user_id: string | null; actor_id: string | null }[]>([]);
   const [origin, setOrigin] = useState<string>("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
-  const agitadorSignupUrl = origin ? `${origin}/cadastro-agitador` : "";
-  const agitadorSignupMessage = `Olá! Quero te convidar para ser agitador(a) voluntário(a) da Campanha do Povo que Batalha. É rápido: preencha seus dados no link abaixo e um administrador libera seu acesso.\n\n${agitadorSignupUrl}`;
+  const [linkRole, setLinkRole] = useState<AppRole>("agitador");
+  const signupUrl = origin
+    ? (linkRole === "agitador" ? `${origin}/cadastro-agitador` : `${origin}/cadastro-usuario?role=${linkRole}`)
+    : "";
+  const signupMessage = `Olá! Quero te convidar para fazer parte da equipe da Campanha do Povo que Batalha, como ${ROLE_LABEL[linkRole]}. É rápido: preencha seus dados no link abaixo e um administrador libera seu acesso.\n\n${signupUrl}`;
 
   async function load() {
     setLoading(true);
@@ -115,7 +109,15 @@ function UsuariosPage() {
       const a = await audit();
       setAuditRows(a.rows as typeof auditRows);
       const p = await fetchPending();
-      setPendingRows(p.rows as PendingRow[]);
+      const pending = p.rows as PendingRow[];
+      setPendingRows(pending);
+      setApproveRoleByUser((prev) => {
+        const next = { ...prev };
+        for (const row of pending) {
+          if (!(row.id in next)) next[row.id] = row.requested_role ?? "agitador";
+        }
+        return next;
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao carregar usuários.");
     } finally {
@@ -124,21 +126,6 @@ function UsuariosPage() {
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
-
-  async function onInvite(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true); setMsg(null); setErr(null);
-    try {
-      const trimmedName = fullName.trim();
-      const r = await invite({ data: { email, role, redirectOrigin: window.location.origin, full_name: trimmedName || null } });
-      setInviteModal({ email: r.email ?? email, role: r.role ?? role, link: r.actionLink ?? null });
-      setEmail("");
-      setFullName("");
-      await load();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erro ao enviar convite.");
-    } finally { setSubmitting(false); }
-  }
 
   async function act(fn: () => Promise<unknown>, msg?: string) {
     try {
@@ -190,7 +177,7 @@ function UsuariosPage() {
             <ShieldCheck className="h-6 w-6 text-primary" /> Central de acesso
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Cadastro público desabilitado. Novos acessos apenas por convite.
+            Novo acesso: compartilhe o link de auto-cadastro abaixo — você aprova e escolhe o papel depois.
           </p>
         </div>
         <Link
@@ -201,74 +188,35 @@ function UsuariosPage() {
         </Link>
       </header>
 
-      <section className="border rounded-xl p-5 bg-card">
-        <h2 className="font-semibold flex items-center gap-2 mb-3">
-          <UserPlus className="h-4 w-4" /> Convidar novo usuário
-        </h2>
-        <form onSubmit={onInvite} className="space-y-3">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Nome completo (recomendado)</label>
-              <input
-                type="text" placeholder="Ex: Maria da Silva"
-                value={fullName} onChange={(e) => setFullName(e.target.value)}
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">E-mail *</label>
-              <input
-                type="email" required placeholder="email@exemplo.com"
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
-              />
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-[1fr_auto] gap-3">
-            <select
-              value={role} onChange={(e) => setRole(e.target.value as InviteRole)}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
-            >
-              <option value="admin">Admin</option>
-              <option value="operador">Operador</option>
-              <option value="vrm">VRM (Relacionamento)</option>
-              <option value="comunicacao">Comunicação</option>
-              <option value="agitador">Agitador</option>
-              <option value="leitor">Leitor</option>
-            </select>
-            <button type="submit" disabled={submitting}
-              className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 h-10">
-              {submitting ? "Enviando…" : "Enviar convite"}
-            </button>
-          </div>
-        </form>
-        <p className="mt-3 text-xs text-muted-foreground flex items-start gap-1.5">
-          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          Preencher o nome ajuda a manter a ficha do contato correta. Sem nome, usamos o e-mail como identificação inicial. Um link direto também é gerado caso o e-mail não chegue.
-        </p>
-        {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
-        {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
-      </section>
-
-      {/* Link fixo de auto-cadastro de agitador */}
+      {/* Link de auto-cadastro (sem link mágico, sem expiração — cai em "Aguardando aprovação") */}
       <section className="border rounded-xl p-5 bg-card">
         <h2 className="font-semibold flex items-center gap-2 mb-1">
-          <LinkIcon className="h-4 w-4" /> Link de auto-cadastro de agitador
+          <LinkIcon className="h-4 w-4" /> Link de auto-cadastro
         </h2>
         <p className="text-xs text-muted-foreground mb-3">
-          Link <b>fixo e reutilizável</b> — pode compartilhar com quantas pessoas quiser. Todo cadastro feito por aqui cai na aba <b>Aguardando aprovação</b> acima, para você liberar o acesso manualmente.
+          Link <b>fixo e reutilizável</b> — pode compartilhar com quantas pessoas quiser. Todo cadastro feito por aqui cai na aba <b>Aguardando aprovação</b> abaixo, para você liberar o acesso manualmente. O papel escolhido aqui é só uma sugestão pré-selecionada na aprovação — você decide o papel de verdade nessa hora.
         </p>
-        {agitadorSignupUrl ? (
+        <div className="mb-3">
+          <label className="text-xs font-medium text-muted-foreground">Papel sugerido no link</label>
+          <select
+            value={linkRole}
+            onChange={(e) => setLinkRole(e.target.value as AppRole)}
+            className="mt-1 block rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
+          >
+            {PUBLIC_SIGNUP_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+          </select>
+        </div>
+        {signupUrl ? (
           <>
-            <LinkBox url={agitadorSignupUrl} />
+            <LinkBox url={signupUrl} />
             <div className="flex gap-2 flex-wrap mt-2">
               <CopyButton
-                text={agitadorSignupUrl}
+                text={signupUrl}
                 label="Copiar link"
                 onDone={() => setMsg("Link copiado.")}
               />
               <CopyButton
-                text={agitadorSignupMessage}
+                text={signupMessage}
                 label="Copiar mensagem pronta"
                 onDone={() => setMsg("Mensagem copiada.")}
               />
@@ -277,9 +225,9 @@ function UsuariosPage() {
         ) : (
           <p className="text-xs text-muted-foreground">Carregando…</p>
         )}
+        {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
+        {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
       </section>
-
-
 
       {/* Guia rápido de ações */}
       <section className="border rounded-xl p-4 bg-muted/30 text-xs text-muted-foreground">
@@ -319,38 +267,54 @@ function UsuariosPage() {
                       <th className="px-4 py-2">E-mail</th>
                       <th className="px-4 py-2">WhatsApp</th>
                       <th className="px-4 py-2">Cadastrado em</th>
+                      <th className="px-4 py-2">Papel</th>
                       <th className="px-4 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingRows.map((p) => (
-                      <tr key={p.id} className="border-t">
-                        <td className="px-4 py-2">{p.full_name ?? "—"}</td>
-                        <td className="px-4 py-2 max-w-[220px] truncate" title={p.email}>{p.email}</td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{p.phone ?? "—"}</td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(p.created_at).toLocaleString("pt-BR")}
-                        </td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
-                          <button
-                            onClick={() => act(() => approve({ data: { userId: p.id } }), `${p.full_name ?? p.email} aprovado(a) como agitador.`)}
-                            className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
-                          </button>
-                          <button
-                            onClick={() => {
-                              const first = prompt(`REJEITAR o cadastro de ${p.full_name ?? p.email}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`);
-                              if (first !== "REJEITAR") return;
-                              act(() => reject({ data: { userId: p.id } }), "Cadastro rejeitado.");
-                            }}
-                            className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Rejeitar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {pendingRows.map((p) => {
+                      const selectedRole = approveRoleByUser[p.id] ?? p.requested_role ?? "agitador";
+                      return (
+                        <tr key={p.id} className="border-t">
+                          <td className="px-4 py-2">{p.full_name ?? "—"}</td>
+                          <td className="px-4 py-2 max-w-[220px] truncate" title={p.email}>{p.email}</td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{p.phone ?? "—"}</td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(p.created_at).toLocaleString("pt-BR")}
+                          </td>
+                          <td className="px-4 py-2">
+                            <select
+                              value={selectedRole}
+                              onChange={(e) => setApproveRoleByUser((prev) => ({ ...prev, [p.id]: e.target.value as AppRole }))}
+                              className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                            >
+                              {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
+                            <button
+                              onClick={() => act(
+                                () => approve({ data: { userId: p.id, role: selectedRole } }),
+                                `${p.full_name ?? p.email} aprovado(a) como ${ROLE_LABEL[selectedRole]}.`,
+                              )}
+                              className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
+                            </button>
+                            <button
+                              onClick={() => {
+                                const first = prompt(`REJEITAR o cadastro de ${p.full_name ?? p.email}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`);
+                                if (first !== "REJEITAR") return;
+                                act(() => reject({ data: { userId: p.id } }), "Cadastro rejeitado.");
+                              }}
+                              className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Rejeitar
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -379,7 +343,7 @@ function UsuariosPage() {
                   </thead>
                   <tbody>
                     {ativos.map((u) => {
-                      const currentRole = (u.roles[0] ?? "leitor") as InviteRole;
+                      const currentRole = (u.roles[0] ?? "leitor") as AppRole;
                       return (
                         <tr key={u.id} className="border-t">
                           <td className="px-4 py-2 max-w-[220px] truncate" title={u.email}>{u.email}</td>
