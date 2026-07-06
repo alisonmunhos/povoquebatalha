@@ -65,10 +65,14 @@ const updateSchema = z.object({
   id: z.string().uuid(),
   nome: z.string().trim().min(2).max(120).optional(),
   nome_social: z.string().trim().max(120).nullable().optional(),
-  email: z.string().trim().email().max(255).nullable().optional().or(z.literal("")),
-  email_secundario: z.string().trim().email().max(255).nullable().optional().or(z.literal("")),
-  phone_raw: z.string().trim().max(40).nullable().optional(),
-  phone_secundario_raw: z.string().trim().max(40).nullable().optional(),
+  email: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().email().max(255).nullable().optional()),
+  email_secundario: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().email().max(255).nullable().optional()),
+  phone_raw: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(60).nullable().optional()),
+  phone_secundario_raw: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(60).nullable().optional()),
   cep: z.string().trim().max(12).nullable().optional(),
   endereco: z.string().trim().max(240).nullable().optional(),
   numero: z.string().trim().max(20).nullable().optional(),
@@ -76,7 +80,8 @@ const updateSchema = z.object({
   referencia: z.string().trim().max(240).nullable().optional(),
   bairro: z.string().trim().max(120).nullable().optional(),
   cidade: z.string().trim().max(120).nullable().optional(),
-  uf: z.string().trim().length(2).nullable().optional(),
+  uf: z.preprocess((v) => (typeof v === "string" ? v.trim().toUpperCase() : v),
+    z.string().length(2).nullable().optional().or(z.literal(""))),
   profissao: z.string().trim().max(120).nullable().optional(),
   instituicao: z.string().trim().max(240).nullable().optional(),
   coletivo_alicerce: z.boolean().nullable().optional(),
@@ -86,7 +91,7 @@ const updateSchema = z.object({
     .enum(["apoiador", "voluntario", "lista_divulgacao", "importado", "outro"])
     .nullable()
     .optional(),
-  formas_ajuda: z.array(z.string().max(60)).max(20).optional(),
+  formas_ajuda: z.array(z.string().max(80)).max(20).optional(),
   formas_ajuda_outro: z.string().trim().max(240).nullable().optional(),
   quem_indicou: z.string().trim().max(160).nullable().optional(),
   rede_social: z.string().trim().max(160).nullable().optional(),
@@ -95,12 +100,13 @@ const updateSchema = z.object({
     .enum(["16_17", "18_24", "25_34", "35_44", "45_59", "60_mais"])
     .nullable()
     .optional(),
-  disponibilidade: z.array(z.string().max(20)).max(21).optional(),
+  disponibilidade: z.array(z.string().max(80)).max(50).optional(),
   consentimento_whatsapp: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(120).nullable().optional(),
   observacoes: z.string().trim().max(4000).nullable().optional(),
   geocode: z.boolean().optional(),
 });
+
 
 export const updateContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -209,6 +215,54 @@ export const updateContact = createServerFn({ method: "POST" })
   });
 
 export const upsertContact = updateContact;
+
+/**
+ * Salva SOMENTE o telefone principal. Ação leve para consertar rapidamente
+ * numeros com Falta DDD sem depender da validação do formulário inteiro.
+ * O trigger contacts_phone_fill recalcula phone_e164, phone_status e phone_last8.
+ */
+export const saveContactPhone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      phone_raw: z.preprocess(
+        (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+        z.string().trim().max(60).nullable(),
+      ),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: prev, error: prevErr } = await context.supabase
+      .from("contacts")
+      .select("phone_raw")
+      .eq("id", data.id)
+      .single();
+    if (prevErr) throw prevErr;
+
+    const { data: updated, error } = await context.supabase
+      .from("contacts")
+      .update({ phone_raw: data.phone_raw, phone_status: null } as never)
+      .eq("id", data.id)
+      .select("phone_raw, phone_e164, phone_status, phone_last8")
+      .single();
+    if (error) throw error;
+
+    await context.supabase.from("contact_audit_log").insert({
+      contact_id: data.id,
+      user_id: context.userId,
+      action: "update",
+      changes: { phone_raw: { from: prev?.phone_raw ?? null, to: updated.phone_raw ?? null } } as never,
+    });
+
+    return {
+      ok: true as const,
+      phone_raw: updated.phone_raw,
+      phone_e164: updated.phone_e164,
+      phone_status: updated.phone_status,
+    };
+  });
+
 
 export const archiveContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

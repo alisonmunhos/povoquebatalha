@@ -1,20 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   getContact, updateContact, archiveContact, setOptOut,
   getContactHistory, listAllTags, createTag, setContactTag,
-  deleteContact, getContactSourceEvents,
+  deleteContact, getContactSourceEvents, saveContactPhone,
 } from "@/lib/contacts.functions";
 import { listContactLogsUnified } from "@/lib/contact-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
-import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
+import { PHONE_STATUS_LABEL, PHONE_STATUS_BADGE, suggestDddFor, ALL_DDDS } from "@/lib/phone-labels";
+
 
 const TIPO_OPTIONS = [
   { v: "apoiador", l: "Apoiador" }, { v: "voluntario", l: "Voluntário" },
@@ -63,6 +65,7 @@ function ContatoFicha() {
   const navigate = useNavigate();
   const getFn = useServerFn(getContact);
   const updateFn = useServerFn(updateContact);
+  const savePhoneFn = useServerFn(saveContactPhone);
   const archiveFn = useServerFn(archiveContact);
   const optOutFn = useServerFn(setOptOut);
   const historyFn = useServerFn(getContactHistory);
@@ -73,6 +76,8 @@ function ContatoFicha() {
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const queryClient = useQueryClient();
+
 
   const q = useQuery({ queryKey: ["contact", id], queryFn: () => getFn({ data: { id } }) });
   const hist = useQuery({ queryKey: ["contact-history", id], queryFn: () => historyFn({ data: { id } }) });
@@ -145,6 +150,29 @@ function ContatoFicha() {
     }
   }
 
+  function invalidateContactLists() {
+    queryClient.invalidateQueries({ queryKey: ["contacts-rich"] });
+    queryClient.invalidateQueries({ queryKey: ["contacts-quick-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["contacts-status-facets"] });
+  }
+
+  function humanizeError(e: unknown): string {
+    if (e && typeof e === "object" && "issues" in e) {
+      const issues = (e as { issues: Array<{ path: (string | number)[]; message: string }> }).issues;
+      const first = issues[0];
+      const field = first?.path?.[0] ? String(first.path[0]) : "";
+      const map: Record<string, string> = {
+        nome: "Nome", email: "E-mail", email_secundario: "E-mail secundário",
+        phone_raw: "WhatsApp / telefone", phone_secundario_raw: "Telefone secundário",
+        cep: "CEP", uf: "UF", cidade: "Cidade", endereco: "Endereço",
+      };
+      const label = map[field] ?? field;
+      return `${label}: ${first?.message ?? "valor inválido"}`;
+    }
+    if (e instanceof Error) return e.message;
+    return "Erro ao salvar";
+  }
+
   async function save() {
     setSaving(true);
     try {
@@ -152,16 +180,34 @@ function ContatoFicha() {
       toast.success("Contato atualizado");
       q.refetch();
       hist.refetch();
+      invalidateContactLists();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+      console.error("updateContact failed:", e);
+      toast.error(humanizeError(e));
     } finally {
       setSaving(false);
     }
   }
 
-  const phonePreview = parsePhoneBR(String(form.phone_raw ?? ""));
+  async function savePhoneOnly(nextPhoneRaw: string) {
+    try {
+      const r = await savePhoneFn({ data: { id, phone_raw: nextPhoneRaw } });
+      const statusLabel = PHONE_STATUS_LABEL[r.phone_status ?? ""] ?? r.phone_status ?? "atualizado";
+      toast.success(`Telefone salvo — ${statusLabel}`);
+      set("phone_raw", r.phone_raw ?? "");
+      q.refetch();
+      hist.refetch();
+      invalidateContactLists();
+    } catch (e) {
+      console.error("saveContactPhone failed:", e);
+      toast.error(humanizeError(e));
+    }
+  }
+
+  
   const tagIds = new Set((q.data.tags ?? []).map((t) => t!.id));
   const phoneDigits = (c.phone_e164 ?? "").replace(/\D/g, "");
+
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
@@ -226,8 +272,15 @@ function ContatoFicha() {
             <Row><Field label="E-mail secundário" value={form.email_secundario} onChange={(v) => set("email_secundario", v)} type="email" placeholder="Opcional — preservado em mesclagens" /></Row>
             <Row>
               <Field label="WhatsApp / telefone" value={form.phone_raw} onChange={(v) => set("phone_raw", v)} placeholder="(11) 91234-5678" />
-              {form.phone_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(phonePreview.phone_e164 ?? "") || "—"} ({phonePreview.phone_status})</p> : null}
+              <PhoneQuickSave
+                rawInput={String(form.phone_raw ?? "")}
+                currentStatus={c.phone_status}
+                cidade={c.cidade}
+                uf={c.uf}
+                onSave={savePhoneOnly}
+              />
             </Row>
+
             <Row>
               <Field label="Telefone secundário" value={form.phone_secundario_raw} onChange={(v) => set("phone_secundario_raw", v)} placeholder="Opcional — reconhecido em mensagens recebidas" />
               {form.phone_secundario_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(parsePhoneBR(String(form.phone_secundario_raw ?? "")).phone_e164 ?? "") || "—"}</p> : null}
@@ -607,5 +660,122 @@ function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; cont
         )}
       </div>
     </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bloco compacto de "salvar telefone" — normaliza o número (aplica DDD se
+// faltando) e salva apenas o campo phone_raw, sem depender do form global.
+// ---------------------------------------------------------------------------
+function PhoneQuickSave({
+  rawInput,
+  currentStatus,
+  cidade,
+  uf,
+  onSave,
+}: {
+  rawInput: string;
+  currentStatus: string | null;
+  cidade: string | null | undefined;
+  uf: string | null | undefined;
+  onSave: (nextPhoneRaw: string) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [dddChoice, setDddChoice] = useState<string>("");
+
+  const digits = rawInput.replace(/\D/g, "");
+  const preview = parsePhoneBR(rawInput);
+  const suggested = useMemo(() => suggestDddFor(cidade, uf), [cidade, uf]);
+  const effectiveDdd = dddChoice || suggested || "";
+
+  // Falta DDD quando temos 8 ou 9 dígitos "úteis" e o parser não achou E.164.
+  const needsDdd =
+    !preview.phone_e164 &&
+    digits.length >= 8 &&
+    digits.length <= 9;
+
+  const statusLabel = PHONE_STATUS_LABEL[currentStatus ?? ""] ?? currentStatus ?? "—";
+  const statusClass = PHONE_STATUS_BADGE[currentStatus ?? ""] ?? "bg-muted text-muted-foreground";
+
+  const previewFormatted = preview.phone_e164 ? formatPhoneBR(preview.phone_e164) : "—";
+
+  async function handleSave(nextRaw: string) {
+    setSaving(true);
+    try {
+      await onSave(nextRaw);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md border border-dashed bg-muted/30 p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className={`px-2 py-0.5 rounded font-medium ${statusClass}`}>{statusLabel}</span>
+        {rawInput ? (
+          <span className="text-muted-foreground">
+            → {previewFormatted}
+          </span>
+        ) : (
+          <span className="text-muted-foreground italic">Sem telefone informado</span>
+        )}
+      </div>
+
+      {needsDdd && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Falta DDD:</span>
+          {suggested && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => handleSave(`(${suggested}) ${digits}`)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-500 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              <Phone className="h-3 w-3" />
+              Aplicar DDD {suggested}
+              {cidade && <span className="opacity-70">({cidade})</span>}
+            </button>
+          )}
+          <select
+            value={dddChoice}
+            onChange={(e) => setDddChoice(e.target.value)}
+            className="rounded border border-input bg-background px-2 py-1"
+          >
+            <option value="">Outro DDD…</option>
+            {ALL_DDDS.map((d) => (
+              <option key={d} value={d}>DDD {d}</option>
+            ))}
+          </select>
+          {dddChoice && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => handleSave(`(${dddChoice}) ${digits}`)}
+              className="px-2 py-1 rounded border hover:bg-muted disabled:opacity-50"
+            >
+              Aplicar DDD {dddChoice}
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => handleSave(rawInput)}
+          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border bg-background hover:bg-muted disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Salvar telefone
+        </button>
+      </div>
+
+      {effectiveDdd && !suggested && needsDdd && (
+        <p className="text-[11px] text-muted-foreground">
+          Dica: se você preencher Cidade/UF na seção Endereço, o DDD será sugerido automaticamente.
+        </p>
+      )}
+    </div>
   );
 }
