@@ -65,6 +65,7 @@ function ContatoFicha() {
   const navigate = useNavigate();
   const getFn = useServerFn(getContact);
   const updateFn = useServerFn(updateContact);
+  const savePhoneFn = useServerFn(saveContactPhone);
   const archiveFn = useServerFn(archiveContact);
   const optOutFn = useServerFn(setOptOut);
   const historyFn = useServerFn(getContactHistory);
@@ -75,6 +76,8 @@ function ContatoFicha() {
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const queryClient = useQueryClient();
+
 
   const q = useQuery({ queryKey: ["contact", id], queryFn: () => getFn({ data: { id } }) });
   const hist = useQuery({ queryKey: ["contact-history", id], queryFn: () => historyFn({ data: { id } }) });
