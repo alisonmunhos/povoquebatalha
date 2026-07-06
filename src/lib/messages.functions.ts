@@ -13,6 +13,9 @@ const templateSchema = z.object({
   body: z.string().trim().min(2).max(4000),
   variables: z.array(z.string()).max(20).default([]),
   link: z.string().trim().max(500).optional().nullable(),
+  link_title: z.string().trim().max(300).optional().nullable(),
+  link_description: z.string().trim().max(600).optional().nullable(),
+  link_image: z.string().trim().max(1000).optional().nullable(),
   media_url: z.string().trim().max(500).optional().nullable(),
   media_path: z.string().trim().max(500).optional().nullable(),
   media_mime: z.string().trim().max(120).optional().nullable(),
@@ -46,6 +49,9 @@ export const upsertMessageTemplate = createServerFn({ method: "POST" })
       body: data.body,
       variables: data.variables,
       link: data.link || null,
+      link_title: data.link_title || null,
+      link_description: data.link_description || null,
+      link_image: data.link_image || null,
       media_url: data.media_url || null,
       media_path: data.media_path || null,
       media_mime: data.media_mime || null,
@@ -122,7 +128,7 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tpl, error } = await supabaseAdmin
       .from("message_templates")
-      .select("body, link, media_path, media_mime, media_filename")
+      .select("body, link, link_title, link_description, link_image, media_path, media_mime, media_filename")
       .eq("id", data.templateId).single();
     if (error || !tpl) throw new Error("Template não encontrado");
     const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: data.phone });
@@ -143,7 +149,19 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
       }
     }
 
-    const { sendMessage } = await import("@/lib/wa-send.server");
+    const { sendMessage, readUseSendLinkFlag } = await import("@/lib/wa-send.server");
+    const useSendLink = await readUseSendLinkFlag();
+    const linkMeta = tpl.link
+      ? {
+          url: tpl.link,
+          title: tpl.link_title ?? null,
+          description: tpl.link_description ?? null,
+          image: tpl.link_image ?? null,
+          status: (tpl.link_title || tpl.link_image ? "preview_confirmada" : "preview_provavel") as
+            | "preview_confirmada"
+            | "preview_provavel",
+        }
+      : null;
     const res = await sendMessage({
       contact: {
         nome: "Teste",
@@ -156,8 +174,9 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
       },
       text: `[TESTE] ${tpl.body}`,
       renderOptions: { unknownAsEmpty: true },
-      link: tpl.link ? { url: tpl.link, status: "preview_provavel" } : null,
+      link: linkMeta,
       attachment,
+      useSendLink,
       origin: "template_test",
       skipValidations: true,
     });

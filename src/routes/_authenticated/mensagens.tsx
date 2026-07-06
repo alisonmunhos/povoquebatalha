@@ -21,7 +21,8 @@ export const Route = createFileRoute("/_authenticated/mensagens")({
 type Tpl = {
   id: string; kind: "system" | "quick_reply"; event_key: string | null; shortcut: string | null;
   title: string; category: string | null; body: string; variables: unknown;
-  link: string | null; media_url: string | null;
+  link: string | null; link_title: string | null; link_description: string | null; link_image: string | null;
+  media_url: string | null;
   media_path: string | null; media_mime: string | null; media_filename: string | null;
   active: boolean; updated_at: string;
 };
@@ -213,9 +214,9 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
                   value={{
                     body: editing.body ?? "",
                     link_url: (editing.link as string | null) ?? null,
-                    link_title: null,
-                    link_description: null,
-                    link_image: null,
+                    link_title: (editing.link_title as string | null) ?? null,
+                    link_description: (editing.link_description as string | null) ?? null,
+                    link_image: (editing.link_image as string | null) ?? null,
                     media_path: (editing.media_path as string | null) ?? null,
                     media_mime: (editing.media_mime as string | null) ?? null,
                     media_filename: (editing.media_filename as string | null) ?? null,
@@ -224,6 +225,9 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
                     ...editing,
                     body: v.body,
                     link: v.link_url,
+                    link_title: v.link_title,
+                    link_description: v.link_description,
+                    link_image: v.link_image,
                     media_path: v.media_path,
                     media_mime: v.media_mime,
                     media_filename: v.media_filename,

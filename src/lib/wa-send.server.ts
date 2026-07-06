@@ -106,8 +106,33 @@ export function detectUrl(text: string): string | null {
 
 export type RenderOptions = MessageVarOptions;
 
+/**
+ * Base URL pública usada para expandir {{link_atualizacao}}, {{link_inscricao}}, etc.
+ * Ordem: PUBLIC_BASE_URL (env) → header Origin da request atual → fallback fixo.
+ * Fallback é o domínio publicado, para que envios disparados por webhooks/cron
+ * (sem header Origin) ainda gerem links válidos.
+ */
+export function getPublicOrigin(): string {
+  const env = (process.env.PUBLIC_BASE_URL ?? "").trim();
+  if (env) return env.replace(/\/$/, "");
+  try {
+    // getRequestHeader só funciona dentro de um request server-side; se falhar, ignora.
+    // Import dinâmico para evitar acoplamento a AsyncLocalStorage fora de request.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getRequestHeader } = require("@tanstack/react-start/server") as {
+      getRequestHeader: (n: string) => string | undefined;
+    };
+    const h = getRequestHeader("origin") ?? getRequestHeader("x-forwarded-origin");
+    if (h) return h.replace(/\/$/, "");
+  } catch {
+    // fora de request
+  }
+  return "https://povoquebatalha.lovable.app";
+}
+
 export function renderVars(body: string, c: ContactCtx, opts: RenderOptions = {}): string {
-  return renderMessageVars(body, c, opts);
+  const merged: RenderOptions = { ...opts, origin: opts.origin ?? getPublicOrigin() };
+  return renderMessageVars(body, c, merged);
 }
 
 

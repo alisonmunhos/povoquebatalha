@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Paperclip, Loader2, X, Link2 } from "lucide-react";
+import { Paperclip, Loader2, X, Link2, Bold, Italic, Strikethrough, Code2, List, Smile } from "lucide-react";
 import { toast } from "sonner";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
@@ -47,7 +47,15 @@ type Props = {
   showPreview?: boolean;
   bodyRows?: number;
   bodyPlaceholder?: string;
+  /** Lista de variáveis exibidas como chips clicáveis (default: COMPOSER_VARIABLES). */
+  variables?: ReadonlyArray<(typeof MESSAGE_VARIABLES)[number]>;
+  /** Mostra barra de formatação WhatsApp (negrito/itálico/riscado/mono/lista). */
+  showFormatting?: boolean;
+  /** Mostra chips de emojis rápidos. */
+  showEmojis?: boolean;
 };
+
+const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️", "🔗", "📍", "⏰", "😀", "👍", "🔥"];
 
 /** Renderiza variáveis com valores de exemplo (mesmo motor usado no envio real). */
 function renderExample(body: string): string {
@@ -68,6 +76,9 @@ export function MessageComposer({
   showPreview = true,
   bodyRows = 7,
   bodyPlaceholder = "Escreva sua mensagem. Use as variáveis abaixo para personalizar.",
+  variables = COMPOSER_VARIABLES,
+  showFormatting = true,
+  showEmojis = true,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const signUpload = useServerFn(signCampaignMediaUpload);
@@ -110,24 +121,45 @@ export function MessageComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.link_url]);
 
-  function insertVariable(name: string) {
-    const token = `{{${name}}}`;
+  function insertAtCursor(text: string) {
     const el = textareaRef.current;
     if (!el) {
-      onChange({ ...value, body: (value.body ?? "") + token });
+      onChange({ ...value, body: (value.body ?? "") + text });
       return;
     }
     const start = el.selectionStart ?? value.body.length;
     const end = el.selectionEnd ?? value.body.length;
-    const next = value.body.slice(0, start) + token + value.body.slice(end);
+    const next = value.body.slice(0, start) + text + value.body.slice(end);
     onChange({ ...value, body: next });
-    // reposiciona cursor após inserção
     requestAnimationFrame(() => {
       el.focus();
-      const pos = start + token.length;
+      const pos = start + text.length;
       el.setSelectionRange(pos, pos);
     });
   }
+
+  function wrapSelection(before: string, after: string = before) {
+    const el = textareaRef.current;
+    if (!el) {
+      onChange({ ...value, body: (value.body ?? "") + before + after });
+      return;
+    }
+    const start = el.selectionStart ?? value.body.length;
+    const end = el.selectionEnd ?? value.body.length;
+    const sel = value.body.slice(start, end);
+    const next = value.body.slice(0, start) + before + sel + after + value.body.slice(end);
+    onChange({ ...value, body: next });
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + before.length + sel.length + after.length;
+      el.setSelectionRange(sel ? pos : start + before.length, pos);
+    });
+  }
+
+  function insertVariable(name: string) {
+    insertAtCursor(`{{${name}}}`);
+  }
+
 
   async function onAttach(file: File) {
     if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
@@ -164,6 +196,28 @@ export function MessageComposer({
     <div className="space-y-3">
       <div>
         <label className="text-xs font-medium">Mensagem</label>
+        {(showFormatting || showEmojis) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 border rounded-md p-1 bg-muted/30">
+            {showFormatting && (
+              <>
+                <button type="button" title="Negrito (*texto*)" onClick={() => wrapSelection("*")} className="p-1.5 rounded hover:bg-background"><Bold className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Itálico (_texto_)" onClick={() => wrapSelection("_")} className="p-1.5 rounded hover:bg-background"><Italic className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Riscado (~texto~)" onClick={() => wrapSelection("~")} className="p-1.5 rounded hover:bg-background"><Strikethrough className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Monoespaçado (```texto```)" onClick={() => wrapSelection("```")} className="p-1.5 rounded hover:bg-background"><Code2 className="h-3.5 w-3.5" /></button>
+                <button type="button" title="Lista" onClick={() => insertAtCursor("\n- ")} className="p-1.5 rounded hover:bg-background"><List className="h-3.5 w-3.5" /></button>
+              </>
+            )}
+            {showFormatting && showEmojis && <span className="w-px h-4 bg-border mx-1" />}
+            {showEmojis && (
+              <div className="flex items-center gap-1 pl-1">
+                <Smile className="h-3.5 w-3.5 text-muted-foreground" />
+                {QUICK_EMOJIS.map((e) => (
+                  <button key={e} type="button" onClick={() => insertAtCursor(e)} className="text-base leading-none hover:scale-110 transition p-0.5" title={`Inserir ${e}`}>{e}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value.body}
@@ -174,7 +228,7 @@ export function MessageComposer({
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground mr-1">Inserir variável:</span>
-          {COMPOSER_VARIABLES.map((v) => (
+          {variables.map((v) => (
             <button
               key={v}
               type="button"
@@ -187,6 +241,7 @@ export function MessageComposer({
           ))}
         </div>
       </div>
+
 
       {(showLink || showAttachment) && (
         <div className="grid md:grid-cols-2 gap-3">

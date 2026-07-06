@@ -14,7 +14,7 @@ export async function processCampaignBatchInternal(
 
   const { data: recs } = await supabaseAdmin
     .from("campaign_recipients")
-    .select("id,contact_id,rendered_message,contacts(phone_e164,consentimento_whatsapp,opt_out_at)")
+    .select("id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,whatsapp_status,recad_token)")
     .eq("campaign_id", campaignId).eq("status", "queued").limit(batchSize);
 
   if (!recs?.length) {
@@ -22,7 +22,8 @@ export async function processCampaignBatchInternal(
     return { processed: 0, ok: 0, fail: 0, skipped: 0, done: true };
   }
 
-  const { zapi } = await import("@/integrations/zapi/client.server");
+  const { sendMessage, readUseSendLinkFlag } = await import("@/lib/wa-send.server");
+  const useSendLink = await readUseSendLinkFlag();
   let ok = 0, fail = 0, skipped = 0;
   const minMs = c.delay_min_ms ?? 3000;
   const maxMs = c.delay_max_ms ?? 8000;
@@ -33,11 +34,21 @@ export async function processCampaignBatchInternal(
     mediaUrl = signed?.signedUrl ?? null;
   }
 
+  const cc = c as unknown as {
+    link_url?: string | null; link_title?: string | null;
+    link_description?: string | null; link_image?: string | null;
+  };
+
   for (const r of recs) {
     const { data: cur } = await supabaseAdmin.from("campaigns").select("status").eq("id", campaignId).single();
     if (!cur || cur.status !== "running") break;
 
-    const ct = (r as unknown as { contacts: { phone_e164: string | null; consentimento_whatsapp: boolean; opt_out_at: string | null } | null }).contacts;
+    const ct = (r as unknown as { contacts: {
+      id: string; nome: string | null; cidade: string | null; bairro: string | null; uf: string | null;
+      phone_e164: string | null; phone_whatsapp_candidate: string | null;
+      consentimento_whatsapp: boolean; opt_out_at: string | null; whatsapp_status: string | null;
+      recad_token: string | null;
+    } | null }).contacts;
     if (!ct?.phone_e164 || !ct.consentimento_whatsapp || ct.opt_out_at) {
       await supabaseAdmin.from("campaign_recipients").update({
         status: "opted_out", failed_at: new Date().toISOString(), erro: "sem consentimento ou opt-out",
@@ -48,46 +59,52 @@ export async function processCampaignBatchInternal(
 
     await supabaseAdmin.from("campaign_recipients").update({ status: "sending", tentativas: 1 }).eq("id", r.id);
     try {
-      const phone = ct.phone_e164.replace(/\D+/g, "");
-      let result: { messageId?: string; zaapId?: string; id?: string };
-      let endpointUsed: "send-text" | "send-image" | "send-document" = "send-text";
-      const cc = c as unknown as { link_url?: string | null; link_title?: string | null; link_description?: string | null; link_image?: string | null };
       const baseBody = r.rendered_message ?? c.mensagem_template;
-      const bodyRendered = cc.link_url && !baseBody.includes(cc.link_url)
-        ? `${baseBody}${baseBody.trim() ? "\n\n" : ""}${cc.link_url}`
-        : baseBody;
-      const caption = bodyRendered || c.midia_caption || "";
-      const urlMatch = bodyRendered.match(/\bhttps?:\/\/[^\s<>"]+/i);
-      const linkUrlFinal = cc.link_url ?? urlMatch?.[0] ?? null;
-      const previewStatus: string | null = linkUrlFinal
-        ? (cc.link_title || cc.link_image ? "preview_confirmada" : "preview_provavel")
-        : "sem_link";
+      const attachment = mediaUrl && (c.tipo === "image" || c.tipo === "document")
+        ? {
+            signedUrl: mediaUrl,
+            mime: c.tipo === "document" ? (c.midia_mime ?? "application/pdf") : (c.midia_mime ?? "image/jpeg"),
+            filename: c.midia_filename ?? "arquivo",
+          }
+        : null;
+      const linkMeta = cc.link_url
+        ? {
+            url: cc.link_url,
+            title: cc.link_title ?? null,
+            description: cc.link_description ?? null,
+            image: cc.link_image ?? null,
+            status: (cc.link_title || cc.link_image ? "preview_confirmada" : "preview_provavel") as
+              | "preview_confirmada" | "preview_provavel",
+          }
+        : null;
 
-      if (c.tipo === "document" && mediaUrl) {
-        const ext = (c.midia_filename ?? "arquivo.pdf").split(".").pop()?.toLowerCase() ?? "pdf";
-        result = await zapi.sendDocument(phone, mediaUrl, c.midia_filename ?? "arquivo", ext);
-        endpointUsed = "send-document";
-        if (caption.trim()) await zapi.sendText(phone, caption);
-      } else if (c.tipo === "image" && mediaUrl) {
-        result = await zapi.sendImage(phone, mediaUrl, caption);
-        endpointUsed = "send-image";
-      } else {
-        result = await zapi.sendText(phone, bodyRendered);
-        endpointUsed = "send-text";
-      }
+      const res = await sendMessage({
+        contact: ct,
+        text: baseBody,
+        textAlreadyRendered: true,
+        link: linkMeta,
+        attachment,
+        useSendLink,
+        origin: "campaign",
+        skipValidations: true,
+      });
+
+      if (!res.ok) throw new Error(res.error ?? res.fallback_reason ?? "erro desconhecido");
+
       await supabaseAdmin.from("campaign_recipients").update({
         status: "sent", sent_at: new Date().toISOString(),
-        message_id: result.messageId ?? result.id ?? null, zaap_id: result.zaapId ?? null,
-        endpoint_used: endpointUsed,
-        link_url: linkUrlFinal,
-        link_title: cc.link_title ?? null,
-        link_description: cc.link_description ?? null,
-        link_image: cc.link_image ?? null,
-        preview_status: previewStatus,
-        rendered_message: bodyRendered,
+        message_id: res.message_id, zaap_id: res.zaap_id,
+        endpoint_used: res.endpoint_used,
+        link_url: res.link_url,
+        link_title: res.link_title,
+        link_description: res.link_description,
+        link_image: res.link_image,
+        preview_status: res.preview_status,
+        rendered_message: res.rendered_text,
       } as never).eq("id", r.id);
       await supabaseAdmin.from("message_events").insert({
-        contact_id: r.contact_id, recipient_id: r.id, tipo: "sent", payload: result as never,
+        contact_id: r.contact_id, recipient_id: r.id, tipo: "sent",
+        payload: { message_id: res.message_id, zaap_id: res.zaap_id, endpoint_used: res.endpoint_used } as never,
       });
       ok++;
     } catch (e) {

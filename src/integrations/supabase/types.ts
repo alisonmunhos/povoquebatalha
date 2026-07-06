@@ -1646,6 +1646,9 @@ export type Database = {
           id: string
           kind: string
           link: string | null
+          link_description: string | null
+          link_image: string | null
+          link_title: string | null
           media_filename: string | null
           media_mime: string | null
           media_path: string | null
@@ -1667,6 +1670,9 @@ export type Database = {
           id?: string
           kind: string
           link?: string | null
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
           media_filename?: string | null
           media_mime?: string | null
           media_path?: string | null
@@ -1688,6 +1694,9 @@ export type Database = {
           id?: string
           kind?: string
           link?: string | null
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
           media_filename?: string | null
           media_mime?: string | null
           media_path?: string | null
