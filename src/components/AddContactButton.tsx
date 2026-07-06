@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { createTrackedLink } from "@/lib/tracked-links.functions";
 import { quickSaveContact, completeInlineContact } from "@/lib/inline-contact.functions";
-import { getFormQrCode } from "@/lib/form-definitions.functions";
+import { generateQrDataUrl } from "@/lib/qr-code.client";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 
 type SourceModule =
@@ -523,15 +523,14 @@ function Field({ label, children, className }: { label: string; children: React.
 
 function LinkResult({ url }: { url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(`Olá! Preenche seu cadastro por aqui, por favor:\n${url}`)}`;
-  const qrFn = useServerFn(getFormQrCode);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
 
   async function loadQrCode() {
     setLoadingQr(true);
     try {
-      const res = await qrFn({ data: { url } });
-      setQrDataUrl(res.dataUrl);
+      const dataUrl = await generateQrDataUrl(url);
+      setQrDataUrl(dataUrl);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar QR code");
     } finally {
