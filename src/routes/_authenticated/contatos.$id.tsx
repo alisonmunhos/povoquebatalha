@@ -662,3 +662,120 @@ function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; cont
     </Section>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Bloco compacto de "salvar telefone" — normaliza o número (aplica DDD se
+// faltando) e salva apenas o campo phone_raw, sem depender do form global.
+// ---------------------------------------------------------------------------
+function PhoneQuickSave({
+  rawInput,
+  currentStatus,
+  cidade,
+  uf,
+  onSave,
+}: {
+  rawInput: string;
+  currentStatus: string | null;
+  cidade: string | null | undefined;
+  uf: string | null | undefined;
+  onSave: (nextPhoneRaw: string) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [dddChoice, setDddChoice] = useState<string>("");
+
+  const digits = rawInput.replace(/\D/g, "");
+  const preview = parsePhoneBR(rawInput);
+  const suggested = useMemo(() => suggestDddFor(cidade, uf), [cidade, uf]);
+  const effectiveDdd = dddChoice || suggested || "";
+
+  // Falta DDD quando temos 8 ou 9 dígitos "úteis" e o parser não achou E.164.
+  const needsDdd =
+    !preview.phone_e164 &&
+    digits.length >= 8 &&
+    digits.length <= 9;
+
+  const statusLabel = PHONE_STATUS_LABEL[currentStatus ?? ""] ?? currentStatus ?? "—";
+  const statusClass = PHONE_STATUS_BADGE[currentStatus ?? ""] ?? "bg-muted text-muted-foreground";
+
+  const previewFormatted = preview.phone_e164 ? formatPhoneBR(preview.phone_e164) : "—";
+
+  async function handleSave(nextRaw: string) {
+    setSaving(true);
+    try {
+      await onSave(nextRaw);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md border border-dashed bg-muted/30 p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className={`px-2 py-0.5 rounded font-medium ${statusClass}`}>{statusLabel}</span>
+        {rawInput ? (
+          <span className="text-muted-foreground">
+            → {previewFormatted}
+          </span>
+        ) : (
+          <span className="text-muted-foreground italic">Sem telefone informado</span>
+        )}
+      </div>
+
+      {needsDdd && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Falta DDD:</span>
+          {suggested && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => handleSave(`(${suggested}) ${digits}`)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-500 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              <Phone className="h-3 w-3" />
+              Aplicar DDD {suggested}
+              {cidade && <span className="opacity-70">({cidade})</span>}
+            </button>
+          )}
+          <select
+            value={dddChoice}
+            onChange={(e) => setDddChoice(e.target.value)}
+            className="rounded border border-input bg-background px-2 py-1"
+          >
+            <option value="">Outro DDD…</option>
+            {ALL_DDDS.map((d) => (
+              <option key={d} value={d}>DDD {d}</option>
+            ))}
+          </select>
+          {dddChoice && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => handleSave(`(${dddChoice}) ${digits}`)}
+              className="px-2 py-1 rounded border hover:bg-muted disabled:opacity-50"
+            >
+              Aplicar DDD {dddChoice}
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => handleSave(rawInput)}
+          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border bg-background hover:bg-muted disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Salvar telefone
+        </button>
+      </div>
+
+      {effectiveDdd && !suggested && needsDdd && (
+        <p className="text-[11px] text-muted-foreground">
+          Dica: se você preencher Cidade/UF na seção Endereço, o DDD será sugerido automaticamente.
+        </p>
+      )}
+    </div>
+  );
+}
