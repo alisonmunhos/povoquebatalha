@@ -1,118 +1,57 @@
-## Passo 1 — Auditoria completa das checagens de papel
+## Causa raiz (uma só)
 
-### Já usam `authz.ts` (manter como está)
+A migration reparadora do construtor de formulários rodou incompleta: criou as tabelas mas **faltou duas colunas** e **nunca semeou os 2 formulários fixos** que o app espera. Isso derruba os dois sintomas de uma vez.
 
-| Arquivo | Helper | Papéis exigidos |
-|---|---|---|
-| `src/lib/campaigns.functions.ts:176` | `requireStaff` | admin, vrm, operador |
-| `src/lib/messages.functions.ts:121,174,205` | `requireStaff` | admin, vrm, operador |
-| `src/lib/link-preview.functions.ts:143` | `requireStaff` | admin, vrm, operador |
-| `src/lib/geocoding.functions.ts:47,138` | `requireStaff` | admin, vrm, operador |
+### O que confirmei
 
-### Checagens inline a migrar
+- Tabela `form_definitions` **não tem** as colunas `is_fixed` nem `success_screen_order`.
+- Só existe 1 linha na tabela (um formulário de teste que você criou). **Não existem** os slugs `recadastro-fixo` e `inscrever-fixo`.
+- O `SELECT ... is_fixed ...` que a aba **Entrada de Dados** faz retorna erro do PostgREST → a lista inteira quebra → "não consigo criar" (o modal existe, mas a lista fica em erro) e "os fixos não abrem" (nem existem).
+- O componente `PublicFormRenderer` das rotas `/recadastro`, `/inscrever` e `/atualizacao` chama `/api/public/forms/recadastro-fixo` e `/api/public/forms/inscrever-fixo`; como esses slugs não estão no banco, o endpoint devolve 404 e a tela mostra **"Formulário não encontrado ou indisponível"** — foi exatamente o que reproduzi no domínio publicado (`povoquebatalha.lovable.app/recadastro`, `/inscrever`, `/atualizacao`).
+- O `POST` do mesmo endpoint também faz `SELECT ... success_screen_order` — mesmo semeando os registros, a submissão só volta a funcionar depois de adicionar a coluna.
 
-| Arquivo:linha | Contexto | Papéis exigidos hoje | Helper alvo |
-|---|---|---|---|
-| `src/lib/zapi.functions.ts:43-49` | desconectar instância Z-API | admin | `requireAdmin` |
-| `src/lib/zapi.functions.ts:90-93` | salvar configuração de instância | admin | `requireAdmin` |
-| `src/lib/zapi.functions.ts:118-121` | ver token de webhook | admin | `requireAdmin` |
-| `src/lib/users.functions.ts:6-15` (`assertAdmin`) | usado em várias ações de gestão de usuários | admin | `requireAdmin` |
-| `src/lib/territory.functions.ts:12-14` (`assertAdmin`) | CRUD de escopos territoriais | admin | `requireAdmin` |
-| `src/lib/duplicates.functions.ts:89-94` | mesclar contatos | admin | `requireAdmin` |
-| `src/lib/imports.functions.ts:576-582` | flag `isAdmin` para exibir/ocultar dados de import | admin (soft — só afeta visão) | `hasRole` (variante que retorna boolean, não throw) |
-| `src/lib/imports-undo.functions.ts:24-30` | desfazer importação | admin | `requireAdmin` |
-| `src/lib/contacts.functions.ts:226-233` | excluir contato definitivamente | admin | `requireAdmin` |
-| `src/lib/communication.functions.ts:262-264` | vincular conversa a contato | admin, vrm | `requireRole([admin, vrm])` |
-| `src/lib/communication.functions.ts:323-325` | criar contato rápido de conversa | admin, vrm, operador | `requireStaff` |
-| `src/lib/communication.functions.ts:488-491` | listar staff atribuíveis a conversa | admin, operador, vrm, comunicacao | `requireRole` inverso — é uma **query de lista**, não uma checagem do caller; permanece como consulta direta (não é checagem de permissão do usuário) |
-| `src/lib/inbox.functions.ts:206-209` | enviar mensagem inbox | admin, vrm, operador | `requireStaff` |
+## O que vou fazer
 
-### Usos legítimos que NÃO são checagem de permissão (não mexer)
+**1 migration única**, idempotente, sem perda de dados:
 
-- `src/lib/users.functions.ts:43,146,254,288,290` — **escritas/leituras da tabela** `user_roles` (gestão de papéis, não checagem do caller).
-- `src/routes/api/public/bootstrap-admin.ts:20,87` — bootstrap inicial (roda com service role + secret, não valida caller autenticado).
-- `src/hooks/use-auth.ts:42`, `src/hooks/use-current-role.ts:30`, `src/routes/auth.tsx:73` — **client-side**, lendo papéis do próprio usuário para UI. Só `use-current-role.ts` importará o tipo canônico (Passo 5); os demais continuam usando `AppRole` local mas passando a importar do mesmo lugar.
+1. `ALTER TABLE public.form_definitions ADD COLUMN IF NOT EXISTS is_fixed boolean NOT NULL DEFAULT false;`
+2. `ALTER TABLE public.form_definitions ADD COLUMN IF NOT EXISTS success_screen_order text NOT NULL DEFAULT 'whatsapp_first' CHECK (success_screen_order IN ('whatsapp_first','confirmation_first'));`
+3. `INSERT ... ON CONFLICT DO NOTHING` dos 2 formulários fixos:
+   - `recadastro-fixo` → título "Recadastro completo", `source_form_type='cadastro_completo'`, `is_fixed=true`.
+   - `inscrever-fixo` → título "Inscrição simples", `source_form_type='receber_informacoes'`, `is_fixed=true`.
+4. Para cada formulário fixo, semear as **3 perguntas core** (nome, WhatsApp, consentimento) usando `INSERT ... WHERE NOT EXISTS` — mesmas 3 que o construtor cria automaticamente para qualquer formulário novo. Fica alinhado com o comportamento atual de "criar novo formulário" e com a proteção que já existe no código impedindo deletar formulário fixo.
 
-### Possíveis inconsistências detectadas (a discutir, NÃO alterar)
+Depois da migration ser aprovada e o `types.ts` regenerar, **sem tocar em nenhum código**:
+- A aba **Entrada de Dados** volta a listar (agora com os 2 fixos + o formulário de teste que você criou).
+- Clicar num formulário fixo abre o construtor normalmente (o `getFormDefinition` já usa `.maybeSingle()` em template/automation/tracked_link).
+- `povoquebatalha.lovable.app/recadastro` (e `/atualizacao`, `/inscrever`) volta a carregar o formulário, submissão inclusa.
 
-1. **`communication.functions.ts:488-491`** lista `admin, operador, vrm, comunicacao` como staff atribuível, mas `authz.ts:requireStaff` só considera `admin, vrm, operador` (sem `comunicacao`). Duas definições de "staff" convivem. Vou preservar ambas na refatoração e sinalizar no resumo final.
-2. **Papéis `territorio` e `agitador`** nunca aparecem em nenhuma checagem de escrita no backend — só têm efeito via RLS + UI. Fora de escopo, apenas registrado.
+## O que **não** vou mexer agora (e por quê)
 
----
+- **Aba `/links`**: os links exibidos usam `window.location.origin`, que dentro do editor Lovable é o preview interno (`lovableproject.com`). Isso é um problema separado de UX — o formulário publicado em si volta a funcionar com essa migration. Se depois de aplicada você ainda quiser que a tela de links mostre o domínio publicado em vez do preview interno, aviso e trato num passo à parte pra não misturar escopo com o fix crítico.
+- Rotas antigas em `src/routes/api/public/forms/recadastro.ts` e `inscrever.ts`: continuam existindo como fallback histórico (comentário no código diz isso). Não precisam ser tocadas.
 
-## Passo 2 — Tipo canônico de papel
+## Checklist de teste ao final
 
-Criar `src/lib/roles.ts` (client-safe, sem imports de servidor) exportando:
+1. Abrir `/entrada-dados` → ver "Recadastro completo" e "Inscrição simples" com tag azul **Fixo** na lista.
+2. Clicar num deles → construtor abre com as 3 perguntas core já preenchidas.
+3. Criar um formulário novo qualquer → aparece na lista e abre.
+4. Abrir `https://povoquebatalha.lovable.app/recadastro` em aba anônima → formulário renderiza (não a tela "Formulário não encontrado").
+5. Idem `/inscrever` e `/atualizacao`.
+6. Submeter um teste em `/inscrever` → chega em `contacts`.
 
-```ts
-import type { Database } from "@/integrations/supabase/types";
-export type AppRole = Database["public"]["Enums"]["app_role"];
-// = "admin" | "operador" | "leitor" | "vrm" | "territorio" | "comunicacao" | "agitador"
+## Detalhe técnico
+
+```text
+Migration (idempotente):
+  ALTER TABLE form_definitions ADD COLUMN IF NOT EXISTS is_fixed boolean ...
+  ALTER TABLE form_definitions ADD COLUMN IF NOT EXISTS success_screen_order text ... CHECK (...)
+  INSERT INTO form_definitions (slug, title, source_form_type, event_key, is_fixed) VALUES
+    ('recadastro-fixo', ..., 'cadastro_completo', 'formulario:recadastro-fixo', true),
+    ('inscrever-fixo',  ..., 'receber_informacoes','formulario:inscrever-fixo',  true)
+  ON CONFLICT (slug) DO UPDATE SET is_fixed = true;
+  INSERT INTO form_definition_questions ... WHERE NOT EXISTS (...)
+    -- 3 perguntas core por formulário fixo
 ```
 
-Consumidores:
-- `src/lib/authz.ts` — substitui o `type Role` local por `AppRole`.
-- `src/hooks/use-current-role.ts` — importa `AppRole` (mantém a ordem de prioridade local, apenas tipada).
-- `src/hooks/use-auth.ts` — importa `AppRole` (remove definição local duplicada).
-
-## Passo 3 — Novos helpers em `authz.ts`
-
-Manter `requireStaff` e `requireAdmin` inalterados na assinatura/semântica. Adicionar:
-
-```ts
-export async function hasRole(supabase, userId, roles: AppRole[]): Promise<boolean>
-export async function requireRole(supabase, userId, roles: AppRole[], errorMsg?: string): Promise<void>
-```
-
-`requireStaff` e `requireAdmin` passam a delegar internamente para `hasRole` (para não duplicar a query).
-
-## Passo 4 — Migrar checagens inline
-
-Substituições conforme tabela do Passo 1:
-
-- `zapi.functions.ts` (3 pontos) → `requireAdmin`
-- `users.functions.ts` `assertAdmin` local → deletado, chamadas passam a usar `requireAdmin` de `authz.ts`
-- `territory.functions.ts` `assertAdmin` local → deletado; substituir por `requireAdmin`. `getRoles(ctx)` (usada em `me()` e outra função que RETORNA a lista de papéis para o cliente) permanece como está — não é checagem, é leitura para retornar ao UI
-- `duplicates.functions.ts` → `requireAdmin`
-- `imports.functions.ts:576-582` → `hasRole(sb, userId, ["admin"])` (mantém como boolean, comportamento inalterado)
-- `imports-undo.functions.ts` `requireAdmin` local → substituído por import de `authz.ts`
-- `contacts.functions.ts:226-233` → `requireAdmin`
-- `communication.functions.ts:262-264` → `requireRole(..., ["admin","vrm"], "Apenas admin/vrm podem vincular conversas.")`
-- `communication.functions.ts:323-325` → `requireStaff` (mesma combinação admin/vrm/operador)
-- `communication.functions.ts:488-491` → **não alterar** (é query de lista, não checagem do caller)
-- `inbox.functions.ts:206-209` → `requireStaff`
-
-Mensagens de erro preservadas nas migrações onde diferem do default de `requireStaff`/`requireAdmin`.
-
-## Passo 5 — Client (fora de escopo além do tipo)
-
-- `use-current-role.ts`: só troca o tipo `AppRole` local por import de `src/lib/roles.ts`. Ordem de prioridade permanece intocada.
-- `use-auth.ts`: idem.
-
-## Passo 6 — Typecheck
-
-Rodar `bunx tsgo --noEmit` ao final.
-
----
-
-## Detalhes técnicos
-
-- Sem migration, sem mudança de RLS, sem mudança de comportamento de acesso.
-- Não incluir `communication.functions.ts:488-491` na migração (é uma query, não uma checagem do caller autenticado).
-- `users.functions.ts:6-15` define `async function assertAdmin(ctx)` local — remover essa função e substituir todas as chamadas dela por `requireAdmin(ctx.supabase, ctx.userId)`.
-- `territory.functions.ts:12-14` mesma coisa (`assertAdmin` local).
-- `imports-undo.functions.ts` também tem um `requireAdmin` local — remover em favor do de `authz.ts`.
-- `authz.ts` continua sem `middleware` porque cada handler já usa `requireSupabaseAuth`; helpers apenas checam papel.
-
-## Entregáveis finais
-
-(a) Lista de arquivos alterados.
-(b) Lista consolidada de "possíveis inconsistências não alteradas" (mínimo: item 1 do Passo 1 sobre `staff` divergente em `communication.functions.ts:488`; e observação sobre `territorio`/`agitador` sem uso backend).
-(c) Checklist manual sugerido:
-- Login como **admin**: desconectar/configurar Z-API, mesclar duplicidades, excluir contato, desfazer import, gerenciar usuários e territórios — tudo deve funcionar.
-- Login como **operador**: enviar mensagem no inbox, criar contato rápido de conversa, iniciar campanha — funcionar; desconectar Z-API / mesclar duplicidades — bloqueado.
-- Login como **vrm**: vincular conversa a contato — funcionar; ações admin — bloqueadas.
-- Login como **comunicacao**: aparecer na lista de staff atribuível a conversas; NÃO conseguir vincular conversa nem criar contato de conversa (mantém comportamento atual, é a "inconsistência 1").
-- Login como **leitor / territorio / agitador**: painéis abrem, escritas privilegiadas bloqueadas com mensagens em pt-BR.
-
-Aguardando confirmação da tabela de auditoria (Passo 1) antes de prosseguir com Passos 2-6.
+Nenhum código fonte precisa mudar — o schema desses SELECTs já assume as colunas e slugs. Depois da migration, os selects passam a retornar dados e os fluxos voltam.

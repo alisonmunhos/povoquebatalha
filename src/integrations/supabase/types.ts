@@ -1283,8 +1283,10 @@ export type Database = {
           event_key: string
           id: string
           is_active: boolean
+          is_fixed: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
+          success_screen_order: string
           title: string
           tracked_form_link_id: string | null
           updated_at: string
@@ -1298,8 +1300,10 @@ export type Database = {
           event_key: string
           id?: string
           is_active?: boolean
+          is_fixed?: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
+          success_screen_order?: string
           title: string
           tracked_form_link_id?: string | null
           updated_at?: string
@@ -1313,8 +1317,10 @@ export type Database = {
           event_key?: string
           id?: string
           is_active?: boolean
+          is_fixed?: boolean
           slug?: string
           source_form_type?: Database["public"]["Enums"]["source_form_type"]
+          success_screen_order?: string
           title?: string
           tracked_form_link_id?: string | null
           updated_at?: string
@@ -1701,6 +1707,7 @@ export type Database = {
           full_name: string | null
           id: string
           invited_by: string | null
+          requested_role: Database["public"]["Enums"]["app_role"] | null
           revoked_at: string | null
           status: Database["public"]["Enums"]["user_access_status"]
           suspended_at: string | null
@@ -1712,6 +1719,7 @@ export type Database = {
           full_name?: string | null
           id: string
           invited_by?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
           revoked_at?: string | null
           status?: Database["public"]["Enums"]["user_access_status"]
           suspended_at?: string | null
@@ -1723,6 +1731,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           invited_by?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
           revoked_at?: string | null
           status?: Database["public"]["Enums"]["user_access_status"]
           suspended_at?: string | null
