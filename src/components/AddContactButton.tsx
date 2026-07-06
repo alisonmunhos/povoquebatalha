@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { createTrackedLink } from "@/lib/tracked-links.functions";
 import { quickSaveContact, completeInlineContact } from "@/lib/inline-contact.functions";
-import { generateQrDataUrl } from "@/lib/qr-code.client";
+import { generateQrDataUrl } from "@/lib/qr-code-browser";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 
 type SourceModule =
