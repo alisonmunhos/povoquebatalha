@@ -15,11 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Plus, Copy, ExternalLink, MessageCircle, Loader2,
-  ClipboardList, Megaphone, ArrowLeft, PencilLine, Link2, Check, CheckCircle2,
+  ClipboardList, Megaphone, ArrowLeft, PencilLine, Link2, Check, CheckCircle2, QrCode,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createTrackedLink } from "@/lib/tracked-links.functions";
 import { quickSaveContact, completeInlineContact } from "@/lib/inline-contact.functions";
+import { getFormQrCode } from "@/lib/form-definitions.functions";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 
 type SourceModule =
@@ -522,6 +523,22 @@ function Field({ label, children, className }: { label: string; children: React.
 
 function LinkResult({ url }: { url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(`Olá! Preenche seu cadastro por aqui, por favor:\n${url}`)}`;
+  const qrFn = useServerFn(getFormQrCode);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [loadingQr, setLoadingQr] = useState(false);
+
+  async function loadQrCode() {
+    setLoadingQr(true);
+    try {
+      const res = await qrFn({ data: { url } });
+      setQrDataUrl(res.dataUrl);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar QR code");
+    } finally {
+      setLoadingQr(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
@@ -541,7 +558,17 @@ function LinkResult({ url }: { url: string }) {
             <MessageCircle className="h-3.5 w-3.5" /> Compartilhar WhatsApp
           </a>
         </Button>
+        <Button variant="outline" size="sm" onClick={loadQrCode} disabled={loadingQr}>
+          {loadingQr ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5" />}
+          {loadingQr ? "Gerando…" : "Gerar QR code"}
+        </Button>
       </div>
+      {qrDataUrl && (
+        <div className="space-y-2">
+          <img src={qrDataUrl} alt="QR code do link" className="w-40 h-40 border rounded-md" />
+          <a href={qrDataUrl} download="qrcode-link.png" className="text-sm text-primary hover:underline block">Baixar PNG</a>
+        </div>
+      )}
     </div>
   );
 }

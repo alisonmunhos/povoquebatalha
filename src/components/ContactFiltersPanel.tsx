@@ -22,6 +22,7 @@ export type FilterOptionsBundle = {
   quem_indicou: MultiOption[];
   rede_social: MultiOption[];
   zona_eleitoral: MultiOption[];
+  como_conheceu: MultiOption[];
   disponibilidade: MultiOption[];
   faixa_etaria: MultiOption[];
   tags: (MultiOption & { cor?: string | null })[];
@@ -125,7 +126,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
   const opts = options ?? {
     cidades: [], bairros: [], ufs: [], profissoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
-    quem_indicou: [], rede_social: [], zona_eleitoral: [], disponibilidade: [], faixa_etaria: [],
+    quem_indicou: [], rede_social: [], zona_eleitoral: [], como_conheceu: [], disponibilidade: [], faixa_etaria: [],
     tags: [], segmentos: [], campanhas: [], mensagens: [], importacoes: [],
   };
 
@@ -217,6 +218,9 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         </Field>
         <Field label="Zona eleitoral / local de votação contém…">
           <Input value={filters.zona_eleitoral ?? ""} onChange={(e) => set("zona_eleitoral", e.target.value || undefined)} placeholder="Ex.: Escola Municipal..." />
+        </Field>
+        <Field label="Como conheceu contém…">
+          <Input value={filters.como_conheceu ?? ""} onChange={(e) => set("como_conheceu", e.target.value || undefined)} placeholder="Ex.: Indicação" />
         </Field>
       </Section>
 

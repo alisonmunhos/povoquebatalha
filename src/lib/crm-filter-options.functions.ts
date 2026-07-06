@@ -68,7 +68,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -107,6 +107,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const rede_social: Counter = new Map();
     const zona_eleitoral: Counter = new Map();
     const disponibilidade: Counter = new Map();
+    const como_conheceu: Counter = new Map();
 
     const DIA_LABELS: Record<string, string> = {
       segunda: "Segunda", terca: "Terça", quarta: "Quarta", quinta: "Quinta",
@@ -130,6 +131,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bump(quem_indicou, c.quem_indicou);
       bump(rede_social, c.rede_social);
       bump(zona_eleitoral, c.zona_eleitoral);
+      bump(como_conheceu, c.como_conheceu);
       const arr = c.formas_ajuda as unknown;
       if (Array.isArray(arr)) {
         for (const item of arr) {
@@ -233,6 +235,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       quem_indicou: toOptions(quem_indicou),
       rede_social: toOptions(rede_social),
       zona_eleitoral: toOptions(zona_eleitoral),
+      como_conheceu: toOptions(como_conheceu),
       disponibilidade: [...disponibilidade.entries()]
         .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),

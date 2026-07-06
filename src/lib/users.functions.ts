@@ -2,11 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "@/lib/authz";
-import type { AppRole } from "@/lib/roles";
+import { ALL_ROLES, type AppRole } from "@/lib/roles";
 
 type Ctx = { supabase: { from: (t: string) => any }; userId: string };
 
-
+type SupabaseAdmin = { from: (t: string) => any };
 
 async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Record<string, unknown> = {}) {
   try {
@@ -21,14 +21,27 @@ async function audit(ctx: Ctx, targetId: string | null, event: string, meta: Rec
   }
 }
 
-const ALL_ROLES = [
-  "admin",
-  "operador",
-  "leitor",
-  "vrm",
-  "agitador",
-  "comunicacao",
-] as const satisfies readonly AppRole[];
+/** Mantém `contacts.system_role`/`is_system_user` em dia com o papel real do
+ * usuário, quando o perfil tem um contato vinculado. Usado tanto ao trocar o
+ * papel de um usuário ativo quanto ao aprovar um cadastro pendente. */
+async function syncContactSystemRole(supabaseAdmin: SupabaseAdmin, userId: string, role: AppRole) {
+  try {
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("contact_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (prof?.contact_id) {
+      await supabaseAdmin
+        .from("contacts")
+        .update({ system_role: role, is_system_user: true })
+        .eq("id", prof.contact_id);
+    }
+  } catch {
+    /* non-blocking */
+  }
+}
+
 const RoleEnum = z.enum(ALL_ROLES);
 
 export const listUsers = createServerFn({ method: "GET" })
@@ -99,82 +112,6 @@ export const listUsers = createServerFn({ method: "GET" })
         };
       }),
     };
-  });
-
-const inviteSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  role: RoleEnum,
-  redirectOrigin: z.string().url(),
-  full_name: z.string().trim().max(160).optional().nullable(),
-});
-
-function selfOrigin(): string {
-  // Runtime import to avoid client bundling of the request helper.
-  const req = (globalThis as unknown as { __req?: Request }).__req;
-  if (!req) return "";
-  const origin = req.headers.get("origin");
-  if (origin) return origin.replace(/\/+$/, "");
-  const host = req.headers.get("host");
-  const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  return host ? `${proto}://${host}` : "";
-}
-
-export const inviteUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => inviteSchema.parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase, context.userId);
-    const { getRequest } = await import("@tanstack/react-start/server");
-    const req = getRequest();
-    const originHeader = req.headers.get("origin");
-    const host = req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") ?? "https";
-    const self = (originHeader ?? (host ? `${proto}://${host}` : "")).replace(/\/+$/, "");
-    let requested: string;
-    try {
-      requested = new URL(data.redirectOrigin).origin;
-    } catch {
-      throw new Error("Origem inválida.");
-    }
-    if (!self || requested !== self) throw new Error("Origem de redirecionamento não permitida.");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const redirectTo = `${self}/aceitar-convite`;
-    const fullName = data.full_name && data.full_name.length > 0 ? data.full_name : null;
-    const inviteOptions: { redirectTo: string; data?: Record<string, unknown> } = { redirectTo };
-    if (fullName) inviteOptions.data = { full_name: fullName };
-    const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      data.email,
-      inviteOptions,
-    );
-    if (error) throw new Error(error.message);
-    const userId = invited.user?.id;
-    if (userId) {
-      await supabaseAdmin
-        .from("user_roles")
-        .upsert({ user_id: userId, role: data.role }, { onConflict: "user_id,role" });
-      const profilePatch: { invited_by: string; full_name?: string } = { invited_by: context.userId };
-      if (fullName) profilePatch.full_name = fullName;
-      await supabaseAdmin
-        .from("profiles")
-        .update(profilePatch)
-        .eq("id", userId);
-    }
-    // Sempre gerar também um link direto (fallback caso o e-mail não chegue)
-    let actionLink: string | null = null;
-    try {
-      const linkOptions: { redirectTo: string; data?: Record<string, unknown> } = { redirectTo };
-      if (fullName) linkOptions.data = { full_name: fullName };
-      const { data: link } = await supabaseAdmin.auth.admin.generateLink({
-        type: "invite",
-        email: data.email,
-        options: linkOptions,
-      });
-      actionLink = link?.properties?.action_link ?? null;
-    } catch {
-      /* non-blocking */
-    }
-    await audit(context, userId ?? null, "convite_enviado", { email: data.email, role: data.role, full_name: fullName });
-    return { ok: true as const, userId, actionLink, email: data.email, role: data.role };
   });
 
 export const resendInvite = createServerFn({ method: "POST" })
@@ -301,20 +238,7 @@ export const setUserRole = createServerFn({ method: "POST" })
       .from("user_roles")
       .insert({ user_id: data.userId, role: data.role });
     if (error) throw new Error(error.message);
-    // Sincroniza papel no contato vinculado (se houver)
-    try {
-      const { data: prof } = await supabaseAdmin
-        .from("profiles")
-        .select("contact_id")
-        .eq("id", data.userId)
-        .maybeSingle();
-      if (prof?.contact_id) {
-        await supabaseAdmin
-          .from("contacts")
-          .update({ system_role: data.role, is_system_user: true })
-          .eq("id", prof.contact_id);
-      }
-    } catch { /* non-blocking */ }
+    await syncContactSystemRole(supabaseAdmin, data.userId, data.role);
     await audit(context, data.userId, "papel_alterado", { role: data.role });
     return { ok: true as const };
   });
@@ -432,7 +356,7 @@ export const linkCurrentUserContact = createServerFn({ method: "POST" })
     return { contact_id: contactId as string | null };
   });
 
-// Aprovação de auto-cadastros de agitador
+// Aprovação de auto-cadastros pendentes (qualquer papel, ver /cadastro-usuario e /cadastro-agitador)
 export const listPendingApprovals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -440,12 +364,16 @@ export const listPendingApprovals = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: profs, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, created_at, contact_id")
+      .select("id, full_name, created_at, contact_id, requested_role")
       .eq("status", "pendente_aprovacao")
       .order("created_at", { ascending: false });
     if (error) throw error;
     const ids = (profs ?? []).map((p) => p.id);
-    if (ids.length === 0) return { rows: [] as Array<{ id: string; email: string; full_name: string | null; created_at: string; phone: string | null }> };
+    if (ids.length === 0) {
+      return {
+        rows: [] as Array<{ id: string; email: string; full_name: string | null; created_at: string; phone: string | null; requested_role: AppRole | null }>,
+      };
+    }
     const { data: users } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     const emailById = new Map<string, string>();
     (users?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
@@ -465,13 +393,16 @@ export const listPendingApprovals = createServerFn({ method: "GET" })
         full_name: p.full_name,
         created_at: p.created_at,
         phone: p.contact_id ? phoneById.get(p.contact_id) ?? null : null,
+        requested_role: (p.requested_role as AppRole | null) ?? null,
       })),
     };
   });
 
-export const approvePendingAgitador = createServerFn({ method: "POST" })
+const approveUserSchema = z.object({ userId: z.string().uuid(), role: RoleEnum });
+
+export const approvePendingUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => approveUserSchema.parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -483,20 +414,21 @@ export const approvePendingAgitador = createServerFn({ method: "POST" })
     if (!prof || prof.status !== "pendente_aprovacao") {
       throw new Error("Este usuário não está aguardando aprovação.");
     }
-    // Insere role agitador (idempotente)
+    // Insere o papel escolhido pelo admin (idempotente)
     await supabaseAdmin
       .from("user_roles")
-      .upsert({ user_id: data.userId, role: "agitador" }, { onConflict: "user_id,role" });
+      .upsert({ user_id: data.userId, role: data.role }, { onConflict: "user_id,role" });
     const { error: upErr } = await supabaseAdmin
       .from("profiles")
       .update({ status: "ativo" })
       .eq("id", data.userId);
     if (upErr) throw new Error(upErr.message);
-    await audit(context, data.userId, "agitador_aprovado", {});
+    await syncContactSystemRole(supabaseAdmin, data.userId, data.role);
+    await audit(context, data.userId, "usuario_aprovado", { role: data.role });
     return { ok: true as const };
   });
 
-export const rejectPendingAgitador = createServerFn({ method: "POST" })
+export const rejectPendingUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
@@ -515,7 +447,7 @@ export const rejectPendingAgitador = createServerFn({ method: "POST" })
     }
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
-    await audit(context, data.userId, "agitador_rejeitado", {});
+    await audit(context, data.userId, "usuario_rejeitado", {});
     return { ok: true as const };
   });
 

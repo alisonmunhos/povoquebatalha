@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { listFormDefinitions, createFormDefinition } from "@/lib/form-definitions.functions";
+import { FIXED_FORM_PUBLIC_PATHS } from "@/lib/form-field-catalog";
 import { Plus, ClipboardList, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,20 +87,25 @@ function EntradaDadosLista() {
 
       <div className="border rounded-xl bg-card divide-y">
         {(q.data ?? []).length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhum formulário criado ainda.</p>}
-        {(q.data ?? []).map((f) => (
-          <Link key={f.id as string} to="/entrada-dados/$id" params={{ id: f.id as string }} className="flex items-center justify-between p-4 hover:bg-muted/40">
-            <div>
-              <p className="font-medium">{f.title as string}</p>
-              <p className="text-xs text-muted-foreground">/f/{f.slug as string}</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`px-2 py-0.5 rounded-full ${f.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                {f.is_active ? "Ativo" : "Inativo"}
-              </span>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-          </Link>
-        ))}
+        {(q.data ?? []).map((f) => {
+          const isFixed = Boolean(f.is_fixed);
+          const publicPath = isFixed ? (FIXED_FORM_PUBLIC_PATHS[f.slug as string] ?? `/${f.slug}`) : `/f/${f.slug}`;
+          return (
+            <Link key={f.id as string} to="/entrada-dados/$id" params={{ id: f.id as string }} className="flex items-center justify-between p-4 hover:bg-muted/40">
+              <div>
+                <p className="font-medium">{f.title as string}</p>
+                <p className="text-xs text-muted-foreground">{publicPath}</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {isFixed && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Fixo</span>}
+                <span className={`px-2 py-0.5 rounded-full ${f.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                  {f.is_active ? "Ativo" : "Inativo"}
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

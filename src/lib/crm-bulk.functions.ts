@@ -250,6 +250,7 @@ const CSV_COLS: Array<{ key: string; label: string }> = [
   { key: "quem_indicou", label: "Quem Indicou" },
   { key: "rede_social", label: "Rede Social" },
   { key: "zona_eleitoral", label: "Zona Eleitoral" },
+  { key: "como_conheceu", label: "Como Conheceu" },
   { key: "faixa_etaria", label: "Faixa Etária" },
   { key: "observacoes", label: "Observações" },
   { key: "tags_concat", label: "Tags" },
@@ -276,7 +277,7 @@ export const exportContactsCsv = createServerFn({ method: "POST" })
     const { data: rows } = await context.supabase
       .from("contacts")
       .select(
-        "id,nome,nome_social,phone_raw,phone_e164,phone_secundario_raw,email,email_secundario,cep,endereco,numero,complemento,bairro,referencia,cidade,uf,profissao,instituicao,tipo_contato,coletivo_alicerce,participa_movimento_social,movimento_social_nome,formas_ajuda,formas_ajuda_outro,disponibilidade,quem_indicou,rede_social,zona_eleitoral,faixa_etaria,observacoes,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe",
+        "id,nome,nome_social,phone_raw,phone_e164,phone_secundario_raw,email,email_secundario,cep,endereco,numero,complemento,bairro,referencia,cidade,uf,profissao,instituicao,tipo_contato,coletivo_alicerce,participa_movimento_social,movimento_social_nome,formas_ajuda,formas_ajuda_outro,disponibilidade,quem_indicou,rede_social,zona_eleitoral,como_conheceu,faixa_etaria,observacoes,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe",
       )
       .in("id", data.ids);
     const { data: rels } = await context.supabase
