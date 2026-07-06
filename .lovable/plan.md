@@ -1,57 +1,63 @@
-## Causa raiz (uma só)
+## Diagnóstico do que está diferente hoje
 
-A migration reparadora do construtor de formulários rodou incompleta: criou as tabelas mas **faltou duas colunas** e **nunca semeou os 2 formulários fixos** que o app espera. Isso derruba os dois sintomas de uma vez.
+Testei o que já foi implantado e comparei com o comportamento dos formulários originais (`src/routes/api/public/forms/recadastro.ts` e `inscrever.ts`). Achei uma causa raiz única para o que você reclamou, mais duas confirmações do que **já está certo**.
 
-### O que confirmei
+### 1) Causa raiz — os formulários fixos foram semeados quase vazios
 
-- Tabela `form_definitions` **não tem** as colunas `is_fixed` nem `success_screen_order`.
-- Só existe 1 linha na tabela (um formulário de teste que você criou). **Não existem** os slugs `recadastro-fixo` e `inscrever-fixo`.
-- O `SELECT ... is_fixed ...` que a aba **Entrada de Dados** faz retorna erro do PostgREST → a lista inteira quebra → "não consigo criar" (o modal existe, mas a lista fica em erro) e "os fixos não abrem" (nem existem).
-- O componente `PublicFormRenderer` das rotas `/recadastro`, `/inscrever` e `/atualizacao` chama `/api/public/forms/recadastro-fixo` e `/api/public/forms/inscrever-fixo`; como esses slugs não estão no banco, o endpoint devolve 404 e a tela mostra **"Formulário não encontrado ou indisponível"** — foi exatamente o que reproduzi no domínio publicado (`povoquebatalha.lovable.app/recadastro`, `/inscrever`, `/atualizacao`).
-- O `POST` do mesmo endpoint também faz `SELECT ... success_screen_order` — mesmo semeando os registros, a submissão só volta a funcionar depois de adicionar a coluna.
+No banco, `recadastro-fixo` e `inscrever-fixo` existem, mas **só têm as 3 perguntas core** (Nome, WhatsApp, Consentimento). Confirmei rodando `SELECT` na tabela `form_definition_questions` — 3 linhas por formulário, só.
 
-## O que vou fazer
+O `/recadastro` original (handler antigo em `recadastro.ts`) validava **~20 campos**: nome, nome_social, phone, email, cidade, uf, cep, endereço, número, complemento, referência, bairro, como_conheceu, profissão, instituição, coletivo_alicerce, participa_movimento_social + nome do movimento, formas_ajuda + outro. Nenhum desses foi seedado no `recadastro-fixo`. Por isso a tela pública renderiza só 3 campos em vez do "cadastro completo" que existia antes.
 
-**1 migration única**, idempotente, sem perda de dados:
+O `/inscrever` original pedia nome, phone, cidade, uf, consentimento. Também está reduzido a 3 campos hoje.
 
-1. `ALTER TABLE public.form_definitions ADD COLUMN IF NOT EXISTS is_fixed boolean NOT NULL DEFAULT false;`
-2. `ALTER TABLE public.form_definitions ADD COLUMN IF NOT EXISTS success_screen_order text NOT NULL DEFAULT 'whatsapp_first' CHECK (success_screen_order IN ('whatsapp_first','confirmation_first'));`
-3. `INSERT ... ON CONFLICT DO NOTHING` dos 2 formulários fixos:
-   - `recadastro-fixo` → título "Recadastro completo", `source_form_type='cadastro_completo'`, `is_fixed=true`.
-   - `inscrever-fixo` → título "Inscrição simples", `source_form_type='receber_informacoes'`, `is_fixed=true`.
-4. Para cada formulário fixo, semear as **3 perguntas core** (nome, WhatsApp, consentimento) usando `INSERT ... WHERE NOT EXISTS` — mesmas 3 que o construtor cria automaticamente para qualquer formulário novo. Fica alinhado com o comportamento atual de "criar novo formulário" e com a proteção que já existe no código impedindo deletar formulário fixo.
+O motor público (`PublicFormRenderer`) **já renderiza tudo numa tela só** — isso não mudou. O problema não é layout, é que as perguntas simplesmente não foram plantadas.
 
-Depois da migration ser aprovada e o `types.ts` regenerar, **sem tocar em nenhum código**:
-- A aba **Entrada de Dados** volta a listar (agora com os 2 fixos + o formulário de teste que você criou).
-- Clicar num formulário fixo abre o construtor normalmente (o `getFormDefinition` já usa `.maybeSingle()` em template/automation/tracked_link).
-- `povoquebatalha.lovable.app/recadastro` (e `/atualizacao`, `/inscrever`) volta a carregar o formulário, submissão inclusa.
+### 2) O que já está correto (não vou mexer)
 
-## O que **não** vou mexer agora (e por quê)
+- **Botões de WhatsApp e confirmação são independentes e opcionais também nos fixos.** O construtor (`entrada-dados.$id.tsx`) mostra `waEnabled` e `confActive` como dois checkboxes desmarcáveis, inclusive para `is_fixed=true`. A tag azul só avisa "não pode excluir", nada bloqueia edição de perguntas, mensagem ou botões.
+- **Ordem WhatsApp × confirmação na tela de sucesso** já é configurável (`success_screen_order`), e o `PublicFormRenderer` respeita.
+- **Compatibilidade retroativa das URLs** já está preservada — `/recadastro`, `/atualizacao` e `/inscrever` continuam existindo e apontam pra `PublicFormRenderer` com o slug fixo correto.
 
-- **Aba `/links`**: os links exibidos usam `window.location.origin`, que dentro do editor Lovable é o preview interno (`lovableproject.com`). Isso é um problema separado de UX — o formulário publicado em si volta a funcionar com essa migration. Se depois de aplicada você ainda quiser que a tela de links mostre o domínio publicado em vez do preview interno, aviso e trato num passo à parte pra não misturar escopo com o fix crítico.
-- Rotas antigas em `src/routes/api/public/forms/recadastro.ts` e `inscrever.ts`: continuam existindo como fallback histórico (comentário no código diz isso). Não precisam ser tocadas.
+### 3) Uma cicatriz técnica que preciso corrigir junto
 
-## Checklist de teste ao final
+O `event_key` seedado ficou `formulario:recadastro-fixo` / `formulario:inscrever-fixo`. Os handlers antigos disparavam `atualizacao_apoiador_concluida` e `inscricao_concluida`. Se houver `automations` ou `message_templates` cadastrados no seu banco de produção amarrados nesses eventos originais, elas silenciosamente pararam de disparar quando a rota migrou pro motor genérico. Vou verificar isso antes de aplicar e, se existir, **ajustar o `event_key` dos fixos pros nomes originais** — a migration é reversível e não perde dado.
 
-1. Abrir `/entrada-dados` → ver "Recadastro completo" e "Inscrição simples" com tag azul **Fixo** na lista.
-2. Clicar num deles → construtor abre com as 3 perguntas core já preenchidas.
-3. Criar um formulário novo qualquer → aparece na lista e abre.
-4. Abrir `https://povoquebatalha.lovable.app/recadastro` em aba anônima → formulário renderiza (não a tela "Formulário não encontrado").
-5. Idem `/inscrever` e `/atualizacao`.
-6. Submeter um teste em `/inscrever` → chega em `contacts`.
+---
 
-## Detalhe técnico
+## Plano de correção
 
-```text
-Migration (idempotente):
-  ALTER TABLE form_definitions ADD COLUMN IF NOT EXISTS is_fixed boolean ...
-  ALTER TABLE form_definitions ADD COLUMN IF NOT EXISTS success_screen_order text ... CHECK (...)
-  INSERT INTO form_definitions (slug, title, source_form_type, event_key, is_fixed) VALUES
-    ('recadastro-fixo', ..., 'cadastro_completo', 'formulario:recadastro-fixo', true),
-    ('inscrever-fixo',  ..., 'receber_informacoes','formulario:inscrever-fixo',  true)
-  ON CONFLICT (slug) DO UPDATE SET is_fixed = true;
-  INSERT INTO form_definition_questions ... WHERE NOT EXISTS (...)
-    -- 3 perguntas core por formulário fixo
-```
+### Fase 1 — Migration (idempotente, sem perda de dado)
 
-Nenhum código fonte precisa mudar — o schema desses SELECTs já assume as colunas e slugs. Depois da migration, os selects passam a retornar dados e os fluxos voltam.
+Um único arquivo de migration, com estas operações:
+
+1. `UPDATE form_definitions SET event_key='atualizacao_apoiador_concluida' WHERE slug='recadastro-fixo'`
+2. `UPDATE form_definitions SET event_key='inscricao_concluida' WHERE slug='inscrever-fixo'`
+3. Para `recadastro-fixo`, `INSERT ... WHERE NOT EXISTS` das perguntas do catálogo que faltam, na ordem correspondente ao formulário original: `endereco_completo` (bloco único com CEP + autopreenchimento), `email`, `nome_social`, `profissao`, `instituicao`, `formas_ajuda`, `formas_ajuda_outro`, `participa_movimento_social`, `movimento_social_nome`, `coletivo_alicerce`, `como_conheceu`. Todas como opcionais (`required=false`), replicando o schema original — só o core continua obrigatório. Usa `defaultLabel` e `defaultHelpText` do `FORM_FIELD_CATALOG`.
+4. Para `inscrever-fixo`: ver "Ponto a decidir" abaixo.
+
+`ON CONFLICT` no par `(form_definition_id, catalog_field_key)` garante que rodar de novo não duplica; se você já tiver editado alguma pergunta manualmente, o `WHERE NOT EXISTS` preserva sua edição.
+
+### Fase 2 — Nada de código
+
+Nenhum `.tsx`/`.ts` precisa mudar. O `PublicFormRenderer`, o handler `/api/public/forms/$slug.ts` e o construtor já sabem lidar com todos esses catalog fields — só precisavam das linhas no banco.
+
+### Fase 3 — Verificação ao final
+
+1. Abrir `povoquebatalha.lovable.app/recadastro` em aba anônima → aparece o cadastro completo (bloco de endereço com CEP autocompletando + demais campos) numa tela só.
+2. Abrir `/atualizacao?ref=<token>` → mesma coisa (mesmo componente, alias).
+3. Abrir `/inscrever` → forma resultante da decisão abaixo.
+4. Abrir `/entrada-dados/<id-do-recadastro-fixo>` → construtor mostra todas as perguntas seedadas, permite editar enunciado/ajuda/obrigatoriedade, desmarcar botão de WhatsApp, desmarcar confirmação, salvar tudo.
+5. Submeter um cadastro de teste em `/inscrever` → chega em `contacts` e a automação amarrada a `inscricao_concluida` (se existir) volta a disparar.
+6. `bunx tsc --noEmit` sem erros novos.
+
+---
+
+## Ponto a decidir antes de eu executar (uma escolha só)
+
+**O que o `/inscrever` deve pedir?** O original pedia nome, phone, cidade, uf, consentimento. O catálogo do construtor **não tem** um campo "cidade+UF" solto — só existe o `endereco_completo`, que é o bloco inteiro (CEP+rua+número+bairro+cidade+UF). Três caminhos razoáveis:
+
+- **A. Igualzinho ao original**: adicionar `endereco_completo` como opcional no `inscrever-fixo`. O usuário pode preencher só cidade/UF e ignorar o resto (o bloco não força CEP). Pede um pouco mais visualmente, mas é o mais próximo do "seguir a versão anterior" e usa o mesmo catálogo que o resto do sistema.
+- **B. Manter enxuto**: deixar `inscrever-fixo` com só as 3 perguntas core (nome/whatsapp/consentimento) e você adiciona cidade/UF depois manualmente pelo construtor se quiser. Fica diferente do original, mas mais leve.
+- **C. Criar um catalog field novo "cidade_uf"**: envolve migration de banco pra coluna nova e código pra reconhecer o filtro. Escopo maior do que a correção pede — não recomendo agora.
+
+Minha recomendação é **A**, porque foi o que você definiu como o padrão desse sistema ("cadastro completo todo na mesma tela") e mantém a paridade com o formulário antigo. Confirma A, B, ou algo diferente?
