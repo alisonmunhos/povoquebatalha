@@ -53,7 +53,7 @@ const LIFECYCLE: MultiOption[] = [
   { value: "recadastro_iniciado", label: "Cadastro iniciado" },
   { value: "link_enviado", label: "Link enviado" },
   { value: "nao_respondeu", label: "Não respondeu" },
-  { value: "telefone_invalido", label: "Telefone inválido" },
+  { value: "telefone_invalido", label: "Marcado telefone inválido (manual)" },
   { value: "precisa_revisao", label: "Precisa revisão (manual)" },
   { value: "duplicado_possivel", label: "Possível duplicado (manual)" },
   { value: "duplicado_mesclado", label: "Mesclado" },
