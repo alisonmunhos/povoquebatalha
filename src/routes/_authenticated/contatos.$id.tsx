@@ -272,8 +272,15 @@ function ContatoFicha() {
             <Row><Field label="E-mail secundário" value={form.email_secundario} onChange={(v) => set("email_secundario", v)} type="email" placeholder="Opcional — preservado em mesclagens" /></Row>
             <Row>
               <Field label="WhatsApp / telefone" value={form.phone_raw} onChange={(v) => set("phone_raw", v)} placeholder="(11) 91234-5678" />
-              {form.phone_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(phonePreview.phone_e164 ?? "") || "—"} ({phonePreview.phone_status})</p> : null}
+              <PhoneQuickSave
+                rawInput={String(form.phone_raw ?? "")}
+                currentStatus={c.phone_status}
+                cidade={c.cidade}
+                uf={c.uf}
+                onSave={savePhoneOnly}
+              />
             </Row>
+
             <Row>
               <Field label="Telefone secundário" value={form.phone_secundario_raw} onChange={(v) => set("phone_secundario_raw", v)} placeholder="Opcional — reconhecido em mensagens recebidas" />
               {form.phone_secundario_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(parsePhoneBR(String(form.phone_secundario_raw ?? "")).phone_e164 ?? "") || "—"}</p> : null}
