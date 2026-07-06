@@ -196,6 +196,7 @@ function FormBuilder() {
     if (!publicUrl) return;
     setLoadingQr(true);
     try {
+      const { generateQrDataUrl } = await import("@/lib/qr-code.client");
       const dataUrl = await generateQrDataUrl(publicUrl);
       setQrDataUrl(dataUrl);
     } catch (e) {
