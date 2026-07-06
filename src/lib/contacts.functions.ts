@@ -216,6 +216,54 @@ export const updateContact = createServerFn({ method: "POST" })
 
 export const upsertContact = updateContact;
 
+/**
+ * Salva SOMENTE o telefone principal. Ação leve para consertar rapidamente
+ * numeros com Falta DDD sem depender da validação do formulário inteiro.
+ * O trigger contacts_phone_fill recalcula phone_e164, phone_status e phone_last8.
+ */
+export const saveContactPhone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      phone_raw: z.preprocess(
+        (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+        z.string().trim().max(60).nullable(),
+      ),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: prev, error: prevErr } = await context.supabase
+      .from("contacts")
+      .select("phone_raw")
+      .eq("id", data.id)
+      .single();
+    if (prevErr) throw prevErr;
+
+    const { data: updated, error } = await context.supabase
+      .from("contacts")
+      .update({ phone_raw: data.phone_raw, phone_status: null } as never)
+      .eq("id", data.id)
+      .select("phone_raw, phone_e164, phone_status, phone_last8")
+      .single();
+    if (error) throw error;
+
+    await context.supabase.from("contact_audit_log").insert({
+      contact_id: data.id,
+      user_id: context.userId,
+      action: "update",
+      changes: { phone_raw: { from: prev?.phone_raw ?? null, to: updated.phone_raw ?? null } } as never,
+    });
+
+    return {
+      ok: true as const,
+      phone_raw: updated.phone_raw,
+      phone_e164: updated.phone_e164,
+      phone_status: updated.phone_status,
+    };
+  });
+
+
 export const archiveContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(d))
