@@ -37,7 +37,7 @@ const FORMAS_AJUDA_OPTS: Array<{ value: string; label: string }> = [
 
 export function Recadastro() {
   const navigate = useNavigate();
-  const { origem, t, ref } = Route.useSearch();
+  const { origem, t, ref } = useSearch({ strict: false }) as { origem?: string; t?: string; ref?: string };
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cep, setCep] = useState("");
