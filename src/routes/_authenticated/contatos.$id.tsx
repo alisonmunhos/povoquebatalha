@@ -150,6 +150,29 @@ function ContatoFicha() {
     }
   }
 
+  function invalidateContactLists() {
+    queryClient.invalidateQueries({ queryKey: ["contacts-rich"] });
+    queryClient.invalidateQueries({ queryKey: ["contacts-quick-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["contacts-status-facets"] });
+  }
+
+  function humanizeError(e: unknown): string {
+    if (e && typeof e === "object" && "issues" in e) {
+      const issues = (e as { issues: Array<{ path: (string | number)[]; message: string }> }).issues;
+      const first = issues[0];
+      const field = first?.path?.[0] ? String(first.path[0]) : "";
+      const map: Record<string, string> = {
+        nome: "Nome", email: "E-mail", email_secundario: "E-mail secundário",
+        phone_raw: "WhatsApp / telefone", phone_secundario_raw: "Telefone secundário",
+        cep: "CEP", uf: "UF", cidade: "Cidade", endereco: "Endereço",
+      };
+      const label = map[field] ?? field;
+      return `${label}: ${first?.message ?? "valor inválido"}`;
+    }
+    if (e instanceof Error) return e.message;
+    return "Erro ao salvar";
+  }
+
   async function save() {
     setSaving(true);
     try {
@@ -157,16 +180,34 @@ function ContatoFicha() {
       toast.success("Contato atualizado");
       q.refetch();
       hist.refetch();
+      invalidateContactLists();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+      console.error("updateContact failed:", e);
+      toast.error(humanizeError(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function savePhoneOnly(nextPhoneRaw: string) {
+    try {
+      const r = await savePhoneFn({ data: { id, phone_raw: nextPhoneRaw } });
+      const statusLabel = PHONE_STATUS_LABEL[r.phone_status ?? ""] ?? r.phone_status ?? "atualizado";
+      toast.success(`Telefone salvo — ${statusLabel}`);
+      set("phone_raw", r.phone_raw ?? "");
+      q.refetch();
+      hist.refetch();
+      invalidateContactLists();
+    } catch (e) {
+      console.error("saveContactPhone failed:", e);
+      toast.error(humanizeError(e));
     }
   }
 
   const phonePreview = parsePhoneBR(String(form.phone_raw ?? ""));
   const tagIds = new Set((q.data.tags ?? []).map((t) => t!.id));
   const phoneDigits = (c.phone_e164 ?? "").replace(/\D/g, "");
+
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
