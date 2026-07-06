@@ -256,7 +256,23 @@ function Contatos() {
     count: t.count,
     color: (t as { cor?: string | null }).cor ?? null,
   }));
-  const statusOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({ value: v, label: LIFECYCLE_LABEL[v] ?? v }));
+  // Coluna "Cadastro" — filtra lifecycle_status. Contagens vêm dos facets do banco;
+  // opções com count=0 aparecem cinzas para o usuário entender que aquele estado não existe hoje.
+  const lifecycleFacet = facetsQ.data?.lifecycle ?? {};
+  const cadastroOpts: ColumnFilterOption[] = LIFECYCLE.map((v) => ({
+    value: v,
+    label: LIFECYCLE_LABEL[v] ?? v,
+    count: lifecycleFacet[v] ?? 0,
+  })).sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+
+  // Coluna "Número" — filtra phone_status. Mesma lógica de contagem.
+  const phoneFacet = facetsQ.data?.phone ?? {};
+  const PHONE_ORDER = ["valido", "precisa_revisao", "sem_ddd", "sem_nono_digito", "invalido", "duplicado_possivel"];
+  const numeroOpts: ColumnFilterOption[] = PHONE_ORDER.map((v) => ({
+    value: v,
+    label: PHONE_STATUS_LABEL[v] ?? v,
+    count: phoneFacet[v] ?? 0,
+  }));
 
   const nameSortState = sort === "name" ? "asc" : sort === "name-desc" ? "desc" : "none";
   function cycleNameSort() {
