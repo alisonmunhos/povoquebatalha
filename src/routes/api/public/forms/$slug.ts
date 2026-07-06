@@ -115,7 +115,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
 
         const { data: form } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,slug,title,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message")
+          .select("id,slug,title,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -342,6 +342,20 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           } catch { /* ignore */ }
         }
 
+        // Confirmação e botão de WhatsApp são independentes (a automação dispara de
+        // forma assíncrona/não bloqueante de qualquer jeito) — isso só informa a tela
+        // de sucesso se a automação de confirmação está ligada, pra decidir o texto e
+        // a ordem dos dois blocos, sem criar nenhuma dependência técnica entre eles.
+        let confirmationEnabled = false;
+        try {
+          const { data: auto } = await supabaseAdmin
+            .from("automations")
+            .select("active")
+            .eq("event_key", form.event_key)
+            .maybeSingle();
+          confirmationEnabled = Boolean(auto?.active);
+        } catch { /* ignore */ }
+
         try {
           const origin = request.headers.get("origin") ||
             (request.headers.get("host") ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}` : null);
@@ -361,6 +375,8 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             whatsapp_button: form.whatsapp_button_enabled
               ? { numero_conectado: numeroConectado, message: form.whatsapp_button_message }
               : null,
+            confirmation_enabled: confirmationEnabled,
+            success_screen_order: form.success_screen_order,
           }),
           { headers: cors },
         );

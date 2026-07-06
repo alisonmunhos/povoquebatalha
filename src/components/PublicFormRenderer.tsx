@@ -25,6 +25,7 @@ type FormQuestion = {
 };
 type FormDefinition = { id: string; title: string; whatsapp_button_enabled: boolean; questions: FormQuestion[] };
 type WhatsappButtonInfo = { numero_conectado: string | null; message: string | null } | null;
+type SuccessScreenOrder = "whatsapp_first" | "confirmation_first";
 
 export function PublicFormRenderer({
   slug, refToken, recadToken,
@@ -37,7 +38,12 @@ export function PublicFormRenderer({
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ nome: string; whatsapp_button: WhatsappButtonInfo } | null>(null);
+  const [success, setSuccess] = useState<{
+    nome: string;
+    whatsapp_button: WhatsappButtonInfo;
+    confirmation_enabled: boolean;
+    success_screen_order: SuccessScreenOrder;
+  } | null>(null);
 
   useEffect(() => {
     fetch(`/api/public/forms/${slug}`)
@@ -79,7 +85,12 @@ export function PublicFormRenderer({
       });
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao enviar");
-      setSuccess({ nome: json.nome, whatsapp_button: json.whatsapp_button ?? null });
+      setSuccess({
+        nome: json.nome,
+        whatsapp_button: json.whatsapp_button ?? null,
+        confirmation_enabled: Boolean(json.confirmation_enabled),
+        success_screen_order: json.success_screen_order === "confirmation_first" ? "confirmation_first" : "whatsapp_first",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar");
     } finally {
@@ -103,7 +114,12 @@ export function PublicFormRenderer({
         ) : form === null ? (
           <p className="text-muted-foreground">Formulário não encontrado ou indisponível.</p>
         ) : success ? (
-          <SuccessScreen nome={success.nome} whatsappButton={success.whatsapp_button} />
+          <SuccessScreen
+            nome={success.nome}
+            whatsappButton={success.whatsapp_button}
+            confirmationEnabled={success.confirmation_enabled}
+            order={success.success_screen_order}
+          />
         ) : (
           <>
             <h1 className="text-3xl font-bold tracking-tight">{form.title}</h1>
@@ -315,10 +331,52 @@ function AddressBlockField({
   );
 }
 
-function SuccessScreen({ nome, whatsappButton }: { nome: string; whatsappButton: WhatsappButtonInfo }) {
+function SuccessScreen({
+  nome, whatsappButton, confirmationEnabled, order,
+}: {
+  nome: string;
+  whatsappButton: WhatsappButtonInfo;
+  confirmationEnabled: boolean;
+  order: SuccessScreenOrder;
+}) {
   const numeroDigits = (whatsappButton?.numero_conectado ?? "").replace(/\D+/g, "");
   const waMsg = encodeURIComponent(whatsappButton?.message || "Olá! Acabei de preencher o formulário da Campanha do Povo que Batalha.");
   const waUrl = numeroDigits ? `https://wa.me/${numeroDigits}?text=${waMsg}` : null;
+  const showWhatsapp = Boolean(waUrl);
+  const showConfirmation = confirmationEnabled;
+  const both = showWhatsapp && showConfirmation;
+
+  // A "ordem" só importa/aparece quando os dois blocos estão ativos ao mesmo tempo —
+  // ela é puramente sobre a narrativa da tela, não cria dependência técnica real
+  // entre a automação de confirmação e o botão de WhatsApp.
+  const whatsappBlock = showWhatsapp && (
+    <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+      {both && order === "confirmation_first" && (
+        <p className="text-xs text-emerald-800">Ação extra opcional:</p>
+      )}
+      <a
+        href={waUrl as string}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 rounded-md bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700"
+      >
+        <MessageCircle className="h-4 w-4" /> Avisar no WhatsApp
+      </a>
+      {both && order === "whatsapp_first" && (
+        <p className="text-xs text-emerald-800">Em seguida você recebe uma confirmação automática pelo WhatsApp.</p>
+      )}
+    </div>
+  );
+
+  const confirmationBlock = showConfirmation && (
+    <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+      <p className="text-sm text-emerald-800">Você já vai receber uma confirmação automática pelo WhatsApp.</p>
+    </div>
+  );
+
+  const orderedBlocks = order === "confirmation_first"
+    ? [confirmationBlock, whatsappBlock]
+    : [whatsappBlock, confirmationBlock];
 
   return (
     <div className="bg-card border rounded-xl p-6 space-y-5">
@@ -327,18 +385,8 @@ function SuccessScreen({ nome, whatsappButton }: { nome: string; whatsappButton:
         <h1 className="text-xl font-semibold">Recebido!</h1>
       </div>
       <p className="text-sm">Obrigado, <strong>{nome}</strong>. Suas informações foram registradas.</p>
-      {waUrl && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 space-y-2">
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700"
-          >
-            <MessageCircle className="h-4 w-4" /> Avisar no WhatsApp
-          </a>
-        </div>
-      )}
+      {orderedBlocks[0]}
+      {orderedBlocks[1]}
     </div>
   );
 }

@@ -41,8 +41,10 @@ function FormBuilder() {
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [confTitle, setConfTitle] = useState("");
   const [confBody, setConfBody] = useState("");
+  const [confActive, setConfActive] = useState(true);
   const [waEnabled, setWaEnabled] = useState(true);
   const [waMessage, setWaMessage] = useState("");
+  const [successOrder, setSuccessOrder] = useState<"whatsapp_first" | "confirmation_first">("whatsapp_first");
   const [savingQuestions, setSavingQuestions] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingConfirmation, setSavingConfirmation] = useState(false);
@@ -69,10 +71,13 @@ function FormBuilder() {
     setCoreQuestions((q.data.questions ?? []).filter((row) => coreKeys.has(row.catalog_field_key as string)).map(toDraft));
     setQuestions((q.data.questions ?? []).filter((row) => !coreKeys.has(row.catalog_field_key as string)).map(toDraft));
     const tpl = q.data.template as { title?: string; body?: string } | null;
+    const auto = q.data.automation as { active?: boolean } | null;
     setConfTitle(tpl?.title ?? "Confirmação");
     setConfBody(tpl?.body ?? "Olá, {{primeiro_nome}}! Recebemos suas informações. Obrigado!");
+    setConfActive(auto ? Boolean(auto.active) : true);
     setWaEnabled(Boolean(q.data.form.whatsapp_button_enabled));
     setWaMessage((q.data.form.whatsapp_button_message as string | null) ?? "");
+    setSuccessOrder((q.data.form.success_screen_order as "whatsapp_first" | "confirmation_first" | undefined) ?? "whatsapp_first");
     const link = q.data.trackedLink as { token?: string } | null;
     setLinkToken(link?.token ?? null);
   }, [q.data]);
@@ -117,7 +122,13 @@ function FormBuilder() {
   async function saveSettings() {
     setSavingSettings(true);
     try {
-      await updateFn({ data: { id, title, is_active: isActive, whatsapp_button_enabled: waEnabled, whatsapp_button_message: waMessage || null } });
+      await updateFn({
+        data: {
+          id, title, is_active: isActive,
+          whatsapp_button_enabled: waEnabled, whatsapp_button_message: waMessage || null,
+          success_screen_order: successOrder,
+        },
+      });
       toast.success("Configurações salvas");
       q.refetch();
     } catch (e) {
@@ -152,7 +163,7 @@ function FormBuilder() {
   async function saveConfirmation() {
     setSavingConfirmation(true);
     try {
-      await saveConfirmationFn({ data: { form_definition_id: id, title: confTitle, body: confBody, active: true, require_consent: true } });
+      await saveConfirmationFn({ data: { form_definition_id: id, title: confTitle, body: confBody, active: confActive, require_consent: true } });
       toast.success("Mensagem de confirmação salva");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar mensagem");
@@ -276,8 +287,15 @@ function FormBuilder() {
       </Section>
 
       <Section title="Mensagem de confirmação (automática, via WhatsApp)">
-        <input value={confTitle} onChange={(e) => setConfTitle(e.target.value)} placeholder="Título interno" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-        <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={confActive} onChange={(e) => setConfActive(e.target.checked)} /> Enviar confirmação automática
+        </label>
+        {confActive && (
+          <>
+            <input value={confTitle} onChange={(e) => setConfTitle(e.target.value)} placeholder="Título interno" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </>
+        )}
         <button onClick={saveConfirmation} disabled={savingConfirmation} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
           <Save className="h-4 w-4" /> Salvar mensagem
         </button>
@@ -295,6 +313,23 @@ function FormBuilder() {
         )}
         <p className="text-xs text-muted-foreground">Essa configuração é salva junto com "Salvar configurações" acima.</p>
       </Section>
+
+      {waEnabled && confActive && (
+        <Section title="Ordem na tela de sucesso">
+          <p className="text-xs text-muted-foreground">
+            As duas coisas continuam independentes — isso só decide qual bloco aparece primeiro.
+          </p>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name="success_order" checked={successOrder === "whatsapp_first"} onChange={() => setSuccessOrder("whatsapp_first")} className="mt-1" />
+            <span>Botão de WhatsApp primeiro — a confirmação que a pessoa recebe depois soa como resposta à mensagem que ela acabou de mandar.</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name="success_order" checked={successOrder === "confirmation_first"} onChange={() => setSuccessOrder("confirmation_first")} className="mt-1" />
+            <span>Confirmação primeiro — avisa que a pessoa já recebe a confirmação automaticamente, e o botão de WhatsApp aparece depois como ação extra opcional.</span>
+          </label>
+          <p className="text-xs text-muted-foreground">Essa configuração é salva junto com "Salvar configurações" acima.</p>
+        </Section>
+      )}
     </div>
   );
 }

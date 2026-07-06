@@ -120,6 +120,7 @@ const updateSchema = z.object({
   whatsapp_button_enabled: z.boolean().optional(),
   whatsapp_button_message: z.string().trim().max(500).nullable().optional(),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]).optional(),
+  success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).optional(),
 });
 
 export const updateFormDefinition = createServerFn({ method: "POST" })
