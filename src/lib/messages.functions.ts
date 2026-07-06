@@ -128,7 +128,7 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tpl, error } = await supabaseAdmin
       .from("message_templates")
-      .select("body, link, media_path, media_mime, media_filename")
+      .select("body, link, link_title, link_description, link_image, media_path, media_mime, media_filename")
       .eq("id", data.templateId).single();
     if (error || !tpl) throw new Error("Template não encontrado");
     const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: data.phone });
@@ -149,7 +149,19 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
       }
     }
 
-    const { sendMessage } = await import("@/lib/wa-send.server");
+    const { sendMessage, readUseSendLinkFlag } = await import("@/lib/wa-send.server");
+    const useSendLink = await readUseSendLinkFlag();
+    const linkMeta = tpl.link
+      ? {
+          url: tpl.link,
+          title: tpl.link_title ?? null,
+          description: tpl.link_description ?? null,
+          image: tpl.link_image ?? null,
+          status: (tpl.link_title || tpl.link_image ? "preview_confirmada" : "preview_provavel") as
+            | "preview_confirmada"
+            | "preview_provavel",
+        }
+      : null;
     const res = await sendMessage({
       contact: {
         nome: "Teste",
@@ -162,8 +174,9 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
       },
       text: `[TESTE] ${tpl.body}`,
       renderOptions: { unknownAsEmpty: true },
-      link: tpl.link ? { url: tpl.link, status: "preview_provavel" } : null,
+      link: linkMeta,
       attachment,
+      useSendLink,
       origin: "template_test",
       skipValidations: true,
     });
