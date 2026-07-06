@@ -217,16 +217,41 @@ export const bulkSetLifecycle = createServerFn({ method: "POST" })
   });
 
 // ===== Exportação CSV (UTF-8 com BOM) =====
+// ⚠️ Ao adicionar um campo novo na ficha de contato, sempre volte aqui também:
+//   (4) incluir a coluna aqui (CSV_COLS + select) com um cabeçalho reconhecido
+//       por suggestMapping() em src/lib/imports.functions.ts, pra exportar e
+//       reimportar sempre baterem — ver o mesmo checklist em crm-filters.ts:1-4
+//       e imports.functions.ts:1-4.
 const CSV_COLS: Array<{ key: string; label: string }> = [
   { key: "nome", label: "Nome" },
+  { key: "nome_social", label: "Nome Social" },
   { key: "phone_raw", label: "Telefone Original" },
   { key: "phone_e164", label: "Telefone Normalizado" },
+  { key: "phone_secundario_raw", label: "Telefone Secundário" },
   { key: "email", label: "E-mail" },
-  { key: "cidade", label: "Cidade" },
+  { key: "email_secundario", label: "E-mail Secundário" },
+  { key: "cep", label: "CEP" },
+  { key: "endereco", label: "Endereço" },
+  { key: "numero", label: "Número" },
+  { key: "complemento", label: "Complemento" },
   { key: "bairro", label: "Bairro" },
+  { key: "referencia", label: "Ponto de Referência" },
+  { key: "cidade", label: "Cidade" },
   { key: "uf", label: "UF" },
   { key: "profissao", label: "Profissão" },
+  { key: "instituicao", label: "Onde Trabalha" },
   { key: "tipo_contato", label: "Tipo Contato" },
+  { key: "coletivo_alicerce", label: "Coletivo Alicerce" },
+  { key: "participa_movimento_social", label: "Participa Movimento Social" },
+  { key: "movimento_social_nome", label: "Qual Movimento Social" },
+  { key: "formas_ajuda_concat", label: "Formas de Ajuda" },
+  { key: "formas_ajuda_outro", label: "Formas de Ajuda - Outro" },
+  { key: "disponibilidade_concat", label: "Disponibilidade" },
+  { key: "quem_indicou", label: "Quem Indicou" },
+  { key: "rede_social", label: "Rede Social" },
+  { key: "zona_eleitoral", label: "Zona Eleitoral" },
+  { key: "faixa_etaria", label: "Faixa Etária" },
+  { key: "observacoes", label: "Observações" },
   { key: "tags_concat", label: "Tags" },
   { key: "lifecycle_status", label: "Lifecycle" },
   { key: "phone_status", label: "Status Telefone" },
@@ -251,7 +276,7 @@ export const exportContactsCsv = createServerFn({ method: "POST" })
     const { data: rows } = await context.supabase
       .from("contacts")
       .select(
-        "id,nome,phone_raw,phone_e164,email,cidade,bairro,uf,profissao,tipo_contato,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe",
+        "id,nome,nome_social,phone_raw,phone_e164,phone_secundario_raw,email,email_secundario,cep,endereco,numero,complemento,bairro,referencia,cidade,uf,profissao,instituicao,tipo_contato,coletivo_alicerce,participa_movimento_social,movimento_social_nome,formas_ajuda,formas_ajuda_outro,disponibilidade,quem_indicou,rede_social,zona_eleitoral,faixa_etaria,observacoes,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe",
       )
       .in("id", data.ids);
     const { data: rels } = await context.supabase
@@ -266,7 +291,9 @@ export const exportContactsCsv = createServerFn({ method: "POST" })
     const header = CSV_COLS.map((c) => csvEsc(c.label)).join(";");
     const lines = (rows ?? []).map((row) => {
       const tags_concat = (tagMap[row.id] ?? []).join("|");
-      const fullRow: Record<string, unknown> = { ...row, tags_concat };
+      const formas_ajuda_concat = Array.isArray(row.formas_ajuda) ? (row.formas_ajuda as string[]).join("|") : "";
+      const disponibilidade_concat = Array.isArray(row.disponibilidade) ? (row.disponibilidade as string[]).join("|") : "";
+      const fullRow: Record<string, unknown> = { ...row, tags_concat, formas_ajuda_concat, disponibilidade_concat };
       return CSV_COLS.map((c) => csvEsc(fullRow[c.key])).join(";");
     });
     const csv = "\uFEFF" + [header, ...lines].join("\r\n");
