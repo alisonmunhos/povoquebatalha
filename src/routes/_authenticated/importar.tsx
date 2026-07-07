@@ -20,7 +20,7 @@ import {
   undoImport,
   deleteImportFile,
 } from "@/lib/imports-undo.functions";
-import { formatPhoneBR, type PhoneStatus } from "@/lib/phone";
+import { formatPhoneBR, parsePhoneBR, type PhoneStatus, type ParsedPhone } from "@/lib/phone";
 
 export const Route = createFileRoute("/_authenticated/importar")({
   head: () => ({ meta: [{ title: "Importar contatos" }] }),
@@ -98,8 +98,11 @@ function ImportarPage() {
   const [defaultDdd, setDefaultDdd] = useState("");
   const [tipo, setTipo] = useState("apoiador");
   const [consent, setConsent] = useState(true);
+  const [insertNono, setInsertNono] = useState(true);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [result, setResult] = useState<Awaited<ReturnType<typeof commitImport>> | null>(null);
+  const [phoneEdits, setPhoneEdits] = useState<Record<number, string>>({});
+  const [excludedLines, setExcludedLines] = useState<Set<number>>(new Set());
 
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
@@ -140,8 +143,10 @@ function ImportarPage() {
     }
     setError(null);
     setStage("previewing");
+    setPhoneEdits({});
+    setExcludedLines(new Set());
     try {
-      const p = await previewFn({ data: { importId: parsed.importId, encoding, defaultDdd: defaultDdd || null, mapping } });
+      const p = await previewFn({ data: { importId: parsed.importId, encoding, defaultDdd: defaultDdd || null, mapping, insertNono } });
       setPreview(p);
       setStage("review");
     } catch (err) {
@@ -155,7 +160,18 @@ function ImportarPage() {
     setError(null);
     setStage("committing");
     try {
-      const r = await commitFn({ data: { importId: parsed.importId, strategy, consentimentoWhatsapp: consent, tipo } });
+      const r = await commitFn({
+        data: {
+          importId: parsed.importId,
+          strategy,
+          consentimentoWhatsapp: consent,
+          tipo,
+          insertNono,
+          defaultDdd: defaultDdd || null,
+          excludedLines: Array.from(excludedLines),
+          phoneOverrides: phoneEdits,
+        },
+      });
       setResult(r);
       setStage("done");
       queryClient.invalidateQueries({ queryKey: ["imports-history"] });
@@ -163,6 +179,23 @@ function ImportarPage() {
       setError(err instanceof Error ? err.message : "Erro ao importar.");
       setStage("review");
     }
+  }
+
+  function effectivePhone(r: { linha: number; phone: ParsedPhone }): ParsedPhone {
+    const edited = phoneEdits[r.linha];
+    if (edited == null) return r.phone;
+    const parsedEdit = parsePhoneBR(edited, defaultDdd || null);
+    if (insertNono && parsedEdit.phone_status === "sem_nono_digito") parsedEdit.phone_status = "valido";
+    return parsedEdit;
+  }
+
+  function toggleExcluded(linha: number) {
+    setExcludedLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(linha)) next.delete(linha);
+      else next.add(linha);
+      return next;
+    });
   }
 
   function reset() {
@@ -174,6 +207,9 @@ function ImportarPage() {
     setError(null);
     setEncoding("auto");
     setDefaultDdd("");
+    setInsertNono(true);
+    setPhoneEdits({});
+    setExcludedLines(new Set());
   }
 
   return (
@@ -318,6 +354,10 @@ function ImportarPage() {
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               Marcar todos como tendo consentido com mensagens via WhatsApp
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={insertNono} onChange={(e) => setInsertNono(e.target.checked)} />
+              Inserir nono dígito automaticamente (celulares antigos sem o 9)
+            </label>
           </div>
 
           <div className="flex gap-2">
@@ -363,30 +403,53 @@ function ImportarPage() {
                     <th className="text-left px-3 py-2">Status</th>
                     <th className="text-left px-3 py-2">Duplicidade</th>
                     <th className="text-left px-3 py-2">Problemas</th>
+                    <th className="text-left px-3 py-2">Excluir</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.sample.map((r) => (
-                    <tr key={r.linha} className="border-t">
-                      <td className="px-3 py-1.5 text-muted-foreground">{r.linha}</td>
-                      <td className="px-3 py-1.5 font-medium">{r.nome ?? <span className="text-rose-600">—</span>}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground">{r.phone.phone_original || "—"}</td>
-                      <td className="px-3 py-1.5 tabular-nums">{formatPhoneBR(r.phone.phone_e164) || "—"}</td>
-                      <td className="px-3 py-1.5">
-                        <span className={`px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wide ${STATUS_COLORS[r.phone.phone_status]}`}>
-                          {r.phone.phone_status.replace(/_/g, " ")}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {r.dup ? (
-                          <span className="text-blue-700">
-                            {r.dup.match === "forte" ? "↻ Atualiza" : `⚠ ${r.dup.match}`}: {r.dup.nome}
+                  {preview.sample.map((r) => {
+                    const excluded = excludedLines.has(r.linha);
+                    const phone = effectivePhone(r);
+                    return (
+                      <tr key={r.linha} className={`border-t ${excluded ? "opacity-40" : ""}`}>
+                        <td className="px-3 py-1.5 text-muted-foreground">{r.linha}</td>
+                        <td className={`px-3 py-1.5 font-medium ${excluded ? "line-through" : ""}`}>{r.nome ?? <span className="text-rose-600">—</span>}</td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            value={phoneEdits[r.linha] ?? r.phone.phone_original ?? ""}
+                            disabled={excluded}
+                            onChange={(e) =>
+                              setPhoneEdits((prev) => ({ ...prev, [r.linha]: e.target.value }))
+                            }
+                            className="w-32 rounded border border-input bg-background px-1.5 py-1 text-xs disabled:opacity-50"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5 tabular-nums">{formatPhoneBR(phone.phone_e164) || "—"}</td>
+                        <td className="px-3 py-1.5">
+                          <span className={`px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wide ${STATUS_COLORS[phone.phone_status]}`}>
+                            {phone.phone_status.replace(/_/g, " ")}
                           </span>
-                        ) : <span className="text-muted-foreground">—</span>}
-                      </td>
-                      <td className="px-3 py-1.5 text-rose-600">{r.problemas.join(", ") || "—"}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {r.dup ? (
+                            <span className="text-blue-700">
+                              {r.dup.match === "forte" ? "↻ Atualiza" : `⚠ ${r.dup.match}`}: {r.dup.nome}
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-1.5 text-rose-600">{r.problemas.join(", ") || "—"}</td>
+                        <td className="px-3 py-1.5">
+                          <button
+                            onClick={() => toggleExcluded(r.linha)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted ${excluded ? "text-emerald-600" : "text-destructive"}`}
+                            title={excluded ? "Desfazer exclusão" : "Excluir esta linha da importação"}
+                          >
+                            <Trash2 className="h-3 w-3" /> {excluded ? "Desfazer" : "Excluir"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
