@@ -235,6 +235,14 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
   return map;
 }
 
+// Monta phone_raw (DDD+assinante, sem "+55") a partir do que parsePhoneBR já resolveu, no formato que fixContactsPhoneDdd grava.
+function resolvedPhoneDigits(phone: ParsedPhone, insertNono: boolean): string | null {
+  const e164 = phone.phone_e164;
+  if (!e164) return null;
+  const chosen = insertNono && phone.phone_whatsapp_candidate ? phone.phone_whatsapp_candidate : e164;
+  return chosen.replace(/^\+55/, "");
+}
+
 async function downloadBytes(
   supabase: { storage: { from: (b: string) => { download: (p: string) => Promise<{ data: Blob | null; error: unknown }> } } },
   filePath: string,
@@ -361,6 +369,7 @@ const previewSchema = z.object({
   encoding: z.enum(ENCODINGS).default("auto"),
   defaultDdd: z.string().trim().max(3).optional().nullable(),
   mapping: z.record(z.string(), z.enum(FIELD_KEYS)),
+  insertNono: z.boolean().default(true),
 });
 
 // Re-decode (e.g. user changed encoding) and produce preview rows.
@@ -412,6 +421,10 @@ export const buildPreview = createServerFn({ method: "POST" })
       const email = getBy("email")?.toLowerCase() ?? null;
       const phoneRaw = getBy("phone_raw");
       const phone = parsePhoneBR(phoneRaw, data.defaultDdd ?? null);
+      // Reflete na prévia o que de fato será gravado: com o interruptor ligado,
+      // o nono dígito é inserido automaticamente na hora de confirmar, então o
+      // status já aparece como "válido" em vez de "precisa revisão".
+      if (data.insertNono && phone.phone_status === "sem_nono_digito") phone.phone_status = "valido";
       const problemas: string[] = [];
       if (!nome || nome.length < 2) problemas.push("Nome ausente");
       if (!phoneRaw) problemas.push("Telefone ausente");
@@ -591,6 +604,10 @@ const commitSchema = z.object({
   strategy: z.enum(["all", "valid_only", "mark_review"]).default("mark_review"),
   consentimentoWhatsapp: z.boolean().default(true),
   tipo: z.string().default("apoiador"),
+  insertNono: z.boolean().default(true),
+  defaultDdd: z.string().trim().max(3).optional().nullable(),
+  excludedLines: z.array(z.number()).default([]),
+  phoneOverrides: z.record(z.string(), z.string()).default({}),
 });
 
 export const commitImport = createServerFn({ method: "POST" })
@@ -615,14 +632,33 @@ export const commitImport = createServerFn({ method: "POST" })
       if (!rows || rows.length === 0) break;
 
       for (const row of rows) {
+        if (data.excludedLines.includes(row.linha)) {
+          await sb.from("import_rows").update({ status: "ignorado", erro: "Excluído na revisão" }).eq("id", row.id);
+          ignorados++;
+          continue;
+        }
         const p = row.preview as PreviewRow | null;
         if (!p) {
           await sb.from("import_rows").update({ status: "erro", erro: "Sem prévia. Gere a prévia antes de importar." }).eq("id", row.id);
           erros++;
           continue;
         }
+        // Linha editada manualmente na revisão: revalida no servidor em vez de
+        // confiar no que o cliente calculou (parsePhoneBR roda de novo aqui).
+        const override = data.phoneOverrides[String(row.linha)];
+        if (override != null && override.trim() !== "") {
+          p.phone = parsePhoneBR(override, data.defaultDdd ?? null);
+        }
         const isInvalid = p.phone.phone_status === "invalido" || !p.nome || p.problemas.length > 0;
         const needsReview = ["precisa_revisao", "sem_nono_digito", "sem_ddd"].includes(p.phone.phone_status);
+        const dup = p.dup;
+        const ex = p.extras ?? {};
+
+        // Corrige o número de verdade (DDD embutido, nono dígito conforme o
+        // interruptor) em vez de gravar o texto original sem DDD e deixar o
+        // gatilho do banco recalcular sozinho sem saber qual DDD usar.
+        const correctedPrimary = resolvedPhoneDigits(p.phone, data.insertNono);
+        const correctedSecondary = ex.phone_secundario ? resolvedPhoneDigits(ex.phone_secundario, data.insertNono) : null;
 
         if (isInvalid && data.strategy !== "all") {
           if (data.strategy === "valid_only") {
@@ -631,16 +667,13 @@ export const commitImport = createServerFn({ method: "POST" })
             continue;
           }
         }
-
-        const dup = p.dup;
-        const ex = p.extras ?? {};
         const obsText = (ex.observacoes ?? []).join("\n") || null;
         const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
           nome: p.nome,
           nome_social: ex.nome_social ?? null,
-          phone_raw: p.phone.phone_original,
-          phone_secundario_raw: ex.phone_secundario_raw ?? null,
+          phone_raw: correctedPrimary ?? p.phone.phone_original,
+          phone_secundario_raw: correctedSecondary ?? ex.phone_secundario_raw ?? null,
           email: p.email,
           email_secundario: ex.email_secundario ?? null,
           profissao: ex.profissao ?? null,
@@ -672,13 +705,20 @@ export const commitImport = createServerFn({ method: "POST" })
           consentimento_whatsapp: data.consentimentoWhatsapp,
           import_id: data.importId,
           whatsapp_status: "desconhecido",
+          // Quando o DDD foi resolvido (correctedPrimary não nulo), phone_raw já
+          // sai completo e correto — deixa o gatilho recalcular o status do zero
+          // a partir dele (fica 'valido' ou 'sem_nono_digito' sozinho, sem
+          // precisar adivinhar aqui); só duplicidade continua sendo decidida
+          // explicitamente, porque o gatilho não tem como saber disso.
           phone_status: isInvalid
             ? "invalido"
-            : needsReview
-              ? (p.phone.phone_status === "sem_nono_digito" ? "sem_nono_digito" : "precisa_revisao")
-              : dup
-                ? "duplicado_possivel"
-                : "valido",
+            : correctedPrimary
+              ? (dup ? "duplicado_possivel" : null)
+              : needsReview
+                ? (p.phone.phone_status === "sem_nono_digito" ? "sem_nono_digito" : "precisa_revisao")
+                : dup
+                  ? "duplicado_possivel"
+                  : "valido",
           lifecycle_status: isInvalid
             ? "telefone_invalido"
             : dup && dup.match !== "forte"
@@ -734,8 +774,13 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("nome_social", ex.nome_social ?? null);
             fillIfEmpty("email", p.email);
             fillIfEmpty("email_secundario", ex.email_secundario ?? null);
-            fillIfEmpty("phone_raw", p.phone.phone_original);
-            fillIfEmpty("phone_secundario_raw", ex.phone_secundario_raw ?? null);
+            fillIfEmpty("phone_raw", correctedPrimary ?? p.phone.phone_original);
+            fillIfEmpty("phone_secundario_raw", correctedSecondary ?? ex.phone_secundario_raw ?? null);
+            // Se phone_raw estava vazio no contato existente e agora foi preenchido
+            // com um número corrigido, zera o status pra o gatilho recalcular do
+            // zero — evita ficar com um phone_status antigo/errado (ex.: "sem_ddd"
+            // de uma importação anterior) associado a um número agora correto.
+            if (merge.phone_raw != null && correctedPrimary) merge.phone_status = null;
             fillIfEmpty("profissao", ex.profissao ?? null);
             fillIfEmpty("instituicao", ex.instituicao ?? null);
             fillIfEmpty("cep", ex.cep ?? null);
