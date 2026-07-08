@@ -1299,6 +1299,7 @@ export type Database = {
           updated_by: string | null
           whatsapp_button_enabled: boolean
           whatsapp_button_message: string | null
+          whatsapp_button_phone: string
         }
         Insert: {
           created_at?: string
@@ -1316,6 +1317,7 @@ export type Database = {
           updated_by?: string | null
           whatsapp_button_enabled?: boolean
           whatsapp_button_message?: string | null
+          whatsapp_button_phone?: string
         }
         Update: {
           created_at?: string
@@ -1333,6 +1335,7 @@ export type Database = {
           updated_by?: string | null
           whatsapp_button_enabled?: boolean
           whatsapp_button_message?: string | null
+          whatsapp_button_phone?: string
         }
         Relationships: [
           {
