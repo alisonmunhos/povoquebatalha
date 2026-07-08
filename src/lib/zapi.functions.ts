@@ -108,7 +108,7 @@ export const setSignupWhatsappPhone = createServerFn({ method: "POST" })
       .maybeSingle();
     if (existing) {
       const cfg = { ...(existing.config as Record<string, unknown> ?? {}), signup_whatsapp_phone: data.phone };
-      await supabaseAdmin.from("whatsapp_instances").update({ config: cfg }).eq("id", existing.id);
+      await supabaseAdmin.from("whatsapp_instances").update({ config: cfg as never }).eq("id", existing.id);
     } else {
       await supabaseAdmin.from("whatsapp_instances").insert({
         provider: "zapi", nome: "Instância principal", config: { signup_whatsapp_phone: data.phone },
