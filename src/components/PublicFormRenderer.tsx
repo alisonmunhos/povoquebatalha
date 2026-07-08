@@ -24,7 +24,7 @@ type FormQuestion = {
   catalog_field_key: string | null;
 };
 type FormDefinition = { id: string; title: string; whatsapp_button_enabled: boolean; questions: FormQuestion[] };
-type WhatsappButtonInfo = { numero_conectado: string | null; message: string | null } | null;
+type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 type SuccessScreenOrder = "whatsapp_first" | "confirmation_first";
 
 export function PublicFormRenderer({
@@ -339,7 +339,7 @@ function SuccessScreen({
   confirmationEnabled: boolean;
   order: SuccessScreenOrder;
 }) {
-  const numeroDigits = (whatsappButton?.numero_conectado ?? "").replace(/\D+/g, "");
+  const numeroDigits = (whatsappButton?.phone ?? "").replace(/\D+/g, "");
   const waMsg = encodeURIComponent(whatsappButton?.message || "Olá! Acabei de preencher o formulário da Campanha do Povo que Batalha.");
   const waUrl = numeroDigits ? `https://wa.me/${numeroDigits}?text=${waMsg}` : null;
   const showWhatsapp = Boolean(waUrl);

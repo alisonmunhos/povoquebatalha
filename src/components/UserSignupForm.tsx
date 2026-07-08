@@ -7,7 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { Megaphone, CheckCircle2, MessageCircle } from "lucide-react";
 
-type SuccessState = { numeroConectado: string | null; nome: string };
+type SuccessState = { whatsappPhone: string | null; nome: string };
 
 export function UserSignupForm({
   endpoint, title, intro, waConfirmMessage, extraBody,
@@ -49,7 +49,7 @@ export function UserSignupForm({
       });
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao enviar cadastro.");
-      setSuccess({ numeroConectado: json.numero_conectado ?? null, nome: body.nome });
+      setSuccess({ whatsappPhone: json.whatsapp_phone ?? null, nome: body.nome });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar cadastro.");
     } finally {
@@ -118,7 +118,7 @@ export function UserSignupForm({
 }
 
 function SuccessScreen({ state, waConfirmMessage }: { state: SuccessState; waConfirmMessage: string }) {
-  const numeroDigits = (state.numeroConectado ?? "").replace(/\D+/g, "");
+  const numeroDigits = (state.whatsappPhone ?? "").replace(/\D+/g, "");
   const waMsg = encodeURIComponent(waConfirmMessage);
   const waUrl = numeroDigits ? `https://wa.me/${numeroDigits}?text=${waMsg}` : null;
 

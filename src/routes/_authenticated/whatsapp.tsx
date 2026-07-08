@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CommunicationTabs } from "@/components/CommunicationTabs";
 import { useSuspenseQuery, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics, dismissShadowbanAlert } from "@/lib/zapi.functions";
+import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics, dismissShadowbanAlert, setSignupWhatsappPhone } from "@/lib/zapi.functions";
 import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle, Copy, Inbox as InboxIcon, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
@@ -21,6 +21,7 @@ function WhatsAppPage() {
   const settingsFn = useServerFn(getInstanceSettings);
   const setInboundFn = useServerFn(setInstanceInboundEnabled);
   const dismissShadowbanFn = useServerFn(dismissShadowbanAlert);
+  const setSignupPhoneFn = useServerFn(setSignupWhatsappPhone);
 
   const settings = useSuspenseQuery({
     queryKey: ["zapi-instance-settings"],
@@ -46,6 +47,12 @@ function WhatsAppPage() {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dismissingShadowban, setDismissingShadowban] = useState(false);
+  const [signupPhone, setSignupPhone] = useState(settings.data.signup_whatsapp_phone);
+  const [savingSignupPhone, setSavingSignupPhone] = useState(false);
+
+  useEffect(() => {
+    setSignupPhone(settings.data.signup_whatsapp_phone);
+  }, [settings.data.signup_whatsapp_phone]);
 
   const s = status.data;
   const connected = s.configured && s.ok && s.status?.connected;
@@ -254,6 +261,40 @@ function WhatsAppPage() {
         <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
           <b>Dica sobre teste com seu número:</b> a Z-API está pareada com o seu WhatsApp; mensagens enviadas por ela saem do seu número. Você <b>não</b> recebe no seu próprio celular — quem recebe é o destinatário. Para conferir, peça a alguém confirmar o recebimento.
         </p>
+      </section>
+
+      <section className="mt-6 border rounded-xl p-6 bg-card">
+        <h2 className="font-semibold">Número de WhatsApp do auto-cadastro de usuário</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Usado no botão de WhatsApp da tela de sucesso de <b>/cadastro-agitador</b> e <b>/cadastro-usuario</b> —
+          rotas de auto-cadastro de usuário do sistema, que não usam o construtor de formulários.
+        </p>
+        <div className="mt-3 flex gap-2 max-w-sm">
+          <input
+            value={signupPhone}
+            onChange={(e) => setSignupPhone(e.target.value)}
+            placeholder="+5551981951545"
+            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <button
+            disabled={savingSignupPhone || !signupPhone.trim()}
+            onClick={async () => {
+              setSavingSignupPhone(true);
+              try {
+                await setSignupPhoneFn({ data: { phone: signupPhone.trim() } });
+                qc.invalidateQueries({ queryKey: ["zapi-instance-settings"] });
+                toast.success("Número salvo");
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+              } finally {
+                setSavingSignupPhone(false);
+              }
+            }}
+            className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            Salvar
+          </button>
+        </div>
       </section>
 
       <WebhookDiagnosticsSection />

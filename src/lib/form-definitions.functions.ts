@@ -127,6 +127,7 @@ const updateSchema = z.object({
   is_active: z.boolean().optional(),
   whatsapp_button_enabled: z.boolean().optional(),
   whatsapp_button_message: z.string().trim().max(500).nullable().optional(),
+  whatsapp_button_phone: z.string().trim().min(8).max(30).optional(),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]).optional(),
   success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).optional(),
 });

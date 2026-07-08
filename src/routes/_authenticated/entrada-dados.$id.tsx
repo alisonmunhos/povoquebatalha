@@ -44,6 +44,7 @@ function FormBuilder() {
   const [confActive, setConfActive] = useState(true);
   const [waEnabled, setWaEnabled] = useState(true);
   const [waMessage, setWaMessage] = useState("");
+  const [waPhone, setWaPhone] = useState("");
   const [successOrder, setSuccessOrder] = useState<"whatsapp_first" | "confirmation_first">("whatsapp_first");
   const [savingQuestions, setSavingQuestions] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -77,6 +78,7 @@ function FormBuilder() {
     setConfActive(auto ? Boolean(auto.active) : true);
     setWaEnabled(Boolean(q.data.form.whatsapp_button_enabled));
     setWaMessage((q.data.form.whatsapp_button_message as string | null) ?? "");
+    setWaPhone((q.data.form.whatsapp_button_phone as string | null) ?? "+5551981951545");
     setSuccessOrder((q.data.form.success_screen_order as "whatsapp_first" | "confirmation_first" | undefined) ?? "whatsapp_first");
     const link = q.data.trackedLink as { token?: string } | null;
     setLinkToken(link?.token ?? null);
@@ -126,6 +128,7 @@ function FormBuilder() {
         data: {
           id, title, is_active: isActive,
           whatsapp_button_enabled: waEnabled, whatsapp_button_message: waMessage || null,
+          whatsapp_button_phone: waPhone,
           success_screen_order: successOrder,
         },
       });
@@ -307,9 +310,15 @@ function FormBuilder() {
           <input type="checkbox" checked={waEnabled} onChange={(e) => setWaEnabled(e.target.checked)} /> Mostrar botão "Avisar no WhatsApp"
         </label>
         {waEnabled && (
-          <div>
-            <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Mensagem pré-preenchida</label>
-            <textarea value={waMessage} onChange={(e) => setWaMessage(e.target.value)} rows={2} placeholder="Ex.: Olá! Acabei de preencher o formulário..." className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Número de destino</label>
+              <input value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="+5551981951545" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Mensagem pré-preenchida</label>
+              <textarea value={waMessage} onChange={(e) => setWaMessage(e.target.value)} rows={2} placeholder="Ex.: Olá! Acabei de preencher o formulário..." className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
           </div>
         )}
         <p className="text-xs text-muted-foreground">Essa configuração é salva junto com "Salvar configurações" acima.</p>

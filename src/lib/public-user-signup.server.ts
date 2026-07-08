@@ -163,19 +163,20 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
     /* non-blocking */
   }
 
-  let numeroConectado: string | null = null;
+  let whatsappPhone: string | null = "+5551981951545";
   try {
     const { data: inst } = await supabaseAdmin
       .from("whatsapp_instances")
-      .select("numero_conectado")
+      .select("config")
       .eq("provider", "zapi")
       .maybeSingle();
-    numeroConectado = inst?.numero_conectado ?? null;
+    const cfg = (inst?.config ?? {}) as Record<string, unknown>;
+    whatsappPhone = (cfg.signup_whatsapp_phone as string | undefined) ?? whatsappPhone;
   } catch {
-    /* ignore */
+    /* ignore — mantém o padrão */
   }
 
-  return new Response(JSON.stringify({ ok: true, numero_conectado: numeroConectado }), { headers: cors });
+  return new Response(JSON.stringify({ ok: true, whatsapp_phone: whatsappPhone }), { headers: cors });
 }
 
 export { getRequestIp };
