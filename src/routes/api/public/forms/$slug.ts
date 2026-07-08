@@ -56,12 +56,19 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
 
       GET: async ({ params }) => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { data: form } = await supabaseAdmin
+        const { data: form, error: formErr } = await supabaseAdmin
           .from("form_definitions")
           .select("id,title,is_active,whatsapp_button_enabled")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
+        if (formErr) {
+          console.error(`[public-form GET ${params.slug}] erro ao carregar formulário:`, formErr);
+          return new Response(
+            JSON.stringify({ ok: false, error: `Erro ao carregar formulário: ${formErr.message}` }),
+            { status: 500, headers: cors },
+          );
+        }
         if (!form) {
           return new Response(JSON.stringify({ ok: false, error: "Formulário não encontrado." }), { status: 404, headers: cors });
         }
