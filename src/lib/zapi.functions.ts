@@ -132,7 +132,7 @@ export const dismissShadowbanAlert = createServerFn({ method: "POST" })
     if (existing) {
       const cfg = { ...(existing.config as Record<string, unknown> ?? {}) };
       delete cfg.shadowban_suspected_at;
-      await supabaseAdmin.from("whatsapp_instances").update({ config: cfg }).eq("id", existing.id);
+      await supabaseAdmin.from("whatsapp_instances").update({ config: cfg as never }).eq("id", existing.id);
     }
     return { ok: true as const };
   });
