@@ -306,6 +306,19 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
                 tipo: evento,
                 payload: body as never,
               });
+
+              // Entrega/leitura confirmam que o número existe no WhatsApp — atualiza
+              // o contato, mas nunca sobrescreve uma marcação manual de inválido/opt-out.
+              if (rec?.contact_id && (evento === "on-delivery" || evento === "on-read")) {
+                try {
+                  await supabaseAdmin
+                    .from("contacts")
+                    .update({ whatsapp_status: "confirmado", whatsapp_checked_at: now })
+                    .eq("id", rec.contact_id)
+                    .neq("whatsapp_status", "invalido")
+                    .neq("whatsapp_status", "opt_out");
+                } catch { /* ignora — não bloqueia o restante do webhook */ }
+              }
             }
           }
 

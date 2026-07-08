@@ -4,8 +4,8 @@ import { useSuspenseQuery, useQueryClient, useQuery } from "@tanstack/react-quer
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics } from "@/lib/zapi.functions";
-import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle, Copy, Inbox as InboxIcon } from "lucide-react";
+import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics, dismissShadowbanAlert } from "@/lib/zapi.functions";
+import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle, Copy, Inbox as InboxIcon, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
   head: () => ({ meta: [{ title: "WhatsApp — Conexão Z-API" }] }),
@@ -20,6 +20,7 @@ function WhatsAppPage() {
   const testFn = useServerFn(testSendWhatsApp);
   const settingsFn = useServerFn(getInstanceSettings);
   const setInboundFn = useServerFn(setInstanceInboundEnabled);
+  const dismissShadowbanFn = useServerFn(dismissShadowbanAlert);
 
   const settings = useSuspenseQuery({
     queryKey: ["zapi-instance-settings"],
@@ -44,6 +45,7 @@ function WhatsAppPage() {
   const [testMsg, setTestMsg] = useState("Teste de envio da Campanha do Povo que Batalha.");
   const [testResult, setTestResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dismissingShadowban, setDismissingShadowban] = useState(false);
 
   const s = status.data;
   const connected = s.configured && s.ok && s.status?.connected;
@@ -51,7 +53,7 @@ function WhatsAppPage() {
   return (
     <div className="p-6 md:p-10 max-w-4xl">
     <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
-      
+
       <div className="flex items-center gap-3">
         <MessageCircle className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-semibold">Conexão WhatsApp (Z-API)</h1>
@@ -59,6 +61,35 @@ function WhatsAppPage() {
       <p className="mt-1 text-sm text-muted-foreground">
         Mantenha a instância conectada para enviar e receber mensagens.
       </p>
+
+      {settings.data.shadowban_suspected_at && (
+        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm flex items-start gap-3">
+          <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">Suspeita de shadowban detectada</p>
+            <p className="mt-0.5 text-xs">
+              Uma campanha foi pausada automaticamente em{" "}
+              {new Date(settings.data.shadowban_suspected_at).toLocaleString("pt-BR")} após a Z-API
+              rejeitar um envio. Revise a instância antes de retomar campanhas.
+            </p>
+          </div>
+          <button
+            disabled={dismissingShadowban}
+            onClick={async () => {
+              setDismissingShadowban(true);
+              try {
+                await dismissShadowbanFn();
+                qc.invalidateQueries({ queryKey: ["zapi-instance-settings"] });
+              } finally {
+                setDismissingShadowban(false);
+              }
+            }}
+            className="text-xs underline hover:no-underline disabled:opacity-50"
+          >
+            Descartar
+          </button>
+        </div>
+      )}
 
       <div className="mt-8 grid md:grid-cols-2 gap-6">
         <section className="border rounded-xl p-6 bg-card">

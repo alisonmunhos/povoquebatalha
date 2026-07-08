@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
 import { applyCrmFilters, crmFilterSchema, type CrmFilters } from "@/lib/crm-filters";
-import { renderVars, sendMessage } from "@/lib/wa-send.server";
+import { renderVars } from "@/lib/wa-send.server";
 
 const campaignInput = z.object({
   id: z.string().uuid().optional(),
@@ -21,8 +21,8 @@ const campaignInput = z.object({
   filtro_adhoc: crmFilterSchema.partial().optional(),
   audience_ids: z.array(z.string().uuid()).max(20000).optional().nullable(),
   agendado_para: z.string().datetime().optional().nullable(),
-  delay_min_ms: z.number().int().min(500).max(60000).default(3000),
-  delay_max_ms: z.number().int().min(500).max(120000).default(8000),
+  delay_min_ms: z.number().int().min(500).max(60000).default(1500),
+  delay_max_ms: z.number().int().min(500).max(120000).default(4000),
   link_url: z.string().url().optional().nullable(),
   link_title: z.string().max(2000).transform(s => s.slice(0,300)).optional().nullable(),
   link_description: z.string().max(4000).transform(s => s.slice(0,600)).optional().nullable(),
@@ -196,8 +196,8 @@ const createFromSelectionSchema = z.object({
   midia_filename: z.string().max(200).optional().nullable(),
   midia_mime: z.string().max(120).optional().nullable(),
   agendado_para: z.string().datetime().optional().nullable(),
-  delay_min_ms: z.number().int().min(500).max(60000).default(3000),
-  delay_max_ms: z.number().int().min(500).max(120000).default(8000),
+  delay_min_ms: z.number().int().min(500).max(60000).default(1500),
+  delay_max_ms: z.number().int().min(500).max(120000).default(4000),
   link_url: z.string().url().optional().nullable(),
   link_title: z.string().max(2000).transform(s => s.slice(0,300)).optional().nullable(),
   link_description: z.string().max(4000).transform(s => s.slice(0,600)).optional().nullable(),
@@ -411,7 +411,7 @@ export const startCampaign = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("campaigns").update({
-      status: "running", started_at: new Date().toISOString(), paused_at: null,
+      status: "running", started_at: new Date().toISOString(), paused_at: null, paused_motivo: null,
     }).eq("id", data.id).in("status", ["draft", "scheduled", "paused"]);
     if (error) throw error;
     return { ok: true as const };
@@ -446,148 +446,12 @@ export const processCampaignBatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), batchSize: z.number().int().min(1).max(50).default(10) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: c } = await context.supabase.from("campaigns").select("*").eq("id", data.id).single();
-    if (!c) throw new Error("Não encontrada");
-    if (c.status !== "running") throw new Error(`Campanha não está em envio (status=${c.status}).`);
-
-    const { data: recs } = await context.supabase
-      .from("campaign_recipients")
-      .select("id,contact_id,rendered_message,contacts(phone_e164,consentimento_whatsapp,opt_out_at)")
-      .eq("campaign_id", data.id).eq("status", "queued").limit(data.batchSize);
-
-    if (!recs?.length) {
-      await context.supabase.from("campaigns").update({ status: "done" }).eq("id", data.id);
-      return { processed: 0, ok: 0, fail: 0, skipped: 0, done: true as const };
-    }
-
-    let ok = 0, fail = 0, skipped = 0;
-    const minMs = c.delay_min_ms ?? 3000;
-    const maxMs = c.delay_max_ms ?? 8000;
-
-    // Sign media URL once per batch (if attached)
-    let mediaUrl: string | null = c.midia_url ?? null;
-    if (c.midia_path && !mediaUrl) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: signed } = await supabaseAdmin.storage.from("campaign-media").createSignedUrl(c.midia_path, 60 * 60);
-      mediaUrl = signed?.signedUrl ?? null;
-    }
-
-    // Metadados de link estruturado da campanha (se o autor forneceu).
-    const linkMeta = c.link_url
-      ? {
-          url: c.link_url,
-          title: c.link_title ?? null,
-          description: c.link_description ?? null,
-          image: c.link_image ?? null,
-          status: (c.link_title || c.link_image ? "preview_confirmada" : "preview_provavel") as "preview_confirmada" | "preview_provavel",
-        }
-      : null;
-
-    // Anexo estruturado (send-image / send-document) montado uma vez.
-    const attachment = mediaUrl && c.midia_mime
-      ? {
-          signedUrl: mediaUrl,
-          mime: c.midia_mime,
-          filename: c.midia_filename ?? "arquivo",
-        }
-      : null;
-
-    for (const r of recs) {
-      const { data: cur } = await context.supabase.from("campaigns").select("status").eq("id", data.id).single();
-      if (!cur || cur.status !== "running") break;
-
-      const ct = (r as unknown as { contacts: { phone_e164: string | null; consentimento_whatsapp: boolean; opt_out_at: string | null } | null }).contacts;
-      // Pré-check de elegibilidade — mantém status "opted_out" com a mesma mensagem
-      // usada antes da unificação, para não mudar comportamento visível ao usuário.
-      if (!ct?.phone_e164 || !ct.consentimento_whatsapp || ct.opt_out_at) {
-        await context.supabase.from("campaign_recipients").update({
-          status: "opted_out", failed_at: new Date().toISOString(), erro: "sem consentimento ou opt-out",
-        }).eq("id", r.id);
-        skipped++;
-        continue;
-      }
-
-      await context.supabase.from("campaign_recipients").update({ status: "sending", tentativas: 1 }).eq("id", r.id);
-
-      // Texto para o motor: se a campanha tem anexo tipo imagem sem legenda no corpo
-      // renderizado, preserva o midia_caption como fallback (comportamento anterior).
-      const bodyText = r.rendered_message ?? c.mensagem_template ?? "";
-      const textForSend = bodyText.trim().length === 0 && c.midia_caption ? c.midia_caption : bodyText;
-
-      const result = await sendMessage({
-        contact: {
-          id: r.contact_id,
-          phone_e164: ct.phone_e164,
-        },
-        text: textForSend,
-        textAlreadyRendered: true,
-        link: linkMeta,
-        attachment,
-        origin: "campaign",
-        useSendLink: true, // campanhas priorizam /send-link quando há metadados OG (comportamento anterior)
-        skipValidations: true, // já validamos acima com o skip específico da campanha
-      });
-
-      if (result.ok) {
-        await context.supabase.from("campaign_recipients").update({
-          status: "sent", sent_at: new Date().toISOString(),
-          message_id: result.message_id, zaap_id: result.zaap_id,
-          endpoint_used: result.endpoint_used,
-          link_url: result.link_url,
-          link_title: result.link_title ?? c.link_title ?? null,
-          link_description: result.link_description ?? c.link_description ?? null,
-          link_image: result.link_image ?? c.link_image ?? null,
-          preview_status: result.preview_status,
-          rendered_message: result.rendered_text,
-          erro: result.fallback_reason,
-        } as never).eq("id", r.id);
-        await context.supabase.from("message_events").insert({
-          contact_id: r.contact_id, recipient_id: r.id, tipo: "sent",
-          payload: {
-            endpoint: result.endpoint_used,
-            preview_status: result.preview_status,
-            fallback_reason: result.fallback_reason,
-            requested_preview: { title: c.link_title, image: c.link_image, description: c.link_description },
-            response: { messageId: result.message_id, zaapId: result.zaap_id },
-          } as never,
-        });
-        ok++;
-      } else {
-        const msg = result.error ?? "erro desconhecido";
-        await context.supabase.from("campaign_recipients").update({
-          status: "failed", failed_at: new Date().toISOString(), erro: msg,
-        }).eq("id", r.id);
-        fail++;
-      }
-
-      const delay = Math.floor(minMs + Math.random() * Math.max(0, maxMs - minMs));
-      await new Promise((res) => setTimeout(res, delay));
-    }
-
-    const { data: agg } = await context.supabase
-      .from("campaign_recipients").select("status", { count: "exact" }).eq("campaign_id", data.id);
-    if (agg) {
-      const counts = { sent: 0, failed: 0, delivered: 0, read: 0 };
-      for (const r of agg) {
-        const s = (r as { status: string }).status;
-        if (s === "sent" || s === "delivered" || s === "read") counts.sent++;
-        if (s === "failed") counts.failed++;
-        if (s === "delivered" || s === "read") counts.delivered++;
-        if (s === "read") counts.read++;
-      }
-      await context.supabase.from("campaigns").update({
-        total_enviados: counts.sent, total_falhas: counts.failed,
-        total_entregues: counts.delivered, total_lidos: counts.read,
-        ultimo_lote_at: new Date().toISOString(),
-      }).eq("id", data.id);
-    }
-
-    const { count: restantes } = await context.supabase
-      .from("campaign_recipients").select("*", { count: "exact", head: true })
-      .eq("campaign_id", data.id).eq("status", "queued");
-    if ((restantes ?? 0) === 0) {
-      await context.supabase.from("campaigns").update({ status: "done" }).eq("id", data.id);
-      return { processed: recs.length, ok, fail, skipped, done: true as const };
-    }
-    return { processed: recs.length, ok, fail, skipped, done: false as const };
+    const { processCampaignBatchShared } = await import("@/lib/campaign-batch.server");
+    // Comportamento anterior preservado: botão manual sempre prioriza /send-link
+    // quando há metadados OG, e não restringe anexo pelo tipo da campanha.
+    return processCampaignBatchShared(context.supabase, data.id, data.batchSize, {
+      useSendLink: true,
+      gateAttachmentByTipo: false,
+      throwIfNotRunning: true,
+    });
   });

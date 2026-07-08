@@ -78,6 +78,8 @@ export type SendInput = {
    * continua sendo feita — sem telefone não há como enviar.
    */
   skipValidations?: boolean;
+  /** Delay (em segundos, 1-15) repassado ao campo `delayMessage` da Z-API. */
+  delayMessage?: number;
 };
 
 export type SendResult = {
@@ -93,7 +95,16 @@ export type SendResult = {
   zaap_id: string | null;
   rendered_text: string;
   error: string | null;
+  /** true quando o erro bate com os padrões conhecidos de shadowban da Z-API. */
+  shadowban_suspected: boolean;
 };
+
+/** Erros documentados pela Z-API como indicativos de shadowban/restrição temporária de envio. */
+const SHADOWBAN_PATTERNS = [/likely shadow ban/i, /whatsapp rejected sending this message/i];
+
+export function isShadowbanError(message: string): boolean {
+  return SHADOWBAN_PATTERNS.some((re) => re.test(message));
+}
 
 import { renderMessageVars, type MessageVarOptions } from "@/lib/message-vars";
 
@@ -243,6 +254,7 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       zaap_id: null,
       rendered_text: rendered,
       error: null,
+      shadowban_suspected: false,
     };
   }
 
@@ -272,17 +284,18 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
           title: input.link?.title ?? "",
           linkDescription: input.link?.description ?? "",
           image: input.link?.image ?? "",
+          delayMessage: input.delayMessage,
         });
       } catch (e) {
         fallbackReason = `send-link falhou: ${e instanceof Error ? e.message : "erro"}`;
         endpointUsed = "send-text";
         previewStatus = "preview_provavel";
-        result = await zapi.sendText(phone, ensureLinkInBody(rendered, linkUrlFinal));
+        result = await zapi.sendText(phone, ensureLinkInBody(rendered, linkUrlFinal), input.delayMessage);
       }
     } else {
       // send-text (com link no corpo quando aplicável)
       const body = ensureLinkInBody(rendered, linkUrlFinal);
-      result = await zapi.sendText(phone, body);
+      result = await zapi.sendText(phone, body, input.delayMessage);
     }
 
     return {
@@ -298,8 +311,10 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       zaap_id: result.zaapId ?? null,
       rendered_text: rendered,
       error: null,
+      shadowban_suspected: false,
     };
   } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
     return {
       ok: false,
       endpoint_used: endpointUsed,
@@ -312,7 +327,8 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       message_id: null,
       zaap_id: null,
       rendered_text: rendered,
-      error: e instanceof Error ? e.message : "erro desconhecido",
+      error: errorMsg,
+      shadowban_suspected: isShadowbanError(errorMsg),
     };
   }
 }
@@ -331,6 +347,7 @@ function baseSkip(rendered: string, reason: string): SendResult {
     zaap_id: null,
     rendered_text: rendered,
     error: reason,
+    shadowban_suspected: false,
   };
 }
 

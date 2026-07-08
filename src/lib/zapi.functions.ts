@@ -58,26 +58,55 @@ export const testSendWhatsApp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => testSendSchema.parse(d))
   .handler(async ({ data }) => {
-    const { zapi } = await import("@/integrations/zapi/client.server");
+    const { sendMessage } = await import("@/lib/wa-send.server");
     const phone = data.phone.replace(/\D+/g, "");
-    const r = await zapi.sendText(phone, data.message);
+    const r = await sendMessage({
+      contact: { phone_e164: phone },
+      text: data.message,
+      textAlreadyRendered: true,
+      origin: "whatsapp_test",
+      skipValidations: true,
+    });
+    if (!r.ok) throw new Error(r.error ?? r.fallback_reason ?? "Erro ao enviar");
     return { ok: true as const, result: r };
   });
 
-// Retorna configuração da instância (flag inbound_to_inbox_enabled).
+// Retorna configuração da instância (flag inbound_to_inbox_enabled + alerta de shadowban).
 export const getInstanceSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data } = await context.supabase
       .from("whatsapp_instances")
-      .select("inbound_to_inbox_enabled, numero_conectado, status")
+      .select("inbound_to_inbox_enabled, numero_conectado, status, config")
       .eq("provider", "zapi")
       .maybeSingle();
+    const cfg = (data?.config ?? {}) as Record<string, unknown>;
     return {
       inbound_to_inbox_enabled: data?.inbound_to_inbox_enabled ?? false,
       numero_conectado: data?.numero_conectado ?? null,
       status: data?.status ?? null,
+      shadowban_suspected_at: (cfg.shadowban_suspected_at as string | undefined) ?? null,
     };
+  });
+
+// Descarta o alerta de shadowban suspeito (após o admin revisar/decidir).
+export const dismissShadowbanAlert = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem descartar este alerta.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin
+      .from("whatsapp_instances")
+      .select("id, config")
+      .eq("provider", "zapi")
+      .maybeSingle();
+    if (existing) {
+      const cfg = { ...(existing.config as Record<string, unknown> ?? {}) };
+      delete cfg.shadowban_suspected_at;
+      await supabaseAdmin.from("whatsapp_instances").update({ config: cfg }).eq("id", existing.id);
+    }
+    return { ok: true as const };
   });
 
 export const setInstanceInboundEnabled = createServerFn({ method: "POST" })
