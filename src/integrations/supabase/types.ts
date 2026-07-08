@@ -325,6 +325,7 @@ export type Database = {
           midia_url: string | null
           nome: string
           paused_at: string | null
+          paused_motivo: string | null
           segment_id: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["campaign_status"]
@@ -367,6 +368,7 @@ export type Database = {
           midia_url?: string | null
           nome: string
           paused_at?: string | null
+          paused_motivo?: string | null
           segment_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -409,6 +411,7 @@ export type Database = {
           midia_url?: string | null
           nome?: string
           paused_at?: string | null
+          paused_motivo?: string | null
           segment_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
