@@ -86,7 +86,35 @@ export const getInstanceSettings = createServerFn({ method: "GET" })
       numero_conectado: data?.numero_conectado ?? null,
       status: data?.status ?? null,
       shadowban_suspected_at: (cfg.shadowban_suspected_at as string | undefined) ?? null,
+      signup_whatsapp_phone: (cfg.signup_whatsapp_phone as string | undefined) ?? "+5551981951545",
     };
+  });
+
+// Número usado no botão de WhatsApp da tela de sucesso de /cadastro-agitador e
+// /cadastro-usuario (rotas de auto-cadastro de usuário, fora do motor de
+// form_definitions) — guardado em whatsapp_instances.config, mesmo padrão já
+// usado por use_send_link/shadowban_suspected_at.
+export const setSignupWhatsappPhone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ phone: z.string().trim().min(8).max(30) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem alterar esta configuração.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin
+      .from("whatsapp_instances")
+      .select("id, config")
+      .eq("provider", "zapi")
+      .maybeSingle();
+    if (existing) {
+      const cfg = { ...(existing.config as Record<string, unknown> ?? {}), signup_whatsapp_phone: data.phone };
+      await supabaseAdmin.from("whatsapp_instances").update({ config: cfg }).eq("id", existing.id);
+    } else {
+      await supabaseAdmin.from("whatsapp_instances").insert({
+        provider: "zapi", nome: "Instância principal", config: { signup_whatsapp_phone: data.phone },
+      });
+    }
+    return { ok: true as const, phone: data.phone };
   });
 
 // Descarta o alerta de shadowban suspeito (após o admin revisar/decidir).

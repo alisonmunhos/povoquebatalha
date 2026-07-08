@@ -115,7 +115,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
 
         const { data: form } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,slug,title,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+          .select("id,slug,title,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -332,18 +332,6 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           } catch { /* non-blocking */ }
         }
 
-        let numeroConectado: string | null = null;
-        if (form.whatsapp_button_enabled) {
-          try {
-            const { data: inst } = await supabaseAdmin
-              .from("whatsapp_instances")
-              .select("numero_conectado")
-              .eq("provider", "zapi")
-              .maybeSingle();
-            numeroConectado = inst?.numero_conectado ?? null;
-          } catch { /* ignore */ }
-        }
-
         // Confirmação e botão de WhatsApp são independentes (a automação dispara de
         // forma assíncrona/não bloqueante de qualquer jeito) — isso só informa a tela
         // de sucesso se a automação de confirmação está ligada, pra decidir o texto e
@@ -375,7 +363,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             ok: true,
             nome,
             whatsapp_button: form.whatsapp_button_enabled
-              ? { numero_conectado: numeroConectado, message: form.whatsapp_button_message }
+              ? { phone: form.whatsapp_button_phone, message: form.whatsapp_button_message }
               : null,
             confirmation_enabled: confirmationEnabled,
             success_screen_order: form.success_screen_order,
