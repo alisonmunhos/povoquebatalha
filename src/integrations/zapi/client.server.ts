@@ -60,10 +60,10 @@ export const zapi = {
     ),
   qrCodeImage: () => zapiFetch<{ value?: string }>("/qr-code/image"),
   disconnect: () => zapiFetch<{ value?: boolean }>("/disconnect", { method: "GET" }),
-  sendText: (phone: string, message: string) =>
+  sendText: (phone: string, message: string, delayMessage?: number) =>
     zapiFetch<{ zaapId?: string; messageId?: string; id?: string }>("/send-text", {
       method: "POST",
-      body: JSON.stringify({ phone, message, linkPreview: true }),
+      body: JSON.stringify({ phone, message, linkPreview: true, ...(delayMessage ? { delayMessage } : {}) }),
     }),
   sendImage: (phone: string, image: string, caption?: string) =>
     zapiFetch<{ zaapId?: string; messageId?: string }>("/send-image", {
@@ -91,6 +91,7 @@ export const zapi = {
     linkDescription?: string;
     image?: string;
     linkType?: string;
+    delayMessage?: number;
   }) =>
     zapiFetch<{ zaapId?: string; messageId?: string; id?: string }>("/send-link", {
       method: "POST",
@@ -102,6 +103,7 @@ export const zapi = {
         linkDescription: payload.linkDescription ?? "",
         image: payload.image ?? "",
         linkType: payload.linkType ?? "LARGE",
+        ...(payload.delayMessage ? { delayMessage: payload.delayMessage } : {}),
       }),
     }),
   // Verifica se um número existe no WhatsApp. Z-API: GET /phone-exists/{phone}
@@ -109,6 +111,12 @@ export const zapi = {
     zapiFetch<{ exists?: boolean; inputPhone?: string }>(`/phone-exists/${encodeURIComponent(phone)}`, {
       method: "GET",
     }),
+  // Verificação em lote (até 50.000 números). Z-API: POST /phone-exists-batch
+  phoneExistsBatch: (phones: string[]) =>
+    zapiFetch<Array<{ exists?: boolean; inputPhone?: string; outputPhone?: string; lid?: string }>>(
+      "/phone-exists-batch",
+      { method: "POST", body: JSON.stringify({ phones }) },
+    ),
 };
 
 export function hasZapiEnv(): boolean {

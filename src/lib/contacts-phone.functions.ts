@@ -86,27 +86,46 @@ export const checkWhatsappForContacts = createServerFn({ method: "POST" })
     let skipped = 0;
     const nowIso = new Date().toISOString();
 
+    // Só telefones com dígitos suficientes entram no lote; o resto já é skipped.
+    const checkable: Array<{ id: string; phone: string }> = [];
     for (const row of rows ?? []) {
       const phone = (row.phone_whatsapp_candidate ?? row.phone_e164 ?? "").replace(/\D+/g, "");
       if (!phone || phone.length < 10) {
         skipped++;
         continue;
       }
-      let exists = false;
-      try {
-        const res = await zapi.phoneExists(phone);
-        exists = Boolean(res?.exists);
-      } catch {
+      checkable.push({ id: row.id, phone });
+    }
+
+    if (checkable.length === 0) return { confirmed, invalid, skipped };
+
+    let results: Array<{ exists?: boolean; inputPhone?: string }>;
+    try {
+      results = await zapi.phoneExistsBatch(checkable.map((c) => c.phone));
+    } catch {
+      // Falha na chamada em lote inteira — não dá pra confirmar nada, mas não
+      // mascara: reporta esses contatos como skipped em vez de zerar tudo.
+      return { confirmed, invalid, skipped: skipped + checkable.length };
+    }
+
+    const byPhone = new Map(
+      results.map((r) => [(r.inputPhone ?? "").replace(/\D+/g, ""), r] as const),
+    );
+
+    for (const { id, phone } of checkable) {
+      const res = byPhone.get(phone);
+      if (!res) {
         skipped++;
         continue;
       }
+      const exists = Boolean(res.exists);
       const newStatus = exists ? "confirmado" : "invalido";
       await context.supabase
         .from("contacts")
         .update({ whatsapp_status: newStatus, whatsapp_checked_at: nowIso } as never)
-        .eq("id", row.id);
+        .eq("id", id);
       await context.supabase.from("contact_audit_log").insert({
-        contact_id: row.id,
+        contact_id: id,
         user_id: context.userId,
         action: "whatsapp_check",
         changes: { result: newStatus, phone } as never,
