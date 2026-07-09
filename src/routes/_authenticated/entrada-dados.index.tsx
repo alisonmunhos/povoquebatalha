@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listFormDefinitions, createFormDefinition } from "@/lib/form-definitions.functions";
 import {
   listAutoReplyTriggers, createAutoReplyTrigger, updateAutoReplyTrigger, deleteAutoReplyTrigger,
 } from "@/lib/auto-reply-triggers.functions";
+import { getInstanceSettings } from "@/lib/zapi.functions";
 import { FIXED_FORM_PUBLIC_PATHS } from "@/lib/form-field-catalog";
 import { generateQrDataUrl } from "@/lib/qr-code-browser";
 import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2, MessageSquareText, Trash2 } from "lucide-react";
@@ -136,10 +137,22 @@ function EntradaDadosLista() {
 }
 
 function LinkAvulsoTab() {
+  const getSettingsFn = useServerFn(getInstanceSettings);
   const [phone, setPhone] = useState("+5551981951545");
   const [message, setMessage] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
+
+  useEffect(() => {
+    getSettingsFn()
+      .then((settings) => {
+        const connected = settings.numero_conectado;
+        if (connected) setPhone(connected);
+      })
+      .catch(() => {
+        /* fallback já está definido */
+      });
+  }, [getSettingsFn]);
 
   const digits = phone.replace(/\D+/g, "");
   const waUrl = digits ? `https://wa.me/${digits}${message.trim() ? `?text=${encodeURIComponent(message)}` : ""}` : null;
