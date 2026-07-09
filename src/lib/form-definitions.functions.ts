@@ -92,6 +92,15 @@ export const createFormDefinition = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
+    // Sugere como padrão inicial o número atualmente conectado na instância Z-API;
+    // continua editável na tela do formulário. O DEFAULT da coluna cobre o caso
+    // de não haver instância conectada.
+    const { data: inst } = await context.supabase
+      .from("whatsapp_instances")
+      .select("numero_conectado")
+      .eq("provider", "zapi")
+      .maybeSingle();
+    const defaultPhone = (inst?.numero_conectado ?? "").trim();
     const { data: row, error } = await context.supabase
       .from("form_definitions")
       .insert({
@@ -100,6 +109,7 @@ export const createFormDefinition = createServerFn({ method: "POST" })
         source_form_type: data.source_form_type,
         event_key: `formulario:${data.slug}`,
         created_by: context.userId,
+        ...(defaultPhone ? { whatsapp_button_phone: defaultPhone } : {}),
       })
       .select()
       .single();
