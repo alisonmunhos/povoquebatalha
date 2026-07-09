@@ -3,9 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { listFormDefinitions, createFormDefinition } from "@/lib/form-definitions.functions";
+import {
+  listAutoReplyTriggers, createAutoReplyTrigger, updateAutoReplyTrigger, deleteAutoReplyTrigger,
+} from "@/lib/auto-reply-triggers.functions";
 import { FIXED_FORM_PUBLIC_PATHS } from "@/lib/form-field-catalog";
 import { generateQrDataUrl } from "@/lib/qr-code-browser";
-import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2 } from "lucide-react";
+import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2, MessageSquareText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -63,6 +66,7 @@ function EntradaDadosLista() {
         <TabsList>
           <TabsTrigger value="formularios">Formulários</TabsTrigger>
           <TabsTrigger value="link-avulso">Link avulso</TabsTrigger>
+          <TabsTrigger value="respostas-automaticas">Respostas automáticas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="formularios">
@@ -121,6 +125,10 @@ function EntradaDadosLista() {
 
         <TabsContent value="link-avulso">
           <LinkAvulsoTab />
+        </TabsContent>
+
+        <TabsContent value="respostas-automaticas">
+          <AutoReplyTriggersTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -194,6 +202,173 @@ function LinkAvulsoTab() {
       ) : (
         <p className="text-xs text-muted-foreground">Digite um número para gerar o link.</p>
       )}
+    </div>
+  );
+}
+
+type AutoReplyTrigger = {
+  id: string;
+  phrase: string;
+  response_text: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+function AutoReplyTriggersTab() {
+  const listFn = useServerFn(listAutoReplyTriggers);
+  const createFn = useServerFn(createAutoReplyTrigger);
+  const updateFn = useServerFn(updateAutoReplyTrigger);
+  const deleteFn = useServerFn(deleteAutoReplyTrigger);
+  const q = useQuery({ queryKey: ["auto-reply-triggers"], queryFn: () => listFn() });
+
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [responseText, setResponseText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPhrase, setEditPhrase] = useState("");
+  const [editResponse, setEditResponse] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  async function onCreate() {
+    if (phrase.trim().length < 2) { toast.error("Digite a frase-gatilho."); return; }
+    if (!responseText.trim()) { toast.error("Digite a mensagem de resposta."); return; }
+    setSaving(true);
+    try {
+      await createFn({ data: { phrase: phrase.trim(), response_text: responseText.trim() } });
+      toast.success("Gatilho criado");
+      setOpen(false);
+      setPhrase("");
+      setResponseText("");
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar gatilho");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEdit(t: AutoReplyTrigger) {
+    setEditingId(t.id);
+    setEditPhrase(t.phrase);
+    setEditResponse(t.response_text);
+  }
+
+  async function saveEdit(id: string) {
+    if (editPhrase.trim().length < 2 || !editResponse.trim()) { toast.error("Preencha frase e resposta."); return; }
+    setSavingEdit(true);
+    try {
+      await updateFn({ data: { id, phrase: editPhrase.trim(), response_text: editResponse.trim() } });
+      toast.success("Gatilho atualizado");
+      setEditingId(null);
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function toggleActive(t: AutoReplyTrigger) {
+    try {
+      await updateFn({ data: { id: t.id, is_active: !t.is_active } });
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar");
+    }
+  }
+
+  async function onDelete(id: string) {
+    if (!confirm("Excluir esse gatilho? Essa ação não pode ser desfeita.")) return;
+    try {
+      await deleteFn({ data: { id } });
+      toast.success("Gatilho excluído");
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir");
+    }
+  }
+
+  const triggers = (q.data ?? []) as AutoReplyTrigger[];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-semibold flex items-center gap-2"><MessageSquareText className="h-4 w-4" /> Respostas automáticas por palavra-gatilho</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Quando uma mensagem recebida contiver uma dessas frases (em qualquer lugar do texto, sem diferenciar maiúsculas/minúsculas),
+          o sistema responde sozinho com a mensagem configurada. Se a mesma pessoa mandar a mesma frase de novo dentro de 24h, não responde de novo.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-end">
+        <button onClick={() => setOpen(true)} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90">
+          <Plus className="h-4 w-4" /> Novo gatilho
+        </button>
+      </div>
+
+      {open && (
+        <div className="border rounded-xl bg-card p-4 space-y-3">
+          <div>
+            <label className="text-sm font-medium">Frase-gatilho</label>
+            <input value={phrase} onChange={(e) => setPhrase(e.target.value)} placeholder="Ex.: quero me cadastrar" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Mensagem de resposta</label>
+            <textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} rows={3} placeholder="Ex.: Olá! Aqui está o link pra você se cadastrar: ..." className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onCreate} disabled={saving} className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+              {saving ? "Criando…" : "Criar gatilho"}
+            </button>
+            <button onClick={() => setOpen(false)} className="rounded-md border px-4 py-2 text-sm">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      <div className="border rounded-xl bg-card divide-y">
+        {triggers.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhum gatilho criado ainda.</p>}
+        {triggers.map((t) =>
+          editingId === t.id ? (
+            <div key={t.id} className="p-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium">Frase-gatilho</label>
+                <input value={editPhrase} onChange={(e) => setEditPhrase(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Mensagem de resposta</label>
+                <textarea value={editResponse} onChange={(e) => setEditResponse(e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => saveEdit(t.id)} disabled={savingEdit} className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+                  {savingEdit ? "Salvando…" : "Salvar"}
+                </button>
+                <button onClick={() => setEditingId(null)} className="rounded-md border px-4 py-2 text-sm">Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <div key={t.id} className="p-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-medium">"{t.phrase}"</p>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.response_text}</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs shrink-0">
+                <span className={`px-2 py-0.5 rounded-full ${t.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                  {t.is_active ? "Ativo" : "Inativo"}
+                </span>
+                <button onClick={() => toggleActive(t)} className="rounded-md border px-2 py-1 hover:bg-muted">
+                  {t.is_active ? "Desativar" : "Ativar"}
+                </button>
+                <button onClick={() => startEdit(t)} className="rounded-md border px-2 py-1 hover:bg-muted">Editar</button>
+                <button onClick={() => onDelete(t.id)} className="rounded-md border px-2 py-1 hover:bg-muted text-destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ),
+        )}
+      </div>
     </div>
   );
 }
