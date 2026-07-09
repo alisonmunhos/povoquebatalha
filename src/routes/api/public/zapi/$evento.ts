@@ -257,7 +257,18 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
               let rPatch: RecipientPatch = {};
               let dPatch: DirectPatch = {};
 
-              if (evento === "on-send" || status === "sent" || status === "sent-by-server") {
+              const errorCode = safeStr(body.errorCode);
+              const errorText = safeStr(body.error) ?? safeStr(body.errorMessage);
+              const isShadowban = errorCode === "SHADOW_BAN";
+              const hasSendError = evento === "on-send" && (errorCode !== null || isShadowban);
+
+              if (hasSendError) {
+                const msg = isShadowban
+                  ? `SHADOW_BAN: ${errorText ?? "shadowban detectado pela Z-API (assíncrono)"}`
+                  : `${errorCode ?? "erro"}: ${errorText ?? "envio recusado pela Z-API"}`;
+                rPatch = { status: "failed", failed_at: now, erro: msg };
+                dPatch = { status: "erro", failed_at: now, erro: msg };
+              } else if (evento === "on-send" || status === "sent" || status === "sent-by-server") {
                 rPatch = { status: "sent", sent_at: now };
                 dPatch = { status: "enviado" };
               } else if (evento === "on-delivery" || status === "received" || status === "delivered") {
