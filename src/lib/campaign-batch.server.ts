@@ -30,7 +30,7 @@ export type CampaignBatchResult = {
   done: boolean;
 };
 
-async function pauseCampaignForShadowban(db: Client, campaignId: string): Promise<void> {
+export async function pauseCampaignForShadowban(db: Client, campaignId: string): Promise<void> {
   const now = new Date().toISOString();
   await db.from("campaigns").update({
     status: "paused",
