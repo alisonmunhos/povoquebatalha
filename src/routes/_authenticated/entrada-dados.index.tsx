@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listFormDefinitions, createFormDefinition } from "@/lib/form-definitions.functions";
 import {
   listAutoReplyTriggers, createAutoReplyTrigger, updateAutoReplyTrigger, deleteAutoReplyTrigger,
 } from "@/lib/auto-reply-triggers.functions";
+import { getInstanceSettings } from "@/lib/zapi.functions";
 import { FIXED_FORM_PUBLIC_PATHS } from "@/lib/form-field-catalog";
 import { generateQrDataUrl } from "@/lib/qr-code-browser";
 import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2, MessageSquareText, Trash2 } from "lucide-react";

@@ -86,7 +86,7 @@ export const getInstanceSettings = createServerFn({ method: "GET" })
       numero_conectado: data?.numero_conectado ?? null,
       status: data?.status ?? null,
       shadowban_suspected_at: (cfg.shadowban_suspected_at as string | undefined) ?? null,
-      signup_whatsapp_phone: (cfg.signup_whatsapp_phone as string | undefined) ?? "+5551981951545",
+      signup_whatsapp_phone: (cfg.signup_whatsapp_phone as string | undefined) ?? data?.numero_conectado ?? "+5551981951545",
     };
   });
 
