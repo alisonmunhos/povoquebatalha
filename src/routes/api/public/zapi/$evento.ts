@@ -304,7 +304,7 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
               // Registra evento em message_events se achar o recipient
               const { data: rec } = await supabaseAdmin
                 .from("campaign_recipients")
-                .select("id, contact_id")
+                .select("id, contact_id, campaign_id")
                 .or(
                   [zaapId ? `zaap_id.eq.${zaapId}` : null, messageId ? `message_id.eq.${messageId}` : null]
                     .filter(Boolean)
@@ -317,6 +317,23 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
                 tipo: evento,
                 payload: body as never,
               });
+
+              // Shadowban confirmado assincronamente via webhook: se o envio pertence
+              // a uma campanha ainda em andamento, pausa ela reaproveitando a mesma
+              // lógica do caminho síncrono em campaign-batch.server.ts.
+              if (isShadowban && rec?.campaign_id) {
+                try {
+                  const { data: camp } = await supabaseAdmin
+                    .from("campaigns")
+                    .select("status")
+                    .eq("id", rec.campaign_id)
+                    .maybeSingle();
+                  if (camp && camp.status === "running") {
+                    const { pauseCampaignForShadowban } = await import("@/lib/campaign-batch.server");
+                    await pauseCampaignForShadowban(supabaseAdmin, rec.campaign_id);
+                  }
+                } catch { /* ignora — status já foi corrigido acima */ }
+              }
 
               // Entrega/leitura confirmam que o número existe no WhatsApp — atualiza
               // o contato, mas nunca sobrescreve uma marcação manual de inválido/opt-out.
