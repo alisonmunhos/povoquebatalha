@@ -137,10 +137,22 @@ function EntradaDadosLista() {
 }
 
 function LinkAvulsoTab() {
+  const getSettingsFn = useServerFn(getInstanceSettings);
   const [phone, setPhone] = useState("+5551981951545");
   const [message, setMessage] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
+
+  useEffect(() => {
+    getSettingsFn()
+      .then((settings) => {
+        const connected = settings.numero_conectado;
+        if (connected) setPhone(connected);
+      })
+      .catch(() => {
+        /* fallback já está definido */
+      });
+  }, [getSettingsFn]);
 
   const digits = phone.replace(/\D+/g, "");
   const waUrl = digits ? `https://wa.me/${digits}${message.trim() ? `?text=${encodeURIComponent(message)}` : ""}` : null;
