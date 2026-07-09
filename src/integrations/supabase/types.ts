@@ -94,6 +94,78 @@ export type Database = {
           },
         ]
       }
+      auto_reply_log: {
+        Row: {
+          contact_id: string | null
+          id: string
+          phone: string
+          replied_at: string
+          trigger_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          id?: string
+          phone: string
+          replied_at?: string
+          trigger_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          id?: string
+          phone?: string
+          replied_at?: string
+          trigger_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_reply_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auto_reply_log_trigger_id_fkey"
+            columns: ["trigger_id"]
+            isOneToOne: false
+            referencedRelation: "auto_reply_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auto_reply_triggers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          phrase: string
+          response_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          phrase: string
+          response_text: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          phrase?: string
+          response_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       automation_deliveries: {
         Row: {
           automation_id: string
