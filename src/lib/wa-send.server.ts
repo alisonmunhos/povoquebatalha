@@ -33,7 +33,8 @@ export type SendOrigin =
   | "automation"
   | "template_test"
   | "whatsapp_test"
-  | "territory_wa_me";
+  | "territory_wa_me"
+  | "auto_reply_trigger";
 
 export type PreviewStatus =
   | "preview_confirmada"

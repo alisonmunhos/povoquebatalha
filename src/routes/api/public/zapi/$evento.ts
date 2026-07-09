@@ -168,35 +168,38 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
               .maybeSingle();
             const inboundEnabled = inst?.inbound_to_inbox_enabled === true;
 
+            const phone = pickPhone(body);
+            const text =
+              safeStr(asRecord(body.text)?.message) ??
+              safeStr(asRecord(body.message)?.text) ??
+              safeStr(body.text) ??
+              safeStr(body.message) ??
+              null;
+
+            // Vincula ao contato APENAS se já existir na base (não cria mais contato automaticamente).
+            // Usado tanto pelo registro no Inbox/opt-out abaixo quanto pela resposta
+            // automática por gatilho — nenhum dos dois exige que o contato já exista.
+            let contactId: string | null = null;
+            if (phone) {
+              const digits = phone.replace(/\D+/g, "");
+              const last8 = digits.length >= 8 ? digits.slice(-8) : null;
+              if (last8) {
+                // Casa contra o telefone principal OU secundário — evita duplicar
+                // contato quando a pessoa manda mensagem pelo número secundário.
+                const { data: c } = await supabaseAdmin
+                  .from("contacts")
+                  .select("id, phone_last8, phone_secundario_last8")
+                  .or(`phone_last8.eq.${last8},phone_secundario_last8.eq.${last8}`)
+                  .limit(1)
+                  .maybeSingle();
+                contactId = c?.id ?? null;
+              }
+            }
+
             if (inboundEnabled) {
-              const phone = pickPhone(body);
               const senderName =
                 safeStr(body.senderName) ?? safeStr(body.chatName) ?? safeStr(body.notifyName);
-              const text =
-                safeStr(asRecord(body.text)?.message) ??
-                safeStr(asRecord(body.message)?.text) ??
-                safeStr(body.text) ??
-                safeStr(body.message) ??
-                null;
               const media = pickMedia(body);
-
-              // Vincula ao contato APENAS se já existir na base (não cria mais contato automaticamente).
-              let contactId: string | null = null;
-              if (phone) {
-                const digits = phone.replace(/\D+/g, "");
-                const last8 = digits.length >= 8 ? digits.slice(-8) : null;
-                if (last8) {
-                  // Casa contra o telefone principal OU secundário — evita duplicar
-                  // contato quando a pessoa manda mensagem pelo número secundário.
-                  const { data: c } = await supabaseAdmin
-                    .from("contacts")
-                    .select("id, phone_last8, phone_secundario_last8")
-                    .or(`phone_last8.eq.${last8},phone_secundario_last8.eq.${last8}`)
-                    .limit(1)
-                    .maybeSingle();
-                  contactId = c?.id ?? null;
-                }
-              }
 
               await supabaseAdmin.from("inbound_messages").insert({
                 from_phone: phone,
@@ -225,6 +228,64 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
                     .eq("contact_id", contactId)
                     .in("status", ["queued", "sending"]);
                 }
+              }
+            }
+
+            // Resposta automática por palavra-gatilho — roda sempre, independente
+            // de `inbound_to_inbox_enabled` (é uma preocupação separada de "mostrar
+            // mensagem no Inbox"; o cenário principal — link de panfleto — é
+            // justamente gente que ainda não é contato conhecido).
+            // Try/catch próprio: uma falha aqui nunca deve afetar o registro em
+            // inbound_messages/opt-out acima, nem o `processado:true` gravado no final.
+            if (phone && text) {
+              try {
+                const { data: triggers } = await supabaseAdmin
+                  .from("auto_reply_triggers")
+                  .select("id, phrase, response_text")
+                  .eq("is_active", true);
+                const norm = text.trim().toLowerCase();
+                const match = (triggers ?? [])
+                  .filter((t) => norm.includes(t.phrase.toLowerCase()))
+                  .sort((a, b) => b.phrase.length - a.phrase.length)[0];
+
+                if (match) {
+                  const digits = phone.replace(/\D+/g, "");
+                  const { data: recent } = await supabaseAdmin
+                    .from("auto_reply_log")
+                    .select("replied_at")
+                    .eq("trigger_id", match.id)
+                    .eq("phone", digits)
+                    .order("replied_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                  const cooldownOk =
+                    !recent || Date.now() - new Date(recent.replied_at).getTime() > 24 * 60 * 60 * 1000;
+
+                  if (cooldownOk) {
+                    const { sendMessage } = await import("@/lib/wa-send.server");
+                    await sendMessage({
+                      contact: { phone_e164: phone },
+                      text: match.response_text,
+                      textAlreadyRendered: true,
+                      origin: "auto_reply_trigger",
+                      skipValidations: true,
+                    });
+                    await supabaseAdmin.from("auto_reply_log").insert({
+                      trigger_id: match.id,
+                      phone: digits,
+                      contact_id: contactId,
+                    });
+                  }
+                }
+              } catch (e) {
+                await supabaseAdmin.from("webhook_log").insert({
+                  evento: "on-receive:auto_reply_error",
+                  provider: "zapi",
+                  payload: { message: e instanceof Error ? e.message : String(e) } as never,
+                  processado: false,
+                  erro: e instanceof Error ? e.message : String(e),
+                });
               }
             }
           } else if (
