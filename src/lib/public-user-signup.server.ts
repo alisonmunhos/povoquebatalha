@@ -163,15 +163,19 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
     /* non-blocking */
   }
 
-  let whatsappPhone: string | null = "+5551981951545";
+  let whatsappPhone: string | null = null;
   try {
     const { data: inst } = await supabaseAdmin
       .from("whatsapp_instances")
-      .select("config")
+      .select("numero_conectado, config")
       .eq("provider", "zapi")
       .maybeSingle();
     const cfg = (inst?.config ?? {}) as Record<string, unknown>;
-    whatsappPhone = (cfg.signup_whatsapp_phone as string | undefined) ?? whatsappPhone;
+    // Prioriza o valor configurado manualmente; se não houver, cai para o número
+    // atualmente conectado na instância Z-API (padrão dinâmico).
+    whatsappPhone =
+      (cfg.signup_whatsapp_phone as string | undefined) ??
+      (inst?.numero_conectado ?? null);
   } catch {
     /* ignore — mantém o padrão */
   }
