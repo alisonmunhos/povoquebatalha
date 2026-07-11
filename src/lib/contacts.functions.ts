@@ -99,10 +99,10 @@ const updateSchema = z.object({
   quem_indicou: z.string().trim().max(160).nullable().optional(),
   rede_social: z.string().trim().max(160).nullable().optional(),
   zona_eleitoral: z.string().trim().max(240).nullable().optional(),
-  faixa_etaria: z
-    .enum(["16_17", "18_24", "25_34", "35_44", "45_59", "60_mais"])
-    .nullable()
-    .optional(),
+  faixa_etaria: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.enum(["16_17", "18_24", "25_34", "35_44", "45_59", "60_mais"]).nullable().optional(),
+  ),
   disponibilidade: z.array(z.string().max(80)).max(50).optional(),
   consentimento_whatsapp: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(120).nullable().optional(),
