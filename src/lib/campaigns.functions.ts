@@ -141,11 +141,11 @@ export const getAudienceStats = createServerFn({ method: "POST" })
       }
     }
     if (!ids.length) {
-      return { total: 0, aptos: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, aptosIds: [] as string[], amostra: [] as Array<{ id: string; nome: string | null; phone_e164: string | null; cidade: string | null; bairro: string | null }> };
+      return { total: 0, aptos: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, aptosIds: [] as string[], amostra: [] as Array<{ id: string; nome: string | null; nome_social: string | null; phone_e164: string | null; cidade: string | null; bairro: string | null }> };
     }
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
       .in("id", ids);
     let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
     const aptos: typeof contatos = [];
@@ -161,7 +161,7 @@ export const getAudienceStats = createServerFn({ method: "POST" })
       aptos: aptos.length,
       semConsent, optOut, arquivados, semTelefone,
       aptosIds: aptos.map((c) => c.id),
-      amostra: aptos.slice(0, 3).map((c) => ({ id: c.id, nome: c.nome, phone_e164: c.phone_e164, cidade: c.cidade, bairro: c.bairro })),
+      amostra: aptos.slice(0, 3).map((c) => ({ id: c.id, nome: c.nome, nome_social: c.nome_social, phone_e164: c.phone_e164, cidade: c.cidade, bairro: c.bairro })),
     };
   });
 
@@ -227,7 +227,7 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
     // 2) Filter eligibility
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
       .in("id", baseIds);
     const elegiveis = (contatos ?? []).filter((c) => c.consentimento_whatsapp && !c.opt_out_at && !c.arquivado_at && c.phone_e164);
     if (!elegiveis.length) throw new Error("Nenhum contato apto (com consentimento, telefone e sem opt-out/arquivado).");
@@ -294,7 +294,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
 
     let contactsQuery = context.supabase
       .from("contacts")
-      .select("id,nome,cidade,bairro,uf,phone_e164,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status", { count: "exact" });
+      .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status", { count: "exact" });
 
     if (c.audience_ids && Array.isArray(c.audience_ids) && (c.audience_ids as unknown[]).length) {
       contactsQuery = contactsQuery.in("id", c.audience_ids as string[]);
@@ -377,7 +377,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
       .in("id", audience.slice(0, 20000));
 
     const elegiveis = (contatos ?? []).filter((c2) =>

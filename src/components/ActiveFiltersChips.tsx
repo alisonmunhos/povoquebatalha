@@ -43,6 +43,7 @@ export function ActiveFiltersChips({
   // Perfil
   for (const v of filters.tipos_contato ?? []) chips.push({ key: `tc-${v}`, label: `Tipo: ${v}`, onRemove: removeFromArr("tipos_contato", v) });
   for (const v of filters.profissoes ?? []) chips.push({ key: `pf-${v}`, label: `Profissão: ${v}`, onRemove: removeFromArr("profissoes", v) });
+  if (filters.nome_social) chips.push({ key: "ns-txt", label: `Nome social contém: ${filters.nome_social}`, onRemove: remove("nome_social") });
   if (filters.profissao) chips.push({ key: "pf-txt", label: `Profissão contém: ${filters.profissao}`, onRemove: remove("profissao") });
   if (typeof filters.coletivo_alicerce === "boolean")
     chips.push({ key: "col", label: `Coletivo Alicerce: ${filters.coletivo_alicerce ? "sim" : "não"}`, onRemove: remove("coletivo_alicerce") });

@@ -128,18 +128,19 @@ export const getConversation = createServerFn({ method: "GET" })
     type ConvRow = {
       id: string; contact_id: string | null; from_phone: string | null;
       status: string; assigned_to: string | null; unread_count: number; flagged: boolean; last_message_at: string | null;
+      first_message_direction: "in" | "out" | null;
     };
     let convRow: ConvRow | null = null;
     if (data.conversation_id) {
       const { data: c } = await context.supabase
         .from("conversations")
-        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at")
+        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, first_message_direction")
         .eq("id", data.conversation_id).maybeSingle();
       convRow = (c as ConvRow | null) ?? null;
     } else if (data.contact_id) {
       const { data: c } = await context.supabase
         .from("conversations")
-        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at")
+        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, first_message_direction")
         .eq("contact_id", data.contact_id).maybeSingle();
       convRow = (c as ConvRow | null) ?? null;
     }

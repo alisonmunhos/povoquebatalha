@@ -170,27 +170,9 @@ export const resolveInbox = createServerFn({ method: "POST" })
   });
 
 // ------- Send reply via Z-API -------
-function saudacaoAgora(): string {
-  const h = new Date(Date.now() - 3 * 3600 * 1000).getUTCHours();
-  if (h >= 5 && h < 12) return "Bom dia";
-  if (h >= 12 && h < 18) return "Boa tarde";
-  return "Boa noite";
-}
-function renderVars(body: string, c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null }) {
-  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
-  const values: Record<string, string> = {
-    nome: c.nome ?? "",
-    primeiro_nome: primeiro,
-    primeiro_nome_ou_ola: primeiro || "Olá",
-    cidade: c.cidade ?? "",
-    bairro: c.bairro ?? "",
-    uf: c.uf ?? "",
-    saudacao: saudacaoAgora(),
-  };
-  return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
-    Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m,
-  );
-}
+// Reaproveita o motor central de variáveis (message-vars.ts, via wa-send.server.ts)
+// em vez de manter uma cópia própria — evita divergir quando uma variável nova
+// é adicionada (ex.: nome_social) e é esquecida aqui.
 
 export const sendDirectMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -211,7 +193,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     const { data: c, error } = await context.supabase
       .from("contacts")
-      .select("id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
+      .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
       .eq("id", data.contact_id).single();
     if (error || !c) throw new Error("Contato não encontrado.");
 
@@ -222,6 +204,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       throw new Error("WhatsApp do contato indisponível para envio.");
     }
 
+    const { sendMessage, readUseSendLinkFlag, detectUrl, renderVars } = await import("@/lib/wa-send.server");
     const rendered = renderVars(data.message ?? "", c);
     const hasMedia = Boolean(data.media_path);
     if (!hasMedia && !rendered.trim()) throw new Error("Escreva uma mensagem ou anexe um arquivo.");
@@ -240,7 +223,6 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       };
     }
 
-    const { sendMessage, readUseSendLinkFlag, detectUrl } = await import("@/lib/wa-send.server");
     const useSendLink = await readUseSendLinkFlag();
     const detectedUrl = detectUrl(rendered);
     const linkMeta = detectedUrl

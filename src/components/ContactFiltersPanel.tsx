@@ -192,6 +192,9 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Tipo de contato">
           <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} value={filters.tipos_contato ?? []} onChange={(v) => set("tipos_contato", v)} placeholder="Qualquer tipo" />
         </Field>
+        <Field label="Nome social contém…" hint="Busca livre no campo nome social">
+          <Input value={filters.nome_social ?? ""} onChange={(e) => set("nome_social", e.target.value || undefined)} placeholder="Ex.: Ana" />
+        </Field>
         <Field label="Profissão contém…" hint="Busca livre no campo profissão">
           <Input value={filters.profissao ?? ""} onChange={(e) => set("profissao", e.target.value || undefined)} placeholder="Ex.: professor" />
         </Field>

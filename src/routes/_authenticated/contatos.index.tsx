@@ -68,7 +68,7 @@ function Contatos() {
   const [page, setPage] = useState(1);
   // Ordenação: nome A→Z é o padrão pedido; ciclo asc → desc → recent
   const [sort, setSort] = useState<"name" | "name-desc" | "recent">("name");
-  const pageSize = 25;
+  const [pageSize, setPageSize] = useState(25);
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTagId, setBulkTagId] = useState<string>("");
@@ -114,9 +114,14 @@ function Contatos() {
   }, [search.segment]);
 
   const q = useQuery({
-    queryKey: ["contacts-rich", filters, page, sort],
+    queryKey: ["contacts-rich", filters, page, pageSize, sort],
     queryFn: () => listFn({ data: { filters, page, pageSize, sort } }),
   });
+
+  function onChangePageSize(next: number) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   const allOnPage = useMemo(() => (q.data?.rows ?? []).map((r) => r.id), [q.data]);
   const allChecked = allOnPage.length > 0 && allOnPage.every((id) => selected.has(id));
@@ -602,15 +607,31 @@ function Contatos() {
         </table>
       </div>
 
-      {q.data && q.data.total > pageSize && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Página {page} de {Math.ceil(q.data.total / pageSize)}</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-            <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / pageSize)} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
-          </div>
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span>Itens por página:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onChangePageSize(Number(e.target.value))}
+            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            {/* Só oferece "Todos" enquanto a base couber no teto de segurança do server (2000). */}
+            {(q.data?.total ?? 0) <= 2000 && <option value={2000}>Todos</option>}
+          </select>
         </div>
-      )}
+        {q.data && q.data.total > pageSize && (
+          <>
+            <span>Página {page} de {Math.ceil(q.data.total / pageSize)}</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
+              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / pageSize)} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+            </div>
+          </>
+        )}
+      </div>
 
       <Dialog open={saveDlg.open} onOpenChange={(o) => setSaveDlg({ ...saveDlg, open: o })}>
         <DialogContent>

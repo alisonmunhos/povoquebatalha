@@ -322,10 +322,29 @@ function ContatoFicha() {
                 {TIPO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
               </select>
             </Row>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={!!form.coletivo_alicerce} onChange={(e) => set("coletivo_alicerce", e.target.checked)} />
-              Faz parte do Coletivo Alicerce
-            </label>
+            <div>
+              <p className="text-sm font-medium mb-1.5">Faz parte do Coletivo Alicerce</p>
+              <div className="flex gap-2 max-w-xs">
+                <button
+                  type="button"
+                  onClick={() => set("coletivo_alicerce", true)}
+                  className={`flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition ${
+                    form.coletivo_alicerce === true ? "bg-emerald-600 text-white border-emerald-600" : "bg-background border-input hover:bg-muted"
+                  }`}
+                >
+                  Sim
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set("coletivo_alicerce", false)}
+                  className={`flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition ${
+                    form.coletivo_alicerce === false ? "bg-rose-600 text-white border-rose-600" : "bg-background border-input hover:bg-muted"
+                  }`}
+                >
+                  Não
+                </button>
+              </div>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={!!form.participa_movimento_social} onChange={(e) => set("participa_movimento_social", e.target.checked)} />
               Participa de movimento social

@@ -39,7 +39,7 @@ const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️"
 
 function personalize(
   tpl: string,
-  c: { nome?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null; recad_token?: string | null },
+  c: { nome?: string | null; nome_social?: string | null; cidade?: string | null; bairro?: string | null; uf?: string | null; recad_token?: string | null },
 ) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return renderMessageVars(tpl, c, { origin });

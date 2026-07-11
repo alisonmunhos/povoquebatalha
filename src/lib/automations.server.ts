@@ -11,6 +11,7 @@ import { renderVars, sendMessage } from "@/lib/wa-send.server";
 type ContactCtx = {
   id: string;
   nome: string | null;
+  nome_social?: string | null;
   phone_e164: string | null;
   cidade?: string | null;
   bairro?: string | null;

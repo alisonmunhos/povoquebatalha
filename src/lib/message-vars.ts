@@ -19,6 +19,7 @@ export type MessageVarName = (typeof MESSAGE_VARIABLES)[number];
 
 export type MessageVarContact = {
   nome?: string | null;
+  nome_social?: string | null;
   cidade?: string | null;
   bairro?: string | null;
   uf?: string | null;
@@ -45,7 +46,10 @@ export function renderMessageVars(
   c: MessageVarContact,
   opts: MessageVarOptions = {},
 ): string {
-  const primeiro = (c.nome ?? "").trim().split(/\s+/)[0] ?? "";
+  // Nome social tem prioridade sobre o nome comum quando preenchido (só no
+  // cálculo da mensagem — não altera nenhum dado salvo do contato).
+  const nomeParaExibir = (c.nome_social?.trim() || c.nome) ?? "";
+  const primeiro = nomeParaExibir.trim().split(/\s+/)[0] ?? "";
   const origin = opts.origin ?? "";
   const linkAtual = c.recad_token && origin
     ? `${origin}/atualizacao?t=${c.recad_token}`
@@ -54,7 +58,7 @@ export function renderMessageVars(
       : "";
   const linkInscr = origin ? `${origin}/inscrever` : "";
   const values: Record<string, string> = {
-    nome: c.nome ?? "",
+    nome: nomeParaExibir,
     primeiro_nome: primeiro,
     primeiro_nome_ou_ola: primeiro || "Olá",
     cidade: c.cidade ?? "",
