@@ -87,10 +87,13 @@ const updateSchema = z.object({
   coletivo_alicerce: z.boolean().nullable().optional(),
   participa_movimento_social: z.boolean().nullable().optional(),
   movimento_social_nome: z.string().trim().max(160).nullable().optional(),
-  tipo_contato: z
-    .enum(["apoiador", "voluntario", "lista_divulgacao", "importado", "outro"])
-    .nullable()
-    .optional(),
+  tipo_contato: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z
+      .enum(["apoiador", "voluntario", "lista_divulgacao", "importado", "outro"])
+      .nullable()
+      .optional(),
+  ),
   formas_ajuda: z.array(z.string().max(80)).max(20).optional(),
   formas_ajuda_outro: z.string().trim().max(240).nullable().optional(),
   quem_indicou: z.string().trim().max(160).nullable().optional(),
