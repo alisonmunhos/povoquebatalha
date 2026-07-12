@@ -54,7 +54,7 @@ function ContatosBI() {
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
 
-  const colsParam = (routeSearch.cols as string | undefined) ?? "nome,whatsapp,cidade";
+  const colsParam = (routeSearch.cols as string | undefined) ?? "nome,whatsapp";
   const cols = colsParam.split(",").map((c) => c.trim()).filter(Boolean);
   const filtersEncoded = (routeSearch.filters as string | undefined) ?? "";
   const sort = (routeSearch.sort as string | undefined) ?? "created_at:desc";
