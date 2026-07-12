@@ -6,12 +6,12 @@ import { z } from "zod";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 import { listContactsSheet } from "@/lib/contacts-sheet.functions";
 import { updateContactField } from "@/lib/update-contact-field.functions";
-import { idsByFilter, createTag, bulkApplyTag, exportContactsCsv, bulkArchive, bulkSetLifecycle } from "@/lib/crm-bulk.functions";
+import { idsByFilter, bulkApplyTag, exportContactsCsv, bulkArchive, bulkSetLifecycle } from "@/lib/crm-bulk.functions";
+import { createTag } from "@/lib/contacts.functions";
 import ColumnPickerPanel from "@/components/contacts-sheet/ColumnPickerPanel";
 import SavedViewsControl from "@/components/contacts-sheet/SavedViewsControl";
 import SheetContainer from "@/components/contacts-sheet/SheetContainer";
 import BulkActionBar from "@/components/contacts-sheet/BulkActionBar";
-import { PhoneQuickSave } from "@/routes/_authenticated/contatos.$id";
 
 const searchSchema = z.object({
   cols: z.string().optional(),
