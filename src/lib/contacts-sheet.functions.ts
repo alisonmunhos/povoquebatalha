@@ -97,10 +97,11 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     }
 
     const finalRows = rows.map((r) => {
-      const out: Record<string, unknown> = { contact_id: r.id };
+      const rid = r.id as string;
+      const out: Record<string, unknown> = { contact_id: rid };
       for (const key of data.cols) {
         if (key === "tags") {
-          out[key] = tagMap[r.id] ?? [];
+          out[key] = tagMap[rid] ?? [];
           continue;
         }
         const f = getCatalogField(key);
