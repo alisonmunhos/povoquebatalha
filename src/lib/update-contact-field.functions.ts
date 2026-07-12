@@ -71,5 +71,5 @@ export const updateContactField = createServerFn({ method: "POST" })
       });
     }
 
-    return { success: true, updatedValue: afterValue, updatedAt: (updatedRow as any).updated_at };
+    return { success: true, updatedValue: afterValue as any, updatedAt: (updatedRow as any).updated_at as string };
   });
