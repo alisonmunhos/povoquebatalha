@@ -46,7 +46,7 @@ export const updateContactField = createServerFn({ method: "POST" })
     if (prevErr) {
       return { success: false, error: "NotFound: contact not found" };
     }
-    const beforeValue = (prevRow as Record<string, unknown>)[mappedColumn];
+    const beforeValue = (prevRow as unknown as Record<string, unknown>)[mappedColumn];
 
     const payload: Record<string, unknown> = { [mappedColumn]: value };
     const { data: updatedRow, error: updateErr } = await context.supabase
