@@ -23,18 +23,11 @@ export default function SheetContainer({ cols, rows, total, page, onEditCell, q 
               const field = getCatalogField(col);
               const isPhone = field?.targetColumns.includes("phone_raw") || col === "whatsapp";
               const isMulti = (field?.targetColumns.length ?? 0) > 1;
-              if (isPhone) {
-                return (
-                  <div key={col} className="cell phone-cell p-2 min-w-[140px] cursor-pointer text-primary" onClick={() => onRequestPhoneEdit(r.contact_id)}>
-                    {String(r[col] ?? "—")}
-                  </div>
-                );
-              }
-              if (isMulti) {
+              if (isPhone || isMulti) {
                 return (
                   <div key={col} className="cell composite p-2 min-w-[140px]">
                     <Link to="/contatos/$id" params={{ id: r.contact_id }} className="text-primary underline">
-                      {previewComposite(r[col])}
+                      {isMulti ? previewComposite(r[col]) : String(r[col] ?? "—")}
                     </Link>
                   </div>
                 );
