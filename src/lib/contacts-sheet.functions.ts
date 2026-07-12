@@ -29,9 +29,10 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     const from = pageSize ? (page - 1) * pageSize : 0;
     const to = pageSize ? from + pageSize - 1 : undefined;
 
-    const invalidCols = data.cols.filter((c) => !getCatalogField(c) && c !== "tags" && c !== "id");
+    const SYSTEM_COLS = new Set(["tags", "cidade", "bairro", "uf", "origem", "lifecycle_status", "created_at"]);
+    const invalidCols = data.cols.filter((c) => !getCatalogField(c) && !SYSTEM_COLS.has(c) && c !== "id");
     if (invalidCols.length) {
-      return { error: "InvalidColumns", invalid: invalidCols } as any;
+      throw new Error(`Colunas inválidas: ${invalidCols.join(", ")}`);
     }
 
     const requestedCols = Array.from(new Set(["id", ...data.cols]));
@@ -41,10 +42,14 @@ export const listContactsSheet = createServerFn({ method: "POST" })
         projectionParts.push("id");
         continue;
       }
+      if (key === "tags") continue;
       const f = getCatalogField(key);
-      if (!f) continue;
-      for (const tc of f.targetColumns) {
-        if (!projectionParts.includes(tc)) projectionParts.push(tc);
+      if (f) {
+        for (const tc of f.targetColumns) {
+          if (!projectionParts.includes(tc)) projectionParts.push(tc);
+        }
+      } else if (SYSTEM_COLS.has(key)) {
+        if (!projectionParts.includes(key)) projectionParts.push(key);
       }
     }
     if (!projectionParts.includes("created_at")) projectionParts.push("created_at");
@@ -55,7 +60,7 @@ export const listContactsSheet = createServerFn({ method: "POST" })
       const decoded = decodeBase64UrlSafeToJson<Record<string, unknown> | null>(data.filtersEncoded);
       filters = (decoded ?? {}) as CrmFilters;
     } catch (err: unknown) {
-      return { error: "InvalidFilters", details: `cannot decode filters: ${(err as Error).message}` } as any;
+      throw new Error(`Filtros inválidos: ${(err as Error).message}`);
     }
 
     let q = context.supabase.from("contacts").select(projection, { count: "exact" });
