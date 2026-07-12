@@ -174,9 +174,6 @@ function ContatosBI() {
         }}
       />
 
-      {phoneEditFor && (
-        <PhoneQuickSave contactId={phoneEditFor} onClose={() => { setPhoneEditFor(null); q.refetch(); }} />
-      )}
     </div>
   );
 }
