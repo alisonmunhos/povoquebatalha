@@ -72,7 +72,7 @@ function ContatosBI() {
       return [];
     }
   });
-  const [phoneEditFor, setPhoneEditFor] = useState<string | null>(null);
+  
 
   const listFn = useServerFn(listContactsSheet);
   const updateFieldFn = useServerFn(updateContactField);
