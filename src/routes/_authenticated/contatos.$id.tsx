@@ -686,7 +686,7 @@ function OrigemCaptacaoSection({ contactId, contact }: { contactId: string; cont
 // Bloco compacto de "salvar telefone" — normaliza o número (aplica DDD se
 // faltando) e salva apenas o campo phone_raw, sem depender do form global.
 // ---------------------------------------------------------------------------
-function PhoneQuickSave({
+export function PhoneQuickSave({
   rawInput,
   currentStatus,
   cidade,

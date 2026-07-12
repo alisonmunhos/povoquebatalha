@@ -27,6 +27,7 @@ const groups: NavGroup[] = [
     label: "Base",
     items: [
       { to: "/contatos", label: "Gestão da Base", icon: Users, hint: "Organize, corrija, filtre e segmente os contatos.", roles: ["admin", "operador", "vrm"] },
+      { to: "/contatos-bi", label: "Contatos (BI)", icon: Users, hint: "Planilha interativa (beta).", roles: ["admin"] },
       { to: "/importar", label: "Importar", icon: Upload, roles: ["admin", "operador"] },
       { to: "/duplicidades", label: "Duplicidades", icon: Copy, roles: ["admin", "operador"] },
       { to: "/tags", label: "Tags", icon: Tags, roles: ["admin", "operador"] },
