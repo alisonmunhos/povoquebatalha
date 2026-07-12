@@ -2,7 +2,7 @@ import Cell from "./Cell";
 import { getCatalogField } from "@/lib/form-field-catalog";
 import { Link } from "@tanstack/react-router";
 
-export default function SheetContainer({ cols, rows, total, page, onEditCell, onRequestPhoneEdit, q }: any) {
+export default function SheetContainer({ cols, rows, total, page, onEditCell, q }: any) {
   return (
     <div className="sheet-container border rounded-md overflow-auto">
       <div className="data-grid-header flex border-b bg-muted/40 sticky top-0">
