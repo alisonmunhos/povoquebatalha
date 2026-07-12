@@ -11,13 +11,14 @@ export default function ColumnPickerPanel({ chosen, onToggleColumn }: { chosen: 
       <ul className="grid grid-cols-2 md:grid-cols-4 gap-1">
         {catalog.map((k) => {
           const f = getCatalogField(k);
-          const readOnlyEdit = f && f.targetColumns.length > 1;
+          const readOnlyEdit = (f && f.targetColumns.length > 1) || readOnlySystem.has(k);
           const checked = chosen.includes(k);
+          const label = f ? f.defaultLabel : (systemLabels[k] ?? k);
           return (
             <li key={k}>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={checked} onChange={() => onToggleColumn(k)} />
-                <span>{f ? f.defaultLabel : k}</span>
+                <span>{label}</span>
                 {readOnlyEdit && <small className="text-muted-foreground"> (sem edição inline)</small>}
               </label>
             </li>
