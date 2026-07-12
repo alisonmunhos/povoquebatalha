@@ -7,7 +7,10 @@ import { crmFilterSchema, applyCrmFilters, type CrmFilters } from "@/lib/crm-fil
 const listSchema = z.object({
   filters: crmFilterSchema.partial().default({}),
   page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(1).max(100).default(25),
+  // Teto de segurança pra opção "Todos" da tela — cobre a base atual (~1200
+  // contatos) com folga; se a base crescer muito além disso, essa opção
+  // simplesmente para de aparecer na UI (ver contatos.index.tsx).
+  pageSize: z.number().int().min(1).max(2000).default(25),
   sort: z.enum(["recent", "name", "name-desc"]).default("recent"),
 });
 

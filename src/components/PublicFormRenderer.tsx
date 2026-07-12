@@ -164,6 +164,38 @@ function QuestionField({
     );
   }
 
+  // "Coletivo Alicerce" pediu aparência diferenciada (Sim/Não em destaque de cor)
+  // — caso especial só desse campo; os demais yes_no continuam checkbox simples.
+  // Obrigatoriedade/posição/presença continuam decididas por formulário, sem mudança
+  // aqui: usa radio (não botão solto) só pra manter a validação nativa de "required".
+  if (q.response_type === "yes_no" && q.catalog_field_key === "coletivo_alicerce") {
+    const name = `q-${q.id}`;
+    return (
+      <div>
+        <p className="text-sm font-medium mb-2">{label}</p>
+        <div className="flex gap-2">
+          <label
+            className={`flex-1 text-center rounded-md border px-4 py-2 text-sm font-medium cursor-pointer transition ${
+              value === true ? "bg-emerald-600 text-white border-emerald-600" : "bg-background border-input hover:bg-muted"
+            }`}
+          >
+            <input type="radio" name={name} required={q.required} checked={value === true} onChange={() => onChange(true)} className="sr-only" />
+            Sim
+          </label>
+          <label
+            className={`flex-1 text-center rounded-md border px-4 py-2 text-sm font-medium cursor-pointer transition ${
+              value === false ? "bg-rose-600 text-white border-rose-600" : "bg-background border-input hover:bg-muted"
+            }`}
+          >
+            <input type="radio" name={name} required={q.required} checked={value === false} onChange={() => onChange(false)} className="sr-only" />
+            Não
+          </label>
+        </div>
+        {q.help_text && <p className="text-xs text-muted-foreground mt-1">{q.help_text}</p>}
+      </div>
+    );
+  }
+
   if (q.response_type === "yes_no") {
     return (
       <label className="flex items-start gap-3 text-sm">

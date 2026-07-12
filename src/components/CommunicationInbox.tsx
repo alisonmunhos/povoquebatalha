@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
+import { linkify } from "@/lib/linkify";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
   listConversations, getConversation, markConversationRead, assignConversation,
@@ -459,6 +460,11 @@ export function CommunicationInbox() {
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-2">
                   <span className={isLidPhone(active.phone) ? "font-mono text-[10px]" : ""}>{displayPhone(active.phone)}</span>
                   {active.cidade && <span>· {active.cidade}/{active.uf ?? ""}</span>}
+                  {conv?.first_message_direction && (
+                    <span className="text-muted-foreground/70">
+                      · {conv.first_message_direction === "in" ? "iniciada pelo contato" : "iniciada pela equipe"}
+                    </span>
+                  )}
                   {active.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
                 </div>
               </div>
@@ -501,7 +507,7 @@ export function CommunicationInbox() {
                   }`}>
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
-                    {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
+                    {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
                     <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
                       {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
                     </div>

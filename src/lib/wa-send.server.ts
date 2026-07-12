@@ -14,6 +14,7 @@
 type ContactCtx = {
   id?: string;
   nome?: string | null;
+  nome_social?: string | null;
   cidade?: string | null;
   bairro?: string | null;
   uf?: string | null;

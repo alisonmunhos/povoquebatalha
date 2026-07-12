@@ -260,7 +260,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
         if (savedId) {
           try {
             const { data: c } = await supabaseAdmin.from("contacts")
-              .select("id,nome,phone_e164,cidade,bairro,recad_token,consentimento_whatsapp,opt_out_at,arquivado_at")
+              .select("id,nome,nome_social,phone_e164,cidade,bairro,recad_token,consentimento_whatsapp,opt_out_at,arquivado_at")
               .eq("id", savedId).single();
             if (c) {
               const { triggerAutomationsForEvent } = await import("@/lib/automations.server");

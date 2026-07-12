@@ -165,6 +165,7 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
     const res = await sendMessage({
       contact: {
         nome: "Teste",
+        nome_social: null,
         phone_e164: phoneE164,
         cidade: null,
         bairro: null,
@@ -199,7 +200,7 @@ export const retryAutomationDelivery = createServerFn({ method: "POST" })
     if (error || !del) throw new Error("Entrega não encontrada");
     const { data: contact, error: cErr } = await supabaseAdmin
       .from("contacts")
-      .select("id, nome, phone_e164, cidade, bairro, recad_token, consentimento_whatsapp, opt_out_at, arquivado_at")
+      .select("id, nome, nome_social, phone_e164, cidade, bairro, recad_token, consentimento_whatsapp, opt_out_at, arquivado_at")
       .eq("id", del.contact_id).single();
     if (cErr || !contact) throw new Error("Contato não encontrado");
     // Zera o registro para permitir novo envio
