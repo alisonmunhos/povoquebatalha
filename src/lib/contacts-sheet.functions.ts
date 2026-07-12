@@ -111,7 +111,8 @@ export const listContactsSheet = createServerFn({ method: "POST" })
         }
         const f = getCatalogField(key);
         if (!f) {
-          out[key] = null;
+          // system column mapped directly
+          out[key] = (r as Record<string, unknown>)[key] ?? null;
           continue;
         }
         if (f.targetColumns.length === 1) {
