@@ -1104,6 +1104,7 @@ export type Database = {
           assigned_to: string | null
           contact_id: string | null
           created_at: string
+          first_message_direction: string | null
           flagged: boolean
           from_phone: string | null
           id: string
@@ -1118,6 +1119,7 @@ export type Database = {
           assigned_to?: string | null
           contact_id?: string | null
           created_at?: string
+          first_message_direction?: string | null
           flagged?: boolean
           from_phone?: string | null
           id?: string
@@ -1132,6 +1134,7 @@ export type Database = {
           assigned_to?: string | null
           contact_id?: string | null
           created_at?: string
+          first_message_direction?: string | null
           flagged?: boolean
           from_phone?: string | null
           id?: string
