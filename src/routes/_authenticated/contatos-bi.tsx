@@ -147,7 +147,6 @@ function ContatosBI() {
         page={page}
         pageSize={pageSize}
         onEditCell={onEditCell}
-        onRequestPhoneEdit={(id: string) => setPhoneEditFor(id)}
         onFilterChipClick={onFilterChipClick}
         q={q}
       />
