@@ -69,7 +69,7 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     try {
       q = applyCrmFilters(q as never, (filters ?? {}) as CrmFilters);
     } catch (err: unknown) {
-      return { error: "InvalidFilters", details: `filter validation failed: ${(err as Error).message}` } as any;
+      throw new Error(`Filtros inválidos: ${(err as Error).message}`);
     }
 
     if (data.sort) {
