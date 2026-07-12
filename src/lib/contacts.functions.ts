@@ -61,7 +61,7 @@ export const getContact = createServerFn({ method: "POST" })
     return { contact, tags };
   });
 
-const updateSchema = z.object({
+export const updateSchema = z.object({
   id: z.string().uuid(),
   nome: z.string().trim().min(2).max(120).optional(),
   nome_social: z.string().trim().max(120).nullable().optional(),
