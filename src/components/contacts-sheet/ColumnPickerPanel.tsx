@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 
 export default function ColumnPickerPanel({ chosen, onToggleColumn }: { chosen: string[]; onToggleColumn: (key: string) => void }) {
-  const catalog = useMemo(() => [...FORM_FIELD_CATALOG.map((f) => f.key), "tags", "origem", "lifecycle_status", "created_at"], []);
+  const catalog = useMemo(() => [...FORM_FIELD_CATALOG.map((f) => f.key), "tags", "cidade", "bairro", "uf", "origem", "lifecycle_status", "created_at"], []);
+  const systemLabels: Record<string, string> = { cidade: "Cidade", bairro: "Bairro", uf: "UF", tags: "Tags", origem: "Origem", lifecycle_status: "Status", created_at: "Criado em" };
+  const readOnlySystem = new Set(["cidade", "bairro", "uf"]);
   return (
     <aside className="column-picker border rounded-md p-3 mb-4">
       <div className="hint text-sm text-muted-foreground mb-2">Selecionar colunas (aviso a partir de 12)</div>
