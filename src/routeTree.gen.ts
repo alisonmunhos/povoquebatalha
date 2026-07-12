@@ -36,6 +36,7 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedContatosBiRouteImport } from './routes/_authenticated/contatos-bi'
 import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
@@ -196,6 +197,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedContatosBiRoute = AuthenticatedContatosBiRouteImport.update({
+  id: '/contatos-bi',
+  path: '/contatos-bi',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedComunicacaoRoute =
   AuthenticatedComunicacaoRouteImport.update({
     id: '/comunicacao',
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
+  '/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
@@ -391,6 +398,7 @@ export interface FileRoutesByTo {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
+  '/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/importar': typeof AuthenticatedImportarRoute
@@ -444,6 +452,7 @@ export interface FileRoutesById {
   '/_authenticated/agitacao': typeof AuthenticatedAgitacaoRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
+  '/_authenticated/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
@@ -497,6 +506,7 @@ export interface FileRouteTypes {
     | '/agitacao'
     | '/calendario'
     | '/comunicacao'
+    | '/contatos-bi'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
@@ -547,6 +557,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/agitacao'
     | '/calendario'
+    | '/contatos-bi'
     | '/dashboard'
     | '/duplicidades'
     | '/importar'
@@ -599,6 +610,7 @@ export interface FileRouteTypes {
     | '/_authenticated/agitacao'
     | '/_authenticated/calendario'
     | '/_authenticated/comunicacao'
+    | '/_authenticated/contatos-bi'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/importar'
@@ -854,6 +866,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/contatos-bi': {
+      id: '/_authenticated/contatos-bi'
+      path: '/contatos-bi'
+      fullPath: '/contatos-bi'
+      preLoaderRoute: typeof AuthenticatedContatosBiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/comunicacao': {
       id: '/_authenticated/comunicacao'
       path: '/comunicacao'
@@ -1054,6 +1073,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgitacaoRoute: typeof AuthenticatedAgitacaoRoute
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
+  AuthenticatedContatosBiRoute: typeof AuthenticatedContatosBiRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
@@ -1079,6 +1099,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgitacaoRoute: AuthenticatedAgitacaoRoute,
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
   AuthenticatedComunicacaoRoute: AuthenticatedComunicacaoRouteWithChildren,
+  AuthenticatedContatosBiRoute: AuthenticatedContatosBiRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
