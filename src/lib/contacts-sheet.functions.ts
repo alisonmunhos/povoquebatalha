@@ -79,7 +79,7 @@ export const listContactsSheet = createServerFn({ method: "POST" })
 
     const { data: rowsRaw, count, error } = await q;
     if (error) throw error;
-    const rows = (rowsRaw ?? []) as Record<string, unknown>[];
+    const rows = (rowsRaw ?? []) as unknown as Record<string, unknown>[];
 
     const ids = rows.map((r) => r.id).filter(Boolean) as string[];
     let tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
