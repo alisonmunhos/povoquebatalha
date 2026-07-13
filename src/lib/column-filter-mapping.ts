@@ -1,3 +1,4 @@
+// src/lib/column-filter-mapping.ts
 import { getCatalogField } from "@/lib/form-field-catalog";
 import type { CrmFilters } from "@/lib/crm-filters";
 import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/lib/phone-labels";
@@ -47,10 +48,21 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
           { value: "60_mais", label: "60+ anos" },
         ],
       };
-    case "formas_ajuda":
+    case "formas_ajuda": {
+      // prefer options from catalog if available
+      const f = getCatalogField("formas_ajuda");
+      if (f?.options && f.options.length) {
+        return { uiType: "array", filterKey: "formas_ajuda", source: "catalog", options: f.options.map((o: any) => ({ value: o.value, label: o.label })) };
+      }
       return { uiType: "array", filterKey: "formas_ajuda", source: "catalog" };
-    case "disponibilidade":
+    }
+    case "disponibilidade": {
+      const f = getCatalogField("disponibilidade");
+      if (f?.options && f.options.length) {
+        return { uiType: "array", filterKey: "disponibilidade", source: "catalog", options: f.options.map((o: any) => ({ value: o.value, label: o.label })) };
+      }
       return { uiType: "array", filterKey: "disponibilidade", source: "catalog" };
+    }
     case "quem_indicou":
       return { uiType: "text", filterKey: "quem_indicou" };
     case "rede_social":
@@ -70,7 +82,7 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
       if (f.filterKind === "text") return { uiType: "text", filterKey: f.key as keyof CrmFilters };
       if (f.filterKind === "boolean") return { uiType: "boolean", filterKey: f.key as keyof CrmFilters };
       if (f.filterKind === "multiselect" || f.filterKind === "enum") {
-        if (f.options && f.options.length) return { uiType: "array", filterKey: f.key as keyof CrmFilters, source: "catalog", options: f.options.map((o) => ({ value: o.value, label: o.label })) };
+        if (f.options && f.options.length) return { uiType: "array", filterKey: f.key as keyof CrmFilters, source: "catalog", options: f.options.map((o: any) => ({ value: o.value, label: o.label })) };
         return { uiType: "array", filterKey: f.key as keyof CrmFilters };
       }
       return null;
