@@ -14,7 +14,6 @@ import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as InscreverRouteImport } from './routes/inscrever'
-import { Route as FilterComponentTestRouteImport } from './routes/filter-component-test'
 import { Route as CadastroUsuarioRouteImport } from './routes/cadastro-usuario'
 import { Route as CadastroAgitadorRouteImport } from './routes/cadastro-agitador'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -85,11 +84,6 @@ const ObrigadoRoute = ObrigadoRouteImport.update({
 const InscreverRoute = InscreverRouteImport.update({
   id: '/inscrever',
   path: '/inscrever',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FilterComponentTestRoute = FilterComponentTestRouteImport.update({
-  id: '/filter-component-test',
-  path: '/filter-component-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroUsuarioRoute = CadastroUsuarioRouteImport.update({
@@ -345,7 +339,6 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
-  '/filter-component-test': typeof FilterComponentTestRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -398,7 +391,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
-  '/filter-component-test': typeof FilterComponentTestRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -452,7 +444,6 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
-  '/filter-component-test': typeof FilterComponentTestRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -507,7 +498,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cadastro-agitador'
     | '/cadastro-usuario'
-    | '/filter-component-test'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -560,7 +550,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cadastro-agitador'
     | '/cadastro-usuario'
-    | '/filter-component-test'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -613,7 +602,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cadastro-agitador'
     | '/cadastro-usuario'
-    | '/filter-component-test'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -668,7 +656,6 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CadastroAgitadorRoute: typeof CadastroAgitadorRoute
   CadastroUsuarioRoute: typeof CadastroUsuarioRoute
-  FilterComponentTestRoute: typeof FilterComponentTestRoute
   InscreverRoute: typeof InscreverRoute
   ObrigadoRoute: typeof ObrigadoRoute
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
@@ -723,13 +710,6 @@ declare module '@tanstack/react-router' {
       path: '/inscrever'
       fullPath: '/inscrever'
       preLoaderRoute: typeof InscreverRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/filter-component-test': {
-      id: '/filter-component-test'
-      path: '/filter-component-test'
-      fullPath: '/filter-component-test'
-      preLoaderRoute: typeof FilterComponentTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro-usuario': {
@@ -1152,7 +1132,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CadastroAgitadorRoute: CadastroAgitadorRoute,
   CadastroUsuarioRoute: CadastroUsuarioRoute,
-  FilterComponentTestRoute: FilterComponentTestRoute,
   InscreverRoute: InscreverRoute,
   ObrigadoRoute: ObrigadoRoute,
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
