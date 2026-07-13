@@ -15,7 +15,7 @@ function labelsToOptions(m: Record<string, string>): { value: string; label: str
 export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
   switch (columnKey) {
     case "nome":
-      return { uiType: "text", filterKey: "search" };
+      return { uiType: "text", filterKey: "nome" };
     case "nome_social":
       return { uiType: "text", filterKey: "nome_social" };
     case "profissao":
