@@ -1,7 +1,24 @@
 import React, { useState } from "react";
+import { getCatalogField } from "@/lib/form-field-catalog";
+import { LIFECYCLE_LABEL, WHATSAPP_STATUS_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/phone-labels";
 
-const DAYS = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
-const DAY_LABELS: Record<string, string> = { segunda: "Seg", terca: "Ter", quarta: "Qua", quinta: "Qui", sexta: "Sex", sabado: "Sáb", domingo: "Dom" };
+const DAY_LABELS: Record<string, string> = {
+  segunda: "Seg", terca: "Ter", quarta: "Qua", quinta: "Qui",
+  sexta: "Sex", sabado: "Sáb", domingo: "Dom",
+};
+const PERIOD_LABELS: Record<string, string> = { manha: "manhã", tarde: "tarde", noite: "noite" };
+const PERIOD_TONE: Record<string, string> = {
+  manha: "bg-amber-100 text-amber-800 border-amber-200",
+  tarde: "bg-sky-100 text-sky-800 border-sky-200",
+  noite: "bg-indigo-100 text-indigo-800 border-indigo-200",
+};
+
+// Label lookup for enum/multiple_choice fields (formas_ajuda, faixa_etaria, etc.)
+function labelForOption(fieldKey: string, value: string): string {
+  const f = getCatalogField(fieldKey);
+  if (!f?.options) return value;
+  return f.options.find((o) => o.value === value)?.label ?? value;
+}
 
 export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
   const [editing, setEditing] = useState(false);
@@ -20,62 +37,151 @@ export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
     }
   }
 
-  // --- TAGS rendering (chips) ---
+  // --- TAGS ---
   if (fieldKey === "tags" && Array.isArray(value)) {
     const tags = value as Array<{ id: string; nome: string; cor?: string | null }>;
+    if (tags.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
+    const visible = tags.slice(0, 3);
+    const extra = tags.length - visible.length;
+    const tooltip = tags.map((t) => t.nome).join(", ");
     return (
-      <div className="cell p-2 min-w-[140px]">
+      <div className="p-2 min-w-[160px]" title={tooltip}>
         <div className="flex flex-wrap gap-1">
-          {tags.length === 0 ? (
-            <span className="text-muted-foreground">—</span>
-          ) : (
-            tags.map((t) => (
-              <span
-                key={t.id}
-                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium"
-                style={{
-                  backgroundColor: t.cor ? `${t.cor}22` : undefined,
-                  color: t.cor ?? undefined,
-                  border: t.cor ? `1px solid ${t.cor}55` : undefined,
-                }}
-              >
-                {t.nome}
-              </span>
-            ))
+          {visible.map((t) => (
+            <span
+              key={t.id}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border"
+              style={{
+                backgroundColor: t.cor ? `${t.cor}1a` : "hsl(var(--muted))",
+                color: t.cor ?? "hsl(var(--foreground))",
+                borderColor: t.cor ? `${t.cor}55` : "hsl(var(--border))",
+              }}
+            >
+              {t.nome}
+            </span>
+          ))}
+          {extra > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+              +{extra}
+            </span>
           )}
         </div>
       </div>
     );
   }
 
-  // --- DISPONIBILIDADE rendering (compact week markers) ---
+  // --- DISPONIBILIDADE (chips agrupados por dia com turnos) ---
   if (fieldKey === "disponibilidade" && Array.isArray(value)) {
-    const arr = value as string[]; // ex.: ['segunda_manha','segunda_tarde','terca_manha',...]
-    const daysSet = new Set(arr.map((s) => String(s).split("_")[0]));
-    const tooltip = arr.map((s) => {
-      const [day, period] = String(s).split("_");
-      const dayLabel = DAY_LABELS[day] ?? day;
-      const periodLabel = period === "manha" ? "Manhã" : period === "tarde" ? "Tarde" : period === "noite" ? "Noite" : period;
-      return `${dayLabel} - ${periodLabel}`;
-    }).join("\n");
+    const arr = value as string[];
+    if (arr.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
+
+    // Agrupa: { segunda: ["manha","tarde"], ... }
+    const byDay: Record<string, string[]> = {};
+    for (const raw of arr) {
+      const [day, period] = String(raw).split("_");
+      if (!day || !period) continue;
+      (byDay[day] ??= []).push(period);
+    }
+    const orderedDays = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
+      .filter((d) => byDay[d]);
+
+    const tooltip = orderedDays
+      .map((d) => `${DAY_LABELS[d]}: ${byDay[d].map((p) => PERIOD_LABELS[p] ?? p).join(", ")}`)
+      .join("\n");
 
     return (
-      <div className="cell p-2 min-w-[140px]" title={tooltip}>
-        <div className="flex items-center gap-1">
-          {DAYS.map((d) => {
-            const active = daysSet.has(d);
-            return (
-              <span key={d} title={DAY_LABELS[d]} className={`w-3 h-3 rounded-full ${active ? "bg-primary" : "bg-muted/40"}`} />
-            );
-          })}
-          {arr.length === 0 && <span className="ml-2 text-muted-foreground text-xs">Nenhuma</span>}
+      <div className="p-2 min-w-[180px]" title={tooltip}>
+        <div className="flex flex-wrap gap-1">
+          {orderedDays.map((d) =>
+            byDay[d].map((p) => (
+              <span
+                key={`${d}_${p}`}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${PERIOD_TONE[p] ?? "bg-muted text-foreground border-border"}`}
+              >
+                {DAY_LABELS[d]} {PERIOD_LABELS[p] ?? p}
+              </span>
+            )),
+          )}
         </div>
       </div>
     );
   }
 
+  // --- FORMAS DE AJUDA / listas de valores ---
+  if (fieldKey === "formas_ajuda" && Array.isArray(value)) {
+    const arr = value as string[];
+    if (arr.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
+    const visible = arr.slice(0, 4);
+    const extra = arr.length - visible.length;
+    const tooltip = arr.map((v) => labelForOption("formas_ajuda", v)).join(", ");
+    return (
+      <div className="p-2 min-w-[180px]" title={tooltip}>
+        <div className="flex flex-wrap gap-1">
+          {visible.map((v) => (
+            <span
+              key={v}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-foreground border border-border"
+            >
+              {labelForOption("formas_ajuda", v)}
+            </span>
+          ))}
+          {extra > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+              +{extra}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // --- STATUS BADGES ---
+  if (fieldKey === "lifecycle_status" && typeof value === "string") {
+    return (
+      <div className="p-2">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-foreground border border-border">
+          {LIFECYCLE_LABEL[value] ?? value}
+        </span>
+      </div>
+    );
+  }
+  if (fieldKey === "whatsapp_status" && typeof value === "string") {
+    return (
+      <div className="p-2">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-foreground border border-border">
+          {WHATSAPP_STATUS_LABEL[value] ?? value}
+        </span>
+      </div>
+    );
+  }
+  if (fieldKey === "phone_status" && typeof value === "string") {
+    return (
+      <div className="p-2">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${PHONE_STATUS_BADGE[value] ?? "bg-muted text-foreground"}`}>
+          {PHONE_STATUS_LABEL[value] ?? value}
+        </span>
+      </div>
+    );
+  }
+
+  // --- Enum simples (faixa_etaria, tipo_contato) ---
+  if (typeof value === "string" && getCatalogField(fieldKey)?.options) {
+    const label = labelForOption(fieldKey, value);
+    return (
+      <div className="p-2 cursor-pointer" onClick={() => setEditing(true)}>
+        {editing ? (
+          <div className="inline-editor flex gap-1">
+            <input className="border rounded px-1 text-sm w-full" value={draft ?? ""} onChange={(e) => setDraft(e.target.value)} />
+            <button className="text-xs text-primary" onClick={confirm}>Salvar</button>
+            <button className="text-xs text-muted-foreground" onClick={() => { setDraft(value); setEditing(false); }}>Cancelar</button>
+          </div>
+        ) : label}
+      </div>
+    );
+  }
+
   return (
-    <div className="cell p-2 min-w-[140px]">
+    <div className="p-2 min-w-[140px]">
       {!editing ? (
         <div onClick={() => setEditing(true)} className="cursor-pointer">{displayCellValue(value)}</div>
       ) : (
@@ -90,7 +196,7 @@ export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
 }
 
 function displayCellValue(v: unknown) {
-  if (v == null) return "—";
+  if (v == null || v === "") return <span className="text-muted-foreground">—</span>;
   if (Array.isArray(v)) return `${v.length} itens`;
   return String(v);
 }
