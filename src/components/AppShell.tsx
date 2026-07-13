@@ -26,12 +26,12 @@ const groups: NavGroup[] = [
   {
     label: "Base",
     items: [
-      { to: "/contatos", label: "Gestão da Base", icon: Users, hint: "Organize, corrija, filtre e segmente os contatos.", roles: ["admin", "operador", "vrm"] },
-      { to: "/contatos-bi", label: "Contatos (BI)", icon: Users, hint: "Planilha interativa (beta).", roles: ["admin"] },
-      { to: "/importar", label: "Importar", icon: Upload, roles: ["admin", "operador"] },
-      { to: "/duplicidades", label: "Duplicidades", icon: Copy, roles: ["admin", "operador"] },
-      { to: "/tags", label: "Tags", icon: Tags, roles: ["admin", "operador"] },
-      { to: "/segmentos", label: "Segmentos", icon: Filter, roles: ["admin", "operador", "vrm"] },
+      { to: "/contatos", label: "Gestão da Base", icon: Users, hint: "Organize, corrija, filtre e segmente os contatos.", roles: ["admin"] },
+      { to: "/contatos-bi", label: "Contatos (BI)", icon: Users, hint: "Planilha interativa (beta).", roles: ["admin", "operador", "vrm"] },
+      { to: "/importar", label: "Importar", icon: Upload, roles: ["admin"] },
+      { to: "/duplicidades", label: "Duplicidades", icon: Copy, roles: ["admin"] },
+      { to: "/tags", label: "Tags", icon: Tags, roles: ["admin"] },
+      { to: "/segmentos", label: "Segmentos", icon: Filter, roles: ["admin", "vrm"] },
       { to: "/entrada-dados", label: "Entrada de Dados", icon: ClipboardList, hint: "Monte formulários públicos personalizados.", roles: ["admin"] },
     ],
   },
@@ -47,13 +47,13 @@ const groups: NavGroup[] = [
   {
     label: "Comunicação",
     items: [
-      { to: "/comunicacao/inbox", label: "Módulo Comunicação", icon: MessageCircle, hint: "Inbox, campanhas, mensagens, contatos.", roles: ["admin", "operador", "vrm", "comunicacao"] },
+      { to: "/comunicacao/inbox", label: "Módulo Comunicação", icon: MessageCircle, hint: "Inbox, campanhas, mensagens, contatos.", roles: ["admin", "vrm", "comunicacao"] },
     ],
   },
   {
     label: "Sistema",
     items: [
-      { to: "/links", label: "Links públicos", icon: LinkIcon, roles: ["admin", "operador"] },
+      { to: "/links", label: "Links públicos", icon: LinkIcon, roles: ["admin"] },
       { to: "/usuarios", label: "Usuários", icon: ShieldCheck, roles: ["admin"] },
     ],
   },
