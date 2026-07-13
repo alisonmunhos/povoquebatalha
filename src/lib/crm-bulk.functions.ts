@@ -303,3 +303,99 @@ export const exportContactsCsv = createServerFn({ method: "POST" })
     const csv = "\uFEFF" + [header, ...lines].join("\r\n");
     return { csv, count: rows?.length ?? 0 };
   });
+
+// ===== Cópia formatada (lista simples ou agrupada) =====
+const DAY_ORDER = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
+const DAY_LABEL: Record<string, string> = {
+  segunda: "Segunda", terca: "Terça", quarta: "Quarta", quinta: "Quinta",
+  sexta: "Sexta", sabado: "Sábado", domingo: "Domingo",
+};
+
+export const copyContactsFormatted = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    ids: z.array(z.string().uuid()).min(1).max(5000),
+    groupBy: z.enum(["none", "cidade", "tag", "disponibilidade"]).default("none"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows } = await context.supabase
+      .from("contacts")
+      .select("id,nome,phone_e164,phone_raw,cidade,disponibilidade")
+      .in("id", data.ids);
+    const contacts = rows ?? [];
+
+    const fmtLine = (r: any) => {
+      const phone = r.phone_e164 || r.phone_raw || "";
+      const name = r.nome || "(sem nome)";
+      return phone ? `${name} — ${phone}` : name;
+    };
+
+    if (data.groupBy === "none") {
+      const text = contacts.map(fmtLine).join("\n");
+      return { text, count: contacts.length };
+    }
+
+    if (data.groupBy === "cidade") {
+      const byCity: Record<string, any[]> = {};
+      for (const r of contacts) {
+        const key = (r.cidade as string | null)?.trim() || "Sem cidade";
+        (byCity[key] ??= []).push(r);
+      }
+      const parts = Object.keys(byCity).sort().map((city) => {
+        const lines = byCity[city].map(fmtLine).join("\n");
+        return `*${city}* (${byCity[city].length})\n${lines}`;
+      });
+      return { text: parts.join("\n\n"), count: contacts.length };
+    }
+
+    if (data.groupBy === "tag") {
+      const { data: rels } = await context.supabase
+        .from("contact_tags")
+        .select("contact_id, tags(nome)")
+        .in("contact_id", data.ids);
+      const byTag: Record<string, Set<string>> = {};
+      for (const rel of rels ?? []) {
+        const tagName = (rel.tags as { nome: string } | null)?.nome;
+        if (!tagName) continue;
+        (byTag[tagName] ??= new Set()).add(rel.contact_id as string);
+      }
+      const withTag = new Set<string>();
+      Object.values(byTag).forEach((s) => s.forEach((id) => withTag.add(id)));
+      const untagged = contacts.filter((r) => !withTag.has(r.id as string));
+      const parts: string[] = [];
+      Object.keys(byTag).sort().forEach((tag) => {
+        const list = contacts.filter((r) => byTag[tag].has(r.id as string));
+        parts.push(`*${tag}* (${list.length})\n${list.map(fmtLine).join("\n")}`);
+      });
+      if (untagged.length) {
+        parts.push(`*Sem tag* (${untagged.length})\n${untagged.map(fmtLine).join("\n")}`);
+      }
+      return { text: parts.join("\n\n"), count: contacts.length };
+    }
+
+    // disponibilidade — agrupa por dia da semana (contato aparece em cada dia em que está disponível)
+    const byDay: Record<string, any[]> = {};
+    const semDisp: any[] = [];
+    for (const r of contacts) {
+      const disp = (r.disponibilidade as string[] | null) ?? [];
+      const days = new Set<string>();
+      for (const d of disp) {
+        const [day] = String(d).split("_");
+        if (day) days.add(day);
+      }
+      if (days.size === 0) {
+        semDisp.push(r);
+      } else {
+        days.forEach((d) => (byDay[d] ??= []).push(r));
+      }
+    }
+    const parts: string[] = [];
+    for (const d of DAY_ORDER) {
+      if (!byDay[d]?.length) continue;
+      parts.push(`*${DAY_LABEL[d]}* (${byDay[d].length})\n${byDay[d].map(fmtLine).join("\n")}`);
+    }
+    if (semDisp.length) {
+      parts.push(`*Sem disponibilidade informada* (${semDisp.length})\n${semDisp.map(fmtLine).join("\n")}`);
+    }
+    return { text: parts.join("\n\n"), count: contacts.length };
+  });
