@@ -1,4 +1,4 @@
-export default function BulkActionBar({ selection, selectAllByFilter, onCreateTag, onApplyTag, onExportSelected }: any) {
+export default function BulkActionBar({ selection, selectAllByFilter, onCreateTag, onApplyTag, onExportSelected, onCopyFormatted }: any) {
   return (
     <div className="bulk-action-bar flex items-center gap-2 mt-3 p-2 border rounded-md">
       <div className="text-sm">Selecionados: {selection.size}</div>
@@ -15,6 +15,7 @@ export default function BulkActionBar({ selection, selectAllByFilter, onCreateTa
         Criar e aplicar tag
       </button>
       <button className="border rounded px-2 py-1 text-sm" onClick={() => onExportSelected()}>Exportar CSV</button>
+      <button className="border rounded px-2 py-1 text-sm" onClick={() => onCopyFormatted?.()}>Copiar lista formatada</button>
     </div>
   );
 }

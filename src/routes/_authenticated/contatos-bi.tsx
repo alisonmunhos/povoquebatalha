@@ -12,6 +12,7 @@ import SavedViewsControl from "@/components/contacts-sheet/SavedViewsControl";
 import SheetContainer from "@/components/contacts-sheet/SheetContainer";
 import BulkActionBar from "@/components/contacts-sheet/BulkActionBar";
 import { decodeBase64UrlSafe as decodeFilters } from "@/lib/filters-encoding";
+import { toast } from "sonner";
 
 const searchSchema = z.object({
   cols: z.string().optional(),
@@ -101,6 +102,34 @@ function ContatosBI() {
     return updateFieldFn({ data: { contactId, fieldKey, value: newValue } });
   }
 
+  async function onCopyFormatted() {
+    if (!selection || selection.size === 0) {
+      toast.error("Nenhum contato selecionado");
+      return;
+    }
+    const rowsMap = new Map(rows.map((r: any) => [r.contact_id, r]));
+    const lines: string[] = [];
+    let missing = 0;
+    for (const id of selection) {
+      const r = rowsMap.get(id);
+      if (!r) { missing++; continue; }
+      const name = (r.nome ?? r.nome_completo ?? r.contact_name ?? "—");
+      const phone = (r.phone_e164 ?? r.phone_raw ?? "");
+      lines.push(`${name} — ${phone}`);
+    }
+    if (lines.length === 0) {
+      toast.error("Nenhum contato carregado para copiar. Exporte CSV para obter todos os registros.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      if (missing > 0) toast.warning(`${lines.length} contatos copiados. ${missing} selecionados não estavam carregados na página.`);
+      else toast.success("Lista copiada");
+    } catch (e) {
+      toast.error("Erro ao copiar para a área de transferência");
+    }
+  }
+
   return (
     <div className="contacts-sheet-page p-4">
       <header className="flex items-center justify-between mb-4">
@@ -161,7 +190,9 @@ function ContatosBI() {
           a.click();
           URL.revokeObjectURL(url);
         }}
+        onCopyFormatted={onCopyFormatted}
       />
     </div>
   );
 }
+
