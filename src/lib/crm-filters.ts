@@ -20,6 +20,7 @@ export const crmFilterSchema = z.object({
   ufs: z.array(z.string()).optional(),
 
   // Perfil
+  nome: z.string().trim().optional(),
   nome_social: z.string().trim().optional(),
   profissao: z.string().trim().optional(),
   instituicao: z.string().trim().optional(),
@@ -140,6 +141,7 @@ export function applyCrmFilters<T extends {
   if (f.ufs?.length) q = q.in("uf", f.ufs.map((u) => u.toUpperCase()));
 
   // Perfil
+  if (f.nome) q = q.ilike("nome", `%${safe(f.nome)}%`);
   if (f.nome_social) q = q.ilike("nome_social", `%${safe(f.nome_social)}%`);
   if (f.profissao) q = q.ilike("profissao", `%${safe(f.profissao)}%`);
   if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
