@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import Cell from "./Cell";
 import { getCatalogField } from "@/lib/form-field-catalog";
@@ -22,7 +22,6 @@ export default function SheetContainer({
 }: any) {
   const [openFilterFor, setOpenFilterFor] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-  const headerRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
 
   const errorMsg = q?.error ? (q.error instanceof Error ? q.error.message : String(q.error)) : null;
 
@@ -52,10 +51,11 @@ export default function SheetContainer({
     if (info.uiType === "array" || info.uiType === "tag") return Array.isArray(v) && v.length > 0;
     return false;
   }
-  function openFilter(col: string) {
-    const el = headerRefs.current[col];
-    setAnchorRect(el ? el.getBoundingClientRect() : null);
-    setOpenFilterFor(col);
+  function openFilter(col: string, anchor: HTMLElement) {
+    const rect = anchor.getBoundingClientRect();
+    if (!anchor.isConnected || !Number.isFinite(rect.left) || !Number.isFinite(rect.bottom)) return;
+    setAnchorRect(rect);
+    setOpenFilterFor((current) => current === col ? null : col);
   }
   function closeFilter() {
     setOpenFilterFor(null);
@@ -74,11 +74,17 @@ export default function SheetContainer({
               const showFilter = resolveFilterField(c) !== null;
               const active = isFilterActiveForColumn(c);
               return (
-                <th key={c} ref={(el) => { headerRefs.current[c] = el; }} className="p-2 text-left font-medium min-w-[140px]">
+                <th key={c} className="p-2 text-left font-medium min-w-[140px]">
                   <div className="flex items-center gap-2">
                     <span>{label}</span>
                     {showFilter && (
-                      <button aria-label={`Filtrar ${label}`} onClick={() => openFilter(c)} className={active ? "text-primary" : "text-muted-foreground"}>
+                      <button
+                        type="button"
+                        aria-label={`Filtrar ${label}`}
+                        aria-expanded={openFilterFor === c}
+                        onClick={(event) => openFilter(c, event.currentTarget)}
+                        className={active ? "text-primary" : "text-muted-foreground"}
+                      >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18l-7 7v7l-4-2v-5L3 5z" /></svg>
                       </button>
                     )}
@@ -123,8 +129,8 @@ export default function SheetContainer({
           <div
             style={{
               position: "fixed",
-              left: anchorRect ? anchorRect.left : 100,
-              top: anchorRect ? anchorRect.bottom : 200,
+              left: Math.min(anchorRect?.left ?? 16, window.innerWidth - 272),
+              top: anchorRect?.bottom ?? 16,
               zIndex: 1400,
             }}
           >

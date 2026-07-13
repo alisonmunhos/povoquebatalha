@@ -42,6 +42,7 @@ function ContatosBI() {
   const pageSize: number | "all" = pageSizeRaw === "all" ? "all" : Number(pageSizeRaw);
 
   const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [, setSelectAllMode] = useState<{ active: boolean; total?: number }>({ active: false });
   const [savedViews, setSavedViews] = useState<Array<{ name: string; payload: any }>>(() => {
     try {
@@ -107,7 +108,23 @@ function ContatosBI() {
         <SavedViewsControl saved={savedViews} onSave={saveViewLocal} />
       </header>
 
-      <ColumnPickerPanel chosen={cols} onToggleColumn={toggleColumn} />
+      <div className="mb-4">
+        <button
+          type="button"
+          aria-expanded={columnsOpen}
+          aria-controls="column-picker-panel"
+          onClick={() => setColumnsOpen((open) => !open)}
+          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+        >
+          Colunas {columnsOpen ? "▴" : "▾"}
+        </button>
+      </div>
+
+      {columnsOpen && (
+        <div id="column-picker-panel">
+          <ColumnPickerPanel chosen={cols} onToggleColumn={toggleColumn} />
+        </div>
+      )}
 
       <SheetContainer
         cols={cols}
