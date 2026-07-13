@@ -102,31 +102,28 @@ function ContatosBI() {
     return updateFieldFn({ data: { contactId, fieldKey, value: newValue } });
   }
 
-  async function onCopyFormatted() {
+  const copyFormattedFn = useServerFn(copyContactsFormatted);
+  async function onCopyFormatted(mode: "none" | "cidade" | "tag" | "disponibilidade") {
     if (!selection || selection.size === 0) {
       toast.error("Nenhum contato selecionado");
       return;
     }
-    const rowsMap = new Map(rows.map((r: any) => [r.contact_id, r]));
-    const lines: string[] = [];
-    let missing = 0;
-    for (const id of selection) {
-      const r = rowsMap.get(id);
-      if (!r) { missing++; continue; }
-      const name = (r.nome ?? r.nome_completo ?? r.contact_name ?? "—");
-      const phone = (r.phone_e164 ?? r.phone_raw ?? "");
-      lines.push(`${name} — ${phone}`);
-    }
-    if (lines.length === 0) {
-      toast.error("Nenhum contato carregado para copiar. Exporte CSV para obter todos os registros.");
-      return;
-    }
     try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      if (missing > 0) toast.warning(`${lines.length} contatos copiados. ${missing} selecionados não estavam carregados na página.`);
-      else toast.success("Lista copiada");
+      const r = await copyFormattedFn({ data: { ids: [...selection], groupBy: mode } });
+      const text = (r as any).text as string;
+      const count = (r as any).count as number;
+      if (!text) {
+        toast.error("Nada para copiar");
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      const suffix = mode === "none" ? "" :
+        mode === "cidade" ? " (agrupado por cidade)" :
+        mode === "tag" ? " (agrupado por tag)" :
+        " (agrupado por disponibilidade)";
+      toast.success(`${count} contato${count > 1 ? "s" : ""} copiado${count > 1 ? "s" : ""}${suffix}`);
     } catch (e) {
-      toast.error("Erro ao copiar para a área de transferência");
+      toast.error(e instanceof Error ? e.message : "Erro ao copiar para a área de transferência");
     }
   }
 
