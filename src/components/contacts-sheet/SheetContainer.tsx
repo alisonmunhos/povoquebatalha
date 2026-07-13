@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Cell from "./Cell";
 import { getCatalogField } from "@/lib/form-field-catalog";
 import ColumnFilterPopover from "./ColumnFilterPopover";
@@ -117,10 +118,20 @@ export default function SheetContainer({
 
       <footer className="p-2 text-sm text-muted-foreground">Resultados: {total} — Página {page}</footer>
 
-      {openFilterFor && (
-        <div style={{ position: "absolute", left: anchorRect ? anchorRect.left : 100, top: anchorRect ? anchorRect.bottom + window.scrollY : 200, zIndex: 1000 }}>
-          <ColumnFilterPopover columnKey={openFilterFor} currentFilters={currentFilters ?? {}} onApplyEncoded={(encoded) => pushSearch?.(encoded)} onClose={closeFilter} />
-        </div>
+      {openFilterFor && typeof document !== "undefined" && (
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              left: anchorRect ? anchorRect.left : 100,
+              top: anchorRect ? anchorRect.bottom : 200,
+              zIndex: 1400,
+            }}
+          >
+            <ColumnFilterPopover columnKey={openFilterFor} currentFilters={currentFilters ?? {}} onApplyEncoded={(encoded) => pushSearch?.(encoded)} onClose={closeFilter} />
+          </div>,
+          document.body
+        )
       )}
     </div>
   );
