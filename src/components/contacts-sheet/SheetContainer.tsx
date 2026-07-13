@@ -5,6 +5,7 @@ import { getCatalogField } from "@/lib/form-field-catalog";
 import ColumnFilterPopover from "./ColumnFilterPopover";
 import { resolveFilterField } from "@/lib/column-filter-mapping";
 import { Link } from "@tanstack/react-router";
+import { Filter } from "lucide-react";
 
 const SYSTEM_LABELS: Record<string, string> = {
   cidade: "Cidade",
@@ -63,29 +64,33 @@ export default function SheetContainer({
   }
 
   return (
-    <div className="sheet-container border rounded-md overflow-x-auto" style={{ position: "relative" }}>
-      <table className="w-full text-sm">
+    <div className="sheet-container border rounded-md overflow-x-auto bg-card" style={{ position: "relative" }}>
+      <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="bg-muted/40 sticky top-0">
-            <th className="p-2 w-8"><input type="checkbox" checked={allChecked} onChange={togglePageSelection} /></th>
+          <tr className="bg-muted/60 sticky top-0 z-10 shadow-[0_1px_0_0_hsl(var(--border))]">
+            <th className="p-2 w-10 text-left"><input type="checkbox" checked={allChecked} onChange={togglePageSelection} /></th>
             {cols.map((c: string) => {
               const f = getCatalogField(c);
               const label = f ? f.defaultLabel : (SYSTEM_LABELS[c] ?? c);
               const showFilter = resolveFilterField(c) !== null;
               const active = isFilterActiveForColumn(c);
               return (
-                <th key={c} className="p-2 text-left font-medium min-w-[140px]">
-                  <div className="flex items-center gap-2">
-                    <span>{label}</span>
+                <th key={c} className="p-2 text-left font-medium min-w-[140px] whitespace-nowrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
                     {showFilter && (
                       <button
                         type="button"
                         aria-label={`Filtrar ${label}`}
                         aria-expanded={openFilterFor === c}
                         onClick={(event) => openFilter(c, event.currentTarget)}
-                        className={active ? "text-primary" : "text-muted-foreground"}
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors ${
+                          active
+                            ? "bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18l-7 7v7l-4-2v-5L3 5z" /></svg>
+                        <Filter className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
@@ -95,12 +100,29 @@ export default function SheetContainer({
           </tr>
         </thead>
         <tbody>
-          {q.isLoading && <tr><td className="p-4 text-muted-foreground" colSpan={cols.length + 1}>Carregando…</td></tr>}
+          {q.isLoading && (
+            Array.from({ length: 5 }).map((_, i) => (
+              <tr key={`sk-${i}`} className="border-t">
+                <td className="p-2"><div className="h-4 w-4 bg-muted rounded animate-pulse" /></td>
+                {cols.map((c: string) => (
+                  <td key={c} className="p-2"><div className="h-4 bg-muted rounded animate-pulse" style={{ width: `${40 + ((i * 13 + c.length * 7) % 40)}%` }} /></td>
+                ))}
+              </tr>
+            ))
+          )}
           {!q.isLoading && errorMsg && <tr><td className="p-4 text-destructive" colSpan={cols.length + 1}>Erro ao carregar: {errorMsg}</td></tr>}
-          {!q.isLoading && !errorMsg && rows.length === 0 && <tr><td className="p-4 text-muted-foreground" colSpan={cols.length + 1}>Nenhum contato encontrado.</td></tr>}
-          {!errorMsg && rows.map((r: any) => (
-            <tr key={r.contact_id} className="border-t hover:bg-muted/20">
-              <td className="p-2"><input type="checkbox" checked={sel.has(r.contact_id)} onChange={() => toggleSelection(r.contact_id)} /></td>
+          {!q.isLoading && !errorMsg && rows.length === 0 && (
+            <tr><td className="p-8 text-center text-muted-foreground" colSpan={cols.length + 1}>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-2xl">🔍</span>
+                <span>Nenhum contato encontrado.</span>
+                <span className="text-xs">Tente ajustar os filtros das colunas.</span>
+              </div>
+            </td></tr>
+          )}
+          {!q.isLoading && !errorMsg && rows.map((r: any, idx: number) => (
+            <tr key={r.contact_id} className={`border-t hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}>
+              <td className="p-2 align-middle"><input type="checkbox" checked={sel.has(r.contact_id)} onChange={() => toggleSelection(r.contact_id)} /></td>
               {cols.map((col: string) => {
                 const field = getCatalogField(col);
                 const isPhone = field?.targetColumns.includes("phone_raw") || col === "whatsapp";
@@ -108,21 +130,25 @@ export default function SheetContainer({
                 const isReadOnlySystem = READ_ONLY_SYSTEM.has(col);
                 if (isPhone || isMulti || isReadOnlySystem) {
                   return (
-                    <td key={col} className="p-2 min-w-[140px]">
-                      <Link to="/contatos/$id" params={{ id: r.contact_id }} className="text-primary underline">
-                        {isMulti ? previewComposite(r[col]) : String(r[col] ?? "—")}
+                    <td key={col} className="p-2 min-w-[140px] align-middle">
+                      <Link to="/contatos/$id" params={{ id: r.contact_id }} className="text-primary hover:underline">
+                        {isMulti ? previewComposite(r[col]) : (r[col] ? String(r[col]) : <span className="text-muted-foreground">—</span>)}
                       </Link>
                     </td>
                   );
                 }
-                return <td key={col} className="p-0"><Cell contactId={r.contact_id} fieldKey={col} value={r[col]} onEdit={onEditCell} /></td>;
+                return <td key={col} className="p-0 align-middle"><Cell contactId={r.contact_id} fieldKey={col} value={r[col]} onEdit={onEditCell} /></td>;
               })}
             </tr>
           ))}
         </tbody>
       </table>
 
-      <footer className="p-2 text-sm text-muted-foreground">Resultados: {total} — Página {page}</footer>
+      <footer className="p-2 text-xs text-muted-foreground border-t flex items-center justify-between">
+        <span>Resultados: <strong className="text-foreground">{total}</strong></span>
+        <span>Página {page}</span>
+      </footer>
+
 
       {openFilterFor && typeof document !== "undefined" && (
         createPortal(
@@ -145,6 +171,6 @@ export default function SheetContainer({
 
 function previewComposite(v: unknown) {
   if (!v) return "—";
-  if (typeof v === "object") return Object.values(v as Record<string, any>).filter(Boolean).join(", ");
+  if (typeof v === "object") return Object.values(v as Record<string, any>).filter(Boolean).join(" · ");
   return String(v);
 }
