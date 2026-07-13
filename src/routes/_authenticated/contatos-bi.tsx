@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { listContactsSheet } from "@/lib/contacts-sheet.functions";
 import { updateContactField } from "@/lib/update-contact-field.functions";
-import { idsByFilter, bulkApplyTag, exportContactsCsv } from "@/lib/crm-bulk.functions";
+import { idsByFilter, bulkApplyTag, exportContactsCsv, copyContactsFormatted } from "@/lib/crm-bulk.functions";
 import { createTag } from "@/lib/contacts.functions";
 import ColumnPickerPanel from "@/components/contacts-sheet/ColumnPickerPanel";
 import SavedViewsControl from "@/components/contacts-sheet/SavedViewsControl";
