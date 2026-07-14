@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Megaphone, CheckCircle2, MessageCircle, Loader2 } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
+import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
 
 export type AddressValue = {
   cep?: string; endereco?: string; numero?: string; complemento?: string;
