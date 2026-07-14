@@ -101,7 +101,7 @@ export function PublicFormRenderer({
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-muted/20" translate="no">
       <header className="border-b bg-background">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center">
           <Link to="/" className="flex items-center gap-2">

@@ -9,6 +9,7 @@ export const Route = createFileRoute("/cadastro-usuario")({
     meta: [
       { title: "Cadastro de usuário — Campanha do Povo que Batalha" },
       { name: "description", content: "Cadastre-se para acessar o painel da Campanha do Povo que Batalha." },
+      { name: "google", content: "notranslate" },
     ],
   }),
   ssr: false,

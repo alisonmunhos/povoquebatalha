@@ -8,6 +8,7 @@ export const Route = createFileRoute("/inscrever")({
     meta: [
       { title: "Quero receber informações da campanha" },
       { name: "description", content: "Inscreva-se para receber notícias da campanha pelo WhatsApp." },
+      { name: "google", content: "notranslate" },
     ],
   }),
   ssr: false,

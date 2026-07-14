@@ -16,6 +16,7 @@ export const Route = createFileRoute("/atualizacao")({
       { name: "description", content: "Atualize seus dados para continuar recebendo comunicados da Campanha do Povo que Batalha." },
       { property: "og:title", content: "Atualização de Apoiadores" },
       { property: "og:description", content: "Confirme seus dados e receba comunicados pelo WhatsApp." },
+      { name: "google", content: "notranslate" },
     ],
   }),
   ssr: false,

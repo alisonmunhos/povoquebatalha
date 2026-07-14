@@ -6,6 +6,7 @@ export const Route = createFileRoute("/cadastro-agitador")({
     meta: [
       { title: "Cadastro de agitador — Campanha do Povo que Batalha" },
       { name: "description", content: "Cadastre-se como agitador(a) voluntário(a) da Campanha do Povo que Batalha." },
+      { name: "google", content: "notranslate" },
     ],
   }),
   ssr: false,
