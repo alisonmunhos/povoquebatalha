@@ -35,6 +35,7 @@ export function PublicFormRenderer({
   refToken?: string;
   recadToken?: string;
 }) {
+  useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [submitting, setSubmitting] = useState(false);
