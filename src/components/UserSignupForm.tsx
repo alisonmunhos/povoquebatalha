@@ -6,6 +6,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { Megaphone, CheckCircle2, MessageCircle } from "lucide-react";
+import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
 
 type SuccessState = { whatsappPhone: string | null; nome: string };
 
@@ -18,6 +19,7 @@ export function UserSignupForm({
   waConfirmMessage: string;
   extraBody?: Record<string, unknown>;
 }) {
+  useDeployRefresh();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);

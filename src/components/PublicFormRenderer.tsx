@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Megaphone, CheckCircle2, MessageCircle, Loader2 } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
+import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
 
 export type AddressValue = {
   cep?: string; endereco?: string; numero?: string; complemento?: string;
@@ -34,6 +35,7 @@ export function PublicFormRenderer({
   refToken?: string;
   recadToken?: string;
 }) {
+  useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [submitting, setSubmitting] = useState(false);
