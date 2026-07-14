@@ -19,6 +19,7 @@ export function UserSignupForm({
   waConfirmMessage: string;
   extraBody?: Record<string, unknown>;
 }) {
+  useDeployRefresh();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
