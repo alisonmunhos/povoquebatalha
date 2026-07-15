@@ -52,7 +52,10 @@ export function UserSignupForm({
         body: JSON.stringify(body),
       });
       const json = await r.json();
-      if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao enviar cadastro.");
+      if (!r.ok || !json.ok) {
+        if (json.code) setErrorCode(json.code as string);
+        throw new Error(json.error ?? "Erro ao enviar cadastro.");
+      }
       setSuccess({ whatsappPhone: json.whatsapp_phone ?? null, nome: body.nome });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar cadastro.");
