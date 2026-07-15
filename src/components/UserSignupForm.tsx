@@ -29,6 +29,7 @@ export function UserSignupForm({
     e.preventDefault();
     setError(null);
     setErrorCode(null);
+    const fd = new FormData(e.currentTarget);
     const password = String(fd.get("password") ?? "");
     const confirm = String(fd.get("confirm") ?? "");
     if (password !== confirm) {
