@@ -22,11 +22,13 @@ export function UserSignupForm({
   useDeployRefresh();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setErrorCode(null);
     const fd = new FormData(e.currentTarget);
     const password = String(fd.get("password") ?? "");
     const confirm = String(fd.get("confirm") ?? "");
@@ -50,7 +52,10 @@ export function UserSignupForm({
         body: JSON.stringify(body),
       });
       const json = await r.json();
-      if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao enviar cadastro.");
+      if (!r.ok || !json.ok) {
+        if (json.code) setErrorCode(json.code as string);
+        throw new Error(json.error ?? "Erro ao enviar cadastro.");
+      }
       setSuccess({ whatsappPhone: json.whatsapp_phone ?? null, nome: body.nome });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar cadastro.");
@@ -74,7 +79,12 @@ export function UserSignupForm({
           <SuccessScreen state={success} waConfirmMessage={waConfirmMessage} />
         ) : (
           <>
-            <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+              <Link to="/auth" className="text-sm text-primary hover:underline whitespace-nowrap mt-2 shrink-0">
+                Já tem conta? Fazer login
+              </Link>
+            </div>
             <p className="mt-2 text-muted-foreground">{intro}</p>
             <form onSubmit={onSubmit} className="mt-6 space-y-4 bg-card border rounded-xl p-6">
               <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
@@ -99,7 +109,19 @@ export function UserSignupForm({
                 <label className="text-sm font-medium">Confirmar senha *</label>
                 <input type="password" name="confirm" required minLength={8} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                  <p className="text-sm text-destructive">{error}</p>
+                  {errorCode === "email_already_registered" && (
+                    <Link
+                      to="/auth"
+                      className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90"
+                    >
+                      Ir para o login
+                    </Link>
+                  )}
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={submitting}
