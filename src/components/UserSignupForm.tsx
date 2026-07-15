@@ -22,6 +22,7 @@ export function UserSignupForm({
   useDeployRefresh();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
