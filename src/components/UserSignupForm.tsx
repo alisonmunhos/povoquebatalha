@@ -109,7 +109,19 @@ export function UserSignupForm({
                 <label className="text-sm font-medium">Confirmar senha *</label>
                 <input type="password" name="confirm" required minLength={8} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                  <p className="text-sm text-destructive">{error}</p>
+                  {errorCode === "email_already_registered" && (
+                    <Link
+                      to="/auth"
+                      className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90"
+                    >
+                      Ir para o login
+                    </Link>
+                  )}
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={submitting}
