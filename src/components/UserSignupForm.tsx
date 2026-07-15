@@ -79,7 +79,12 @@ export function UserSignupForm({
           <SuccessScreen state={success} waConfirmMessage={waConfirmMessage} />
         ) : (
           <>
-            <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+              <Link to="/auth" className="text-sm text-primary hover:underline whitespace-nowrap mt-2 shrink-0">
+                Já tem conta? Fazer login
+              </Link>
+            </div>
             <p className="mt-2 text-muted-foreground">{intro}</p>
             <form onSubmit={onSubmit} className="mt-6 space-y-4 bg-card border rounded-xl p-6">
               <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
