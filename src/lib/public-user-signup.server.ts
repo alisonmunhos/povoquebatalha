@@ -63,7 +63,7 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
   const { data: existing } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
   if ((existing?.users ?? []).some((u: { email?: string | null }) => (u.email ?? "").toLowerCase() === d.email)) {
     return new Response(
-      JSON.stringify({ ok: false, error: "Este e-mail já está cadastrado. Se você já tem conta, faça login normalmente." }),
+      JSON.stringify({ ok: false, code: "email_already_registered", error: "Este e-mail já está cadastrado. Se você já tem conta, faça login normalmente." }),
       { status: 409, headers: cors },
     );
   }
