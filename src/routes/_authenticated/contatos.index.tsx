@@ -135,8 +135,8 @@ function Contatos() {
     const encoded = encodeBase64UrlSafe(filters);
     const isDefaultFilter = encoded === encodeBase64UrlSafe({ archived: "todos" });
     navigate({
-      search: (prev) => ({
-        ...(prev as Record<string, unknown>),
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
         f: isDefaultFilter ? undefined : encoded,
         q: searchInput.trim() ? searchInput.trim() : undefined,
         s: sort !== "name" ? sort : undefined,
