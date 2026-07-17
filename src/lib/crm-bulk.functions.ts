@@ -315,7 +315,7 @@ export const exportContactsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).min(1).max(10000) }).parse(d))
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase as unknown as SupabaseClientLike;
+    const supabase = context.supabase;
     const selectCols =
       "id,nome,nome_social,phone_raw,phone_e164,phone_secundario_raw,email,email_secundario,cep,endereco,numero,complemento,bairro,referencia,cidade,uf,profissao,instituicao,tipo_contato,coletivo_alicerce,participa_movimento_social,movimento_social_nome,formas_ajuda,formas_ajuda_outro,disponibilidade,quem_indicou,rede_social,zona_eleitoral,como_conheceu,faixa_etaria,observacoes,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe";
 
