@@ -642,8 +642,8 @@ function Contatos() {
           <>
             <span>Página {page} de {Math.ceil(q.data.total / pageSize)}</span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / pageSize)} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p: number) => Math.max(1, p - 1))}>Anterior</Button>
+              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / pageSize)} onClick={() => setPage((p: number) => p + 1)}>Próxima</Button>
             </div>
           </>
         )}
