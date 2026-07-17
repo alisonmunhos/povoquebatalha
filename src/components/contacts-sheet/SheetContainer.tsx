@@ -52,6 +52,15 @@ export default function SheetContainer({
     if (info.uiType === "array" || info.uiType === "tag") return Array.isArray(v) && v.length > 0;
     return false;
   }
+  function getActiveFilterValues(col: string): string[] | null {
+    const info = resolveFilterField(col);
+    if (!info) return null;
+    if (info.uiType !== "array" && info.uiType !== "tag") return null;
+    const v = (currentFilters as any)?.[info.filterKey];
+    if (!Array.isArray(v)) return null;
+    const cleaned = v.filter((x: string) => x !== "__EMPTY__");
+    return cleaned.length ? cleaned : null;
+  }
   function openFilter(col: string, anchor: HTMLElement) {
     const rect = anchor.getBoundingClientRect();
     if (!anchor.isConnected || !Number.isFinite(rect.left) || !Number.isFinite(rect.bottom)) return;
