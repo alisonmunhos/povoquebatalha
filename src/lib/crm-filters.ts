@@ -166,7 +166,12 @@ export function applyCrmFilters<T extends {
   }
   if (typeof f.coletivo_alicerce === "boolean") q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
   if (f.tipo_contato) q = q.eq("tipo_contato", f.tipo_contato);
-  if (f.tipos_contato?.length) q = q.in("tipo_contato", f.tipos_contato);
+  if (f.tipos_contato?.length) {
+    const { values, empty } = splitEmptyToken(f.tipos_contato);
+    if (empty && values.length) q = q.or(`tipo_contato.in.(${values.map((v) => `"${v}"`).join(",")}),tipo_contato.is.null`);
+    else if (empty) q = q.is("tipo_contato", null);
+    else if (values.length) q = q.in("tipo_contato", values);
+  }
   if (typeof f.participa_movimento_social === "boolean")
     q = q.eq("participa_movimento_social", f.participa_movimento_social);
   if (f.movimentos_sociais?.length) {
