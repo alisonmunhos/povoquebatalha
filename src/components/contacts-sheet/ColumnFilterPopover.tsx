@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { encodeBase64UrlSafe as encodeFilters } from "@/lib/filters-encoding";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { EMPTY_FILTER_TOKEN } from "@/lib/crm-filters";
 import { resolveFilterField, applyColumnFilter, clearColumnFilter } from "@/lib/column-filter-mapping";
 import { getCatalogField } from "@/lib/form-field-catalog";
 
