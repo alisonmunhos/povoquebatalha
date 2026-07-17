@@ -114,7 +114,8 @@ export default function Cell({ contactId, fieldKey, value, onEdit, activeFilterV
 
   // --- FORMAS DE AJUDA / listas de valores ---
   if (fieldKey === "formas_ajuda" && Array.isArray(value)) {
-    const arr = value as string[];
+    const arrAll = value as string[];
+    const arr = filterSet ? arrAll.filter((v) => filterSet.has(v)) : arrAll;
     if (arr.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
     const visible = arr.slice(0, 4);
     const extra = arr.length - visible.length;
