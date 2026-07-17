@@ -148,7 +148,13 @@ export function applyCrmFilters<T extends {
     q = q.or(f.bairros.map((v) => `bairro.ilike.${safe(v)}`).join(","));
   }
   if (f.uf) q = q.eq("uf", f.uf.toUpperCase());
-  if (f.ufs?.length) q = q.in("uf", f.ufs.map((u) => u.toUpperCase()));
+  if (f.ufs?.length) {
+    const { values, empty } = splitEmptyToken(f.ufs);
+    const upper = values.map((u) => u.toUpperCase());
+    if (empty && upper.length) q = q.or(`uf.in.(${upper.map((v) => `"${v}"`).join(",")}),uf.is.null`);
+    else if (empty) q = q.is("uf", null);
+    else if (upper.length) q = q.in("uf", upper);
+  }
 
   // Perfil
   if (f.nome) q = q.ilike("nome", `%${safe(f.nome)}%`);
