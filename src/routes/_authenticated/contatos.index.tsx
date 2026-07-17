@@ -129,6 +129,25 @@ function Contatos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.segment]);
 
+  // Persiste filtros/busca/sort/página na URL — sobrevive a download de CSV,
+  // volta do WhatsApp e permite compartilhar link do estado atual.
+  useEffect(() => {
+    const encoded = encodeBase64UrlSafe(filters);
+    const isDefaultFilter = encoded === encodeBase64UrlSafe({ archived: "todos" });
+    navigate({
+      search: (prev) => ({
+        ...(prev as Record<string, unknown>),
+        f: isDefaultFilter ? undefined : encoded,
+        q: searchInput.trim() ? searchInput.trim() : undefined,
+        s: sort !== "name" ? sort : undefined,
+        p: page > 1 ? page : undefined,
+        ps: pageSize !== 25 ? pageSize : undefined,
+      }) as never,
+      replace: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, searchInput, sort, page, pageSize]);
+
   const q = useQuery({
     queryKey: ["contacts-rich", filters, page, pageSize, sort],
     queryFn: () => listFn({ data: { filters, page, pageSize, sort } }),
