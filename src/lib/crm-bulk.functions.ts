@@ -273,27 +273,74 @@ function csvEsc(v: unknown): string {
   return s;
 }
 
+// Bloco máximo de UUIDs por `.in(...)`. Cada UUID ocupa ~40 chars na URL
+// (com aspas e vírgulas). O Worker/PostgREST cortam URLs muito longas e o
+// erro chega como resposta vazia — por isso paginamos.
+const IN_CHUNK = 200;
+
+async function fetchContactsBatched<T>(
+  supabase: SupabaseClientLike,
+  select: string,
+  ids: string[],
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const { data: rows, error } = await supabase
+      .from("contacts")
+      .select(select)
+      .in("id", chunk);
+    if (error) throw new Error(`Falha ao buscar contatos (bloco ${i}): ${error.message}`);
+    if (rows) out.push(...(rows as T[]));
+  }
+  return out;
+}
+
+async function fetchContactTagsBatched(
+  supabase: SupabaseClientLike,
+  ids: string[],
+): Promise<Array<{ contact_id: string; tags: { nome: string } | null }>> {
+  const out: Array<{ contact_id: string; tags: { nome: string } | null }> = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const { data: rels, error } = await supabase
+      .from("contact_tags")
+      .select("contact_id, tags(nome)")
+      .in("contact_id", chunk);
+    if (error) throw new Error(`Falha ao buscar tags (bloco ${i}): ${error.message}`);
+    if (rels) out.push(...(rels as typeof out));
+  }
+  return out;
+}
+
+type SupabaseClientLike = {
+  from: (t: string) => {
+    select: (s: string) => { in: (col: string, v: string[]) => Promise<{ data: unknown[] | null; error: { message: string } | null }> };
+  };
+};
+
 export const exportContactsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).min(1).max(10000) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows } = await context.supabase
-      .from("contacts")
-      .select(
-        "id,nome,nome_social,phone_raw,phone_e164,phone_secundario_raw,email,email_secundario,cep,endereco,numero,complemento,bairro,referencia,cidade,uf,profissao,instituicao,tipo_contato,coletivo_alicerce,participa_movimento_social,movimento_social_nome,formas_ajuda,formas_ajuda_outro,disponibilidade,quem_indicou,rede_social,zona_eleitoral,como_conheceu,faixa_etaria,observacoes,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe",
-      )
-      .in("id", data.ids);
-    const { data: rels } = await context.supabase
-      .from("contact_tags")
-      .select("contact_id, tags(nome)")
-      .in("contact_id", data.ids);
+    const supabase = context.supabase as unknown as SupabaseClientLike;
+    const selectCols =
+      "id,nome,nome_social,phone_raw,phone_e164,phone_secundario_raw,email,email_secundario,cep,endereco,numero,complemento,bairro,referencia,cidade,uf,profissao,instituicao,tipo_contato,coletivo_alicerce,participa_movimento_social,movimento_social_nome,formas_ajuda,formas_ajuda_outro,disponibilidade,quem_indicou,rede_social,zona_eleitoral,como_conheceu,faixa_etaria,observacoes,lifecycle_status,phone_status,whatsapp_status,consentimento_whatsapp,opt_out_at,origem,origem_detalhe";
+
+    const rows = await fetchContactsBatched<Record<string, unknown> & { id: string }>(
+      supabase,
+      selectCols,
+      data.ids,
+    );
+    const rels = await fetchContactTagsBatched(supabase, data.ids);
+
     const tagMap: Record<string, string[]> = {};
-    for (const r of rels ?? []) {
-      const n = (r.tags as { nome: string } | null)?.nome;
+    for (const r of rels) {
+      const n = r.tags?.nome;
       if (n) (tagMap[r.contact_id] ??= []).push(n);
     }
     const header = CSV_COLS.map((c) => csvEsc(c.label)).join(";");
-    const lines = (rows ?? []).map((row) => {
+    const lines = rows.map((row) => {
       const tags_concat = (tagMap[row.id] ?? []).join("|");
       const formas_ajuda_concat = Array.isArray(row.formas_ajuda) ? (row.formas_ajuda as string[]).join("|") : "";
       const disponibilidade_concat = Array.isArray(row.disponibilidade) ? (row.disponibilidade as string[]).join("|") : "";
@@ -301,7 +348,7 @@ export const exportContactsCsv = createServerFn({ method: "POST" })
       return CSV_COLS.map((c) => csvEsc(fullRow[c.key])).join(";");
     });
     const csv = "\uFEFF" + [header, ...lines].join("\r\n");
-    return { csv, count: rows?.length ?? 0 };
+    return { csv, count: rows.length };
   });
 
 // ===== Cópia formatada (lista simples ou agrupada) =====
