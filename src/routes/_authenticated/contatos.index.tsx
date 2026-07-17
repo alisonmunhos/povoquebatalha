@@ -26,8 +26,18 @@ import { ContactFiltersPanel, type FilterOptionsBundle } from "@/components/Cont
 import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
 import { ColumnFilterHeader, ColumnSortHeader, type ColumnFilterOption } from "@/components/ColumnFilterHeader";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { decodeBase64UrlSafe, encodeBase64UrlSafe } from "@/lib/filters-encoding";
 
-const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
+const searchSchema = z.object({
+  segment: z.string().uuid().optional(),
+  // Filtros/estado da lista persistidos na URL (sobrevive ao download do CSV,
+  // ao voltar do WhatsApp/inbox e ao compartilhar o link com colega).
+  f: z.string().optional(),
+  q: z.string().optional(),
+  s: z.enum(["name", "name-desc", "recent"]).optional(),
+  p: z.coerce.number().int().min(1).optional(),
+  ps: z.coerce.number().int().min(1).max(2000).optional(),
+}).partial();
 
 export const Route = createFileRoute("/_authenticated/contatos/")({
   head: () => ({ meta: [{ title: "Contatos" }] }),
@@ -39,6 +49,7 @@ const LIFECYCLE = ["importado_aguardando_recadastro","link_enviado","recadastro_
 
 function Contatos() {
   const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const listFn = useServerFn(listContactsRich);
   const idsFn = useServerFn(idsByFilter);
   const optionsFn = useServerFn(getContactFilterOptions);
@@ -62,13 +73,18 @@ function Contatos() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
 
-  // Default: mostra todos os contatos (ativos + arquivados) para não "sumir" registros mesclados/arquivados
-  const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
-  const [searchInput, setSearchInput] = useState("");
-  const [page, setPage] = useState(1);
-  // Ordenação: nome A→Z é o padrão pedido; ciclo asc → desc → recent
-  const [sort, setSort] = useState<"name" | "name-desc" | "recent">("name");
-  const [pageSize, setPageSize] = useState(25);
+  // Hidrata estado inicial a partir da URL (filtros, busca, sort, página).
+  const initialFilters = useMemo<CrmFilters>(() => {
+    const parsed = decodeBase64UrlSafe<CrmFilters>(search.f);
+    if (parsed && typeof parsed === "object") return parsed;
+    return { archived: "todos" };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [filters, setFilters] = useState<CrmFilters>(initialFilters);
+  const [searchInput, setSearchInput] = useState(search.q ?? "");
+  const [page, setPage] = useState(search.p ?? 1);
+  const [sort, setSort] = useState<"name" | "name-desc" | "recent">(search.s ?? "name");
+  const [pageSize, setPageSize] = useState(search.ps ?? 25);
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTagId, setBulkTagId] = useState<string>("");
@@ -112,6 +128,25 @@ function Contatos() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.segment]);
+
+  // Persiste filtros/busca/sort/página na URL — sobrevive a download de CSV,
+  // volta do WhatsApp e permite compartilhar link do estado atual.
+  useEffect(() => {
+    const encoded = encodeBase64UrlSafe(filters);
+    const isDefaultFilter = encoded === encodeBase64UrlSafe({ archived: "todos" });
+    navigate({
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        f: isDefaultFilter ? undefined : encoded,
+        q: searchInput.trim() ? searchInput.trim() : undefined,
+        s: sort !== "name" ? sort : undefined,
+        p: page > 1 ? page : undefined,
+        ps: pageSize !== 25 ? pageSize : undefined,
+      }) as never,
+      replace: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, searchInput, sort, page, pageSize]);
 
   const q = useQuery({
     queryKey: ["contacts-rich", filters, page, pageSize, sort],
@@ -626,8 +661,8 @@ function Contatos() {
           <>
             <span>Página {page} de {Math.ceil(q.data.total / pageSize)}</span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / pageSize)} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p: number) => Math.max(1, p - 1))}>Anterior</Button>
+              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / pageSize)} onClick={() => setPage((p: number) => p + 1)}>Próxima</Button>
             </div>
           </>
         )}
