@@ -4,6 +4,16 @@
 //   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
 
+/** Sentinela para "célula vazia" dentro de filtros de array (tags, disponibilidade, etc.). */
+export const EMPTY_FILTER_TOKEN = "__EMPTY__";
+
+/** Separa o token de "vazio" dos valores reais de um filtro de array. */
+export function splitEmptyToken(arr?: string[] | null): { values: string[]; empty: boolean } {
+  if (!arr || !arr.length) return { values: [], empty: false };
+  const empty = arr.includes(EMPTY_FILTER_TOKEN);
+  return { values: arr.filter((v) => v !== EMPTY_FILTER_TOKEN), empty };
+}
+
 export const crmFilterSchema = z.object({
   // Busca geral
   search: z.string().trim().optional(),
