@@ -279,45 +279,37 @@ function csvEsc(v: unknown): string {
 const IN_CHUNK = 200;
 
 async function fetchContactsBatched<T>(
-  supabase: SupabaseClientLike,
+  supabase: unknown,
   select: string,
   ids: string[],
 ): Promise<T[]> {
+  const client = supabase as { from: (t: string) => { select: (s: string) => { in: (c: string, v: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> } } };
   const out: T[] = [];
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const chunk = ids.slice(i, i + IN_CHUNK);
-    const { data: rows, error } = await supabase
-      .from("contacts")
-      .select(select)
-      .in("id", chunk);
+    const { data: rows, error } = await client.from("contacts").select(select).in("id", chunk);
     if (error) throw new Error(`Falha ao buscar contatos (bloco ${i}): ${error.message}`);
-    if (rows) out.push(...(rows as T[]));
+    if (rows) out.push(...rows);
   }
   return out;
 }
 
 async function fetchContactTagsBatched(
-  supabase: SupabaseClientLike,
+  supabase: unknown,
   ids: string[],
 ): Promise<Array<{ contact_id: string; tags: { nome: string } | null }>> {
-  const out: Array<{ contact_id: string; tags: { nome: string } | null }> = [];
+  type Rel = { contact_id: string; tags: { nome: string } | null };
+  const client = supabase as { from: (t: string) => { select: (s: string) => { in: (c: string, v: string[]) => PromiseLike<{ data: Rel[] | null; error: { message: string } | null }> } } };
+  const out: Rel[] = [];
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const chunk = ids.slice(i, i + IN_CHUNK);
-    const { data: rels, error } = await supabase
-      .from("contact_tags")
-      .select("contact_id, tags(nome)")
-      .in("contact_id", chunk);
+    const { data: rels, error } = await client.from("contact_tags").select("contact_id, tags(nome)").in("contact_id", chunk);
     if (error) throw new Error(`Falha ao buscar tags (bloco ${i}): ${error.message}`);
-    if (rels) out.push(...(rels as typeof out));
+    if (rels) out.push(...rels);
   }
   return out;
 }
 
-type SupabaseClientLike = {
-  from: (t: string) => {
-    select: (s: string) => { in: (col: string, v: string[]) => Promise<{ data: unknown[] | null; error: { message: string } | null }> };
-  };
-};
 
 export const exportContactsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
