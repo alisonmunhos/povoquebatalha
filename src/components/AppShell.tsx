@@ -40,6 +40,7 @@ const groups: NavGroup[] = [
     items: [
       { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm"] },
       { to: "/agitacao", label: "Agitação", icon: Zap, hint: "Captação rápida por WhatsApp.", roles: ["admin", "operador", "vrm", "comunicacao", "leitor", "agitador"] },
+      { to: "/missoes-agitacao", label: "Missões de Agitação", icon: Megaphone, hint: "Atribua pacotes de contatos a um responsável, com link exclusivo de envio.", roles: ["admin"] },
     ],
   },
 

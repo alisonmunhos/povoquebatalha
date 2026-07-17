@@ -94,6 +94,75 @@ export type Database = {
           },
         ]
       }
+      agitation_missions: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          message_template: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          message_template: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          message_template?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      agitation_tasks: {
+        Row: {
+          assigned_user_id: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          mission_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          mission_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_user_id?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          mission_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agitation_tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agitation_tasks_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "agitation_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auto_reply_log: {
         Row: {
           contact_id: string | null
