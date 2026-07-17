@@ -53,7 +53,7 @@ import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
-import { Route as MissaoMissionIdUserUserIdRouteImport } from './routes/missao/$missionId/user/$userId'
+import { Route as MissaoMissionIdContatoContactIdRouteImport } from './routes/missao/$missionId/contato/$contactId'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/api/public/jobs/process-campaign-queue'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
@@ -63,7 +63,7 @@ import { Route as ApiPublicFormsCadastroUsuarioRouteImport } from './routes/api/
 import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
 import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/forms/$slug'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
-import { Route as ApiPublicAgitationMissionsMissionIdUserIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$userId'
+import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$contactId'
 
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
   id: '/redefinir-senha',
@@ -298,10 +298,10 @@ const AuthenticatedCampanhasIdRoute =
     path: '/campanhas/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const MissaoMissionIdUserUserIdRoute =
-  MissaoMissionIdUserUserIdRouteImport.update({
-    id: '/missao/$missionId/user/$userId',
-    path: '/missao/$missionId/user/$userId',
+const MissaoMissionIdContatoContactIdRoute =
+  MissaoMissionIdContatoContactIdRouteImport.update({
+    id: '/missao/$missionId/contato/$contactId',
+    path: '/missao/$missionId/contato/$contactId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
@@ -353,10 +353,10 @@ const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   path: '/api/public/cep/$cep',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicAgitationMissionsMissionIdUserIdRoute =
-  ApiPublicAgitationMissionsMissionIdUserIdRouteImport.update({
-    id: '/api/public/agitation-missions/$missionId/$userId',
-    path: '/api/public/agitation-missions/$missionId/$userId',
+const ApiPublicAgitationMissionsMissionIdContactIdRoute =
+  ApiPublicAgitationMissionsMissionIdContactIdRouteImport.update({
+    id: '/api/public/agitation-missions/$missionId/$contactId',
+    path: '/api/public/agitation-missions/$missionId/$contactId',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -413,8 +413,8 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
-  '/missao/$missionId/user/$userId': typeof MissaoMissionIdUserUserIdRoute
-  '/api/public/agitation-missions/$missionId/$userId': typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
+  '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
+  '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -468,8 +468,8 @@ export interface FileRoutesByTo {
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
-  '/missao/$missionId/user/$userId': typeof MissaoMissionIdUserUserIdRoute
-  '/api/public/agitation-missions/$missionId/$userId': typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
+  '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
+  '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -526,8 +526,8 @@ export interface FileRoutesById {
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
-  '/missao/$missionId/user/$userId': typeof MissaoMissionIdUserUserIdRoute
-  '/api/public/agitation-missions/$missionId/$userId': typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
+  '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
+  '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -584,8 +584,8 @@ export interface FileRouteTypes {
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
-    | '/missao/$missionId/user/$userId'
-    | '/api/public/agitation-missions/$missionId/$userId'
+    | '/missao/$missionId/contato/$contactId'
+    | '/api/public/agitation-missions/$missionId/$contactId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -639,8 +639,8 @@ export interface FileRouteTypes {
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
-    | '/missao/$missionId/user/$userId'
-    | '/api/public/agitation-missions/$missionId/$userId'
+    | '/missao/$missionId/contato/$contactId'
+    | '/api/public/agitation-missions/$missionId/$contactId'
   id:
     | '__root__'
     | '/'
@@ -696,8 +696,8 @@ export interface FileRouteTypes {
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
-    | '/missao/$missionId/user/$userId'
-    | '/api/public/agitation-missions/$missionId/$userId'
+    | '/missao/$missionId/contato/$contactId'
+    | '/api/public/agitation-missions/$missionId/$contactId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -725,8 +725,8 @@ export interface RootRouteChildren {
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
   ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
   ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
-  MissaoMissionIdUserUserIdRoute: typeof MissaoMissionIdUserUserIdRoute
-  ApiPublicAgitationMissionsMissionIdUserIdRoute: typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
+  MissaoMissionIdContatoContactIdRoute: typeof MissaoMissionIdContatoContactIdRoute
+  ApiPublicAgitationMissionsMissionIdContactIdRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1039,11 +1039,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampanhasIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/missao/$missionId/user/$userId': {
-      id: '/missao/$missionId/user/$userId'
-      path: '/missao/$missionId/user/$userId'
-      fullPath: '/missao/$missionId/user/$userId'
-      preLoaderRoute: typeof MissaoMissionIdUserUserIdRouteImport
+    '/missao/$missionId/contato/$contactId': {
+      id: '/missao/$missionId/contato/$contactId'
+      path: '/missao/$missionId/contato/$contactId'
+      fullPath: '/missao/$missionId/contato/$contactId'
+      preLoaderRoute: typeof MissaoMissionIdContatoContactIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/zapi/$evento': {
@@ -1109,11 +1109,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCepCepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/agitation-missions/$missionId/$userId': {
-      id: '/api/public/agitation-missions/$missionId/$userId'
-      path: '/api/public/agitation-missions/$missionId/$userId'
-      fullPath: '/api/public/agitation-missions/$missionId/$userId'
-      preLoaderRoute: typeof ApiPublicAgitationMissionsMissionIdUserIdRouteImport
+    '/api/public/agitation-missions/$missionId/$contactId': {
+      id: '/api/public/agitation-missions/$missionId/$contactId'
+      path: '/api/public/agitation-missions/$missionId/$contactId'
+      fullPath: '/api/public/agitation-missions/$missionId/$contactId'
+      preLoaderRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1238,9 +1238,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsProcessCampaignQueueRoute:
     ApiPublicJobsProcessCampaignQueueRoute,
   ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
-  MissaoMissionIdUserUserIdRoute: MissaoMissionIdUserUserIdRoute,
-  ApiPublicAgitationMissionsMissionIdUserIdRoute:
-    ApiPublicAgitationMissionsMissionIdUserIdRoute,
+  MissaoMissionIdContatoContactIdRoute: MissaoMissionIdContatoContactIdRoute,
+  ApiPublicAgitationMissionsMissionIdContactIdRoute:
+    ApiPublicAgitationMissionsMissionIdContactIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

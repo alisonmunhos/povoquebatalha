@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   MessageComposer,
   emptyComposerValue,
@@ -32,6 +33,7 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
   const createFn = useServerFn(createAgitationMission);
   const [title, setTitle] = useState("");
   const [composer, setComposer] = useState(emptyComposerValue());
+  const [verifyWhatsapp, setVerifyWhatsapp] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function onSubmit() {
@@ -43,10 +45,16 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
         data: {
           title: title.trim(),
           message_template: composer.body,
+          verify_whatsapp: verifyWhatsapp,
           ...("ids" in source ? { ids: source.ids } : { filters: source.filters }),
         },
       });
-      toast.success(`Missão criada com ${r.total} contato(s).`);
+      const partes = [`Missão criada com ${r.total} contato(s).`];
+      if (r.ignorados_sem_telefone)
+        partes.push(`${r.ignorados_sem_telefone} ignorado(s) sem telefone.`);
+      if (r.ignorados_sem_whatsapp)
+        partes.push(`${r.ignorados_sem_whatsapp} ignorado(s) sem WhatsApp.`);
+      toast.success(partes.join(" "));
       onOpenChange(false);
       navigate({ to: "/missoes-agitacao/$missionId", params: { missionId: r.mission_id } });
     } catch (e) {
@@ -81,6 +89,11 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
             variables={COMPOSER_VARIABLES}
             bodyPlaceholder="Escreva a mensagem que os responsáveis vão enviar. Use as variáveis abaixo para personalizar."
           />
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <Checkbox checked={verifyWhatsapp} onCheckedChange={(v) => setVerifyWhatsapp(!!v)} />
+            Verificar WhatsApp antes de criar (mais lento — só entram contatos com WhatsApp
+            confirmado)
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

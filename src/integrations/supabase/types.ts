@@ -94,12 +94,47 @@ export type Database = {
           },
         ]
       }
+      agitation_link_pauses: {
+        Row: {
+          contact_id: string
+          mission_id: string
+          paused_at: string
+        }
+        Insert: {
+          contact_id: string
+          mission_id: string
+          paused_at?: string
+        }
+        Update: {
+          contact_id?: string
+          mission_id?: string
+          paused_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agitation_link_pauses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agitation_link_pauses_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "agitation_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agitation_missions: {
         Row: {
           created_at: string
           created_by: string
           id: string
           message_template: string
+          paused_at: string | null
+          source_filters: Json | null
           title: string
         }
         Insert: {
@@ -107,6 +142,8 @@ export type Database = {
           created_by: string
           id?: string
           message_template: string
+          paused_at?: string | null
+          source_filters?: Json | null
           title: string
         }
         Update: {
@@ -114,13 +151,16 @@ export type Database = {
           created_by?: string
           id?: string
           message_template?: string
+          paused_at?: string | null
+          source_filters?: Json | null
           title?: string
         }
         Relationships: []
       }
       agitation_tasks: {
         Row: {
-          assigned_user_id: string | null
+          assigned_at: string | null
+          assigned_contact_id: string | null
           contact_id: string
           created_at: string
           id: string
@@ -129,7 +169,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          assigned_user_id?: string | null
+          assigned_at?: string | null
+          assigned_contact_id?: string | null
           contact_id: string
           created_at?: string
           id?: string
@@ -138,7 +179,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          assigned_user_id?: string | null
+          assigned_at?: string | null
+          assigned_contact_id?: string | null
           contact_id?: string
           created_at?: string
           id?: string
@@ -147,6 +189,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "agitation_tasks_assigned_contact_id_fkey"
+            columns: ["assigned_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agitation_tasks_contact_id_fkey"
             columns: ["contact_id"]
