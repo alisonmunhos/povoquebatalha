@@ -26,8 +26,18 @@ import { ContactFiltersPanel, type FilterOptionsBundle } from "@/components/Cont
 import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
 import { ColumnFilterHeader, ColumnSortHeader, type ColumnFilterOption } from "@/components/ColumnFilterHeader";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { decodeBase64UrlSafe, encodeBase64UrlSafe } from "@/lib/filters-encoding";
 
-const searchSchema = z.object({ segment: z.string().uuid().optional() }).partial();
+const searchSchema = z.object({
+  segment: z.string().uuid().optional(),
+  // Filtros/estado da lista persistidos na URL (sobrevive ao download do CSV,
+  // ao voltar do WhatsApp/inbox e ao compartilhar o link com colega).
+  f: z.string().optional(),
+  q: z.string().optional(),
+  s: z.enum(["name", "name-desc", "recent"]).optional(),
+  p: z.coerce.number().int().min(1).optional(),
+  ps: z.coerce.number().int().min(1).max(2000).optional(),
+}).partial();
 
 export const Route = createFileRoute("/_authenticated/contatos/")({
   head: () => ({ meta: [{ title: "Contatos" }] }),
