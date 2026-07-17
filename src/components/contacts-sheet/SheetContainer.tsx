@@ -146,7 +146,7 @@ export default function SheetContainer({
                     </td>
                   );
                 }
-                return <td key={col} className="p-0 align-middle"><Cell contactId={r.contact_id} fieldKey={col} value={r[col]} onEdit={onEditCell} /></td>;
+                return <td key={col} className="p-0 align-middle"><Cell contactId={r.contact_id} fieldKey={col} value={r[col]} onEdit={onEditCell} activeFilterValues={getActiveFilterValues(col)} /></td>;
               })}
             </tr>
           ))}
