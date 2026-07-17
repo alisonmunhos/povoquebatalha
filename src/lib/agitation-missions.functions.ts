@@ -16,6 +16,10 @@ const createMissionSchema = z.object({
   message_template: z.string().min(1).max(4000),
   ids: z.array(z.string().uuid()).max(20000).optional(),
   filters: crmFilterSchema.partial().optional(),
+  // Quando true, roda a mesma checagem real de WhatsApp (Z-API) já usada em
+  // "Verificar no WhatsApp" da Gestão da Base antes de criar as tarefas —
+  // mais lento, mas garante que só entra quem tem WhatsApp confirmado.
+  verify_whatsapp: z.boolean().optional(),
 });
 
 export const createAgitationMission = createServerFn({ method: "POST" })
@@ -44,25 +48,112 @@ export const createAgitationMission = createServerFn({ method: "POST" })
     }
     if (!baseIds.length) throw new Error("Nenhum contato selecionado.");
 
+    // Sempre exclui quem não tem telefone nenhum cadastrado.
+    const { data: contatos, error: cErr } = await context.supabase
+      .from("contacts")
+      .select("id,phone_e164,phone_whatsapp_candidate")
+      .in("id", baseIds);
+    if (cErr) throw cErr;
+    const comTelefone = (contatos ?? []).filter((c) => !!c.phone_e164);
+    const ignorados_sem_telefone = baseIds.length - comTelefone.length;
+
+    let elegiveis = comTelefone;
+    let ignorados_sem_whatsapp = 0;
+    if (data.verify_whatsapp && comTelefone.length) {
+      const { zapi, hasZapiEnv } = await import("@/integrations/zapi/client.server");
+      if (!hasZapiEnv()) {
+        throw new Error(
+          "Z-API não está configurada. Configure ZAPI_INSTANCE_ID/TOKEN/CLIENT_TOKEN.",
+        );
+      }
+      const checkable = comTelefone
+        .map((c) => ({
+          id: c.id,
+          phone: (c.phone_whatsapp_candidate ?? c.phone_e164 ?? "").replace(/\D+/g, ""),
+        }))
+        .filter((c) => c.phone.length >= 10);
+      if (checkable.length) {
+        let results: Array<{ exists?: boolean; inputPhone?: string }> | null = null;
+        try {
+          results = await zapi.phoneExistsBatch(checkable.map((c) => c.phone));
+        } catch {
+          // Falha na chamada em lote inteira — não bloqueia a missão, só não
+          // filtra por WhatsApp (mesma postura de checkWhatsappForContacts):
+          // mantém `elegiveis` como já estava (comTelefone), sem marcar nada.
+        }
+        if (results) {
+          const nowIso = new Date().toISOString();
+          const confirmedIds = new Set<string>();
+          const byPhone = new Map(
+            results.map((r) => [(r.inputPhone ?? "").replace(/\D+/g, ""), r] as const),
+          );
+          for (const { id, phone } of checkable) {
+            const res = byPhone.get(phone);
+            const exists = Boolean(res?.exists);
+            if (exists) confirmedIds.add(id);
+            await context.supabase
+              .from("contacts")
+              .update({
+                whatsapp_status: exists ? "confirmado" : "invalido",
+                whatsapp_checked_at: nowIso,
+              } as never)
+              .eq("id", id);
+          }
+          elegiveis = comTelefone.filter((c) => confirmedIds.has(c.id));
+          ignorados_sem_whatsapp = comTelefone.length - elegiveis.length;
+        }
+      }
+    }
+    if (!elegiveis.length)
+      throw new Error("Nenhum contato elegível (com telefone válido) restou após os filtros.");
+
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
       .insert({
         title: data.title,
         message_template: data.message_template,
         created_by: context.userId,
+        source_filters: (!data.ids && data.filters ? data.filters : null) as never,
       })
       .select("id")
       .single();
     if (error) throw error;
 
-    const rows = baseIds.map((contact_id) => ({ mission_id: mission.id, contact_id }));
+    const rows = elegiveis.map((c) => ({ mission_id: mission.id, contact_id: c.id }));
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500);
       const { error: e2 } = await context.supabase.from("agitation_tasks").insert(chunk);
       if (e2) throw e2;
     }
 
-    return { ok: true as const, mission_id: mission.id, total: baseIds.length };
+    return {
+      ok: true as const,
+      mission_id: mission.id,
+      total: elegiveis.length,
+      ignorados_sem_telefone,
+      ignorados_sem_whatsapp,
+    };
+  });
+
+// ===== Editar título/mensagem de uma missão já criada =====
+const updateMissionSchema = z.object({
+  mission_id: z.string().uuid(),
+  title: z.string().trim().min(2).max(160),
+  message_template: z.string().min(1).max(4000),
+});
+
+export const updateAgitationMission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => updateMissionSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    // A mensagem é sempre renderizada na hora (não congelada), então editar
+    // aqui já reflete em todos os links ativos automaticamente.
+    const { error } = await context.supabase
+      .from("agitation_missions")
+      .update({ title: data.title, message_template: data.message_template })
+      .eq("id", data.mission_id);
+    if (error) throw error;
+    return { ok: true as const };
   });
 
 // ===== Listagem de missões (com contagens) =====
@@ -112,14 +203,16 @@ export const getMissionDetail = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
-      .select("id,title,message_template,created_at")
+      .select("id,title,message_template,created_at,source_filters,paused_at")
       .eq("id", data.mission_id)
       .single();
     if (error) throw error;
 
     const { data: tasks, error: e2 } = await context.supabase
       .from("agitation_tasks")
-      .select("id,status,assigned_contact_id,created_at,contacts(id,nome,phone_e164,cidade)")
+      .select(
+        "id,status,assigned_contact_id,assigned_at,created_at,contacts(id,nome,phone_e164,cidade)",
+      )
       .eq("mission_id", data.mission_id)
       .order("created_at", { ascending: true });
     if (e2) throw e2;
@@ -136,6 +229,46 @@ export const getMissionDetail = createServerFn({ method: "GET" })
       (assignedContacts ?? []).forEach((c) => nameById.set(c.id, c.nome));
     }
 
+    const pausedContactIds = new Set<string>();
+    if (assignedIds.length) {
+      const { data: pauses } = await context.supabase
+        .from("agitation_link_pauses")
+        .select("contact_id")
+        .eq("mission_id", data.mission_id)
+        .in("contact_id", assignedIds);
+      (pauses ?? []).forEach((p) => pausedContactIds.add(p.contact_id));
+    }
+
+    // Agrupa as tarefas já atribuídas por responsável — resolve "ver os links
+    // atribuídos" sem precisar de uma tabela própria de atribuição.
+    const linkStats = new Map<
+      string,
+      {
+        contact_id: string;
+        nome: string | null;
+        total: number;
+        concluidos: number;
+        nao_enviados: number;
+        pendentes: number;
+      }
+    >();
+    for (const t of tasks ?? []) {
+      if (!t.assigned_contact_id) continue;
+      const s = linkStats.get(t.assigned_contact_id) ?? {
+        contact_id: t.assigned_contact_id,
+        nome: nameById.get(t.assigned_contact_id) ?? null,
+        total: 0,
+        concluidos: 0,
+        nao_enviados: 0,
+        pendentes: 0,
+      };
+      s.total++;
+      if (t.status === "concluido") s.concluidos++;
+      else if (t.status === "nao_enviado") s.nao_enviados++;
+      else s.pendentes++;
+      linkStats.set(t.assigned_contact_id, s);
+    }
+
     return {
       mission,
       tasks: (tasks ?? []).map((t) => ({
@@ -145,7 +278,13 @@ export const getMissionDetail = createServerFn({ method: "GET" })
         assigned_contact_name: t.assigned_contact_id
           ? (nameById.get(t.assigned_contact_id) ?? null)
           : null,
+        assigned_at: t.assigned_at,
         contact: t.contacts,
+      })),
+      links: Array.from(linkStats.values()).map((s) => ({
+        ...s,
+        link: `/missao/${data.mission_id}/contato/${s.contact_id}`,
+        paused: pausedContactIds.has(s.contact_id),
       })),
     };
   });
@@ -194,7 +333,10 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: updated, error } = await context.supabase
       .from("agitation_tasks")
-      .update({ assigned_contact_id: data.assigned_contact_id })
+      .update({
+        assigned_contact_id: data.assigned_contact_id,
+        assigned_at: new Date().toISOString(),
+      })
       .eq("mission_id", data.mission_id)
       .in("id", data.task_ids)
       .is("assigned_contact_id", null)
@@ -206,6 +348,73 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
       updated: updated?.length ?? 0,
       link: `/missao/${data.mission_id}/contato/${data.assigned_contact_id}`,
     };
+  });
+
+// ===== Desfazer atribuição (volta pra lista de "sem atribuição") =====
+const unassignSchema = z.object({ task_id: z.string().uuid() });
+
+export const unassignMissionTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => unassignSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_tasks")
+      .update({ assigned_contact_id: null, assigned_at: null, status: "pending" })
+      .eq("id", data.task_id);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+// ===== Pausar/retomar missão inteira =====
+export const pauseMission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_missions")
+      .update({ paused_at: new Date().toISOString() })
+      .eq("id", data.mission_id);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+export const resumeMission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_missions")
+      .update({ paused_at: null })
+      .eq("id", data.mission_id);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+// ===== Pausar/retomar só o link de um responsável específico =====
+const linkPauseSchema = z.object({ mission_id: z.string().uuid(), contact_id: z.string().uuid() });
+
+export const pauseAssignmentLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => linkPauseSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_link_pauses")
+      .upsert({ mission_id: data.mission_id, contact_id: data.contact_id });
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+export const resumeAssignmentLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => linkPauseSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_link_pauses")
+      .delete()
+      .eq("mission_id", data.mission_id)
+      .eq("contact_id", data.contact_id);
+    if (error) throw error;
+    return { ok: true as const };
   });
 
 // As rotas públicas (sem login) usadas pelo link exclusivo do executor não vivem
