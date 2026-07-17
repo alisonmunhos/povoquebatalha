@@ -16,8 +16,8 @@ export const Route = createFileRoute("/_authenticated/missoes-agitacao/$missionI
 type Task = {
   id: string;
   status: string;
-  assigned_user_id: string | null;
-  assigned_user_name: string | null;
+  assigned_contact_id: string | null;
+  assigned_contact_name: string | null;
   contact: {
     id: string;
     nome: string | null;
@@ -39,7 +39,7 @@ function MissionDetailsPanel() {
   });
 
   const tasks = (q.data?.tasks ?? []) as Task[];
-  const pendentes = tasks.filter((t) => !t.assigned_user_id);
+  const pendentes = tasks.filter((t) => !t.assigned_contact_id);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -100,7 +100,7 @@ function MissionDetailsPanel() {
           <div key={t.id} className="flex items-center gap-3 p-3 text-sm">
             <Checkbox
               checked={selected.has(t.id)}
-              disabled={!!t.assigned_user_id}
+              disabled={!!t.assigned_contact_id}
               onCheckedChange={() => toggle(t.id)}
             />
             <div className="flex-1">
@@ -109,10 +109,10 @@ function MissionDetailsPanel() {
                 {t.contact?.phone_e164 ?? "—"} · {t.contact?.cidade ?? "—"}
               </div>
             </div>
-            {t.assigned_user_id ? (
+            {t.assigned_contact_id ? (
               <span className="text-xs rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
                 {t.status === "concluido" ? "Concluído" : "Atribuído"} ·{" "}
-                {t.assigned_user_name ?? "—"}
+                {t.assigned_contact_name ?? "—"}
               </span>
             ) : (
               <span className="text-xs rounded-full bg-muted px-2 py-0.5">Sem atribuição</span>

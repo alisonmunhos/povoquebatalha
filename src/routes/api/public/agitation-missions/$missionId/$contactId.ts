@@ -1,9 +1,11 @@
 // Rota pública (sem login) do link exclusivo de execução de uma Missão de
-// Agitação — o responsável abre /missao/$missionId/user/$userId (ver rota de
-// página correspondente) e essa página consome este endpoint via fetch simples,
-// mesmo padrão de /api/public/forms/$slug.ts.
-// GET  → missão + tarefas atribuídas a esse usuário.
-// POST → marca uma tarefa (do próprio usuário) como concluída.
+// Agitação — o responsável abre /missao/$missionId/contato/$contactId (ver rota
+// de página correspondente) e essa página consome este endpoint via fetch
+// simples, mesmo padrão de /api/public/forms/$slug.ts. O responsável é
+// identificado por contact_id (qualquer contato da base, sem precisar de
+// conta no sistema) — não por um id de auth.users.
+// GET  → missão + tarefas atribuídas a esse contato.
+// POST → marca uma tarefa (do próprio contato) como concluída.
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
@@ -11,7 +13,7 @@ const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/
 
 const markCompletedSchema = z.object({ task_id: z.string().uuid() });
 
-export const Route = createFileRoute("/api/public/agitation-missions/$missionId/$userId")({
+export const Route = createFileRoute("/api/public/agitation-missions/$missionId/$contactId")({
   server: {
     handlers: {
       OPTIONS: () =>
@@ -51,7 +53,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
             "id,status,contacts(nome,nome_social,phone_e164,phone_raw,cidade,bairro,uf,recad_token)",
           )
           .eq("mission_id", params.missionId)
-          .eq("assigned_user_id", params.userId)
+          .eq("assigned_contact_id", params.contactId)
           .order("created_at", { ascending: true });
         if (e2) {
           return new Response(JSON.stringify({ ok: false, error: e2.message }), {
@@ -95,7 +97,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
 
         const { data: task, error } = await supabaseAdmin
           .from("agitation_tasks")
-          .select("id,mission_id,assigned_user_id")
+          .select("id,mission_id,assigned_contact_id")
           .eq("id", parsed.data.task_id)
           .maybeSingle();
         if (error) {
@@ -107,7 +109,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
         if (
           !task ||
           task.mission_id !== params.missionId ||
-          task.assigned_user_id !== params.userId
+          task.assigned_contact_id !== params.contactId
         ) {
           return new Response(
             JSON.stringify({ ok: false, error: "Tarefa não encontrada para este responsável." }),

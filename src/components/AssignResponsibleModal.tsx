@@ -54,7 +54,7 @@ export function AssignResponsibleModal({
   const assignFn = useServerFn(assignMissionTaskResponsible);
   const [coletivoAlicerce, setColetivoAlicerce] = useState<boolean | undefined>(undefined);
   const [formasAjuda, setFormasAjuda] = useState<string[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [link, setLink] = useState<string | null>(null);
 
@@ -68,16 +68,16 @@ export function AssignResponsibleModal({
   function reset() {
     setColetivoAlicerce(undefined);
     setFormasAjuda([]);
-    setSelectedUserId("");
+    setSelectedContactId("");
     setLink(null);
   }
 
   async function onConfirm() {
-    if (!selectedUserId) return toast.error("Selecione um responsável.");
+    if (!selectedContactId) return toast.error("Selecione um responsável.");
     setSaving(true);
     try {
       const r = await assignFn({
-        data: { mission_id: missionId, task_ids: taskIds, assigned_user_id: selectedUserId },
+        data: { mission_id: missionId, task_ids: taskIds, assigned_contact_id: selectedContactId },
       });
       setLink(r.link);
       onAssigned();
@@ -160,20 +160,22 @@ export function AssignResponsibleModal({
                 )}
                 {(
                   (candidatesQ.data?.candidates as
-                    | Array<{ user_id: string; nome: string | null }>
+                    | Array<{ contact_id: string; nome: string | null }>
                     | undefined) ?? []
                 ).map((c) => (
                   <label
-                    key={c.user_id}
+                    key={c.contact_id}
                     className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-muted/40"
                   >
                     <input
                       type="radio"
                       name="agitador"
-                      checked={selectedUserId === c.user_id}
-                      onChange={() => setSelectedUserId(c.user_id)}
+                      checked={selectedContactId === c.contact_id}
+                      onChange={() => setSelectedContactId(c.contact_id)}
                     />
-                    {selectedUserId === c.user_id && <Check className="h-3.5 w-3.5 text-primary" />}
+                    {selectedContactId === c.contact_id && (
+                      <Check className="h-3.5 w-3.5 text-primary" />
+                    )}
                     <span>{c.nome ?? "(sem nome)"}</span>
                   </label>
                 ))}
@@ -190,7 +192,7 @@ export function AssignResponsibleModal({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button onClick={onConfirm} disabled={saving || !selectedUserId}>
+              <Button onClick={onConfirm} disabled={saving || !selectedContactId}>
                 {saving ? "Atribuindo…" : "Confirmar atribuição"}
               </Button>
             </>

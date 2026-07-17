@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
 
-export const Route = createFileRoute("/missao/$missionId/user/$userId")({
+export const Route = createFileRoute("/missao/$missionId/contato/$contactId")({
   head: () => ({ meta: [{ title: "Minhas tarefas de agitação" }] }),
   ssr: false,
   component: MissionExecutorPage,
@@ -24,13 +24,13 @@ function ContactCard({
   task,
   messageTemplate,
   missionId,
-  userId,
+  contactId,
   onCompleted,
 }: {
   task: Task;
   messageTemplate: string;
   missionId: string;
-  userId: string;
+  contactId: string;
   onCompleted: (taskId: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -46,7 +46,7 @@ function ContactCard({
     );
     setBusy(true);
     try {
-      await fetch(`/api/public/agitation-missions/${missionId}/${userId}`, {
+      await fetch(`/api/public/agitation-missions/${missionId}/${contactId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_id: task.id }),
@@ -88,7 +88,7 @@ function ContactCard({
 }
 
 function MissionExecutorPage() {
-  const { missionId, userId } = Route.useParams();
+  const { missionId, contactId } = Route.useParams();
   const [mission, setMission] = useState<{
     id: string;
     title: string;
@@ -102,7 +102,7 @@ function MissionExecutorPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/public/agitation-missions/${missionId}/${userId}`);
+        const res = await fetch(`/api/public/agitation-missions/${missionId}/${contactId}`);
         const r = await res.json();
         if (cancelled) return;
         if (!r.ok) throw new Error(r.error ?? "Erro ao carregar missão.");
@@ -117,7 +117,7 @@ function MissionExecutorPage() {
     return () => {
       cancelled = true;
     };
-  }, [missionId, userId]);
+  }, [missionId, contactId]);
 
   function onCompleted(taskId: string) {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: "concluido" } : t)));
@@ -145,7 +145,7 @@ function MissionExecutorPage() {
               task={t}
               messageTemplate={mission.message_template}
               missionId={missionId}
-              userId={userId}
+              contactId={contactId}
               onCompleted={onCompleted}
             />
           ))}

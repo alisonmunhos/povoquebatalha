@@ -120,7 +120,7 @@ export type Database = {
       }
       agitation_tasks: {
         Row: {
-          assigned_user_id: string | null
+          assigned_contact_id: string | null
           contact_id: string
           created_at: string
           id: string
@@ -129,7 +129,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          assigned_user_id?: string | null
+          assigned_contact_id?: string | null
           contact_id: string
           created_at?: string
           id?: string
@@ -138,7 +138,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          assigned_user_id?: string | null
+          assigned_contact_id?: string | null
           contact_id?: string
           created_at?: string
           id?: string
@@ -147,6 +147,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "agitation_tasks_assigned_contact_id_fkey"
+            columns: ["assigned_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agitation_tasks_contact_id_fkey"
             columns: ["contact_id"]

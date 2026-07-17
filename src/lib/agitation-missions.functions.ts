@@ -1,9 +1,10 @@
 // Atribuição de Missões de Agitação: admin cria uma missão (título + mensagem
 // padronizada) a partir de um grupo de contatos, e atribui manualmente pacotes
-// desse grupo a um responsável (agitador). Gera um link exclusivo
-// (/missao/$missionId/user/$userId) que a pessoa abre sem precisar de login —
-// getMissionForExecutor/markMissionTaskCompleted são as únicas rotas públicas
-// aqui, e usam supabaseAdmin (service role) em vez do cliente com RLS.
+// desse grupo a um responsável — que pode ser QUALQUER contato da base (não
+// precisa ter conta no sistema), já que ele só recebe um link exclusivo
+// (/missao/$missionId/contato/$contactId) e não precisa fazer login pra usá-lo.
+// Por isso agitation_tasks.assigned_contact_id referencia contacts, não
+// auth.users — ver migration 20260717160000 pra correção histórica disso.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -78,7 +79,7 @@ export const listAgitationMissions = createServerFn({ method: "GET" })
     const ids = missions.map((m) => m.id);
     const { data: tasks } = await context.supabase
       .from("agitation_tasks")
-      .select("mission_id,status,assigned_user_id")
+      .select("mission_id,status,assigned_contact_id")
       .in("mission_id", ids);
 
     const stats = new Map<
@@ -88,9 +89,9 @@ export const listAgitationMissions = createServerFn({ method: "GET" })
     for (const t of tasks ?? []) {
       const s = stats.get(t.mission_id) ?? { total: 0, atribuidos: 0, pendentes: 0, concluidos: 0 };
       s.total++;
-      if (t.assigned_user_id) s.atribuidos++;
+      if (t.assigned_contact_id) s.atribuidos++;
       if (t.status === "concluido") s.concluidos++;
-      else if (!t.assigned_user_id) s.pendentes++;
+      else if (!t.assigned_contact_id) s.pendentes++;
       stats.set(t.mission_id, s);
     }
 
@@ -118,21 +119,21 @@ export const getMissionDetail = createServerFn({ method: "GET" })
 
     const { data: tasks, error: e2 } = await context.supabase
       .from("agitation_tasks")
-      .select("id,status,assigned_user_id,created_at,contacts(id,nome,phone_e164,cidade)")
+      .select("id,status,assigned_contact_id,created_at,contacts(id,nome,phone_e164,cidade)")
       .eq("mission_id", data.mission_id)
       .order("created_at", { ascending: true });
     if (e2) throw e2;
 
     const assignedIds = Array.from(
-      new Set((tasks ?? []).map((t) => t.assigned_user_id).filter((v): v is string => !!v)),
+      new Set((tasks ?? []).map((t) => t.assigned_contact_id).filter((v): v is string => !!v)),
     );
     const nameById = new Map<string, string | null>();
     if (assignedIds.length) {
-      const { data: profs } = await context.supabase
-        .from("profiles")
-        .select("id,full_name")
+      const { data: assignedContacts } = await context.supabase
+        .from("contacts")
+        .select("id,nome")
         .in("id", assignedIds);
-      (profs ?? []).forEach((p) => nameById.set(p.id, p.full_name));
+      (assignedContacts ?? []).forEach((c) => nameById.set(c.id, c.nome));
     }
 
     return {
@@ -140,8 +141,10 @@ export const getMissionDetail = createServerFn({ method: "GET" })
       tasks: (tasks ?? []).map((t) => ({
         id: t.id,
         status: t.status,
-        assigned_user_id: t.assigned_user_id,
-        assigned_user_name: t.assigned_user_id ? (nameById.get(t.assigned_user_id) ?? null) : null,
+        assigned_contact_id: t.assigned_contact_id,
+        assigned_contact_name: t.assigned_contact_id
+          ? (nameById.get(t.assigned_contact_id) ?? null)
+          : null,
         contact: t.contacts,
       })),
     };
@@ -157,39 +160,24 @@ export const listAgitadorCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => candidatesSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    // Só contatos que também são usuários do sistema (system_role espelha
-    // user_roles via syncContactSystemRole) entram como candidatos — reaproveita
-    // os dois filtros já existentes no CRM (crm-filters.ts) sem duplicar a lógica.
+    // Qualquer contato da base pode ser responsável (não precisa ter conta no
+    // sistema — o link público não exige login) — reaproveita os dois filtros
+    // já existentes no CRM (crm-filters.ts) sem duplicar a lógica.
     let q = context.supabase
       .from("contacts")
       .select("id,nome,coletivo_alicerce,formas_ajuda")
-      .not("system_role", "is", null)
       .limit(500);
     q = applyCrmFilters(q as never, data as CrmFilters) as typeof q;
     const { data: contatos, error } = await q;
     if (error) throw error;
-    if (!contatos?.length) return { candidates: [] as Array<Record<string, unknown>> };
-
-    const contactIds = contatos.map((c) => c.id);
-    const { data: profs } = await context.supabase
-      .from("profiles")
-      .select("id,contact_id")
-      .in("contact_id", contactIds);
-    const userIdByContact = new Map<string, string>();
-    (profs ?? []).forEach((p) => {
-      if (p.contact_id) userIdByContact.set(p.contact_id, p.id);
-    });
 
     return {
-      candidates: contatos
-        .filter((c) => userIdByContact.has(c.id))
-        .map((c) => ({
-          contact_id: c.id,
-          user_id: userIdByContact.get(c.id)!,
-          nome: c.nome,
-          coletivo_alicerce: c.coletivo_alicerce,
-          formas_ajuda: c.formas_ajuda,
-        })),
+      candidates: (contatos ?? []).map((c) => ({
+        contact_id: c.id,
+        nome: c.nome,
+        coletivo_alicerce: c.coletivo_alicerce,
+        formas_ajuda: c.formas_ajuda,
+      })),
     };
   });
 
@@ -197,7 +185,7 @@ export const listAgitadorCandidates = createServerFn({ method: "POST" })
 const assignSchema = z.object({
   mission_id: z.string().uuid(),
   task_ids: z.array(z.string().uuid()).min(1).max(2000),
-  assigned_user_id: z.string().uuid(),
+  assigned_contact_id: z.string().uuid(),
 });
 
 export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
@@ -206,21 +194,21 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: updated, error } = await context.supabase
       .from("agitation_tasks")
-      .update({ assigned_user_id: data.assigned_user_id })
+      .update({ assigned_contact_id: data.assigned_contact_id })
       .eq("mission_id", data.mission_id)
       .in("id", data.task_ids)
-      .is("assigned_user_id", null)
+      .is("assigned_contact_id", null)
       .select("id");
     if (error) throw error;
 
     return {
       ok: true as const,
       updated: updated?.length ?? 0,
-      link: `/missao/${data.mission_id}/user/${data.assigned_user_id}`,
+      link: `/missao/${data.mission_id}/contato/${data.assigned_contact_id}`,
     };
   });
 
 // As rotas públicas (sem login) usadas pelo link exclusivo do executor não vivem
 // aqui — seguem o mesmo padrão dos outros dados públicos do sistema (fetch a uma
 // rota REST em src/routes/api/public/*, não um createServerFn autenticável por
-// engano): ver src/routes/api/public/agitation-missions/$missionId/$userId.ts.
+// engano): ver src/routes/api/public/agitation-missions/$missionId/$contactId.ts.
