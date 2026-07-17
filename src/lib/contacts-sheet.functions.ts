@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { crmFilterSchema, applyCrmFilters, type CrmFilters } from "@/lib/crm-filters";
+import { crmFilterSchema, applyCrmFilters, splitEmptyToken, type CrmFilters } from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 
 function decodeBase64UrlSafeToJson<T = unknown>(s?: string): T | null {
