@@ -76,7 +76,8 @@ export default function Cell({ contactId, fieldKey, value, onEdit, activeFilterV
 
   // --- DISPONIBILIDADE (chips agrupados por dia com turnos) ---
   if (fieldKey === "disponibilidade" && Array.isArray(value)) {
-    const arr = value as string[];
+    const arrAll = value as string[];
+    const arr = filterSet ? arrAll.filter((v) => filterSet.has(v)) : arrAll;
     if (arr.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
 
     // Agrupa: { segunda: ["manha","tarde"], ... }
