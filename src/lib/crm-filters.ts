@@ -187,26 +187,46 @@ export function applyCrmFilters<T extends {
   if (f.formas_ajuda?.length) {
     // Cada opção selecionada vira uma cláusula OR (`formas_ajuda @> [slug]`),
     // expandindo `panfletagem_banquinha` para casar também com o valor legado `panfletagem`.
+    const { values, empty } = splitEmptyToken(f.formas_ajuda);
     const clauses: string[] = [];
-    for (const slug of f.formas_ajuda) {
+    for (const slug of values) {
       const variants =
         slug === "panfletagem_banquinha" ? ["panfletagem_banquinha", "panfletagem"] : [slug];
       for (const v of variants) clauses.push(`formas_ajuda.cs.["${v.replace(/"/g, "")}"]`);
     }
+    if (empty) {
+      clauses.push("formas_ajuda.is.null");
+      clauses.push("formas_ajuda->0.is.null");
+    }
     if (clauses.length) q = q.or(clauses.join(","));
   }
   if (f.disponibilidade?.length) {
-    const clauses = f.disponibilidade.map((slug) => `disponibilidade.cs.["${slug.replace(/"/g, "")}"]`);
-    q = q.or(clauses.join(","));
+    const { values, empty } = splitEmptyToken(f.disponibilidade);
+    const clauses = values.map((slug) => `disponibilidade.cs.["${slug.replace(/"/g, "")}"]`);
+    if (empty) {
+      clauses.push("disponibilidade.is.null");
+      clauses.push("disponibilidade->0.is.null");
+    }
+    if (clauses.length) q = q.or(clauses.join(","));
   }
   if (f.quem_indicou) q = q.ilike("quem_indicou", `%${safe(f.quem_indicou)}%`);
   if (f.faixa_etaria) q = q.eq("faixa_etaria", f.faixa_etaria);
-  if (f.faixas_etarias?.length) q = q.in("faixa_etaria", f.faixas_etarias);
+  if (f.faixas_etarias?.length) {
+    const { values, empty } = splitEmptyToken(f.faixas_etarias);
+    if (empty && values.length) q = q.or(`faixa_etaria.in.(${values.map((v) => `"${v}"`).join(",")}),faixa_etaria.is.null`);
+    else if (empty) q = q.is("faixa_etaria", null);
+    else if (values.length) q = q.in("faixa_etaria", values);
+  }
   if (f.rede_social) q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
   if (f.zona_eleitoral) q = q.ilike("zona_eleitoral", `%${safe(f.zona_eleitoral)}%`);
   if (f.como_conheceu) q = q.ilike("como_conheceu", `%${safe(f.como_conheceu)}%`);
   if (f.origem) q = q.eq("origem", f.origem);
-  if (f.origens?.length) q = q.in("origem", f.origens);
+  if (f.origens?.length) {
+    const { values, empty } = splitEmptyToken(f.origens);
+    if (empty && values.length) q = q.or(`origem.in.(${values.map((v) => `"${v}"`).join(",")}),origem.is.null`);
+    else if (empty) q = q.is("origem", null);
+    else if (values.length) q = q.in("origem", values);
+  }
   if (f.origem_detalhe) q = q.ilike("origem_detalhe", `%${safe(f.origem_detalhe)}%`);
   if (f.origem_detalhes?.length) {
     q = q.or(f.origem_detalhes.map((v) => `origem_detalhe.ilike.${safe(v)}`).join(","));
