@@ -42,7 +42,8 @@ export default function Cell({ contactId, fieldKey, value, onEdit, activeFilterV
 
   // --- TAGS ---
   if (fieldKey === "tags" && Array.isArray(value)) {
-    const tags = value as Array<{ id: string; nome: string; cor?: string | null }>;
+    const allTags = value as Array<{ id: string; nome: string; cor?: string | null }>;
+    const tags = filterSet ? allTags.filter((t) => filterSet.has(t.id)) : allTags;
     if (tags.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
     const visible = tags.slice(0, 3);
     const extra = tags.length - visible.length;
