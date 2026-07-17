@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
+import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { ContactFiltersPanel, type FilterOptionsBundle } from "@/components/ContactFiltersPanel";
 import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
 import { ColumnFilterHeader, ColumnSortHeader, type ColumnFilterOption } from "@/components/ColumnFilterHeader";
@@ -94,6 +95,7 @@ function Contatos() {
 
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
   const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
+  const [missaoDlg, setMissaoDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
 
   // Opções dinâmicas dos filtros — bairros dependem da(s) cidade(s) selecionada(s)
   const cidadesSelecionadas = useMemo(() => filters.cidades ?? [], [filters.cidades]);
@@ -484,6 +486,9 @@ function Contatos() {
               <Button size="sm" variant="secondary" onClick={() => doBulkOptOut(false)}>Reativar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(true)}>Arquivar</Button>
               <Button size="sm" variant="secondary" onClick={() => doBulkArchive(false)}>Desarquivar</Button>
+              <Button size="sm" variant="secondary" onClick={() => setMissaoDlg({ open: true, mode: "selection" })}>
+                Criar Missão
+              </Button>
               {isAdmin && (
                 <Button
                   size="sm"
@@ -694,6 +699,13 @@ function Contatos() {
         onOpenChange={(o) => setSendDlg({ ...sendDlg, open: o })}
         source={sendDlg.mode === "selection" ? { ids: [...selected] } : { filters }}
         labelSelecao={sendDlg.mode === "selection" ? `${selected.size} contato(s) selecionado(s)` : "todos os contatos do filtro atual"}
+      />
+
+      <CreateMissionModal
+        open={missaoDlg.open}
+        onOpenChange={(o) => setMissaoDlg({ ...missaoDlg, open: o })}
+        source={missaoDlg.mode === "selection" ? { ids: [...selected] } : { filters }}
+        labelSelecao={missaoDlg.mode === "selection" ? `${selected.size} contato(s) selecionado(s)` : "todos os contatos do filtro atual"}
       />
 
       <ConfirmDeleteContactDialog

@@ -40,17 +40,20 @@ import { Route as AuthenticatedContatosBiRouteImport } from './routes/_authentic
 import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
+import { Route as AuthenticatedMissoesAgitacaoIndexRouteImport } from './routes/_authenticated/missoes-agitacao.index'
 import { Route as AuthenticatedEntradaDadosIndexRouteImport } from './routes/_authenticated/entrada-dados.index'
 import { Route as AuthenticatedContatosIndexRouteImport } from './routes/_authenticated/contatos.index'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as AuthenticatedUsuariosPapeisRouteImport } from './routes/_authenticated/usuarios.papeis'
+import { Route as AuthenticatedMissoesAgitacaoMissionIdRouteImport } from './routes/_authenticated/missoes-agitacao.$missionId'
 import { Route as AuthenticatedEntradaDadosIdRouteImport } from './routes/_authenticated/entrada-dados.$id'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
 import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
+import { Route as MissaoMissionIdUserUserIdRouteImport } from './routes/missao/$missionId/user/$userId'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/api/public/jobs/process-campaign-queue'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
@@ -60,6 +63,7 @@ import { Route as ApiPublicFormsCadastroUsuarioRouteImport } from './routes/api/
 import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
 import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/forms/$slug'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
+import { Route as ApiPublicAgitationMissionsMissionIdUserIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$userId'
 
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
   id: '/redefinir-senha',
@@ -218,6 +222,12 @@ const AuthenticatedAgitacaoRoute = AuthenticatedAgitacaoRouteImport.update({
   path: '/agitacao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMissoesAgitacaoIndexRoute =
+  AuthenticatedMissoesAgitacaoIndexRouteImport.update({
+    id: '/missoes-agitacao/',
+    path: '/missoes-agitacao/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedEntradaDadosIndexRoute =
   AuthenticatedEntradaDadosIndexRouteImport.update({
     id: '/entrada-dados/',
@@ -253,6 +263,12 @@ const AuthenticatedUsuariosPapeisRoute =
     path: '/papeis',
     getParentRoute: () => AuthenticatedUsuariosRoute,
   } as any)
+const AuthenticatedMissoesAgitacaoMissionIdRoute =
+  AuthenticatedMissoesAgitacaoMissionIdRouteImport.update({
+    id: '/missoes-agitacao/$missionId',
+    path: '/missoes-agitacao/$missionId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedEntradaDadosIdRoute =
   AuthenticatedEntradaDadosIdRouteImport.update({
     id: '/entrada-dados/$id',
@@ -281,6 +297,12 @@ const AuthenticatedCampanhasIdRoute =
     id: '/campanhas/$id',
     path: '/campanhas/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const MissaoMissionIdUserUserIdRoute =
+  MissaoMissionIdUserUserIdRouteImport.update({
+    id: '/missao/$missionId/user/$userId',
+    path: '/missao/$missionId/user/$userId',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   id: '/api/public/zapi/$evento',
@@ -331,6 +353,12 @@ const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   path: '/api/public/cep/$cep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAgitationMissionsMissionIdUserIdRoute =
+  ApiPublicAgitationMissionsMissionIdUserIdRouteImport.update({
+    id: '/api/public/agitation-missions/$missionId/$userId',
+    path: '/api/public/agitation-missions/$missionId/$userId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -368,12 +396,14 @@ export interface FileRoutesByFullPath {
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
+  '/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
   '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos/': typeof AuthenticatedContatosIndexRoute
   '/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
+  '/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -383,6 +413,8 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
+  '/missao/$missionId/user/$userId': typeof MissaoMissionIdUserUserIdRoute
+  '/api/public/agitation-missions/$missionId/$userId': typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -419,12 +451,14 @@ export interface FileRoutesByTo {
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
+  '/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
   '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/comunicacao': typeof AuthenticatedComunicacaoIndexRoute
   '/contatos': typeof AuthenticatedContatosIndexRoute
   '/entrada-dados': typeof AuthenticatedEntradaDadosIndexRoute
+  '/missoes-agitacao': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -434,6 +468,8 @@ export interface FileRoutesByTo {
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
+  '/missao/$missionId/user/$userId': typeof MissaoMissionIdUserUserIdRoute
+  '/api/public/agitation-missions/$missionId/$userId': typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -473,12 +509,14 @@ export interface FileRoutesById {
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/_authenticated/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
+  '/_authenticated/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
   '/_authenticated/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
   '/api/public/bootstrap-admin': typeof ApiPublicBootstrapAdminRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/_authenticated/comunicacao/': typeof AuthenticatedComunicacaoIndexRoute
   '/_authenticated/contatos/': typeof AuthenticatedContatosIndexRoute
   '/_authenticated/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
+  '/_authenticated/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -488,6 +526,8 @@ export interface FileRoutesById {
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
+  '/missao/$missionId/user/$userId': typeof MissaoMissionIdUserUserIdRoute
+  '/api/public/agitation-missions/$missionId/$userId': typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -527,12 +567,14 @@ export interface FileRouteTypes {
     | '/comunicacao/inbox'
     | '/contatos/$id'
     | '/entrada-dados/$id'
+    | '/missoes-agitacao/$missionId'
     | '/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/campanhas/'
     | '/comunicacao/'
     | '/contatos/'
     | '/entrada-dados/'
+    | '/missoes-agitacao/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -542,6 +584,8 @@ export interface FileRouteTypes {
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
+    | '/missao/$missionId/user/$userId'
+    | '/api/public/agitation-missions/$missionId/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -578,12 +622,14 @@ export interface FileRouteTypes {
     | '/comunicacao/inbox'
     | '/contatos/$id'
     | '/entrada-dados/$id'
+    | '/missoes-agitacao/$missionId'
     | '/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/campanhas'
     | '/comunicacao'
     | '/contatos'
     | '/entrada-dados'
+    | '/missoes-agitacao'
     | '/api/public/cep/$cep'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -593,6 +639,8 @@ export interface FileRouteTypes {
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
+    | '/missao/$missionId/user/$userId'
+    | '/api/public/agitation-missions/$missionId/$userId'
   id:
     | '__root__'
     | '/'
@@ -631,12 +679,14 @@ export interface FileRouteTypes {
     | '/_authenticated/comunicacao/inbox'
     | '/_authenticated/contatos/$id'
     | '/_authenticated/entrada-dados/$id'
+    | '/_authenticated/missoes-agitacao/$missionId'
     | '/_authenticated/usuarios/papeis'
     | '/api/public/bootstrap-admin'
     | '/_authenticated/campanhas/'
     | '/_authenticated/comunicacao/'
     | '/_authenticated/contatos/'
     | '/_authenticated/entrada-dados/'
+    | '/_authenticated/missoes-agitacao/'
     | '/api/public/cep/$cep'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -646,6 +696,8 @@ export interface FileRouteTypes {
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
     | '/api/public/zapi/$evento'
+    | '/missao/$missionId/user/$userId'
+    | '/api/public/agitation-missions/$missionId/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -673,6 +725,8 @@ export interface RootRouteChildren {
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
   ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
   ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
+  MissaoMissionIdUserUserIdRoute: typeof MissaoMissionIdUserUserIdRoute
+  ApiPublicAgitationMissionsMissionIdUserIdRoute: typeof ApiPublicAgitationMissionsMissionIdUserIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -894,6 +948,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgitacaoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/missoes-agitacao/': {
+      id: '/_authenticated/missoes-agitacao/'
+      path: '/missoes-agitacao'
+      fullPath: '/missoes-agitacao/'
+      preLoaderRoute: typeof AuthenticatedMissoesAgitacaoIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/entrada-dados/': {
       id: '/_authenticated/entrada-dados/'
       path: '/entrada-dados'
@@ -936,6 +997,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsuariosPapeisRouteImport
       parentRoute: typeof AuthenticatedUsuariosRoute
     }
+    '/_authenticated/missoes-agitacao/$missionId': {
+      id: '/_authenticated/missoes-agitacao/$missionId'
+      path: '/missoes-agitacao/$missionId'
+      fullPath: '/missoes-agitacao/$missionId'
+      preLoaderRoute: typeof AuthenticatedMissoesAgitacaoMissionIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/entrada-dados/$id': {
       id: '/_authenticated/entrada-dados/$id'
       path: '/entrada-dados/$id'
@@ -970,6 +1038,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/campanhas/$id'
       preLoaderRoute: typeof AuthenticatedCampanhasIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/missao/$missionId/user/$userId': {
+      id: '/missao/$missionId/user/$userId'
+      path: '/missao/$missionId/user/$userId'
+      fullPath: '/missao/$missionId/user/$userId'
+      preLoaderRoute: typeof MissaoMissionIdUserUserIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/zapi/$evento': {
       id: '/api/public/zapi/$evento'
@@ -1034,6 +1109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCepCepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/agitation-missions/$missionId/$userId': {
+      id: '/api/public/agitation-missions/$missionId/$userId'
+      path: '/api/public/agitation-missions/$missionId/$userId'
+      fullPath: '/api/public/agitation-missions/$missionId/$userId'
+      preLoaderRoute: typeof ApiPublicAgitationMissionsMissionIdUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1090,9 +1172,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCampanhasIdRoute: typeof AuthenticatedCampanhasIdRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
   AuthenticatedEntradaDadosIdRoute: typeof AuthenticatedEntradaDadosIdRoute
+  AuthenticatedMissoesAgitacaoMissionIdRoute: typeof AuthenticatedMissoesAgitacaoMissionIdRoute
   AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
   AuthenticatedContatosIndexRoute: typeof AuthenticatedContatosIndexRoute
   AuthenticatedEntradaDadosIndexRoute: typeof AuthenticatedEntradaDadosIndexRoute
+  AuthenticatedMissoesAgitacaoIndexRoute: typeof AuthenticatedMissoesAgitacaoIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1116,9 +1200,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCampanhasIdRoute: AuthenticatedCampanhasIdRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
   AuthenticatedEntradaDadosIdRoute: AuthenticatedEntradaDadosIdRoute,
+  AuthenticatedMissoesAgitacaoMissionIdRoute:
+    AuthenticatedMissoesAgitacaoMissionIdRoute,
   AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
   AuthenticatedContatosIndexRoute: AuthenticatedContatosIndexRoute,
   AuthenticatedEntradaDadosIndexRoute: AuthenticatedEntradaDadosIndexRoute,
+  AuthenticatedMissoesAgitacaoIndexRoute:
+    AuthenticatedMissoesAgitacaoIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -1150,6 +1238,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsProcessCampaignQueueRoute:
     ApiPublicJobsProcessCampaignQueueRoute,
   ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
+  MissaoMissionIdUserUserIdRoute: MissaoMissionIdUserUserIdRoute,
+  ApiPublicAgitationMissionsMissionIdUserIdRoute:
+    ApiPublicAgitationMissionsMissionIdUserIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
