@@ -49,6 +49,7 @@ const LIFECYCLE = ["importado_aguardando_recadastro","link_enviado","recadastro_
 
 function Contatos() {
   const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const listFn = useServerFn(listContactsRich);
   const idsFn = useServerFn(idsByFilter);
   const optionsFn = useServerFn(getContactFilterOptions);
@@ -72,13 +73,18 @@ function Contatos() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
 
-  // Default: mostra todos os contatos (ativos + arquivados) para não "sumir" registros mesclados/arquivados
-  const [filters, setFilters] = useState<CrmFilters>({ archived: "todos" });
-  const [searchInput, setSearchInput] = useState("");
-  const [page, setPage] = useState(1);
-  // Ordenação: nome A→Z é o padrão pedido; ciclo asc → desc → recent
-  const [sort, setSort] = useState<"name" | "name-desc" | "recent">("name");
-  const [pageSize, setPageSize] = useState(25);
+  // Hidrata estado inicial a partir da URL (filtros, busca, sort, página).
+  const initialFilters = useMemo<CrmFilters>(() => {
+    const parsed = decodeBase64UrlSafe<CrmFilters>(search.f);
+    if (parsed && typeof parsed === "object") return parsed;
+    return { archived: "todos" };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [filters, setFilters] = useState<CrmFilters>(initialFilters);
+  const [searchInput, setSearchInput] = useState(search.q ?? "");
+  const [page, setPage] = useState(search.p ?? 1);
+  const [sort, setSort] = useState<"name" | "name-desc" | "recent">(search.s ?? "name");
+  const [pageSize, setPageSize] = useState(search.ps ?? 25);
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTagId, setBulkTagId] = useState<string>("");
