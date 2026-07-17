@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
         const { data: tasks, error: e2 } = await supabaseAdmin
           .from("agitation_tasks")
           .select(
-            "id,status,assigned_at,contacts(nome,nome_social,phone_e164,phone_raw,cidade,bairro,uf,recad_token)",
+            "id,status,assigned_at,contacts!agitation_tasks_contact_id_fkey(nome,nome_social,phone_e164,phone_raw,cidade,bairro,uf,recad_token)",
           )
           .eq("mission_id", params.missionId)
           .eq("assigned_contact_id", params.contactId)
