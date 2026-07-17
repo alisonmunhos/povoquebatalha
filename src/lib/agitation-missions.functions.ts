@@ -211,7 +211,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
     const { data: tasks, error: e2 } = await context.supabase
       .from("agitation_tasks")
       .select(
-        "id,status,assigned_contact_id,assigned_at,created_at,contacts(id,nome,phone_e164,cidade)",
+        "id,status,assigned_contact_id,assigned_at,created_at,contacts!agitation_tasks_contact_id_fkey(id,nome,phone_e164,cidade)",
       )
       .eq("mission_id", data.mission_id)
       .order("created_at", { ascending: true });
