@@ -20,7 +20,10 @@ function labelForOption(fieldKey: string, value: string): string {
   return f.options.find((o) => o.value === value)?.label ?? value;
 }
 
-export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
+export default function Cell({ contactId, fieldKey, value, onEdit, activeFilterValues }: any) {
+  const filterSet: Set<string> | null = Array.isArray(activeFilterValues) && activeFilterValues.length
+    ? new Set(activeFilterValues as string[])
+    : null;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<any>(value);
 
