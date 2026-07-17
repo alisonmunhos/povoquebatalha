@@ -4,6 +4,16 @@
 //   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
 
+/** Sentinela para "célula vazia" dentro de filtros de array (tags, disponibilidade, etc.). */
+export const EMPTY_FILTER_TOKEN = "__EMPTY__";
+
+/** Separa o token de "vazio" dos valores reais de um filtro de array. */
+export function splitEmptyToken(arr?: string[] | null): { values: string[]; empty: boolean } {
+  if (!arr || !arr.length) return { values: [], empty: false };
+  const empty = arr.includes(EMPTY_FILTER_TOKEN);
+  return { values: arr.filter((v) => v !== EMPTY_FILTER_TOKEN), empty };
+}
+
 export const crmFilterSchema = z.object({
   // Busca geral
   search: z.string().trim().optional(),
@@ -138,7 +148,13 @@ export function applyCrmFilters<T extends {
     q = q.or(f.bairros.map((v) => `bairro.ilike.${safe(v)}`).join(","));
   }
   if (f.uf) q = q.eq("uf", f.uf.toUpperCase());
-  if (f.ufs?.length) q = q.in("uf", f.ufs.map((u) => u.toUpperCase()));
+  if (f.ufs?.length) {
+    const { values, empty } = splitEmptyToken(f.ufs);
+    const upper = values.map((u) => u.toUpperCase());
+    if (empty && upper.length) q = q.or(`uf.in.(${upper.map((v) => `"${v}"`).join(",")}),uf.is.null`);
+    else if (empty) q = q.is("uf", null);
+    else if (upper.length) q = q.in("uf", upper);
+  }
 
   // Perfil
   if (f.nome) q = q.ilike("nome", `%${safe(f.nome)}%`);
@@ -150,7 +166,12 @@ export function applyCrmFilters<T extends {
   }
   if (typeof f.coletivo_alicerce === "boolean") q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
   if (f.tipo_contato) q = q.eq("tipo_contato", f.tipo_contato);
-  if (f.tipos_contato?.length) q = q.in("tipo_contato", f.tipos_contato);
+  if (f.tipos_contato?.length) {
+    const { values, empty } = splitEmptyToken(f.tipos_contato);
+    if (empty && values.length) q = q.or(`tipo_contato.in.(${values.map((v) => `"${v}"`).join(",")}),tipo_contato.is.null`);
+    else if (empty) q = q.is("tipo_contato", null);
+    else if (values.length) q = q.in("tipo_contato", values);
+  }
   if (typeof f.participa_movimento_social === "boolean")
     q = q.eq("participa_movimento_social", f.participa_movimento_social);
   if (f.movimentos_sociais?.length) {
@@ -166,26 +187,46 @@ export function applyCrmFilters<T extends {
   if (f.formas_ajuda?.length) {
     // Cada opção selecionada vira uma cláusula OR (`formas_ajuda @> [slug]`),
     // expandindo `panfletagem_banquinha` para casar também com o valor legado `panfletagem`.
+    const { values, empty } = splitEmptyToken(f.formas_ajuda);
     const clauses: string[] = [];
-    for (const slug of f.formas_ajuda) {
+    for (const slug of values) {
       const variants =
         slug === "panfletagem_banquinha" ? ["panfletagem_banquinha", "panfletagem"] : [slug];
       for (const v of variants) clauses.push(`formas_ajuda.cs.["${v.replace(/"/g, "")}"]`);
     }
+    if (empty) {
+      clauses.push("formas_ajuda.is.null");
+      clauses.push("formas_ajuda->0.is.null");
+    }
     if (clauses.length) q = q.or(clauses.join(","));
   }
   if (f.disponibilidade?.length) {
-    const clauses = f.disponibilidade.map((slug) => `disponibilidade.cs.["${slug.replace(/"/g, "")}"]`);
-    q = q.or(clauses.join(","));
+    const { values, empty } = splitEmptyToken(f.disponibilidade);
+    const clauses = values.map((slug) => `disponibilidade.cs.["${slug.replace(/"/g, "")}"]`);
+    if (empty) {
+      clauses.push("disponibilidade.is.null");
+      clauses.push("disponibilidade->0.is.null");
+    }
+    if (clauses.length) q = q.or(clauses.join(","));
   }
   if (f.quem_indicou) q = q.ilike("quem_indicou", `%${safe(f.quem_indicou)}%`);
   if (f.faixa_etaria) q = q.eq("faixa_etaria", f.faixa_etaria);
-  if (f.faixas_etarias?.length) q = q.in("faixa_etaria", f.faixas_etarias);
+  if (f.faixas_etarias?.length) {
+    const { values, empty } = splitEmptyToken(f.faixas_etarias);
+    if (empty && values.length) q = q.or(`faixa_etaria.in.(${values.map((v) => `"${v}"`).join(",")}),faixa_etaria.is.null`);
+    else if (empty) q = q.is("faixa_etaria", null);
+    else if (values.length) q = q.in("faixa_etaria", values);
+  }
   if (f.rede_social) q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
   if (f.zona_eleitoral) q = q.ilike("zona_eleitoral", `%${safe(f.zona_eleitoral)}%`);
   if (f.como_conheceu) q = q.ilike("como_conheceu", `%${safe(f.como_conheceu)}%`);
   if (f.origem) q = q.eq("origem", f.origem);
-  if (f.origens?.length) q = q.in("origem", f.origens);
+  if (f.origens?.length) {
+    const { values, empty } = splitEmptyToken(f.origens);
+    if (empty && values.length) q = q.or(`origem.in.(${values.map((v) => `"${v}"`).join(",")}),origem.is.null`);
+    else if (empty) q = q.is("origem", null);
+    else if (values.length) q = q.in("origem", values);
+  }
   if (f.origem_detalhe) q = q.ilike("origem_detalhe", `%${safe(f.origem_detalhe)}%`);
   if (f.origem_detalhes?.length) {
     q = q.or(f.origem_detalhes.map((v) => `origem_detalhe.ilike.${safe(v)}`).join(","));
@@ -234,11 +275,26 @@ export function applyCrmFilters<T extends {
   if (f.bloqueado === "sim") q = q.eq("lifecycle_status", "nao_enviar" as never);
   if (f.bloqueado === "nao") q = q.not("lifecycle_status", "eq", "nao_enviar");
   if (f.phone_status) q = q.eq("phone_status", f.phone_status);
-  if (f.phone_statuses?.length) q = q.in("phone_status", f.phone_statuses);
+  if (f.phone_statuses?.length) {
+    const { values, empty } = splitEmptyToken(f.phone_statuses);
+    if (empty && values.length) q = q.or(`phone_status.in.(${values.map((v) => `"${v}"`).join(",")}),phone_status.is.null`);
+    else if (empty) q = q.is("phone_status", null);
+    else if (values.length) q = q.in("phone_status", values);
+  }
   if (f.whatsapp_status) q = q.eq("whatsapp_status", f.whatsapp_status);
-  if (f.whatsapp_statuses?.length) q = q.in("whatsapp_status", f.whatsapp_statuses);
+  if (f.whatsapp_statuses?.length) {
+    const { values, empty } = splitEmptyToken(f.whatsapp_statuses);
+    if (empty && values.length) q = q.or(`whatsapp_status.in.(${values.map((v) => `"${v}"`).join(",")}),whatsapp_status.is.null`);
+    else if (empty) q = q.is("whatsapp_status", null);
+    else if (values.length) q = q.in("whatsapp_status", values);
+  }
   if (f.lifecycle_status) q = q.eq("lifecycle_status", f.lifecycle_status);
-  if (f.lifecycle_statuses?.length) q = q.in("lifecycle_status", f.lifecycle_statuses);
+  if (f.lifecycle_statuses?.length) {
+    const { values, empty } = splitEmptyToken(f.lifecycle_statuses);
+    if (empty && values.length) q = q.or(`lifecycle_status.in.(${values.map((v) => `"${v}"`).join(",")}),lifecycle_status.is.null`);
+    else if (empty) q = q.is("lifecycle_status", null);
+    else if (values.length) q = q.in("lifecycle_status", values);
+  }
 
   // Importação
   if (f.import_id) q = q.eq("import_id", f.import_id);

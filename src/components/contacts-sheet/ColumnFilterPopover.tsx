@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { encodeBase64UrlSafe as encodeFilters } from "@/lib/filters-encoding";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { EMPTY_FILTER_TOKEN } from "@/lib/crm-filters";
 import { resolveFilterField, applyColumnFilter, clearColumnFilter } from "@/lib/column-filter-mapping";
 import { getCatalogField } from "@/lib/form-field-catalog";
 
@@ -86,22 +87,59 @@ export default function ColumnFilterPopover(props: {
         )}
 
         {(info.uiType === "array" || info.uiType === "tag") && (
-          <div style={{ maxHeight: 240, overflow: "auto" }}>
-            {optionsQ.isLoading && needsServerOptions && <div className="text-sm text-muted-foreground">Carregando…</div>}
-            {availableOptions.length === 0 && !optionsQ.isLoading && <div className="text-sm text-muted-foreground">Sem opções</div>}
-            {availableOptions.map((o) => {
-              const checked = arrayDraft.includes(o.value);
-              return (
-                <label key={o.value} className="flex items-center gap-2 text-sm py-0.5">
-                  <input type="checkbox" checked={checked} onChange={() => {
+          <div>
+            <div className="flex items-center gap-3 mb-1.5 pb-1.5 border-b text-[11px]">
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => {
+                  const all = new Set(arrayDraft);
+                  availableOptions.forEach((o) => all.add(o.value));
+                  setArrayDraft(Array.from(all));
+                }}
+              >
+                Selecionar tudo
+              </button>
+              <button
+                type="button"
+                className="text-muted-foreground hover:underline"
+                onClick={() => setArrayDraft([])}
+              >
+                Limpar seleção
+              </button>
+            </div>
+            <div style={{ maxHeight: 220, overflow: "auto" }}>
+              {optionsQ.isLoading && needsServerOptions && <div className="text-sm text-muted-foreground">Carregando…</div>}
+              {availableOptions.length === 0 && !optionsQ.isLoading && <div className="text-sm text-muted-foreground">Sem opções</div>}
+              {availableOptions.map((o) => {
+                const checked = arrayDraft.includes(o.value);
+                return (
+                  <label key={o.value} className="flex items-center gap-2 text-sm py-0.5">
+                    <input type="checkbox" checked={checked} onChange={() => {
+                      const set = new Set(arrayDraft);
+                      if (set.has(o.value)) set.delete(o.value); else set.add(o.value);
+                      setArrayDraft(Array.from(set));
+                    }} />
+                    <span>{o.label}{typeof o.count === "number" ? ` (${o.count})` : ""}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-1.5 pt-1.5 border-t">
+              <label className="flex items-center gap-2 text-sm py-0.5 italic text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={arrayDraft.includes(EMPTY_FILTER_TOKEN)}
+                  onChange={() => {
                     const set = new Set(arrayDraft);
-                    if (set.has(o.value)) set.delete(o.value); else set.add(o.value);
+                    if (set.has(EMPTY_FILTER_TOKEN)) set.delete(EMPTY_FILTER_TOKEN);
+                    else set.add(EMPTY_FILTER_TOKEN);
                     setArrayDraft(Array.from(set));
-                  }} />
-                  <span>{o.label}{typeof o.count === "number" ? ` (${o.count})` : ""}</span>
-                </label>
-              );
-            })}
+                  }}
+                />
+                <span>(Vazio) — sem valor preenchido</span>
+              </label>
+            </div>
           </div>
         )}
 

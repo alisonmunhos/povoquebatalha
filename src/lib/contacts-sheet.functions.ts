@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { crmFilterSchema, applyCrmFilters, type CrmFilters } from "@/lib/crm-filters";
+import { applyCrmFilters, splitEmptyToken, type CrmFilters } from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 
 function decodeBase64UrlSafeToJson<T = unknown>(s?: string): T | null {
@@ -71,6 +71,44 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     } catch (err: unknown) {
       throw new Error(`Filtros inválidos: ${(err as Error).message}`);
     }
+
+    // Filtro por tag_ids (OU entre tags selecionadas) — mesmo padrão de listContactsRich.
+    // Suporta o token de "vazio": inclui contatos sem nenhuma tag.
+    const tagIdsRaw = (filters as any)?.tag_ids as string[] | undefined;
+    if (tagIdsRaw?.length) {
+      const { values: tagIds, empty: includeEmpty } = splitEmptyToken(tagIdsRaw);
+      let matchedIds: string[] = [];
+      if (tagIds.length) {
+        const { data: rels } = await context.supabase
+          .from("contact_tags")
+          .select("contact_id")
+          .in("tag_id", tagIds);
+        matchedIds = Array.from(new Set((rels ?? []).map((r: any) => r.contact_id as string)));
+      }
+      if (includeEmpty) {
+        const { data: allRels } = await context.supabase
+          .from("contact_tags")
+          .select("contact_id")
+          .limit(20000);
+        const allTagged = Array.from(new Set((allRels ?? []).map((r: any) => r.contact_id as string)));
+        if (matchedIds.length && allTagged.length) {
+          const quotedMatched = matchedIds.map((v) => `"${v}"`).join(",");
+          const quotedAll = allTagged.map((v) => `"${v}"`).join(",");
+          q = q.or(`id.in.(${quotedMatched}),id.not.in.(${quotedAll})`);
+        } else if (matchedIds.length) {
+          q = q.in("id", matchedIds);
+        } else if (allTagged.length) {
+          q = q.not("id", "in", `(${allTagged.map((v) => `"${v}"`).join(",")})`);
+        }
+        // else: nenhum contato tem tag → todos combinam com "vazio" (nenhuma restrição)
+      } else {
+        if (!matchedIds.length) {
+          return { rows: [], total: 0, page, pageSize: data.pageSize };
+        }
+        q = q.in("id", matchedIds);
+      }
+    }
+
 
     if (data.sort) {
       const [field, dir] = String(data.sort).split(":");

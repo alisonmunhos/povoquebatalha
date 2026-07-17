@@ -20,7 +20,10 @@ function labelForOption(fieldKey: string, value: string): string {
   return f.options.find((o) => o.value === value)?.label ?? value;
 }
 
-export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
+export default function Cell({ contactId, fieldKey, value, onEdit, activeFilterValues }: any) {
+  const filterSet: Set<string> | null = Array.isArray(activeFilterValues) && activeFilterValues.length
+    ? new Set(activeFilterValues as string[])
+    : null;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<any>(value);
 
@@ -39,7 +42,8 @@ export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
 
   // --- TAGS ---
   if (fieldKey === "tags" && Array.isArray(value)) {
-    const tags = value as Array<{ id: string; nome: string; cor?: string | null }>;
+    const allTags = value as Array<{ id: string; nome: string; cor?: string | null }>;
+    const tags = filterSet ? allTags.filter((t) => filterSet.has(t.id)) : allTags;
     if (tags.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
     const visible = tags.slice(0, 3);
     const extra = tags.length - visible.length;
@@ -72,7 +76,8 @@ export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
 
   // --- DISPONIBILIDADE (chips agrupados por dia com turnos) ---
   if (fieldKey === "disponibilidade" && Array.isArray(value)) {
-    const arr = value as string[];
+    const arrAll = value as string[];
+    const arr = filterSet ? arrAll.filter((v) => filterSet.has(v)) : arrAll;
     if (arr.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
 
     // Agrupa: { segunda: ["manha","tarde"], ... }
@@ -109,7 +114,8 @@ export default function Cell({ contactId, fieldKey, value, onEdit }: any) {
 
   // --- FORMAS DE AJUDA / listas de valores ---
   if (fieldKey === "formas_ajuda" && Array.isArray(value)) {
-    const arr = value as string[];
+    const arrAll = value as string[];
+    const arr = filterSet ? arrAll.filter((v) => filterSet.has(v)) : arrAll;
     if (arr.length === 0) return <div className="p-2 text-muted-foreground">—</div>;
     const visible = arr.slice(0, 4);
     const extra = arr.length - visible.length;
