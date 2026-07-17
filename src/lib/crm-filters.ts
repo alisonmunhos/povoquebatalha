@@ -275,11 +275,26 @@ export function applyCrmFilters<T extends {
   if (f.bloqueado === "sim") q = q.eq("lifecycle_status", "nao_enviar" as never);
   if (f.bloqueado === "nao") q = q.not("lifecycle_status", "eq", "nao_enviar");
   if (f.phone_status) q = q.eq("phone_status", f.phone_status);
-  if (f.phone_statuses?.length) q = q.in("phone_status", f.phone_statuses);
+  if (f.phone_statuses?.length) {
+    const { values, empty } = splitEmptyToken(f.phone_statuses);
+    if (empty && values.length) q = q.or(`phone_status.in.(${values.map((v) => `"${v}"`).join(",")}),phone_status.is.null`);
+    else if (empty) q = q.is("phone_status", null);
+    else if (values.length) q = q.in("phone_status", values);
+  }
   if (f.whatsapp_status) q = q.eq("whatsapp_status", f.whatsapp_status);
-  if (f.whatsapp_statuses?.length) q = q.in("whatsapp_status", f.whatsapp_statuses);
+  if (f.whatsapp_statuses?.length) {
+    const { values, empty } = splitEmptyToken(f.whatsapp_statuses);
+    if (empty && values.length) q = q.or(`whatsapp_status.in.(${values.map((v) => `"${v}"`).join(",")}),whatsapp_status.is.null`);
+    else if (empty) q = q.is("whatsapp_status", null);
+    else if (values.length) q = q.in("whatsapp_status", values);
+  }
   if (f.lifecycle_status) q = q.eq("lifecycle_status", f.lifecycle_status);
-  if (f.lifecycle_statuses?.length) q = q.in("lifecycle_status", f.lifecycle_statuses);
+  if (f.lifecycle_statuses?.length) {
+    const { values, empty } = splitEmptyToken(f.lifecycle_statuses);
+    if (empty && values.length) q = q.or(`lifecycle_status.in.(${values.map((v) => `"${v}"`).join(",")}),lifecycle_status.is.null`);
+    else if (empty) q = q.is("lifecycle_status", null);
+    else if (values.length) q = q.in("lifecycle_status", values);
+  }
 
   // Importação
   if (f.import_id) q = q.eq("import_id", f.import_id);
