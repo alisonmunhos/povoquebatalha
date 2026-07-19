@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, Pause, Play, Pencil, X, Repeat } from "lucide-react";
+import { ArrowLeft, Copy, Pause, Play, Pencil, X, Repeat, Tag as TagIcon } from "lucide-react";
 import {
   getMissionDetail,
   unassignMissionTask,
@@ -17,7 +17,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AssignResponsibleModal } from "@/components/AssignResponsibleModal";
 import { EditMissionModal } from "@/components/EditMissionModal";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
+import { ApplyTagModal } from "@/components/ApplyTagModal";
 import type { CrmFilters } from "@/lib/crm-filters";
+
+type StatusFilter = "todos" | "sem_atribuicao" | "atribuido" | "concluido" | "nao_enviado";
 
 export const Route = createFileRoute("/_authenticated/missoes-agitacao/$missionId")({
   head: () => ({ meta: [{ title: "Detalhe da Missão" }] }),
@@ -71,6 +74,9 @@ function MissionDetailsPanel() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [newMissionOpen, setNewMissionOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
+  const [responsavelFilter, setResponsavelFilter] = useState<string>("todos");
 
   const q = useQuery({
     queryKey: ["agitation-mission-detail", missionId],
@@ -84,8 +90,23 @@ function MissionDetailsPanel() {
 
   const tasks = (q.data?.tasks ?? []) as Task[];
   const links = (q.data?.links ?? []) as LinkRow[];
-  const pendentes = tasks.filter((t) => !t.assigned_contact_id);
   const missionPaused = !!q.data?.mission.paused_at;
+
+  const filteredTasks = tasks.filter((t) => {
+    if (statusFilter === "sem_atribuicao" && t.assigned_contact_id) return false;
+    if (statusFilter === "atribuido" && !(t.assigned_contact_id && t.status === "pending"))
+      return false;
+    if (statusFilter === "concluido" && t.status !== "concluido") return false;
+    if (statusFilter === "nao_enviado" && t.status !== "nao_enviado") return false;
+    if (responsavelFilter === "sem_atribuicao" && t.assigned_contact_id) return false;
+    if (
+      responsavelFilter !== "todos" &&
+      responsavelFilter !== "sem_atribuicao" &&
+      t.assigned_contact_id !== responsavelFilter
+    )
+      return false;
+    return true;
+  });
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -96,9 +117,9 @@ function MissionDetailsPanel() {
     });
   }
 
-  function toggleAllPendentes() {
+  function toggleAllFiltered() {
     setSelected((prev) =>
-      prev.size === pendentes.length ? new Set() : new Set(pendentes.map((t) => t.id)),
+      prev.size === filteredTasks.length ? new Set() : new Set(filteredTasks.map((t) => t.id)),
     );
   }
 
@@ -107,15 +128,26 @@ function MissionDetailsPanel() {
     invalidate();
   }
 
-  async function onUnassign(taskId: string) {
-    if (!confirm("Desatribuir este contato? Ele volta pra lista de sem atribuição.")) return;
+  async function onUnassign(taskIds: string[]) {
+    if (
+      !confirm(
+        `Desatribuir ${taskIds.length} contato(s)? Eles voltam pra lista de sem atribuição (e status concluído/não enviado é reiniciado).`,
+      )
+    )
+      return;
     try {
-      await unassignFn({ data: { task_id: taskId } });
+      await unassignFn({ data: { task_ids: taskIds } });
+      setSelected(new Set());
       invalidate();
-      toast.success("Contato desatribuído.");
+      toast.success(`${taskIds.length} contato(s) desatribuído(s).`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
     }
+  }
+
+  function onApplyTagDone() {
+    setSelected(new Set());
+    invalidate();
   }
 
   async function onToggleMissionPause() {
@@ -227,27 +259,68 @@ function MissionDetailsPanel() {
       )}
 
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="text-xs h-8 rounded-md border px-2 bg-background"
+          >
+            <option value="todos">Status: todos</option>
+            <option value="sem_atribuicao">Sem atribuição</option>
+            <option value="atribuido">Atribuído (pendente)</option>
+            <option value="concluido">Concluído</option>
+            <option value="nao_enviado">Não enviado</option>
+          </select>
+          <select
+            value={responsavelFilter}
+            onChange={(e) => setResponsavelFilter(e.target.value)}
+            className="text-xs h-8 rounded-md border px-2 bg-background"
+          >
+            <option value="todos">Responsável: todos</option>
+            <option value="sem_atribuicao">Sem atribuição</option>
+            {links.map((l) => (
+              <option key={l.contact_id} value={l.contact_id}>
+                {l.nome ?? "(sem nome)"}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
-              checked={pendentes.length > 0 && selected.size === pendentes.length}
-              onCheckedChange={toggleAllPendentes}
+              checked={filteredTasks.length > 0 && selected.size === filteredTasks.length}
+              onCheckedChange={toggleAllFiltered}
             />
-            Selecionar todos sem atribuição ({pendentes.length})
+            Selecionar todos os filtrados ({filteredTasks.length})
           </label>
-          <Button size="sm" disabled={selected.size === 0} onClick={() => setAssignOpen(true)}>
-            Atribuir Responsável ({selected.size})
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={selected.size === 0} onClick={() => setAssignOpen(true)}>
+              Atribuir Responsável ({selected.size})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={selected.size === 0}
+              onClick={() => onUnassign([...selected])}
+            >
+              Desatribuir selecionados ({selected.size})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={selected.size === 0}
+              onClick={() => setTagOpen(true)}
+            >
+              <TagIcon className="h-3.5 w-3.5 mr-1" /> Aplicar tag ({selected.size})
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-xl border divide-y">
-          {tasks.map((t) => (
+          {filteredTasks.map((t) => (
             <div key={t.id} className="flex items-center gap-3 p-3 text-sm">
-              <Checkbox
-                checked={selected.has(t.id)}
-                disabled={!!t.assigned_contact_id}
-                onCheckedChange={() => toggle(t.id)}
-              />
+              <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} />
               <div className="flex-1">
                 <div className="font-medium">{t.contact?.nome ?? "(sem nome)"}</div>
                 <div className="text-xs text-muted-foreground">
@@ -264,7 +337,7 @@ function MissionDetailsPanel() {
                   <button
                     type="button"
                     title="Desatribuir"
-                    onClick={() => onUnassign(t.id)}
+                    onClick={() => onUnassign([t.id])}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <X className="h-4 w-4" />
@@ -303,6 +376,16 @@ function MissionDetailsPanel() {
           labelSelecao="todos os contatos do filtro original desta missão"
         />
       )}
+
+      <ApplyTagModal
+        open={tagOpen}
+        onOpenChange={setTagOpen}
+        contactIds={tasks
+          .filter((t) => selected.has(t.id) && t.contact?.id)
+          .map((t) => t.contact!.id)}
+        defaultTagName={q.data.mission.title}
+        onApplied={onApplyTagDone}
+      />
     </div>
   );
 }

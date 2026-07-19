@@ -351,7 +351,7 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
   });
 
 // ===== Desfazer atribuição (volta pra lista de "sem atribuição") =====
-const unassignSchema = z.object({ task_id: z.string().uuid() });
+const unassignSchema = z.object({ task_ids: z.array(z.string().uuid()).min(1).max(2000) });
 
 export const unassignMissionTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -360,9 +360,9 @@ export const unassignMissionTask = createServerFn({ method: "POST" })
     const { error } = await context.supabase
       .from("agitation_tasks")
       .update({ assigned_contact_id: null, assigned_at: null, status: "pending" })
-      .eq("id", data.task_id);
+      .in("id", data.task_ids);
     if (error) throw error;
-    return { ok: true as const };
+    return { ok: true as const, updated: data.task_ids.length };
   });
 
 // ===== Pausar/retomar missão inteira =====
