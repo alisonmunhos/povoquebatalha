@@ -192,7 +192,7 @@ export function applyCrmFilters<T extends {
     for (const slug of values) {
       const variants =
         slug === "panfletagem_banquinha" ? ["panfletagem_banquinha", "panfletagem"] : [slug];
-      for (const v of variants) clauses.push(`formas_ajuda.cs.["${v.replace(/"/g, "")}"]`);
+      for (const v of variants) clauses.push(`formas_ajuda.cs.{"${v.replace(/"/g, "")}"}`);
     }
     if (empty) {
       clauses.push("formas_ajuda.is.null");
@@ -202,7 +202,7 @@ export function applyCrmFilters<T extends {
   }
   if (f.disponibilidade?.length) {
     const { values, empty } = splitEmptyToken(f.disponibilidade);
-    const clauses = values.map((slug) => `disponibilidade.cs.["${slug.replace(/"/g, "")}"]`);
+    const clauses = values.map((slug) => `disponibilidade.cs.{"${slug.replace(/"/g, "")}"}`);
     if (empty) {
       clauses.push("disponibilidade.is.null");
       clauses.push("disponibilidade->0.is.null");
