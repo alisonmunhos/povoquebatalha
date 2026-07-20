@@ -7,7 +7,7 @@
 //    campos da ficha, Coletivo Alicerce OBRIGATÓRIO. Ao salvar cadastro
 //    completo dispara a mesma automação de confirmação do /recadastro.
 // 2) Gerar link rastreável → comportamento anterior.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -282,6 +282,15 @@ function ProgressiveFillForm({
   const [coletivoAlicerce, setColetivoAlicerce] = useState<"" | "sim" | "nao">("");
   const [savingFull, setSavingFull] = useState(false);
   const [fullError, setFullError] = useState<string | null>(null);
+  const fase2Ref = useRef<HTMLFormElement>(null);
+
+  // O passo 2 (ficha completa) some no rodapé do modal depois de "Salvar
+  // rápido" — sem rolar até ele, no celular parece que a tela não abriu.
+  useEffect(() => {
+    if (contactId) {
+      fase2Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [contactId]);
 
   function toggleForma(v: string) {
     setFormasAjuda((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
@@ -391,7 +400,7 @@ function ProgressiveFillForm({
 
       {/* Fase 2 — só após salvar */}
       {savedQuick && (
-        <form onSubmit={saveComplete} className="space-y-5">
+        <form ref={fase2Ref} onSubmit={saveComplete} className="space-y-5">
           {/* Formas de ajuda — botões grandes */}
           <section className="space-y-2">
             <div className="text-sm font-semibold">Como pode ajudar?</div>
