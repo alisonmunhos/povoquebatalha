@@ -82,6 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-title", content: "Território" },
       { title: "Campanha Do Povo Que Batalha" },
       { name: "description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
+      { name: "google", content: "notranslate" },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Campanha Do Povo Que Batalha" },
       { property: "og:description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
