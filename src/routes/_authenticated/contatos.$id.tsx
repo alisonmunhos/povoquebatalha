@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useMemo } from "react";
@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { PHONE_STATUS_LABEL, PHONE_STATUS_BADGE, suggestDddFor, ALL_DDDS } from "@/lib/phone-labels";
-
+ 
 
 const TIPO_OPTIONS = [
   { v: "apoiador", l: "Apoiador" }, { v: "voluntario", l: "Voluntário" },
@@ -63,6 +63,7 @@ export const Route = createFileRoute("/_authenticated/contatos/$id")({
 function ContatoFicha() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const router = useRouter();
   const getFn = useServerFn(getContact);
   const updateFn = useServerFn(updateContact);
   const savePhoneFn = useServerFn(saveContactPhone);
@@ -207,7 +208,21 @@ function ContatoFicha() {
     }
   }
 
-  
+  /**
+   * Navega para trás no histórico do navegador quando disponível.
+   * Fallback: se não houver histórico (ex: link direto), usa destino padrão por papel.
+   */
+  function handleGoBack() {
+    // Tenta voltar no histórico real (preserva filtros, paginação, ordenação)
+    if (window.history.length > 1) {
+      router.history.back();
+    } else {
+      // Fallback: não há página anterior — usa destino padrão por papel
+      const defaultDest = isAgitadorOnly ? "/agitacao" : "/contatos";
+      navigate({ to: defaultDest });
+    }
+  }
+
   const tagIds = new Set((q.data.tags ?? []).map((t) => t!.id));
   const phoneDigits = (c.phone_e164 ?? "").replace(/\D/g, "");
 
@@ -215,16 +230,16 @@ function ContatoFicha() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 mb-6">
-        <button onClick={() => navigate({ to: isAgitadorOnly ? "/agitacao" : "/contatos" })} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</button>
+        <button onClick={handleGoBack} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" /> Voltar</button>
         <div className="flex gap-2">
           {phoneDigits && (
             <>
-              <button onClick={() => { navigator.clipboard.writeText(c.phone_e164 ?? ""); toast.success("WhatsApp copiado"); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md"><Copy className="h-3.5 w-3.5" /> Copiar</button>
-              <a href={`https://wa.me/${phoneDigits}`} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md text-emerald-600"><MessageCircle className="h-3.5 w-3.5" /> Abrir WhatsApp</a>
+              <button onClick={() => { navigator.clipboard.writeText(c.phone_e164 ?? ""); toast.success("WhatsApp copiado"); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copiar</button>
+              <a href={`https://wa.me/${phoneDigits}`} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md text-emerald-600"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
             </>
           )}
           {!isAgitadorOnly && (
-            <button onClick={async () => { await archiveFn({ data: { id, archived: !c.arquivado_at } }); q.refetch(); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md">
+            <button onClick={async () => { await archiveFn({ data: { id, archived: !c.arquivado_at } }); q.refetch(); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md hover:bg-muted">
               {c.arquivado_at ? <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</> : <><Archive className="h-3.5 w-3.5" /> Arquivar</>}
             </button>
           )}
@@ -439,7 +454,7 @@ function ContatoFicha() {
 
           {!isAgitadorOnly && (
             <Section title="Observações internas">
-              <textarea value={String(form.observacoes ?? "")} onChange={(e) => set("observacoes", e.target.value)} rows={5} maxLength={4000} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              <textarea value={String(form.observacoes ?? "")} onChange={(e) => set("observacoes", e.target.value)} rows={5} maxLength={4000} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
             </Section>
           )}
 
@@ -447,7 +462,7 @@ function ContatoFicha() {
 
 
           <div className="sticky bottom-4 flex justify-end">
-            <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 shadow-lg">
+            <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 shadow-md">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Salvar alterações
             </button>
@@ -471,7 +486,7 @@ function ContatoFicha() {
             {hist.data && (
               <div className="space-y-3 text-xs">
                 <HistList title="Edições" items={hist.data.audit.map((a) => ({ key: a.id, when: a.created_at, text: a.action + (a.changes ? " · " + Object.keys(a.changes as object).join(", ") : "") }))} />
-                <HistList title="Mensagens enviadas" items={hist.data.recipients.map((r) => ({ key: r.id, when: r.sent_at ?? r.failed_at ?? "", text: r.erro ? `erro: ${r.erro}` : r.delivered_at ? "entregue" : r.sent_at ? "enviado" : "pendente" }))} />
+                <HistList title="Mensagens enviadas" items={hist.data.recipients.map((r) => ({ key: r.id, when: r.sent_at ?? r.failed_at ?? "", text: r.erro ? `erro: ${r.erro}` : r.delivered_at ? "entregue" : "enviando..." }))} />
                 <HistList title="Eventos WhatsApp" items={hist.data.events.map((e) => ({ key: e.id, when: e.received_at, text: e.tipo }))} />
                 <HistList title="Respostas recebidas" items={hist.data.inbound.map((i) => ({ key: i.id, when: i.received_at, text: i.conteudo ?? `(${i.tipo ?? "mídia"})` }))} />
               </div>
@@ -526,14 +541,14 @@ function OptOutControl({ id, optOutAt, motivo, onChange, fn }: { id: string; opt
       <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
         <p className="font-medium text-red-700">Marcado como não enviar</p>
         {motivo && <p className="text-xs mt-1">Motivo: {motivo}</p>}
-        <button onClick={async () => { await fn({ data: { id, optOut: false } }); onChange(); }} className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700"><UserCheck className="h-3.5 w-3.5" /> Reativar contato</button>
+        <button onClick={async () => { await fn({ data: { id, optOut: false } }); onChange(); }} className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700"><UserCheck className="h-3.5 w-3.5" /> Reverter</button>
       </div>
     );
   }
   return showMotivo ? (
     <div className="space-y-2">
       <input value={m} onChange={(e) => setM(e.target.value)} placeholder="Motivo (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-      <button onClick={async () => { await fn({ data: { id, optOut: true, motivo: m || undefined } }); onChange(); setShowMotivo(false); }} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-600 text-white text-xs"><UserMinus className="h-3.5 w-3.5" /> Confirmar opt-out</button>
+      <button onClick={async () => { await fn({ data: { id, optOut: true, motivo: m || undefined } }); onChange(); setShowMotivo(false); }} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-600 text-white text-xs hover:bg-red-700">Confirmar</button>
     </div>
   ) : (
     <button onClick={() => setShowMotivo(true)} className="text-xs text-muted-foreground hover:text-red-600 inline-flex items-center gap-1"><UserMinus className="h-3.5 w-3.5" /> Marcar como não enviar</button>
@@ -553,7 +568,7 @@ function TagPicker({ currentIds, all, onToggle, onCreate }: {
         {all.map((t) => {
           const on = currentIds.has(t.id);
           return (
-            <button key={t.id} onClick={() => onToggle(t.id, !on)} className={`text-xs px-2 py-0.5 rounded border ${on ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent"}`}>
+            <button key={t.id} onClick={() => onToggle(t.id, !on)} className={`text-xs px-2 py-0.5 rounded border ${on ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted border-input"}`}>
               {on && <X className="inline h-3 w-3 mr-0.5" />}{t.nome}
             </button>
           );
