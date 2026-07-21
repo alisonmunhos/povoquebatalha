@@ -5,8 +5,32 @@
 //                                  /api/public/forms/{inscrever,recadastro}.ts.
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getCatalogField } from "@/lib/form-field-catalog";
+import { getCatalogField, type FormCatalogField } from "@/lib/form-field-catalog";
 import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "@/lib/public-form-guards.server";
+
+// Só usado quando form.prefill_from_token está ligado (opt-in, ver migration) —
+// lê o valor já existente do contato pra virar valor inicial da pergunta,
+// no mesmo formato que PublicFormRenderer espera em `values[questionId]`.
+function catalogValueFromContact(
+  catalog: FormCatalogField,
+  contact: Record<string, unknown>,
+): unknown {
+  if (catalog.responseType === "address_block") {
+    const v: Record<string, unknown> = {};
+    for (const col of catalog.targetColumns) {
+      if (contact[col] != null && contact[col] !== "") v[col] = contact[col];
+    }
+    return Object.keys(v).length ? v : undefined;
+  }
+  const raw = contact[catalog.targetColumns[0]];
+  if (catalog.filterKind === "multiselect") {
+    return Array.isArray(raw) && raw.length ? raw : undefined;
+  }
+  if (catalog.filterKind === "boolean") {
+    return typeof raw === "boolean" ? raw : undefined;
+  }
+  return raw != null && raw !== "" ? raw : undefined;
+}
 
 const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" };
 
@@ -54,11 +78,11 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           },
         }),
 
-      GET: async ({ params }) => {
+      GET: async ({ request, params }) => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: form, error: formErr } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,title,is_active,whatsapp_button_enabled")
+          .select("id,title,is_active,whatsapp_button_enabled,prefill_from_token")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -93,10 +117,36 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           };
         });
 
+        let initialValues: Record<string, unknown> | undefined;
+        const token = new URL(request.url).searchParams.get("t");
+        if (form.prefill_from_token && token) {
+          const { data: contact } = await supabaseAdmin
+            .from("contacts")
+            .select("*")
+            .eq("recad_token", token)
+            .maybeSingle();
+          if (contact) {
+            initialValues = {};
+            for (const q of (questions ?? []) as QuestionRow[]) {
+              if (q.source !== "catalog" || !q.catalog_field_key) continue;
+              const catalog = getCatalogField(q.catalog_field_key);
+              if (!catalog) continue;
+              const v = catalogValueFromContact(catalog, contact as Record<string, unknown>);
+              if (v !== undefined) initialValues[q.id] = v;
+            }
+          }
+        }
+
         return new Response(
           JSON.stringify({
             ok: true,
-            form: { id: form.id, title: form.title, whatsapp_button_enabled: form.whatsapp_button_enabled, questions: enriched },
+            form: {
+              id: form.id,
+              title: form.title,
+              whatsapp_button_enabled: form.whatsapp_button_enabled,
+              questions: enriched,
+              initial_values: initialValues ?? null,
+            },
           }),
           { headers: cors },
         );
