@@ -43,3 +43,15 @@ export async function requireAdmin(supabase: Client, userId: string, errorMsg?: 
   await requireRole(supabase, userId, ["admin"], errorMsg ?? "Apenas administradores podem executar esta ação.");
 }
 
+// Mesma definição de "agitador exclusivo" já usada no client (route.tsx/AppShell.tsx):
+// tem o papel agitador e nenhum papel de staff — usado pra restringir server-side o
+// que esse papel pode editar, além do que a RLS já restringe por linha.
+export async function isAgitadorOnly(supabase: Client, userId: string): Promise<boolean> {
+  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  const roles = (data ?? []).map((r) => r.role as AppRole);
+  return (
+    roles.includes("agitador") &&
+    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao")
+  );
+}
+
