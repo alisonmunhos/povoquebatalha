@@ -165,7 +165,19 @@ export const listAgitationMissions = createServerFn({ method: "GET" })
       .select("id,title,created_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (!missions?.length) return { missions: [] as Array<Record<string, unknown>> };
+    if (!missions?.length) {
+      return {
+        missions: [] as Array<{
+          id: string;
+          title: string;
+          created_at: string;
+          total: number;
+          atribuidos: number;
+          pendentes: number;
+          concluidos: number;
+        }>,
+      };
+    }
 
     const ids = missions.map((m) => m.id);
     const { data: tasks } = await context.supabase
