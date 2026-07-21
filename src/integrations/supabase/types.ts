@@ -1483,6 +1483,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_fixed: boolean
+          prefill_from_token: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
           success_screen_order: string
@@ -1501,6 +1502,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_fixed?: boolean
+          prefill_from_token?: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
           success_screen_order?: string
@@ -1519,6 +1521,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_fixed?: boolean
+          prefill_from_token?: boolean
           slug?: string
           source_form_type?: Database["public"]["Enums"]["source_form_type"]
           success_screen_order?: string
