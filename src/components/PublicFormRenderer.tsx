@@ -24,7 +24,13 @@ type FormQuestion = {
   depends_on: { key: string; value: boolean } | null;
   catalog_field_key: string | null;
 };
-type FormDefinition = { id: string; title: string; whatsapp_button_enabled: boolean; questions: FormQuestion[] };
+type FormDefinition = {
+  id: string;
+  title: string;
+  whatsapp_button_enabled: boolean;
+  questions: FormQuestion[];
+  initial_values: Record<string, AnswerValue> | null;
+};
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 type SuccessScreenOrder = "whatsapp_first" | "confirmation_first";
 
@@ -48,11 +54,15 @@ export function PublicFormRenderer({
   } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/public/forms/${slug}`)
+    const url = recadToken ? `/api/public/forms/${slug}?t=${recadToken}` : `/api/public/forms/${slug}`;
+    fetch(url)
       .then((r) => r.json())
-      .then((json) => setForm(json.ok ? json.form : null))
+      .then((json) => {
+        setForm(json.ok ? json.form : null);
+        if (json.ok && json.form.initial_values) setValues(json.form.initial_values);
+      })
       .catch(() => setForm(null));
-  }, [slug]);
+  }, [slug, recadToken]);
 
   const set = (questionId: string, v: AnswerValue) => setValues((p) => ({ ...p, [questionId]: v }));
   const toggleMulti = (questionId: string, option: string) => {

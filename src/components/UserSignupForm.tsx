@@ -56,6 +56,10 @@ export function UserSignupForm({
         if (json.code) setErrorCode(json.code as string);
         throw new Error(json.error ?? "Erro ao enviar cadastro.");
       }
+      if (json.next_step_url) {
+        window.location.href = json.next_step_url as string;
+        return;
+      }
       setSuccess({ whatsappPhone: json.whatsapp_phone ?? null, nome: body.nome });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar cadastro.");

@@ -9,6 +9,11 @@ import { PUBLIC_SIGNUP_ROLES, ROLE_LABEL, type AppRole } from "@/lib/roles";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" };
 
+// UUID fixo da linha "Cadastro de Usuário Alicerce" em form_definitions (ver
+// migration 20260721120000_...sql) — referenciado por id, não por slug, pra não
+// quebrar se alguém renomear o formulário depois pela aba Entrada de Dados.
+const CADASTRO_ALICERCE_FORM_ID = "a7c1e9d4-3f6b-4a82-9e15-6d0c4f8b2a91";
+
 export function corsOptionsResponse(): Response {
   return new Response(null, {
     status: 204,
@@ -141,6 +146,11 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
     /* non-blocking */
   }
 
+  // Cadastro encadeado: o Passo 2 ("Cadastro de Usuário Alicerce") é identificado
+  // pelo recad_token do contato recém-ligado — mesmo padrão de link individual
+  // já usado em /atualizacao. Se o formulário não existir/estiver inativo (situação
+  // defensiva, não esperada), segue sem link, sem quebrar o cadastro.
+  let nextStepUrl: string | null = null;
   try {
     if (contactId) {
       const { data: c } = await supabaseAdmin
@@ -149,10 +159,29 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
         .eq("id", contactId)
         .single();
       if (c) {
+        const origin =
+          request.headers.get("origin") ||
+          (request.headers.get("host")
+            ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}`
+            : null);
+        if (origin && c.recad_token) {
+          const { data: alicerceForm } = await supabaseAdmin
+            .from("form_definitions")
+            .select("slug,is_active")
+            .eq("id", CADASTRO_ALICERCE_FORM_ID)
+            .maybeSingle();
+          if (alicerceForm?.is_active) {
+            nextStepUrl = `${origin}/f/${alicerceForm.slug}?t=${c.recad_token}`;
+          }
+        }
+
         const { sendMessage } = await import("@/lib/wa-send.server");
+        const stepText = nextStepUrl
+          ? `\n\nPra completar sua ficha de apoiador (endereço, como você pode ajudar, etc.), acesse: ${nextStepUrl}`
+          : "";
         await sendMessage({
           contact: c,
-          text: `Olá ${d.nome}! Recebemos seu cadastro na Campanha do Povo que Batalha. Você receberá acesso ao painel assim que for aprovado por um administrador.`,
+          text: `Olá ${d.nome}! Recebemos seu cadastro na Campanha do Povo que Batalha. Você receberá acesso ao painel assim que for aprovado por um administrador.${stepText}`,
           textAlreadyRendered: true,
           origin: "automation",
           skipValidations: true,
@@ -180,7 +209,10 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
     /* ignore — mantém o padrão */
   }
 
-  return new Response(JSON.stringify({ ok: true, whatsapp_phone: whatsappPhone }), { headers: cors });
+  return new Response(
+    JSON.stringify({ ok: true, whatsapp_phone: whatsappPhone, next_step_url: nextStepUrl }),
+    { headers: cors },
+  );
 }
 
 export { getRequestIp };
