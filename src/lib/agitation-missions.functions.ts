@@ -315,7 +315,8 @@ export const listAgitadorCandidates = createServerFn({ method: "POST" })
     let q = context.supabase
       .from("contacts")
       .select("id,nome,coletivo_alicerce,formas_ajuda")
-      .limit(500);
+      .limit(500)
+      .order("nome", { ascending: true });
     q = applyCrmFilters(q as never, data as CrmFilters) as typeof q;
     const { data: contatos, error } = await q;
     if (error) throw error;

@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   MultiSelectFilter,
@@ -55,6 +56,7 @@ export function AssignResponsibleModal({
   const [coletivoAlicerce, setColetivoAlicerce] = useState<boolean | undefined>(undefined);
   const [formasAjuda, setFormasAjuda] = useState<string[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [searchText, setSearchText] = useState("");
   const [saving, setSaving] = useState(false);
   const [link, setLink] = useState<string | null>(null);
 
@@ -65,10 +67,18 @@ export function AssignResponsibleModal({
     enabled: open,
   });
 
+  // Filtra em memória o que já veio do servidor — sem request novo por letra digitada.
+  const filteredCandidates = (
+    (candidatesQ.data?.candidates as
+      | Array<{ contact_id: string; nome: string | null }>
+      | undefined) ?? []
+  ).filter((c) => (c.nome ?? "").toLowerCase().includes(searchText.trim().toLowerCase()));
+
   function reset() {
     setColetivoAlicerce(undefined);
     setFormasAjuda([]);
     setSelectedContactId("");
+    setSearchText("");
     setLink(null);
   }
 
@@ -149,7 +159,13 @@ export function AssignResponsibleModal({
             </div>
             <div>
               <Label className="text-xs font-medium">Responsável (selecione 1)</Label>
-              <div className="mt-1 max-h-64 overflow-y-auto rounded-md border divide-y">
+              <Input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Buscar responsável…"
+                className="mt-1"
+              />
+              <div className="mt-2 max-h-64 overflow-y-auto rounded-md border divide-y">
                 {candidatesQ.isLoading && (
                   <p className="p-3 text-xs text-muted-foreground">Carregando…</p>
                 )}
@@ -158,11 +174,14 @@ export function AssignResponsibleModal({
                     Nenhum candidato encontrado com esses filtros.
                   </p>
                 )}
-                {(
-                  (candidatesQ.data?.candidates as
-                    | Array<{ contact_id: string; nome: string | null }>
-                    | undefined) ?? []
-                ).map((c) => (
+                {!candidatesQ.isLoading &&
+                  (candidatesQ.data?.candidates.length ?? 0) > 0 &&
+                  filteredCandidates.length === 0 && (
+                    <p className="p-3 text-xs text-muted-foreground">
+                      Nenhum resultado para a busca.
+                    </p>
+                  )}
+                {filteredCandidates.map((c) => (
                   <label
                     key={c.contact_id}
                     className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-muted/40"
