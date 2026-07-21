@@ -157,27 +157,25 @@ export const updateAgitationMission = createServerFn({ method: "POST" })
   });
 
 // ===== Listagem de missões (com contagens) =====
+export type MissionSummary = {
+  id: string;
+  title: string;
+  created_at: string;
+  total: number;
+  atribuidos: number;
+  pendentes: number;
+  concluidos: number;
+};
+
 export const listAgitationMissions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }): Promise<{ missions: MissionSummary[] }> => {
     const { data: missions, error } = await context.supabase
       .from("agitation_missions")
       .select("id,title,created_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (!missions?.length) {
-      return {
-        missions: [] as Array<{
-          id: string;
-          title: string;
-          created_at: string;
-          total: number;
-          atribuidos: number;
-          pendentes: number;
-          concluidos: number;
-        }>,
-      };
-    }
+    if (!missions?.length) return { missions: [] };
 
     const ids = missions.map((m) => m.id);
     const { data: tasks } = await context.supabase
