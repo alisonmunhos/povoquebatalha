@@ -1,7 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireAdmin } from "@/lib/authz";
+import { isAgitadorOnly, requireAdmin } from "@/lib/authz";
+import { FORM_FIELD_CATALOG } from "@/lib/form-field-catalog";
+
+// Colunas que o formulário público de cadastro cobre — é só isso que um
+// agitador exclusivo pode alterar pela ficha (defesa em profundidade além da
+// RLS, que já restringe a linha a contatos que ele mesmo captou).
+const AGITADOR_EDITABLE_FIELDS = new Set(FORM_FIELD_CATALOG.flatMap((f) => f.targetColumns));
 
 
 const listSchema = z.object({
@@ -123,8 +129,14 @@ export const updateContact = createServerFn({ method: "POST" })
       .single();
     if (prevErr) throw prevErr;
 
+    let payload: Record<string, unknown> = { ...rest };
+    if (await isAgitadorOnly(context.supabase, context.userId)) {
+      payload = Object.fromEntries(
+        Object.entries(payload).filter(([k]) => AGITADOR_EDITABLE_FIELDS.has(k)),
+      );
+    }
+
     // Empty email -> null
-    const payload: Record<string, unknown> = { ...rest };
     if (payload.email === "") payload.email = null;
     if (payload.email_secundario === "") payload.email_secundario = null;
     if (payload.uf && typeof payload.uf === "string") payload.uf = payload.uf.toUpperCase();

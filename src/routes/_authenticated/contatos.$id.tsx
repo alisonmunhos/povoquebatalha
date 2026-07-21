@@ -75,6 +75,9 @@ function ContatoFicha() {
   const deleteFn = useServerFn(deleteContact);
   const role = useCurrentUserRole();
   const isAdmin = role === "admin";
+  // Agitador exclusivo só edita os campos do formulário público (backend também
+  // filtra em updateContact) — sem Tags, Arquivar, Observações internas, etc.
+  const isAgitadorOnly = role === "agitador";
   const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
 
@@ -212,7 +215,7 @@ function ContatoFicha() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 mb-6">
-        <button onClick={() => navigate({ to: "/contatos" })} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</button>
+        <button onClick={() => navigate({ to: isAgitadorOnly ? "/agitacao" : "/contatos" })} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</button>
         <div className="flex gap-2">
           {phoneDigits && (
             <>
@@ -220,9 +223,11 @@ function ContatoFicha() {
               <a href={`https://wa.me/${phoneDigits}`} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md text-emerald-600"><MessageCircle className="h-3.5 w-3.5" /> Abrir WhatsApp</a>
             </>
           )}
-          <button onClick={async () => { await archiveFn({ data: { id, archived: !c.arquivado_at } }); q.refetch(); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md">
-            {c.arquivado_at ? <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</> : <><Archive className="h-3.5 w-3.5" /> Arquivar</>}
-          </button>
+          {!isAgitadorOnly && (
+            <button onClick={async () => { await archiveFn({ data: { id, archived: !c.arquivado_at } }); q.refetch(); }} className="text-xs inline-flex items-center gap-1 px-3 py-1.5 border rounded-md">
+              {c.arquivado_at ? <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</> : <><Archive className="h-3.5 w-3.5" /> Arquivar</>}
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setConfirmDelete(true)}
@@ -269,7 +274,9 @@ function ContatoFicha() {
             <Row><Field label="Nome completo *" value={form.nome} onChange={(v) => set("nome", v)} /></Row>
             <Row><Field label="Nome social / apelido" value={form.nome_social} onChange={(v) => set("nome_social", v)} /></Row>
             <Row><Field label="E-mail" value={form.email} onChange={(v) => set("email", v)} type="email" /></Row>
-            <Row><Field label="E-mail secundário" value={form.email_secundario} onChange={(v) => set("email_secundario", v)} type="email" placeholder="Opcional — preservado em mesclagens" /></Row>
+            {!isAgitadorOnly && (
+              <Row><Field label="E-mail secundário" value={form.email_secundario} onChange={(v) => set("email_secundario", v)} type="email" placeholder="Opcional — preservado em mesclagens" /></Row>
+            )}
             <Row>
               <Field label="WhatsApp / telefone" value={form.phone_raw} onChange={(v) => set("phone_raw", v)} placeholder="(11) 91234-5678" />
               <PhoneQuickSave
@@ -281,10 +288,12 @@ function ContatoFicha() {
               />
             </Row>
 
-            <Row>
-              <Field label="Telefone secundário" value={form.phone_secundario_raw} onChange={(v) => set("phone_secundario_raw", v)} placeholder="Opcional — reconhecido em mensagens recebidas" />
-              {form.phone_secundario_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(parsePhoneBR(String(form.phone_secundario_raw ?? "")).phone_e164 ?? "") || "—"}</p> : null}
-            </Row>
+            {!isAgitadorOnly && (
+              <Row>
+                <Field label="Telefone secundário" value={form.phone_secundario_raw} onChange={(v) => set("phone_secundario_raw", v)} placeholder="Opcional — reconhecido em mensagens recebidas" />
+                {form.phone_secundario_raw ? <p className="text-xs text-muted-foreground mt-1">→ {formatPhoneBR(parsePhoneBR(String(form.phone_secundario_raw ?? "")).phone_e164 ?? "") || "—"}</p> : null}
+              </Row>
+            )}
           </Section>
 
           <Section title="Endereço">
@@ -316,12 +325,14 @@ function ContatoFicha() {
               <Field label="Onde trabalha" value={form.instituicao} onChange={(v) => set("instituicao", v)} placeholder="Ex: Escola Municipal Getúlio Vargas, Secretaria de Saúde, Autônomo(a)" />
               <p className="text-xs text-muted-foreground mt-1">Nome do local (escola, posto de saúde, empresa, coletivo, órgão). Opcional.</p>
             </Row>
-            <Row>
-              <label className="text-sm font-medium">Tipo de contato</label>
-              <select value={String(form.tipo_contato ?? "")} onChange={(e) => set("tipo_contato", e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                {TIPO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
-              </select>
-            </Row>
+            {!isAgitadorOnly && (
+              <Row>
+                <label className="text-sm font-medium">Tipo de contato</label>
+                <select value={String(form.tipo_contato ?? "")} onChange={(e) => set("tipo_contato", e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  {TIPO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
+              </Row>
+            )}
             <div>
               <p className="text-sm font-medium mb-1.5">Faz parte do Coletivo Alicerce</p>
               <div className="flex gap-2 max-w-xs">
@@ -418,15 +429,21 @@ function ContatoFicha() {
               Consentimento para receber WhatsApp
             </label>
             {c.consentimento_at && <p className="text-xs text-muted-foreground">Desde {new Date(c.consentimento_at).toLocaleString("pt-BR")}</p>}
-            <Row><Field label="Origem (detalhe)" value={form.origem_detalhe} onChange={(v) => set("origem_detalhe", v)} /></Row>
-            <OptOutControl id={id} optOutAt={c.opt_out_at} motivo={c.opt_out_motivo} onChange={() => q.refetch()} fn={optOutFn} />
+            {!isAgitadorOnly && (
+              <>
+                <Row><Field label="Origem (detalhe)" value={form.origem_detalhe} onChange={(v) => set("origem_detalhe", v)} /></Row>
+                <OptOutControl id={id} optOutAt={c.opt_out_at} motivo={c.opt_out_motivo} onChange={() => q.refetch()} fn={optOutFn} />
+              </>
+            )}
           </Section>
 
-          <Section title="Observações internas">
-            <textarea value={String(form.observacoes ?? "")} onChange={(e) => set("observacoes", e.target.value)} rows={5} maxLength={4000} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-          </Section>
+          {!isAgitadorOnly && (
+            <Section title="Observações internas">
+              <textarea value={String(form.observacoes ?? "")} onChange={(e) => set("observacoes", e.target.value)} rows={5} maxLength={4000} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </Section>
+          )}
 
-          <OrigemCaptacaoSection contactId={id} contact={c as ContactSourceLike} />
+          {!isAgitadorOnly && <OrigemCaptacaoSection contactId={id} contact={c as ContactSourceLike} />}
 
 
           <div className="sticky bottom-4 flex justify-end">
@@ -438,14 +455,16 @@ function ContatoFicha() {
         </div>
 
         <aside className="space-y-6">
-          <Section title={<span className="flex items-center gap-2"><TagIcon className="h-4 w-4" /> Tags</span>}>
-            <TagPicker
-              currentIds={tagIds}
-              all={allTags.data?.tags ?? []}
-              onToggle={async (tag_id, add) => { await setTagFn({ data: { contact_id: id, tag_id, add } }); q.refetch(); }}
-              onCreate={async (nome) => { const t = await createTagFn({ data: { nome } }); await allTags.refetch(); await setTagFn({ data: { contact_id: id, tag_id: t.id, add: true } }); q.refetch(); }}
-            />
-          </Section>
+          {!isAgitadorOnly && (
+            <Section title={<span className="flex items-center gap-2"><TagIcon className="h-4 w-4" /> Tags</span>}>
+              <TagPicker
+                currentIds={tagIds}
+                all={allTags.data?.tags ?? []}
+                onToggle={async (tag_id, add) => { await setTagFn({ data: { contact_id: id, tag_id, add } }); q.refetch(); }}
+                onCreate={async (nome) => { const t = await createTagFn({ data: { nome } }); await allTags.refetch(); await setTagFn({ data: { contact_id: id, tag_id: t.id, add: true } }); q.refetch(); }}
+              />
+            </Section>
+          )}
 
           <Section title={<span className="flex items-center gap-2"><History className="h-4 w-4" /> Histórico</span>}>
             {hist.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
