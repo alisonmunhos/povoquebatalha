@@ -535,10 +535,11 @@ function ProgressiveFillForm({
   );
 }
 
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({ label, hint, children, className }: { label: string; hint?: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {hint ? <p className="mt-0.5 text-[11px] text-muted-foreground/80">{hint}</p> : null}
       <div className="mt-1">{children}</div>
     </div>
   );
