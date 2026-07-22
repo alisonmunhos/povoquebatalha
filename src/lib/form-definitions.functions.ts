@@ -347,19 +347,20 @@ export const mintFormTrackedLink = createServerFn({ method: "POST" })
     return { link };
   });
 
+function slugifyFormTitle(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export const duplicateFormDefinition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({
-      id: z.string().uuid(),
-      title: z.string().trim().min(2).max(160),
-      slug: z
-        .string()
-        .trim()
-        .min(2)
-        .max(80)
-        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use apenas letras minúsculas, números e hífen."),
-    }).parse(d),
+    z.object({ id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
@@ -371,6 +372,19 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
     if (srcErr) throw srcErr;
     if (src.is_fixed) throw new Error("Formulários fixos não podem ser duplicados.");
 
+    const copyTitle = `${src.title} (cópia)`.slice(0, 160);
+    const baseSlug = `${slugifyFormTitle(src.slug)}-copia`.slice(0, 72);
+    let slug = baseSlug;
+    for (let n = 2; n < 100; n++) {
+      const { data: existing } = await context.supabase
+        .from("form_definitions")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!existing) break;
+      slug = `${baseSlug}-${n}`.slice(0, 80);
+    }
+
     const { data: questions, error: qErr } = await context.supabase
       .from("form_definition_questions")
       .select("order_index,source,catalog_field_key,label,help_text,required")
@@ -378,12 +392,13 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
       .order("order_index", { ascending: true });
     if (qErr) throw qErr;
 
+    const srcTracking = (src as { tracking_name?: string | null }).tracking_name?.trim() || src.title;
     const { data: row, error } = await context.supabase
       .from("form_definitions")
       .insert({
-        title: data.title,
-        slug: data.slug,
-        tracking_name: data.title,
+        title: copyTitle,
+        slug,
+        tracking_name: `${srcTracking} (cópia)`.slice(0, 120),
         source_form_type: src.source_form_type,
         event_key: `formulario:${data.slug}`,
         created_by: context.userId,
