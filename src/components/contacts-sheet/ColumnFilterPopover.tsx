@@ -202,7 +202,7 @@ export default function ColumnFilterPopover(props: {
         )}
       </div>
 
-      <div className="popover-footer shrink-0 flex gap-2 px-3 py-2.5 border-t bg-card">
+      <div className={`popover-footer shrink-0 flex gap-2 border-t bg-card ${embedded ? "py-2" : "px-3 py-2.5"}`}>
         <button type="button" className="text-xs border rounded px-2 py-1" onClick={doApply}>
           Aplicar
         </button>
