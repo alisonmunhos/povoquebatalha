@@ -139,15 +139,23 @@ export default function ColumnFilterPopover(props: {
 
   return (
     <div
-      className={`column-filter-popover border rounded-md bg-card shadow-lg p-3 ${embedded ? "w-full border-0 shadow-none" : "w-72"}`}
+      className={`column-filter-popover flex flex-col bg-card h-full max-h-full ${
+        embedded
+          ? "w-full min-h-0 border-0 shadow-none"
+          : "w-full border rounded-md shadow-lg"
+      }`}
       role="dialog"
       aria-modal={embedded ? "true" : "false"}
     >
-      <div className="popover-header mb-2">
+      <div className="popover-header shrink-0 px-3 pt-3 pb-2 border-b">
         <strong className="text-sm">{columnLabel}</strong>
       </div>
 
-      <div className="popover-body">
+      <div
+        className={`popover-body flex-1 min-h-0 px-3 py-2 ${
+          isListFilter ? "flex flex-col overflow-hidden" : "overflow-y-auto"
+        }`}
+      >
         {info.uiType === "text" && (
           <input
             className="border rounded px-2 py-1 text-sm w-full"
@@ -187,11 +195,12 @@ export default function ColumnFilterPopover(props: {
             loading={needsServerOptions && optionsQ.isLoading}
             searchPlaceholder={`Buscar em ${columnLabel.toLowerCase()}…`}
             emptyCount={emptyCount}
+            maxHeight="fill"
           />
         )}
       </div>
 
-      <div className="popover-footer flex gap-2 mt-3">
+      <div className="popover-footer shrink-0 flex gap-2 px-3 py-2.5 border-t bg-card">
         <button type="button" className="text-xs border rounded px-2 py-1" onClick={doApply}>
           Aplicar
         </button>

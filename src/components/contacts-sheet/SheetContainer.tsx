@@ -393,6 +393,12 @@ export default function SheetContainer({
     />
   ) : null;
 
+  const popoverTop = anchorRect?.bottom ?? 16;
+  const popoverMaxHeight =
+    typeof window !== "undefined"
+      ? Math.min(Math.max(220, window.innerHeight - popoverTop - 16), Math.min(window.innerHeight * 0.7, 448))
+      : 448;
+
   return (
     <div className="sheet-container border rounded-md bg-card flex flex-col" style={{ position: "relative" }}>
       <div
@@ -475,11 +481,11 @@ export default function SheetContainer({
 
       {isMobile ? (
         <Drawer open={!!openFilterFor} onOpenChange={(open) => !open && closeFilter()}>
-          <DrawerContent className="max-h-[85vh]">
-            <DrawerHeader>
+          <DrawerContent className="max-h-[85vh] flex flex-col">
+            <DrawerHeader className="shrink-0">
               <DrawerTitle>Filtrar coluna</DrawerTitle>
             </DrawerHeader>
-            <div className="px-4 pb-6 overflow-y-auto">{filterPopover}</div>
+            <div className="flex-1 min-h-0 overflow-hidden px-4 pb-4 flex flex-col">{filterPopover}</div>
           </DrawerContent>
         </Drawer>
       ) : (
@@ -490,9 +496,11 @@ export default function SheetContainer({
             ref={filterPopoverRef}
             style={{
               position: "fixed",
-              left: Math.min(anchorRect?.left ?? 16, window.innerWidth - 272),
-              top: anchorRect?.bottom ?? 16,
+              left: Math.min(anchorRect?.left ?? 16, window.innerWidth - 288),
+              top: popoverTop,
               zIndex: 1400,
+              width: 288,
+              maxHeight: popoverMaxHeight,
             }}
           >
             {filterPopover}

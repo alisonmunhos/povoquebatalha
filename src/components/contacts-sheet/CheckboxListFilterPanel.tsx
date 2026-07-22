@@ -25,7 +25,7 @@ type Props = {
   emptyCount?: number;
   loading?: boolean;
   searchPlaceholder?: string;
-  maxHeight?: number;
+  maxHeight?: number | "fill";
 };
 
 export default function CheckboxListFilterPanel({
@@ -40,6 +40,7 @@ export default function CheckboxListFilterPanel({
   maxHeight = 220,
 }: Props) {
   const [search, setSearch] = useState("");
+  const listFillsParent = maxHeight === "fill";
 
   const filteredOptions = useMemo(() => {
     const q = normSearch(search);
@@ -68,9 +69,9 @@ export default function CheckboxListFilterPanel({
   }
 
   return (
-    <div className="checkbox-list-filter-panel">
+    <div className={`checkbox-list-filter-panel ${listFillsParent ? "flex flex-col min-h-0 h-full" : ""}`}>
       <input
-        className="border rounded px-2 py-1 text-sm w-full mb-2"
+        className="border rounded px-2 py-1 text-sm w-full mb-2 shrink-0"
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -78,7 +79,7 @@ export default function CheckboxListFilterPanel({
         aria-label="Buscar opções do filtro"
       />
 
-      <div className="flex items-center gap-3 mb-1.5 pb-1.5 border-b text-[11px]">
+      <div className="flex items-center gap-3 mb-1.5 pb-1.5 border-b text-[11px] shrink-0">
         <button type="button" className="text-primary hover:underline" onClick={selectAllVisible}>
           Marcar tudo
         </button>
@@ -87,7 +88,10 @@ export default function CheckboxListFilterPanel({
         </button>
       </div>
 
-      <div style={{ maxHeight, overflow: "auto" }}>
+      <div
+        className={listFillsParent ? "flex-1 min-h-0 overflow-y-auto" : undefined}
+        style={listFillsParent ? undefined : { maxHeight, overflow: "auto" }}
+      >
         {loading && <div className="text-sm text-muted-foreground py-1">Carregando…</div>}
         {!loading && filteredOptions.length === 0 && (
           <div className="text-sm text-muted-foreground py-1">
@@ -112,7 +116,7 @@ export default function CheckboxListFilterPanel({
       </div>
 
       {showEmpty ? (
-        <div className="mt-1.5 pt-1.5 border-t">
+        <div className="mt-1.5 pt-1.5 border-t shrink-0">
           <label className="flex items-center gap-2 text-sm py-0.5 italic text-muted-foreground cursor-pointer">
             <input
               type="checkbox"
