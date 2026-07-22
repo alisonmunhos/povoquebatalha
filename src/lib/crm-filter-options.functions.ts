@@ -69,7 +69,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,participa_movimento_social,coletivo_alicerce",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,participa_movimento_social,coletivo_alicerce,active_tracking_label,imported_by_user_id",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -113,6 +113,8 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const como_conheceu: Counter = new Map();
     const faixa_etaria_counts: Counter = new Map();
     const lifecycle_status_counts: Counter = new Map();
+    const tracking_points: Counter = new Map();
+    const imported_by_counts = new Map<string, number>();
     let consentSim = 0;
     let consentNao = 0;
     let consentEmpty = 0;
@@ -142,6 +144,11 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bump(tipos_contato, c.tipo_contato, (s) => s);
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
+      bump(tracking_points, c.active_tracking_label as string | null);
+      if (c.imported_by_user_id) {
+        const uid = c.imported_by_user_id as string;
+        imported_by_counts.set(uid, (imported_by_counts.get(uid) ?? 0) + 1);
+      }
       bump(movimentos_sociais, c.movimento_social_nome);
       bump(quem_indicou, c.quem_indicou);
       bump(rede_social, c.rede_social);
@@ -288,6 +295,39 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       count: (i.total as number) ?? 0,
     }));
 
+    const importedByIds = [...imported_by_counts.keys()];
+    let importedByOpts: FilterOption[] = [];
+    if (importedByIds.length) {
+      const { data: profiles } = await sb
+        .from("profiles")
+        .select("id,full_name,email")
+        .in("id", importedByIds);
+      const nameMap = new Map(
+        (profiles ?? []).map((p) => [
+          p.id as string,
+          (p.full_name as string | null)?.trim() || (p.email as string | null) || (p.id as string),
+        ]),
+      );
+      importedByOpts = importedByIds
+        .map((id) => ({
+          value: id,
+          label: nameMap.get(id) ?? id,
+          count: imported_by_counts.get(id) ?? 0,
+        }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+    }
+
+    const { data: formLabels } = await sb
+      .from("form_definitions")
+      .select("tracking_name,title")
+      .not("tracking_name", "is", null);
+    for (const f of formLabels ?? []) {
+      const lbl = ((f.tracking_name as string | null) || (f.title as string)).trim();
+      if (!lbl) continue;
+      const k = normKey(lbl);
+      if (!tracking_points.has(k)) tracking_points.set(k, { label: lbl, count: 0 });
+    }
+
     return {
       cidades: toOptions(cidades),
       bairros: toOptions(bairros),
@@ -341,6 +381,8 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       campanhas: campaignsOpts,
       mensagens: templatesOpts,
       importacoes: importsOpts,
+      tracking_points: toOptions(tracking_points),
+      imported_by: importedByOpts,
       totalContatosBase: contacts?.length ?? 0,
     };
   });

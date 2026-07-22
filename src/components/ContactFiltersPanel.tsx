@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { MultiSelectFilter, SingleSelectFilter, type MultiOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import { listSystemUserOptions } from "@/lib/users.functions";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,8 @@ export type FilterOptionsBundle = {
   campanhas: { value: string; label: string; status: string }[];
   mensagens: { value: string; label: string; kind: string }[];
   importacoes: MultiOption[];
+  tracking_points: MultiOption[];
+  imported_by: MultiOption[];
 };
 
 const PHONE_STATUS: MultiOption[] = [
@@ -59,12 +62,9 @@ const LIFECYCLE: MultiOption[] = [
   { value: "duplicado_mesclado", label: "Mesclado" },
   { value: "nao_enviar", label: "Bloqueado (não enviar)" },
 ];
-const ORIGEM: MultiOption[] = [
-  { value: "recadastro", label: "Atualização" },
-  { value: "inscricao", label: "Inscrição" },
-  { value: "import", label: "Importação" },
-  { value: "manual", label: "Manual" },
-  { value: "formulario_publico", label: "Formulário personalizado" },
+const CAPTURE_CHANNELS: MultiOption[] = [
+  { value: "formulario_publico", label: "Formulário público" },
+  { value: "captacao_atribuida", label: "Captação atribuída" },
 ];
 const TIPO_CONTATO: MultiOption[] = [
   { value: "apoiador", label: "Apoiador" },
@@ -87,16 +87,6 @@ const SIM_NAO: MultiOption[] = [
   { value: "sim", label: "Sim" },
   { value: "nao", label: "Não" },
 ];
-
-const SYSTEM_ROLES: MultiOption[] = [
-  { value: "admin", label: "Admin" },
-  { value: "operador", label: "Operador" },
-  { value: "vrm", label: "VRM" },
-  { value: "comunicacao", label: "Comunicação" },
-  { value: "agitador", label: "Agitador" },
-  { value: "leitor", label: "Leitor" },
-];
-
 
 /** Mescla opções dinâmicas da base com um mapa fixo de rótulos amigáveis. */
 function mergeLabels(dynamic: MultiOption[] | undefined, labels: MultiOption[]): MultiOption[] {
@@ -128,6 +118,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
     quem_indicou: [], rede_social: [], zona_eleitoral: [], como_conheceu: [], disponibilidade: [], faixa_etaria: [],
     tags: [], segmentos: [], campanhas: [], mensagens: [], importacoes: [],
+    tracking_points: [], imported_by: [],
   };
 
   const systemUsersFn = useServerFn(listSystemUserOptions);
@@ -144,7 +135,10 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
     arr.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
     return arr;
   }, [systemUsersQ.data]);
-
+  const captureUserOptions = useMemo<MultiOption[]>(() => [
+    { value: SYSTEM_CAPTURE_SENTINEL, label: "Sistema (formulário público)" },
+    ...systemUserOptions,
+  ], [systemUserOptions]);
 
   return (
     <div className="border rounded-xl bg-card divide-y">
@@ -302,11 +296,19 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
       </Section>
 
       <Section icon={<Zap className="h-4 w-4" />} title="Origem e captação">
-        <Field label="Origem do contato" hint="Como a pessoa entrou na base (atualização, inscrição, importação, manual).">
-          <MultiSelectFilter options={mergeLabels(opts.origens, ORIGEM)} value={filters.origens ?? []} onChange={(v) => set("origens", v)} placeholder="Todas as origens" />
+        <Field label="Canal" hint="Formulário público = preenchido via Entrada de Dados. Captação atribuída = cadastro presencial ou link gerado por alguém da equipe.">
+          <MultiSelectFilter options={CAPTURE_CHANNELS} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v)} placeholder="Qualquer canal" />
         </Field>
-        <Field label="Detalhe de origem">
-          <MultiSelectFilter options={opts.origem_detalhes} value={filters.origem_detalhes ?? []} onChange={(v) => set("origem_detalhes", v)} placeholder="Todos os detalhes" />
+        <Field label="Ponto de rastreio" hint="Nome do formulário, link nomeado ou 'Cadastro presencial'.">
+          <MultiSelectFilter options={opts.tracking_points} value={filters.tracking_points ?? []} onChange={(v) => set("tracking_points", v)} placeholder="Qualquer ponto" />
+        </Field>
+        <Field label="Captado por" hint={systemUsersQ.isLoading ? "Carregando lista de usuários…" : "Escolha um usuário ou 'Sistema' para formulários públicos."}>
+          <MultiSelectFilter
+            options={captureUserOptions}
+            value={filters.captured_by_user_ids ?? []}
+            onChange={(v) => set("captured_by_user_ids", v)}
+            placeholder="Qualquer"
+          />
         </Field>
         <Field label="Módulo de origem">
           <MultiSelectFilter
@@ -319,13 +321,14 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
               { value: "ficha_contato", label: "Ficha do contato" },
               { value: "relacionamento", label: "Relacionamento" },
               { value: "link_publico", label: "Links públicos" },
+              { value: "formulario_publico", label: "Formulário público" },
             ]}
             value={filters.source_modules ?? []}
             onChange={(v) => set("source_modules", v)}
             placeholder="Qualquer módulo"
           />
         </Field>
-        <Field label="Tipo de formulário">
+        <Field label="Tipo de formulário" hint="Cadastro completo vs. formulário curto (receber informações). Não confundir com status do cadastro.">
           <MultiSelectFilter
             options={[
               { value: "cadastro_completo", label: "Cadastro completo" },
@@ -336,11 +339,11 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
             placeholder="Qualquer tipo"
           />
         </Field>
-        <Field label="Sem origem rastreada">
+        <Field label="Sem rastreio fino" hint="Contatos sem ponto de rastreio identificado (nome de link ou formulário).">
           <SingleSelectFilter
             options={SIM_NAO}
-            value={filters.sem_origem_rastreada === undefined ? undefined : filters.sem_origem_rastreada ? "sim" : "nao"}
-            onChange={(v) => set("sem_origem_rastreada", v === undefined ? undefined : v === "sim")}
+            value={filters.sem_rastreio_fino === undefined ? undefined : filters.sem_rastreio_fino ? "sim" : "nao"}
+            onChange={(v) => set("sem_rastreio_fino", v === undefined ? undefined : v === "sim")}
             placeholder="Qualquer"
           />
         </Field>
@@ -350,36 +353,34 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Captado até">
           <Input type="date" value={filters.captado_ate ?? ""} onChange={(e) => set("captado_ate", e.target.value || undefined)} />
         </Field>
-        <Field label="Captado por" hint={systemUsersQ.isLoading ? "Carregando lista de usuários…" : "Escolha um usuário do sistema."}>
-          <SingleSelectFilter
-            options={systemUserOptions}
-            value={filters.source_user_id}
-            onChange={(v) => set("source_user_id", v)}
-            placeholder="Qualquer usuário"
-          />
-        </Field>
-        <Field label="É usuário do sistema" hint="Contato vinculado a uma conta de login.">
-          <SingleSelectFilter
-            options={SIM_NAO}
-            value={filters.is_system_user}
-            onChange={(v) => set("is_system_user", v as "sim" | "nao" | undefined)}
-            placeholder="Qualquer"
-          />
-        </Field>
-        <Field label="Papel no sistema">
-          <MultiSelectFilter
-            options={SYSTEM_ROLES}
-            value={filters.system_roles ?? []}
-            onChange={(v) => set("system_roles", v)}
-            placeholder="Qualquer papel"
-          />
-        </Field>
       </Section>
 
 
       <Section icon={<FileUp className="h-4 w-4" />} title="Importação">
+        <Field label="Foi importado?" hint="Sim = entrou na base por planilha CSV/Excel (mesmo que depois tenha preenchido formulário).">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.foi_importado}
+            onChange={(v) => set("foi_importado", v as "sim" | "nao" | undefined)}
+            placeholder="Qualquer"
+          />
+        </Field>
+        <Field label="Importado por">
+          <MultiSelectFilter
+            options={opts.imported_by.length ? opts.imported_by : systemUserOptions}
+            value={filters.imported_by_user_ids ?? []}
+            onChange={(v) => set("imported_by_user_ids", v)}
+            placeholder="Qualquer usuário"
+          />
+        </Field>
         <Field label="Lote(s) de importação">
           <MultiSelectFilter options={opts.importacoes} value={filters.import_ids ?? []} onChange={(v) => set("import_ids", v)} placeholder="Qualquer lote" />
+        </Field>
+        <Field label="Importado desde">
+          <Input type="date" value={filters.importado_desde ?? ""} onChange={(e) => set("importado_desde", e.target.value || undefined)} />
+        </Field>
+        <Field label="Importado até">
+          <Input type="date" value={filters.importado_ate ?? ""} onChange={(e) => set("importado_ate", e.target.value || undefined)} />
         </Field>
       </Section>
     </div>

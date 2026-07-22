@@ -65,6 +65,11 @@ export const getFormDefinition = createServerFn({ method: "GET" })
       automation = auto ?? null;
     }
     let trackedLink: TrackedLinkRow | null = null;
+    const { data: trackedLinks } = await context.supabase
+      .from("tracked_form_links")
+      .select("id,token,label,use_count,is_active,created_at")
+      .eq("form_definition_id", data.id)
+      .order("created_at", { ascending: false });
     if (form.tracked_form_link_id) {
       const { data: link } = await context.supabase
         .from("tracked_form_links")
@@ -73,7 +78,7 @@ export const getFormDefinition = createServerFn({ method: "GET" })
         .maybeSingle();
       trackedLink = link ?? null;
     }
-    return { form, questions: questions ?? [], template, automation, trackedLink };
+    return { form, questions: questions ?? [], template, automation, trackedLink, trackedLinks: trackedLinks ?? [] };
   });
 
 const createSchema = z.object({
@@ -85,6 +90,7 @@ const createSchema = z.object({
     .max(80)
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use apenas letras minúsculas, números e hífen."),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]),
+  tracking_name: z.string().trim().min(2).max(120).optional(),
 });
 
 export const createFormDefinition = createServerFn({ method: "POST" })
@@ -106,6 +112,7 @@ export const createFormDefinition = createServerFn({ method: "POST" })
       .insert({
         title: data.title,
         slug: data.slug,
+        tracking_name: data.tracking_name?.trim() || data.title,
         source_form_type: data.source_form_type,
         event_key: `formulario:${data.slug}`,
         created_by: context.userId,
@@ -134,6 +141,7 @@ export const createFormDefinition = createServerFn({ method: "POST" })
 const updateSchema = z.object({
   id: z.string().uuid(),
   title: z.string().trim().min(2).max(160).optional(),
+  tracking_name: z.string().trim().min(2).max(120).optional(),
   is_active: z.boolean().optional(),
   whatsapp_button_enabled: z.boolean().optional(),
   whatsapp_button_message: z.string().trim().max(500).nullable().optional(),
@@ -310,34 +318,98 @@ export const saveFormConfirmationMessage = createServerFn({ method: "POST" })
     return { ok: true, template_id: templateId };
   });
 
-/** Gera (ou reaproveita) um link rastreável para o formulário, via o mesmo
- * mecanismo de tracked_form_links usado em "Adicionar contato". */
+/** Gera um link rastreável nomeado para o formulário (Entrada de Dados). */
 export const mintFormTrackedLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ form_definition_id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({
+      form_definition_id: z.string().uuid(),
+      label: z.string().trim().min(2, "Informe um nome para o link").max(120),
+    }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
     const { data: form, error: formErr } = await context.supabase
       .from("form_definitions")
-      .select("id,slug,title,source_form_type,tracked_form_link_id")
+      .select("id,slug,title,tracking_name,source_form_type,tracked_form_link_id")
       .eq("id", data.form_definition_id)
       .single();
     if (formErr) throw formErr;
-    if (form.tracked_form_link_id) {
-      const { data: link } = await context.supabase
-        .from("tracked_form_links")
-        .select("id,token")
-        .eq("id", form.tracked_form_link_id)
-        .maybeSingle();
-      if (link) return { link };
-    }
     const link = await insertTrackedLink(context.supabase, context.userId, {
       source_module: "link_publico",
       source_form_type: form.source_form_type,
-      label: form.title,
+      label: data.label.trim(),
+      form_definition_id: form.id,
     });
-    await context.supabase.from("form_definitions").update({ tracked_form_link_id: link.id }).eq("id", form.id);
+    if (!form.tracked_form_link_id) {
+      await context.supabase.from("form_definitions").update({ tracked_form_link_id: link.id }).eq("id", form.id);
+    }
     return { link };
+  });
+
+export const duplicateFormDefinition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      title: z.string().trim().min(2).max(160),
+      slug: z
+        .string()
+        .trim()
+        .min(2)
+        .max(80)
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use apenas letras minúsculas, números e hífen."),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { data: src, error: srcErr } = await context.supabase
+      .from("form_definitions")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+    if (srcErr) throw srcErr;
+    if (src.is_fixed) throw new Error("Formulários fixos não podem ser duplicados.");
+
+    const { data: questions, error: qErr } = await context.supabase
+      .from("form_definition_questions")
+      .select("order_index,source,catalog_field_key,label,help_text,required")
+      .eq("form_definition_id", data.id)
+      .order("order_index", { ascending: true });
+    if (qErr) throw qErr;
+
+    const { data: row, error } = await context.supabase
+      .from("form_definitions")
+      .insert({
+        title: data.title,
+        slug: data.slug,
+        tracking_name: data.title,
+        source_form_type: src.source_form_type,
+        event_key: `formulario:${data.slug}`,
+        created_by: context.userId,
+        whatsapp_button_enabled: src.whatsapp_button_enabled,
+        whatsapp_button_message: src.whatsapp_button_message,
+        whatsapp_button_phone: src.whatsapp_button_phone,
+        success_screen_order: src.success_screen_order,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (questions?.length) {
+      await context.supabase.from("form_definition_questions").insert(
+        questions.map((q) => ({
+          form_definition_id: row.id,
+          order_index: q.order_index,
+          source: q.source,
+          catalog_field_key: q.catalog_field_key,
+          label: q.label,
+          help_text: q.help_text,
+          required: q.required,
+        })),
+      );
+    }
+    return row;
   });
 
 /** Gera o QR code (PNG, data URL) do link público do formulário, server-side. */

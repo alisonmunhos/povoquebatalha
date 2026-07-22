@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { buildSourceMetadata, TRACKING_LABELS } from "@/lib/contact-source-metadata";
 
 const FORMAS_AJUDA_VALIDAS = [
   // legado (compatibilidade)
@@ -184,7 +185,7 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
             const { data: link } = d.ref_token
               ? await supabaseAdmin
                   .from("tracked_form_links")
-                  .select("id, created_by_user_id, source_module, source_form_type, is_active, expires_at")
+                  .select("id, created_by_user_id, source_module, source_form_type, label, is_active, expires_at")
                   .eq("token", d.ref_token)
                   .maybeSingle()
               : { data: null };
@@ -197,7 +198,11 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
                 _source_form_type: link.source_form_type,
                 _source_link_id: link.id,
                 _event_type: "cadastro_completo",
-                _metadata: { via: "recadastro_form" },
+                _metadata: buildSourceMetadata({
+                  capture_channel: "captacao_atribuida",
+                  tracking_label: link.label?.trim() || "Link sem nome",
+                  via: "recadastro_form",
+                }),
               });
             } else {
               await supabaseAdmin.rpc("apply_contact_source", {
@@ -207,7 +212,11 @@ export const Route = createFileRoute("/api/public/forms/recadastro")({
                 _source_form_type: "cadastro_completo",
                 _source_link_id: null as unknown as string,
                 _event_type: "cadastro_completo",
-                _metadata: { via: "recadastro_form_sem_ref" },
+                _metadata: buildSourceMetadata({
+                  capture_channel: "formulario_publico",
+                  tracking_label: TRACKING_LABELS.ATUALIZACAO_LEGADO,
+                  via: "recadastro_form_sem_ref",
+                }),
               });
             }
           } catch { /* ignore */ }

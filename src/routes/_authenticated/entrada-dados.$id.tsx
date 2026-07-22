@@ -37,6 +37,7 @@ function FormBuilder() {
   const q = useQuery({ queryKey: ["form-definition", id], queryFn: () => getFn({ data: { id } }) });
 
   const [title, setTitle] = useState("");
+  const [trackingName, setTrackingName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [confTitle, setConfTitle] = useState("");
@@ -50,6 +51,8 @@ function FormBuilder() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingConfirmation, setSavingConfirmation] = useState(false);
   const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [linkLabel, setLinkLabel] = useState("");
+  const [trackedLinks, setTrackedLinks] = useState<Array<{ id: string; token: string; label: string | null; use_count: number }>>([]);
   const [mintingLink, setMintingLink] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
@@ -58,6 +61,7 @@ function FormBuilder() {
   useEffect(() => {
     if (!q.data) return;
     setTitle(q.data.form.title as string);
+    setTrackingName(((q.data.form as { tracking_name?: string | null }).tracking_name as string | null) ?? (q.data.form.title as string));
     setIsActive(Boolean(q.data.form.is_active));
     const coreKeys = new Set(CORE_CATALOG_FIELDS.map((f) => f.key));
     const toDraft = (row: Record<string, unknown>): QuestionDraft => ({
@@ -82,6 +86,7 @@ function FormBuilder() {
     setSuccessOrder((q.data.form.success_screen_order as "whatsapp_first" | "confirmation_first" | undefined) ?? "whatsapp_first");
     const link = q.data.trackedLink as { token?: string } | null;
     setLinkToken(link?.token ?? null);
+    setTrackedLinks((q.data.trackedLinks as Array<{ id: string; token: string; label: string | null; use_count: number }>) ?? []);
   }, [q.data]);
 
   if (q.isLoading || !q.data) return <div className="p-10 text-muted-foreground">Carregando…</div>;
@@ -126,7 +131,7 @@ function FormBuilder() {
     try {
       await updateFn({
         data: {
-          id, title, is_active: isActive,
+          id, title, tracking_name: trackingName.trim() || title, is_active: isActive,
           whatsapp_button_enabled: waEnabled, whatsapp_button_message: waMessage || null,
           whatsapp_button_phone: waPhone,
           success_screen_order: successOrder,
@@ -176,12 +181,20 @@ function FormBuilder() {
   }
 
   async function generateLink() {
+    const label = linkLabel.trim();
+    if (label.length < 2) {
+      toast.error("Informe um nome para o link.");
+      return;
+    }
     setMintingLink(true);
     try {
-      const res = await mintLinkFn({ data: { form_definition_id: id } });
-      setLinkToken((res.link as { token: string }).token);
+      const res = await mintLinkFn({ data: { form_definition_id: id, label } });
+      const token = (res.link as { token: string }).token;
+      setLinkToken(token);
+      setLinkLabel("");
       setQrDataUrl(null);
       toast.success("Link gerado");
+      q.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
     } finally {
@@ -220,8 +233,13 @@ function FormBuilder() {
           </p>
         )}
         <div>
-          <label className="text-sm font-medium">Título</label>
+          <label className="text-sm font-medium">Título (público)</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Nome de rastreio (interno)</label>
+          <p className="text-xs text-muted-foreground mb-1">Aparece nos filtros da Gestão da Base. Pode ser igual ao título ou mais específico.</p>
+          <input value={trackingName} onChange={(e) => setTrackingName(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Formulário ativo (aceita respostas)
@@ -232,10 +250,20 @@ function FormBuilder() {
       </Section>
 
       <Section title="Link e QR code">
+        <div>
+          <label className="text-sm font-medium">Nome do novo link</label>
+          <input
+            value={linkLabel}
+            onChange={(e) => setLinkLabel(e.target.value)}
+            placeholder="Ex.: QR na panfletagem do bairro"
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            maxLength={120}
+          />
+        </div>
         {publicUrl && <p className="text-sm break-all bg-muted/40 rounded-md p-2">{publicUrl}</p>}
         <div className="flex flex-wrap gap-2">
           <button onClick={generateLink} disabled={mintingLink} className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50">
-            <LinkIcon className="h-4 w-4" /> {linkToken ? "Gerar novo link rastreável" : "Gerar link rastreável"}
+            <LinkIcon className="h-4 w-4" /> Gerar link rastreável
           </button>
           {linkToken && (
             <button onClick={loadQrCode} disabled={loadingQr} className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -247,6 +275,26 @@ function FormBuilder() {
           <div className="space-y-2">
             <img src={qrDataUrl} alt="QR code do formulário" className="w-40 h-40 border rounded-md" />
             <a href={qrDataUrl} download={`qrcode-${q.data.form.slug}.png`} className="text-sm text-primary hover:underline">Baixar PNG</a>
+          </div>
+        )}
+        {trackedLinks.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Links deste formulário</p>
+            <ul className="text-sm space-y-1">
+              {trackedLinks.map((l) => (
+                <li key={l.id} className="flex flex-wrap items-center gap-2 border rounded-md px-2 py-1.5">
+                  <span className="font-medium">{l.label || "Sem nome"}</span>
+                  <span className="text-xs text-muted-foreground">{l.use_count} uso(s)</span>
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => { setLinkToken(l.token); setQrDataUrl(null); }}
+                  >
+                    Usar este link
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </Section>

@@ -65,10 +65,14 @@ export const crmFilterSchema = z.object({
   origem_detalhes: z.array(z.string()).optional(),
 
   // Origem e captação (Bloco C)
+  capture_channels: z.array(z.enum(["formulario_publico", "captacao_atribuida"])).optional(),
+  tracking_points: z.array(z.string()).optional(),
+  captured_by_user_ids: z.array(z.string()).optional(),
   source_modules: z.array(z.string()).optional(),
   source_form_types: z.array(z.string()).optional(),
   source_user_id: z.string().uuid().optional(),
   sem_origem_rastreada: z.boolean().optional(),
+  sem_rastreio_fino: z.boolean().optional(),
   captado_desde: z.string().optional(),
   captado_ate: z.string().optional(),
   is_system_user: z.enum(["sim", "nao"]).optional(),
@@ -97,6 +101,10 @@ export const crmFilterSchema = z.object({
   // Importação
   import_id: z.string().uuid().optional(),
   import_ids: z.array(z.string().uuid()).optional(),
+  foi_importado: z.enum(["sim", "nao"]).optional(),
+  imported_by_user_ids: z.array(z.string().uuid()).optional(),
+  importado_desde: z.string().optional(),
+  importado_ate: z.string().optional(),
 
   // Histórico
   recebeu_campanha_id: z.string().uuid().optional(),
@@ -404,12 +412,34 @@ export function applyCrmFilters<T extends {
   }
 
   // Origem e captação (Bloco C)
+  if (f.capture_channels?.length) q = q.in("active_capture_channel", f.capture_channels);
+  if (f.tracking_points?.length) {
+    const { values, empty } = splitEmptyToken(f.tracking_points);
+    if (empty && values.length) {
+      q = q.or(`active_tracking_label.in.(${values.map((v) => `"${safe(v)}"`).join(",")}),active_tracking_label.is.null`);
+    } else if (empty) q = q.is("active_tracking_label", null);
+    else if (values.length) q = q.in("active_tracking_label", values);
+  }
+  if (f.captured_by_user_ids?.length) {
+    const { values, empty } = splitEmptyToken(f.captured_by_user_ids);
+    const system = values.includes("__SYSTEM__");
+    const userIds = values.filter((v) => v !== "__SYSTEM__");
+    const clauses: string[] = [];
+    if (system) clauses.push("active_captured_by_user_id.is.null");
+    if (userIds.length) clauses.push(`active_captured_by_user_id.in.(${userIds.map((id) => `"${id}"`).join(",")})`);
+    if (empty) clauses.push("active_captured_by_user_id.is.null");
+    if (clauses.length === 1) {
+      if (clauses[0]!.includes(".is.null")) q = q.is("active_captured_by_user_id", null);
+      else q = q.in("active_captured_by_user_id", userIds);
+    } else if (clauses.length > 1) q = q.or(clauses.join(","));
+  } else if (f.source_user_id) {
+    q = q.eq("active_captured_by_user_id", f.source_user_id);
+  }
   if (f.source_modules?.length) q = q.in("primary_source_module", f.source_modules);
   if (f.source_form_types?.length) q = q.in("source_form_type", f.source_form_types);
-  if (f.source_user_id) q = q.eq("created_by_source_user_id", f.source_user_id);
-  if (f.sem_origem_rastreada) q = q.is("primary_source_module", null);
-  if (f.captado_desde) q = q.gte("source_captured_at", f.captado_desde);
-  if (f.captado_ate) q = q.lte("source_captured_at", f.captado_ate);
+  if (f.sem_rastreio_fino || f.sem_origem_rastreada) q = q.is("active_tracking_label", null);
+  if (f.captado_desde) q = q.gte("source_captured_at", `${f.captado_desde}T00:00:00`);
+  if (f.captado_ate) q = q.lte("source_captured_at", `${f.captado_ate}T23:59:59.999Z`);
   if (f.is_system_user === "sim") q = q.eq("is_system_user", true);
   if (f.is_system_user === "nao") q = q.or("is_system_user.is.null,is_system_user.eq.false");
   if (f.system_roles?.length) q = q.in("system_role", f.system_roles);
@@ -474,6 +504,15 @@ export function applyCrmFilters<T extends {
   }
 
   // Importação
+  if (f.foi_importado === "sim") {
+    q = q.or("import_id.not.is.null,imported_by_user_id.not.is.null");
+  }
+  if (f.foi_importado === "nao") {
+    q = q.is("import_id", null).is("imported_by_user_id", null);
+  }
+  if (f.imported_by_user_ids?.length) q = q.in("imported_by_user_id", f.imported_by_user_ids);
+  if (f.importado_desde) q = q.gte("imported_at", `${f.importado_desde}T00:00:00`);
+  if (f.importado_ate) q = q.lte("imported_at", `${f.importado_ate}T23:59:59.999Z`);
   if (f.import_id) q = q.eq("import_id", f.import_id);
   if (f.import_ids?.length) q = q.in("import_id", f.import_ids);
 

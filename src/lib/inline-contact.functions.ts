@@ -5,6 +5,7 @@
 //   "atualizacao_apoiador_concluida" que o /recadastro público.
 // Ambos registram origem via apply_contact_source com source_user_id = usuário logado.
 import { createServerFn } from "@tanstack/react-start";
+import { buildSourceMetadata, TRACKING_LABELS } from "@/lib/contact-source-metadata";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -69,7 +70,11 @@ export const quickSaveContact = createServerFn({ method: "POST" })
         _source_form_type: data.form_type,
         _source_link_id: null as unknown as string,
         _event_type: existing ? "contato_atualizado" : "contato_criado",
-        _metadata: { via: "preenchido_por_agitador", stage: "quick" },
+        _metadata: buildSourceMetadata({
+          capture_channel: "captacao_atribuida",
+          tracking_label: TRACKING_LABELS.CADASTRO_PRESENCIAL,
+          via: "preenchido_por_agitador",
+        }),
       });
     } catch { /* non-blocking */ }
 
@@ -141,7 +146,11 @@ export const completeInlineContact = createServerFn({ method: "POST" })
         _source_form_type: data.form_type,
         _source_link_id: null as unknown as string,
         _event_type: data.form_type === "cadastro_completo" ? "cadastro_completo" : "inscricao_simples",
-        _metadata: { via: "preenchido_por_agitador", stage: "complete" },
+        _metadata: buildSourceMetadata({
+          capture_channel: "captacao_atribuida",
+          tracking_label: TRACKING_LABELS.CADASTRO_PRESENCIAL,
+          via: "preenchido_por_agitador",
+        }),
       });
     } catch { /* non-blocking */ }
 
