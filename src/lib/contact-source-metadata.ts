@@ -16,7 +16,7 @@ export function buildSourceMetadata(opts: {
   form_definition_id?: string | null;
   via: string;
   import_id?: string;
-}): Record<string, unknown> {
+}): Json {
   return {
     qualifying: opts.qualifying ?? true,
     capture_channel: opts.capture_channel,
@@ -27,7 +27,7 @@ export function buildSourceMetadata(opts: {
   };
 }
 
-export function importSourceMetadata(importId: string): Record<string, unknown> {
+export function importSourceMetadata(importId: string): Json {
   return {
     qualifying: false,
     capture_channel: "captacao_atribuida",
