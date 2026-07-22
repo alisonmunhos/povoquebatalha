@@ -367,7 +367,7 @@ export default function SheetContainer({
   const filterPopover = openFilterFor ? (
     <ColumnFilterPopover
       columnKey={openFilterFor}
-      currentFilters={currentFilters ?? {}}
+      currentFilters={(currentFilters ?? {}) as unknown as import("@/lib/crm-filters").CrmFilters}
       onApplyEncoded={(encoded) => pushSearch?.(encoded)}
       onClose={closeFilter}
       embedded
