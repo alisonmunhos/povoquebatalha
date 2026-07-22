@@ -97,6 +97,20 @@ function ContatosBI() {
     navigate({ search: next as never, replace: false });
   }
 
+  /** Qualquer mudança nas colunas visíveis zera filtros, seleção e volta à página 1. */
+  function applyColumnsChange(nextCols: string[], options?: { toastMessage?: string }) {
+    setSelection(new Set());
+    pushSearch({
+      cols: nextCols.join(",") || undefined,
+      filters: undefined,
+      page: undefined,
+    });
+    toast.info(
+      options?.toastMessage ?? "Colunas atualizadas. Os filtros foram limpos.",
+      { id: "contacts-sheet-cols-reset" },
+    );
+  }
+
   useEffect(() => {
     if (q.isLoading || !q.data) return;
     if (rows.length >= SHEET_LARGE_PAGE_WARNING) {
@@ -108,8 +122,9 @@ function ContatosBI() {
 
   useEffect(() => {
     if (!isMobile || colsAll.length <= MOBILE_MAX_COLUMNS) return;
-    pushSearch({ cols: colsAll.slice(0, MOBILE_MAX_COLUMNS).join(",") });
-    toast.info(`No celular, no máximo ${MOBILE_MAX_COLUMNS} colunas são exibidas.`, { id: "contacts-sheet-mobile-cols" });
+    applyColumnsChange(colsAll.slice(0, MOBILE_MAX_COLUMNS), {
+      toastMessage: `No celular, no máximo ${MOBILE_MAX_COLUMNS} colunas são exibidas. Os filtros foram limpos.`,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile, colsAll.length]);
 
@@ -136,7 +151,7 @@ function ContatosBI() {
       }
       set.add(colKey);
     }
-    pushSearch({ cols: Array.from(set).join(",") || undefined, page: "1" });
+    applyColumnsChange(Array.from(set));
   }
 
   function onPageChange(nextPage: number) {
