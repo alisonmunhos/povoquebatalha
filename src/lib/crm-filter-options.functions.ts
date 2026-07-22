@@ -99,10 +99,12 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const bairros: Counter = new Map();
     const ufs: Counter = new Map();
     const profissoes: Counter = new Map();
+    const instituicoes: Counter = new Map();
     const tipos_contato: Counter = new Map();
     const origens: Counter = new Map();
     const origem_detalhes: Counter = new Map();
     const formas_ajuda: Counter = new Map();
+    const formas_ajuda_outro: Counter = new Map();
     const movimentos_sociais: Counter = new Map();
     const quem_indicou: Counter = new Map();
     const rede_social: Counter = new Map();
@@ -136,6 +138,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (cidadeMatch) bump(bairros, c.bairro);
       bump(ufs, c.uf, (s) => s.toUpperCase());
       bump(profissoes, c.profissao);
+      bump(instituicoes, c.instituicao);
       bump(tipos_contato, c.tipo_contato, (s) => s);
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
@@ -144,6 +147,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bump(rede_social, c.rede_social);
       bump(zona_eleitoral, c.zona_eleitoral);
       bump(como_conheceu, c.como_conheceu);
+      bump(formas_ajuda_outro, c.formas_ajuda_outro);
       const arr = c.formas_ajuda as unknown;
       if (Array.isArray(arr)) {
         for (const item of arr) {
@@ -289,12 +293,14 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bairros: toOptions(bairros),
       ufs: toOptions(ufs),
       profissoes: toOptions(profissoes),
+      instituicoes: toOptions(instituicoes),
       tipos_contato: toOptions(tipos_contato),
       origens: toOptions(origens),
       origem_detalhes: toOptions(origem_detalhes),
       formas_ajuda: [...formas_ajuda.entries()]
         .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
+      formas_ajuda_outro: toOptions(formas_ajuda_outro),
       movimentos_sociais: toOptions(movimentos_sociais),
       quem_indicou: toOptions(quem_indicou),
       rede_social: toOptions(rede_social),

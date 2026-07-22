@@ -35,6 +35,7 @@ export const crmFilterSchema = z.object({
   profissao: z.string().trim().optional(),
   instituicao: z.string().trim().optional(),
   profissoes: z.array(z.string()).optional(),
+  instituicoes: z.array(z.string()).optional(),
   coletivo_alicerce: z.boolean().optional(),
   coletivo_alicerce_values: z.array(z.string()).optional(),
   tipo_contato: z.string().optional(),
@@ -48,11 +49,14 @@ export const crmFilterSchema = z.object({
   formas_ajuda: z.array(z.string()).optional(),
   disponibilidade: z.array(z.string()).optional(),
   quem_indicou: z.string().trim().optional(),
+  quem_indicou_values: z.array(z.string()).optional(),
   faixa_etaria: z.string().optional(),
   faixas_etarias: z.array(z.string()).optional(),
   rede_social: z.string().trim().optional(),
   zona_eleitoral: z.string().trim().optional(),
+  zona_eleitoral_values: z.array(z.string()).optional(),
   como_conheceu: z.string().trim().optional(),
+  como_conheceu_values: z.array(z.string()).optional(),
   origem: z.string().optional(),
   origens: z.array(z.string()).optional(),
   origem_detalhe: z.string().optional(),
@@ -101,6 +105,7 @@ export const crmFilterSchema = z.object({
 
   // Filtros usados pela planilha BI (contatos-bi)
   formas_ajuda_outro: z.string().trim().optional(),
+  formas_ajuda_outro_values: z.array(z.string()).optional(),
   endereco_contains: z.string().trim().optional(),
   phone_contains: z.string().trim().optional(),
   created_contem: z.string().trim().optional(),
@@ -184,6 +189,19 @@ const SEARCH_COLS = [
   "formas_ajuda_outro",
 ];
 
+/** Aplica filtro OR em coluna texto (match exato case-insensitive) com suporte a (Vazio). */
+function applyExactIlikeArrayFilter<T extends {
+  or: (v: string) => T;
+  is: (col: string, v: null) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  const clauses: string[] = values.map((v) => `${col}.ilike.${safe(v)}`);
+  if (empty) clauses.push(`${col}.is.null`);
+  if (!clauses.length) return q;
+  return q.or(clauses.join(","));
+}
+
 /** Aplica filtro de coluna booleana (Sim/Não) com suporte a (Vazio). */
 function applyBooleanColumnFilter<T extends {
   or: (v: string) => T;
@@ -235,14 +253,10 @@ export function applyCrmFilters<T extends {
   }
 
   // Localização (aceita único e múltiplos)
-  if (f.cidade) q = q.ilike("cidade", `%${safe(f.cidade)}%`);
-  if (f.cidades?.length) {
-    q = q.or(f.cidades.map((v) => `cidade.ilike.${safe(v)}`).join(","));
-  }
-  if (f.bairro) q = q.ilike("bairro", `%${safe(f.bairro)}%`);
-  if (f.bairros?.length) {
-    q = q.or(f.bairros.map((v) => `bairro.ilike.${safe(v)}`).join(","));
-  }
+  if (f.cidades?.length) q = applyExactIlikeArrayFilter(q, "cidade", f.cidades);
+  else if (f.cidade) q = q.ilike("cidade", `%${safe(f.cidade)}%`);
+  if (f.bairros?.length) q = applyExactIlikeArrayFilter(q, "bairro", f.bairros);
+  else if (f.bairro) q = q.ilike("bairro", `%${safe(f.bairro)}%`);
   if (f.uf) q = q.eq("uf", f.uf.toUpperCase());
   if (f.ufs?.length) {
     const { values, empty } = splitEmptyToken(f.ufs);
@@ -255,11 +269,10 @@ export function applyCrmFilters<T extends {
   // Perfil
   if (f.nome) q = q.ilike("nome", `%${safe(f.nome)}%`);
   if (f.nome_social) q = q.ilike("nome_social", `%${safe(f.nome_social)}%`);
-  if (f.profissao) q = q.ilike("profissao", `%${safe(f.profissao)}%`);
-  if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
-  if (f.profissoes?.length) {
-    q = q.or(f.profissoes.map((v) => `profissao.ilike.${safe(v)}`).join(","));
-  }
+  if (f.profissoes?.length) q = applyExactIlikeArrayFilter(q, "profissao", f.profissoes);
+  else if (f.profissao) q = q.ilike("profissao", `%${safe(f.profissao)}%`);
+  if (f.instituicoes?.length) q = applyExactIlikeArrayFilter(q, "instituicao", f.instituicoes);
+  else if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
   if (typeof f.coletivo_alicerce === "boolean" && !f.coletivo_alicerce_values?.length) {
     q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
   }
@@ -285,9 +298,7 @@ export function applyCrmFilters<T extends {
     );
   }
   if (f.movimentos_sociais?.length) {
-    q = q.or(
-      f.movimentos_sociais.map((v) => `movimento_social_nome.ilike.${safe(v)}`).join(","),
-    );
+    q = applyExactIlikeArrayFilter(q, "movimento_social_nome", f.movimentos_sociais);
   }
   if (f.movimento_social_contains) {
     q = q.ilike("movimento_social_nome", `%${safe(f.movimento_social_contains)}%`);
@@ -319,7 +330,11 @@ export function applyCrmFilters<T extends {
     }
     if (clauses.length) q = q.or(clauses.join(","));
   }
-  if (f.quem_indicou) q = q.ilike("quem_indicou", `%${safe(f.quem_indicou)}%`);
+  if (f.quem_indicou_values?.length) {
+    q = applyExactIlikeArrayFilter(q, "quem_indicou", f.quem_indicou_values);
+  } else if (f.quem_indicou) {
+    q = q.ilike("quem_indicou", `%${safe(f.quem_indicou)}%`);
+  }
   if (f.faixa_etaria) q = q.eq("faixa_etaria", f.faixa_etaria);
   if (f.faixas_etarias?.length) {
     const { values, empty } = splitEmptyToken(f.faixas_etarias);
@@ -328,8 +343,16 @@ export function applyCrmFilters<T extends {
     else if (values.length) q = q.in("faixa_etaria", values);
   }
   if (f.rede_social) q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
-  if (f.zona_eleitoral) q = q.ilike("zona_eleitoral", `%${safe(f.zona_eleitoral)}%`);
-  if (f.como_conheceu) q = q.ilike("como_conheceu", `%${safe(f.como_conheceu)}%`);
+  if (f.zona_eleitoral_values?.length) {
+    q = applyExactIlikeArrayFilter(q, "zona_eleitoral", f.zona_eleitoral_values);
+  } else if (f.zona_eleitoral) {
+    q = q.ilike("zona_eleitoral", `%${safe(f.zona_eleitoral)}%`);
+  }
+  if (f.como_conheceu_values?.length) {
+    q = applyExactIlikeArrayFilter(q, "como_conheceu", f.como_conheceu_values);
+  } else if (f.como_conheceu) {
+    q = q.ilike("como_conheceu", `%${safe(f.como_conheceu)}%`);
+  }
   if (f.origem) q = q.eq("origem", f.origem);
   if (f.origens?.length) {
     const { values, empty } = splitEmptyToken(f.origens);
@@ -414,7 +437,11 @@ export function applyCrmFilters<T extends {
   if (f.import_id) q = q.eq("import_id", f.import_id);
   if (f.import_ids?.length) q = q.in("import_id", f.import_ids);
 
-  if (f.formas_ajuda_outro) q = q.ilike("formas_ajuda_outro", `%${safe(f.formas_ajuda_outro)}%`);
+  if (f.formas_ajuda_outro_values?.length) {
+    q = applyExactIlikeArrayFilter(q, "formas_ajuda_outro", f.formas_ajuda_outro_values);
+  } else if (f.formas_ajuda_outro) {
+    q = q.ilike("formas_ajuda_outro", `%${safe(f.formas_ajuda_outro)}%`);
+  }
   if (f.phone_contains) {
     const s = safe(f.phone_contains);
     if (s) q = q.or(`phone_raw.ilike.%${s}%,phone_e164.ilike.%${s}%`);

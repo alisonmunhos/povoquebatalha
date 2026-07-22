@@ -35,9 +35,9 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
     case "nome_social":
       return { uiType: "text", filterKey: "nome_social" };
     case "profissao":
-      return { uiType: "text", filterKey: "profissao" };
+      return { uiType: "array", filterKey: "profissoes", source: "server", serverKey: "profissoes" };
     case "instituicao":
-      return { uiType: "text", filterKey: "instituicao" };
+      return { uiType: "array", filterKey: "instituicoes", source: "server", serverKey: "instituicoes" };
     case "email":
       return { uiType: "text", filterKey: "email_contains" };
     case "consentimento":
@@ -55,9 +55,19 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
     case "endereco_completo":
       return { uiType: "text", filterKey: "endereco_contains" };
     case "formas_ajuda_outro":
-      return { uiType: "text", filterKey: "formas_ajuda_outro" };
+      return {
+        uiType: "array",
+        filterKey: "formas_ajuda_outro_values",
+        source: "server",
+        serverKey: "formas_ajuda_outro",
+      };
     case "movimento_social_nome":
-      return { uiType: "text", filterKey: "movimento_social_contains" };
+      return {
+        uiType: "array",
+        filterKey: "movimentos_sociais",
+        source: "server",
+        serverKey: "movimentos_sociais",
+      };
     case "participa_movimento_social":
       return {
         uiType: "array",
@@ -85,9 +95,9 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
     case "whatsapp":
       return { uiType: "text", filterKey: "phone_contains" };
     case "cidade":
-      return { uiType: "text", filterKey: "cidade" };
+      return { uiType: "array", filterKey: "cidades", source: "server", serverKey: "cidades" };
     case "bairro":
-      return { uiType: "text", filterKey: "bairro" };
+      return { uiType: "array", filterKey: "bairros", source: "server", serverKey: "bairros" };
     case "uf":
       return { uiType: "array", filterKey: "ufs", source: "server", serverKey: "ufs" };
     case "tags":
@@ -129,13 +139,13 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
         options: catalogOptions("disponibilidade"),
       };
     case "quem_indicou":
-      return { uiType: "text", filterKey: "quem_indicou" };
+      return { uiType: "array", filterKey: "quem_indicou_values", source: "server", serverKey: "quem_indicou" };
     case "rede_social":
       return { uiType: "text", filterKey: "rede_social" };
     case "zona_eleitoral":
-      return { uiType: "text", filterKey: "zona_eleitoral" };
+      return { uiType: "array", filterKey: "zona_eleitoral_values", source: "server", serverKey: "zona_eleitoral" };
     case "como_conheceu":
-      return { uiType: "text", filterKey: "como_conheceu" };
+      return { uiType: "array", filterKey: "como_conheceu_values", source: "server", serverKey: "como_conheceu" };
     default: {
       const f = getCatalogField(columnKey);
       if (!f) return null;
@@ -161,6 +171,37 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
   }
 }
 
+function legacyTextToArray(filters: CrmFilters, arrayKey: keyof CrmFilters, textKey: keyof CrmFilters): string[] | null {
+  const arr = (filters as Record<string, unknown>)[arrayKey as string];
+  if (Array.isArray(arr) && arr.length) return arr as string[];
+  const text = (filters as Record<string, unknown>)[textKey as string];
+  if (typeof text === "string" && text.trim()) return [text.trim()];
+  return null;
+}
+
+function legacyArrayValue(columnKey: string, filters: CrmFilters): string[] | null {
+  switch (columnKey) {
+    case "cidade":
+      return legacyTextToArray(filters, "cidades", "cidade");
+    case "bairro":
+      return legacyTextToArray(filters, "bairros", "bairro");
+    case "profissao":
+      return legacyTextToArray(filters, "profissoes", "profissao");
+    case "instituicao":
+      return legacyTextToArray(filters, "instituicoes", "instituicao");
+    case "quem_indicou":
+      return legacyTextToArray(filters, "quem_indicou_values", "quem_indicou");
+    case "como_conheceu":
+      return legacyTextToArray(filters, "como_conheceu_values", "como_conheceu");
+    case "zona_eleitoral":
+      return legacyTextToArray(filters, "zona_eleitoral_values", "zona_eleitoral");
+    case "formas_ajuda_outro":
+      return legacyTextToArray(filters, "formas_ajuda_outro_values", "formas_ajuda_outro");
+    default:
+      return null;
+  }
+}
+
 function legacyBooleanValues(columnKey: string, filters: CrmFilters): string[] | null {
   if (columnKey === "consentimento") {
     if (filters.consent === "sim") return ["sim"];
@@ -183,7 +224,11 @@ export function getColumnFilterValue(columnKey: string, filters: CrmFilters): un
   const raw = (filters as Record<string, unknown>)[info.filterKey as string];
   if (info.uiType === "array" || info.uiType === "tag") {
     if (Array.isArray(raw) && raw.length) return raw;
-    return legacyBooleanValues(columnKey, filters) ?? (Array.isArray(raw) ? raw : raw ? [String(raw)] : []);
+    return (
+      legacyArrayValue(columnKey, filters) ??
+      legacyBooleanValues(columnKey, filters) ??
+      (Array.isArray(raw) ? raw : raw ? [String(raw)] : [])
+    );
   }
   return raw;
 }
@@ -204,11 +249,28 @@ function clearLegacyBooleanFilter(next: Record<string, unknown>, columnKey: stri
   if (columnKey === "coletivo_alicerce") delete next.coletivo_alicerce;
 }
 
+function clearLegacyTextFilter(next: Record<string, unknown>, columnKey: string) {
+  const legacyKeys: Record<string, string> = {
+    cidade: "cidade",
+    bairro: "bairro",
+    profissao: "profissao",
+    instituicao: "instituicao",
+    quem_indicou: "quem_indicou",
+    como_conheceu: "como_conheceu",
+    zona_eleitoral: "zona_eleitoral",
+    formas_ajuda_outro: "formas_ajuda_outro",
+    movimento_social_nome: "movimento_social_contains",
+  };
+  const key = legacyKeys[columnKey];
+  if (key) delete next[key];
+}
+
 export function applyColumnFilter(current: CrmFilters, column: string, payload: unknown): CrmFilters {
   const info = resolveFilterField(column);
   if (!info) return current;
   const next = { ...current } as Record<string, unknown>;
   clearLegacyBooleanFilter(next, column);
+  clearLegacyTextFilter(next, column);
 
   if (info.uiType === "text") {
     next[info.filterKey as string] = String(payload ?? "").trim() || undefined;
@@ -225,6 +287,7 @@ export function clearColumnFilter(current: CrmFilters, column: string): CrmFilte
   const next = { ...current } as Record<string, unknown>;
   delete next[info.filterKey as string];
   clearLegacyBooleanFilter(next, column);
+  clearLegacyTextFilter(next, column);
   return next as CrmFilters;
 }
 
