@@ -5,7 +5,7 @@ import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { encodeBase64UrlSafe as encodeFilters } from "@/lib/filters-encoding";
 import type { CrmFilters } from "@/lib/crm-filters";
 import { EMPTY_FILTER_TOKEN } from "@/lib/crm-filters";
-import { resolveFilterField, applyColumnFilter, clearColumnFilter } from "@/lib/column-filter-mapping";
+import { resolveFilterField, getColumnFilterValue, applyColumnFilter, clearColumnFilter } from "@/lib/column-filter-mapping";
 import { getCatalogField } from "@/lib/form-field-catalog";
 
 export default function ColumnFilterPopover(props: {
@@ -40,11 +40,7 @@ export default function ColumnFilterPopover(props: {
     return [];
   }, [info, optionsQ.data, needsServerOptions, serverKey]);
 
-  const currentValue = ((): any => {
-    if (!info) return null;
-    const fk = (info as any).filterKey as keyof CrmFilters;
-    return (currentFilters as any)[fk];
-  })();
+  const currentValue = getColumnFilterValue(columnKey, currentFilters);
   const [textDraft, setTextDraft] = useState<string>(() => (typeof currentValue === "string" ? currentValue : ""));
   const [arrayDraft, setArrayDraft] = useState<string[]>(() => (Array.isArray(currentValue) ? currentValue : (currentValue ? [String(currentValue)] : [])));
   const [boolDraft, setBoolDraft] = useState<null | boolean>(() => (typeof currentValue === "boolean" ? currentValue : null));
@@ -83,7 +79,13 @@ export default function ColumnFilterPopover(props: {
 
       <div className="popover-body">
         {info.uiType === "text" && (
-          <input className="border rounded px-2 py-1 text-sm w-full" type="text" value={textDraft} onChange={(e) => setTextDraft(e.target.value)} placeholder="Contém..." />
+          <input
+            className="border rounded px-2 py-1 text-sm w-full"
+            type="text"
+            value={textDraft}
+            onChange={(e) => setTextDraft(e.target.value)}
+            placeholder={columnKey === "created_at" ? "AAAA, AAAA-MM ou AAAA-MM-DD" : "Contém..."}
+          />
         )}
 
         {(info.uiType === "array" || info.uiType === "tag") && (

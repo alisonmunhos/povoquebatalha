@@ -1,7 +1,7 @@
 // src/lib/column-filter-mapping.ts
 import { getCatalogField } from "@/lib/form-field-catalog";
 import type { CrmFilters } from "@/lib/crm-filters";
-import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/lib/phone-labels";
+import { LIFECYCLE_LABEL } from "@/lib/phone-labels";
 
 export type ColumnFilterInfo =
   | { uiType: "text"; filterKey: keyof CrmFilters }
@@ -23,6 +23,22 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
       return { uiType: "text", filterKey: "profissao" };
     case "instituicao":
       return { uiType: "text", filterKey: "instituicao" };
+    case "email":
+      return { uiType: "text", filterKey: "email_contains" };
+    case "consentimento":
+      return { uiType: "boolean", filterKey: "consent" };
+    case "endereco_completo":
+      return { uiType: "text", filterKey: "endereco_contains" };
+    case "formas_ajuda_outro":
+      return { uiType: "text", filterKey: "formas_ajuda_outro" };
+    case "movimento_social_nome":
+      return { uiType: "text", filterKey: "movimento_social_contains" };
+    case "participa_movimento_social":
+      return { uiType: "boolean", filterKey: "participa_movimento_social" };
+    case "coletivo_alicerce":
+      return { uiType: "boolean", filterKey: "coletivo_alicerce" };
+    case "whatsapp":
+      return { uiType: "text", filterKey: "phone_contains" };
     case "cidade":
       return { uiType: "text", filterKey: "cidade" };
     case "bairro":
@@ -35,6 +51,8 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
       return { uiType: "array", filterKey: "origens", source: "server", serverKey: "origens" };
     case "lifecycle_status":
       return { uiType: "array", filterKey: "lifecycle_statuses", source: "catalog", options: labelsToOptions(LIFECYCLE_LABEL) };
+    case "created_at":
+      return { uiType: "text", filterKey: "created_contem" };
     case "faixa_etaria":
       return {
         uiType: "array",
@@ -49,17 +67,16 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
         ],
       };
     case "formas_ajuda": {
-      // prefer options from catalog if available
       const f = getCatalogField("formas_ajuda");
       if (f?.options && f.options.length) {
-        return { uiType: "array", filterKey: "formas_ajuda", source: "catalog", options: f.options.map((o: any) => ({ value: o.value, label: o.label })) };
+        return { uiType: "array", filterKey: "formas_ajuda", source: "catalog", options: f.options.map((o) => ({ value: o.value, label: o.label })) };
       }
       return { uiType: "array", filterKey: "formas_ajuda", source: "catalog" };
     }
     case "disponibilidade": {
       const f = getCatalogField("disponibilidade");
       if (f?.options && f.options.length) {
-        return { uiType: "array", filterKey: "disponibilidade", source: "catalog", options: f.options.map((o: any) => ({ value: o.value, label: o.label })) };
+        return { uiType: "array", filterKey: "disponibilidade", source: "catalog", options: f.options.map((o) => ({ value: o.value, label: o.label })) };
       }
       return { uiType: "array", filterKey: "disponibilidade", source: "catalog" };
     }
@@ -71,18 +88,15 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
       return { uiType: "text", filterKey: "zona_eleitoral" };
     case "como_conheceu":
       return { uiType: "text", filterKey: "como_conheceu" };
-    case "whatsapp":
-      return { uiType: "array", filterKey: "whatsapp_statuses", source: "catalog", options: labelsToOptions(WHATSAPP_STATUS_LABEL) };
-    case "phone":
-    case "telefone":
-      return { uiType: "array", filterKey: "phone_statuses", source: "catalog", options: labelsToOptions(PHONE_STATUS_LABEL) };
     default: {
       const f = getCatalogField(columnKey);
       if (!f) return null;
       if (f.filterKind === "text") return { uiType: "text", filterKey: f.key as keyof CrmFilters };
       if (f.filterKind === "boolean") return { uiType: "boolean", filterKey: f.key as keyof CrmFilters };
       if (f.filterKind === "multiselect" || f.filterKind === "enum") {
-        if (f.options && f.options.length) return { uiType: "array", filterKey: f.key as keyof CrmFilters, source: "catalog", options: f.options.map((o: any) => ({ value: o.value, label: o.label })) };
+        if (f.options && f.options.length) {
+          return { uiType: "array", filterKey: f.key as keyof CrmFilters, source: "catalog", options: f.options.map((o) => ({ value: o.value, label: o.label })) };
+        }
         return { uiType: "array", filterKey: f.key as keyof CrmFilters };
       }
       return null;
@@ -90,18 +104,49 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
   }
 }
 
-export function applyColumnFilter(current: CrmFilters, column: string, payload: any): CrmFilters {
+/** Lê o valor atual do filtro para uma coluna (normaliza consent sim/nao → boolean). */
+export function getColumnFilterValue(columnKey: string, filters: CrmFilters): unknown {
+  const info = resolveFilterField(columnKey);
+  if (!info) return null;
+  const raw = (filters as Record<string, unknown>)[info.filterKey as string];
+  if (columnKey === "consentimento") {
+    if (raw === "sim") return true;
+    if (raw === "nao") return false;
+    return null;
+  }
+  return raw;
+}
+
+/** Indica se a coluna tem filtro ativo. */
+export function isColumnFilterActive(columnKey: string, filters: CrmFilters): boolean {
+  const info = resolveFilterField(columnKey);
+  if (!info) return false;
+  const v = getColumnFilterValue(columnKey, filters);
+  if (info.uiType === "text") return typeof v === "string" && v.trim() !== "";
+  if (info.uiType === "boolean") return v === true || v === false;
+  if (info.uiType === "array" || info.uiType === "tag") return Array.isArray(v) && v.length > 0;
+  return false;
+}
+
+export function applyColumnFilter(current: CrmFilters, column: string, payload: unknown): CrmFilters {
   const info = resolveFilterField(column);
   if (!info) return current;
-  const next = { ...current } as any;
+  const next = { ...current } as Record<string, unknown>;
+
+  if (column === "consentimento") {
+    if (payload === null || payload === undefined) delete next.consent;
+    else next.consent = payload ? "sim" : "nao";
+    return next as CrmFilters;
+  }
+
   if (info.uiType === "text") {
-    next[info.filterKey] = String(payload ?? "").trim() || undefined;
+    next[info.filterKey as string] = String(payload ?? "").trim() || undefined;
   } else if (info.uiType === "boolean") {
-    if (payload === null || payload === undefined) delete next[info.filterKey];
-    else next[info.filterKey] = !!payload;
+    if (payload === null || payload === undefined) delete next[info.filterKey as string];
+    else next[info.filterKey as string] = !!payload;
   } else if (info.uiType === "array" || info.uiType === "tag") {
     const arr = Array.isArray(payload) ? payload : payload == null ? [] : [payload];
-    next[info.filterKey] = arr.length ? arr : undefined;
+    next[info.filterKey as string] = arr.length ? arr : undefined;
   }
   return next as CrmFilters;
 }
@@ -109,7 +154,7 @@ export function applyColumnFilter(current: CrmFilters, column: string, payload: 
 export function clearColumnFilter(current: CrmFilters, column: string): CrmFilters {
   const info = resolveFilterField(column);
   if (!info) return current;
-  const next = { ...current } as any;
-  delete next[info.filterKey];
+  const next = { ...current } as Record<string, unknown>;
+  delete next[info.filterKey as string];
   return next as CrmFilters;
 }

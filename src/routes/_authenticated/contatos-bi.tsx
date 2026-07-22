@@ -12,6 +12,7 @@ import SavedViewsControl from "@/components/contacts-sheet/SavedViewsControl";
 import SheetContainer from "@/components/contacts-sheet/SheetContainer";
 import BulkActionBar from "@/components/contacts-sheet/BulkActionBar";
 import { decodeBase64UrlSafe as decodeFilters } from "@/lib/filters-encoding";
+import type { CrmFilters } from "@/lib/crm-filters";
 import { toast } from "sonner";
 
 const searchSchema = z.object({
@@ -54,7 +55,10 @@ function ContatosBI() {
     }
   });
 
-  const currentFilters = useMemo(() => (decodeFilters(filtersEncoded) ?? {}) as any, [filtersEncoded]);
+  const currentFilters = useMemo(() => {
+    const raw = (decodeFilters(filtersEncoded) ?? {}) as CrmFilters;
+    return { ...raw, archived: raw.archived ?? "nao" };
+  }, [filtersEncoded]);
 
   const listFn = useServerFn(listContactsSheet);
   const updateFieldFn = useServerFn(updateContactField);
