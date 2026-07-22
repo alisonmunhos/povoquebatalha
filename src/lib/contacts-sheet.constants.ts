@@ -23,11 +23,14 @@ export function parseSheetPageSize(raw: string | undefined): SheetPageSizeOption
 }
 
 export function mobileColumnWidthClass(colCount: number): string {
-  if (colCount <= 1) return "w-full max-w-full min-w-0";
-  if (colCount === 2) return "w-1/2 min-w-0 max-w-[50%]";
-  if (colCount === 3) return "min-w-[28%] w-[33%]";
+  if (colCount <= 1) return "min-w-[200px] max-w-[70vw]";
+  if (colCount === 2) return "min-w-[140px]";
+  if (colCount === 3) return "min-w-[120px]";
   return "min-w-[110px]";
 }
+
+/** Largura da coluna de checkbox — usada para offset do sticky da 1ª coluna de dados. */
+export const SHEET_CHECKBOX_COL_PX = 40;
 
 export function needsHorizontalScroll(isMobile: boolean, colCount: number): boolean {
   return isMobile && colCount >= 4;

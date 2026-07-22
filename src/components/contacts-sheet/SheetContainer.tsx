@@ -20,6 +20,7 @@ import {
   type SheetPageSizeOption,
   mobileColumnWidthClass,
   needsHorizontalScroll,
+  SHEET_CHECKBOX_COL_PX,
 } from "@/lib/contacts-sheet.constants";
 
 const SYSTEM_LABELS: Record<string, string> = {
@@ -143,6 +144,10 @@ export default function SheetContainer({
     setAnchorRect(null);
   }
 
+  function rowBgClass(idx: number): string {
+    return idx % 2 === 1 ? "bg-muted/10" : "bg-card";
+  }
+
   function renderHeaderCell(col: string, stickyFirst = false) {
     const f = getCatalogField(col);
     const label = f ? f.defaultLabel : (SYSTEM_LABELS[col] ?? col);
@@ -152,9 +157,12 @@ export default function SheetContainer({
     return (
       <th
         key={col}
-        className={`p-2 text-left font-medium whitespace-nowrap bg-muted/60 ${widthClass} ${
-          stickyFirst ? "sticky left-10 z-20 shadow-[1px_0_0_0_hsl(var(--border))]" : ""
+        className={`p-2 text-left font-medium whitespace-nowrap ${widthClass} ${
+          stickyFirst
+            ? "sticky z-20 bg-muted/60 shadow-[1px_0_0_0_hsl(var(--border))]"
+            : "bg-muted/60"
         }`}
+        style={stickyFirst ? { left: SHEET_CHECKBOX_COL_PX } : undefined}
       >
         <div className="flex items-center gap-1.5">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
@@ -178,21 +186,23 @@ export default function SheetContainer({
     );
   }
 
-  function renderDataCell(r: ContactRow, col: string, colIndex: number) {
+  function renderDataCell(r: ContactRow, col: string, colIndex: number, rowIdx: number) {
     const field = getCatalogField(col);
     const isPhone = field?.targetColumns.includes("phone_raw") || col === "whatsapp";
     const isMulti = (field?.targetColumns.length ?? 0) > 1;
     const isReadOnlySystem = READ_ONLY_SYSTEM.has(col);
     const stickyFirst = horizontalScroll && colIndex === 0;
     const widthClass = isMobile ? mobileColumnWidthClass(cols.length) : "min-w-[140px]";
+    const stickyClass = stickyFirst
+      ? `sticky z-10 ${rowBgClass(rowIdx)} shadow-[1px_0_0_0_hsl(var(--border))]`
+      : "";
 
     if (isPhone || isMulti || isReadOnlySystem) {
       return (
         <td
           key={col}
-          className={`p-2 align-middle ${widthClass} ${
-            stickyFirst ? "sticky left-10 z-10 bg-inherit shadow-[1px_0_0_0_hsl(var(--border))]" : ""
-          }`}
+          className={`p-2 align-middle ${widthClass} ${stickyClass}`}
+          style={stickyFirst ? { left: SHEET_CHECKBOX_COL_PX } : undefined}
         >
           <Link to="/contatos/$id" params={{ id: r.contact_id }} className="text-primary hover:underline">
             {isMulti ? previewComposite(r[col]) : (r[col] ? String(r[col]) : <span className="text-muted-foreground">—</span>)}
@@ -203,9 +213,8 @@ export default function SheetContainer({
     return (
       <td
         key={col}
-        className={`p-0 align-middle ${widthClass} ${
-          stickyFirst ? "sticky left-10 z-10 bg-inherit shadow-[1px_0_0_0_hsl(var(--border))]" : ""
-        }`}
+        className={`p-0 align-middle ${widthClass} ${stickyClass}`}
+        style={stickyFirst ? { left: SHEET_CHECKBOX_COL_PX } : undefined}
       >
         <Cell
           contactId={r.contact_id}
@@ -219,16 +228,23 @@ export default function SheetContainer({
   }
 
   function renderRow(r: ContactRow, idx: number, style?: CSSProperties) {
+    const bg = rowBgClass(idx);
     return (
       <tr
         key={r.contact_id}
         style={style}
-        className={`border-t hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+        className={`border-t hover:bg-muted/30 transition-colors ${bg}`}
       >
-        <td className={`p-2 align-middle w-10 ${horizontalScroll ? "sticky left-0 z-10 bg-inherit shadow-[1px_0_0_0_hsl(var(--border))]" : ""}`}>
+        <td
+          className={`p-2 align-middle w-10 ${
+            horizontalScroll
+              ? `sticky left-0 z-20 ${bg} shadow-[1px_0_0_0_hsl(var(--border))]`
+              : ""
+          }`}
+        >
           <input type="checkbox" checked={sel.has(r.contact_id)} onChange={() => toggleSelection(r.contact_id)} />
         </td>
-        {cols.map((col, colIndex) => renderDataCell(r, col, colIndex))}
+        {cols.map((col, colIndex) => renderDataCell(r, col, colIndex, idx))}
       </tr>
     );
   }
@@ -250,10 +266,14 @@ export default function SheetContainer({
         className={`overflow-auto ${horizontalScroll ? "touch-pan-x" : ""}`}
         style={{ maxHeight: VIRTUAL_VIEWPORT_HEIGHT }}
       >
-        <table className={`w-full text-sm border-collapse ${horizontalScroll ? "min-w-max" : ""}`}>
+        <table className={`text-sm border-collapse ${horizontalScroll ? "min-w-max w-max" : "w-full"}`}>
           <thead>
             <tr className="bg-muted/60 sticky top-0 z-30 shadow-[0_1px_0_0_hsl(var(--border))]">
-              <th className={`p-2 w-10 text-left bg-muted/60 ${horizontalScroll ? "sticky left-0 z-40 shadow-[1px_0_0_0_hsl(var(--border))]" : ""}`}>
+              <th
+                className={`p-2 w-10 text-left bg-muted/60 ${
+                  horizontalScroll ? "sticky left-0 z-40 shadow-[1px_0_0_0_hsl(var(--border))]" : ""
+                }`}
+              >
                 <input type="checkbox" checked={allChecked} onChange={togglePageSelection} />
               </th>
               {cols.map((c, i) => renderHeaderCell(c, horizontalScroll && i === 0))}
