@@ -65,7 +65,7 @@ function ContatosBI() {
 
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [savedViews, setSavedViews] = useState<Array<{ name: string; payload: unknown }>>(() => {
+  const [savedViews, setSavedViews] = useState<Array<{ name: string; payload: SavedSheetViewPayload }>>(() => {
     try {
       const raw = localStorage.getItem("whatsapp-connect.contacts-sheet.views");
       return raw ? JSON.parse(raw) : [];
