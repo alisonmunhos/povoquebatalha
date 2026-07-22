@@ -156,29 +156,42 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       }
     }
 
-    // Tags (contagem apenas em contatos não arquivados)
+    // Tags — contagem por tag_id (mesmo padrão de /tags), só contatos não arquivados
     const { data: tags, error: tagsError } = await sb.from("tags").select("id,nome,cor");
     if (tagsError) throw tagsError;
 
-    const { data: activeContacts, error: activeError } = await sb
-      .from("contacts")
-      .select("id")
-      .is("arquivado_at", null)
-      .limit(20000);
-    if (activeError) throw activeError;
-    const activeIds = new Set((activeContacts ?? []).map((c) => c.id as string));
-
-    const { data: tagRels, error: tagRelsError } = await sb
-      .from("contact_tags")
-      .select("tag_id, contact_id")
-      .limit(50000);
-    if (tagRelsError) throw tagRelsError;
-
+    const tagIds = (tags ?? []).map((t) => t.id as string);
     const tagCount = new Map<string, number>();
-    for (const r of tagRels ?? []) {
-      if (!activeIds.has(r.contact_id as string)) continue;
-      const k = r.tag_id as string;
-      tagCount.set(k, (tagCount.get(k) ?? 0) + 1);
+
+    if (tagIds.length) {
+      const { data: rels, error: tagRelsError } = await sb
+        .from("contact_tags")
+        .select("tag_id, contact_id")
+        .in("tag_id", tagIds);
+      if (tagRelsError) throw tagRelsError;
+
+      const linkedContactIds = Array.from(
+        new Set((rels ?? []).map((r) => r.contact_id as string)),
+      );
+
+      const activeSet = new Set<string>();
+      const BATCH = 500;
+      for (let i = 0; i < linkedContactIds.length; i += BATCH) {
+        const chunk = linkedContactIds.slice(i, i + BATCH);
+        const { data: activeChunk, error: activeError } = await sb
+          .from("contacts")
+          .select("id")
+          .in("id", chunk)
+          .is("arquivado_at", null);
+        if (activeError) throw activeError;
+        for (const c of activeChunk ?? []) activeSet.add(c.id as string);
+      }
+
+      for (const r of rels ?? []) {
+        if (!activeSet.has(r.contact_id as string)) continue;
+        const k = r.tag_id as string;
+        tagCount.set(k, (tagCount.get(k) ?? 0) + 1);
+      }
     }
     const tagsOpts = (tags ?? [])
       .map((t) => ({
