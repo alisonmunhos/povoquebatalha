@@ -400,7 +400,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
         slug,
         tracking_name: `${srcTracking} (cópia)`.slice(0, 120),
         source_form_type: src.source_form_type,
-        event_key: `formulario:${data.slug}`,
+        event_key: `formulario:${slug}`,
         created_by: context.userId,
         whatsapp_button_enabled: src.whatsapp_button_enabled,
         whatsapp_button_message: src.whatsapp_button_message,
