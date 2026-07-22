@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import type { FilterOptionsBundle } from "@/components/ContactFiltersPanel";
 import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/lib/phone-labels";
 
@@ -55,6 +56,18 @@ export function ActiveFiltersChips({
 
   // Participação
   for (const v of filters.formas_ajuda ?? []) chips.push({ key: `fa-${v}`, label: `Ajuda: ${v}`, onRemove: removeFromArr("formas_ajuda", v) });
+  for (const ch of filters.capture_channels ?? []) {
+    const label = ch === "formulario_publico" ? "Formulário público" : ch === "captacao_atribuida" ? "Captação atribuída" : ch;
+    chips.push({ key: `ch-${ch}`, label: `Canal: ${label}`, onRemove: removeFromArr("capture_channels", ch) });
+  }
+  for (const v of filters.tracking_points ?? []) chips.push({ key: `tp-${v}`, label: `Rastreio: ${v}`, onRemove: removeFromArr("tracking_points", v) });
+  for (const v of filters.captured_by_user_ids ?? []) {
+    chips.push({
+      key: `cb-${v}`,
+      label: `Captado por: ${v === SYSTEM_CAPTURE_SENTINEL ? "Sistema" : findLabel(options?.imported_by, v) || v}`,
+      onRemove: removeFromArr("captured_by_user_ids", v),
+    });
+  }
   for (const v of filters.origens ?? []) chips.push({ key: `or-${v}`, label: `Origem: ${v}`, onRemove: removeFromArr("origens", v) });
   for (const v of filters.origem_detalhes ?? []) chips.push({ key: `od-${v}`, label: `Detalhe: ${v}`, onRemove: removeFromArr("origem_detalhes", v) });
   for (const id of filters.tag_ids ?? []) chips.push({ key: `tag-${id}`, label: `Tag: ${findLabel(options?.tags, id)}`, onRemove: removeFromArr("tag_ids", id) });
@@ -82,8 +95,18 @@ export function ActiveFiltersChips({
     chips.push({ key: "nrt", label: `Não recebeu msg: ${findLabel(options?.mensagens, filters.nao_recebeu_template_id)}`, onRemove: remove("nao_recebeu_template_id") });
 
   // Importação
+  if (filters.foi_importado) chips.push({ key: "fi", label: `Foi importado: ${filters.foi_importado}`, onRemove: remove("foi_importado") });
+  for (const v of filters.imported_by_user_ids ?? [])
+    chips.push({ key: `ib-${v}`, label: `Importado por: ${findLabel(options?.imported_by, v)}`, onRemove: removeFromArr("imported_by_user_ids", v) });
   for (const v of filters.import_ids ?? [])
     chips.push({ key: `imp-${v}`, label: `Lote: ${findLabel(options?.importacoes, v)}`, onRemove: removeFromArr("import_ids", v) });
+  if (filters.importado_desde) chips.push({ key: "id-d", label: `Importado desde: ${filters.importado_desde}`, onRemove: remove("importado_desde") });
+  if (filters.importado_ate) chips.push({ key: "id-a", label: `Importado até: ${filters.importado_ate}`, onRemove: remove("importado_ate") });
+  if (filters.sem_rastreio_fino) chips.push({ key: "sr", label: "Sem rastreio fino", onRemove: remove("sem_rastreio_fino") });
+  if (filters.captado_desde) chips.push({ key: "cd-d", label: `Captado desde: ${filters.captado_desde}`, onRemove: remove("captado_desde") });
+  if (filters.captado_ate) chips.push({ key: "cd-a", label: `Captado até: ${filters.captado_ate}`, onRemove: remove("captado_ate") });
+  for (const v of filters.source_modules ?? []) chips.push({ key: `sm-${v}`, label: `Módulo: ${v}`, onRemove: removeFromArr("source_modules", v) });
+  for (const v of filters.source_form_types ?? []) chips.push({ key: `sft-${v}`, label: `Tipo form.: ${v}`, onRemove: removeFromArr("source_form_types", v) });
 
   if (chips.length === 0) return null;
 

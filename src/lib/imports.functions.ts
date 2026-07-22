@@ -7,6 +7,7 @@ import { z } from "zod";
 import * as XLSX from "xlsx";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { hasRole } from "@/lib/authz";
+import { importSourceMetadata } from "@/lib/contact-source-metadata";
 import { parsePhoneBR, type ParsedPhone } from "@/lib/phone";
 
 
@@ -758,7 +759,7 @@ export const commitImport = createServerFn({ method: "POST" })
               _source_form_type: null as unknown as "cadastro_completo" | "receber_informacoes",
               _source_link_id: null as unknown as string,
               _event_type: eventType,
-              _metadata: { via: "import", import_id: data.importId },
+              _metadata: importSourceMetadata(data.importId),
             });
           } catch { /* non-blocking */ }
         }

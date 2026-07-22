@@ -2,14 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { listFormDefinitions, createFormDefinition } from "@/lib/form-definitions.functions";
+import { listFormDefinitions, createFormDefinition, duplicateFormDefinition } from "@/lib/form-definitions.functions";
 import {
   listAutoReplyTriggers, createAutoReplyTrigger, updateAutoReplyTrigger, deleteAutoReplyTrigger,
 } from "@/lib/auto-reply-triggers.functions";
 import { getInstanceSettings } from "@/lib/zapi.functions";
 import { FIXED_FORM_PUBLIC_PATHS } from "@/lib/form-field-catalog";
 import { generateQrDataUrl } from "@/lib/qr-code-browser";
-import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2, MessageSquareText, Trash2 } from "lucide-react";
+import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2, MessageSquareText, Trash2, CopyPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -33,12 +33,14 @@ function EntradaDadosLista() {
   const navigate = useNavigate();
   const listFn = useServerFn(listFormDefinitions);
   const createFn = useServerFn(createFormDefinition);
+  const duplicateFn = useServerFn(duplicateFormDefinition);
   const q = useQuery({ queryKey: ["form-definitions"], queryFn: () => listFn() });
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [sourceFormType, setSourceFormType] = useState<"cadastro_completo" | "receber_informacoes">("cadastro_completo");
   const [saving, setSaving] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   async function onCreate() {
     if (title.trim().length < 2) { toast.error("Dê um título ao formulário."); return; }
@@ -53,6 +55,19 @@ function EntradaDadosLista() {
       toast.error(e instanceof Error ? e.message : "Erro ao criar formulário");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onDuplicate(formId: string) {
+    setDuplicatingId(formId);
+    try {
+      const row = await duplicateFn({ data: { id: formId } });
+      toast.success("Cópia criada — ajuste o nome e as perguntas");
+      navigate({ to: "/entrada-dados/$id", params: { id: row.id as string } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao duplicar formulário");
+    } finally {
+      setDuplicatingId(null);
     }
   }
 
@@ -103,22 +118,38 @@ function EntradaDadosLista() {
           <div className="border rounded-xl bg-card divide-y">
             {(q.data ?? []).length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhum formulário criado ainda.</p>}
             {(q.data ?? []).map((f) => {
+              const formId = f.id as string;
               const isFixed = Boolean(f.is_fixed);
               const publicPath = isFixed ? (FIXED_FORM_PUBLIC_PATHS[f.slug as string] ?? `/${f.slug}`) : `/f/${f.slug}`;
+              const busy = duplicatingId === formId;
               return (
-                <Link key={f.id as string} to="/entrada-dados/$id" params={{ id: f.id as string }} className="flex items-center justify-between p-4 hover:bg-muted/40">
-                  <div>
-                    <p className="font-medium">{f.title as string}</p>
-                    <p className="text-xs text-muted-foreground">{publicPath}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    {isFixed && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Fixo</span>}
-                    <span className={`px-2 py-0.5 rounded-full ${f.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                      {f.is_active ? "Ativo" : "Inativo"}
-                    </span>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </Link>
+                <div key={formId} className="flex items-center gap-2 p-4 hover:bg-muted/40">
+                  <Link to="/entrada-dados/$id" params={{ id: formId }} className="flex flex-1 items-center justify-between min-w-0">
+                    <div className="min-w-0 pr-2">
+                      <p className="font-medium truncate">{f.title as string}</p>
+                      <p className="text-xs text-muted-foreground">{publicPath}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs shrink-0">
+                      {isFixed && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Fixo</span>}
+                      <span className={`px-2 py-0.5 rounded-full ${f.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {f.is_active ? "Ativo" : "Inativo"}
+                      </span>
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                  </Link>
+                  {!isFixed && (
+                    <button
+                      type="button"
+                      disabled={busy || duplicatingId !== null}
+                      onClick={() => onDuplicate(formId)}
+                      className="inline-flex items-center gap-1.5 shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                      title="Criar uma cópia para editar"
+                    >
+                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CopyPlus className="h-3.5 w-3.5" />}
+                      Duplicar
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

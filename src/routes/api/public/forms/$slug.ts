@@ -5,6 +5,7 @@
 //                                  /api/public/forms/{inscrever,recadastro}.ts.
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { buildSourceMetadata } from "@/lib/contact-source-metadata";
 import { getCatalogField, type FormCatalogField } from "@/lib/form-field-catalog";
 import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "@/lib/public-form-guards.server";
 
@@ -172,7 +173,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
 
         const { data: form, error: formErr } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,slug,title,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order")
+          .select("id,slug,title,tracking_name,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -338,39 +339,55 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           );
         }
 
-        // Registrar origem/captação: link do próprio formulário (se houver) ou fallback.
-        // Tipo de evento reflete o tipo do formulário, no mesmo padrão de inscrever.ts/recadastro.ts.
+        // Registrar origem/captação (Entrada de Dados = Sistema, canal formulário público).
         const eventType = form.source_form_type === "cadastro_completo" ? "cadastro_completo" : "inscricao_simples";
         try {
-          const { data: link } = form.tracked_form_link_id
-            ? await supabaseAdmin
-                .from("tracked_form_links")
-                .select("id, created_by_user_id, source_module, source_form_type, is_active, expires_at")
-                .eq("id", form.tracked_form_link_id)
-                .maybeSingle()
-            : { data: null };
-          const linkExpired = link?.expires_at ? new Date(link.expires_at).getTime() < Date.now() : false;
-          if (link && link.is_active && !linkExpired) {
-            await supabaseAdmin.rpc("apply_contact_source", {
-              _contact_id: savedId,
-              _source_user_id: link.created_by_user_id,
-              _source_module: link.source_module,
-              _source_form_type: link.source_form_type,
-              _source_link_id: link.id,
-              _event_type: eventType,
-              _metadata: { via: "form_builder", form_definition_id: form.id, form_slug: form.slug },
-            });
-          } else {
-            await supabaseAdmin.rpc("apply_contact_source", {
-              _contact_id: savedId,
-              _source_user_id: null as unknown as string,
-              _source_module: "formulario_publico",
-              _source_form_type: form.source_form_type,
-              _source_link_id: null as unknown as string,
-              _event_type: eventType,
-              _metadata: { via: "form_builder_sem_link", form_definition_id: form.id, form_slug: form.slug },
-            });
+          let linkId: string | null = null;
+          let trackingLabel = ((form as { tracking_name?: string | null }).tracking_name || form.title).trim();
+
+          const resolveLink = async (token: string) => {
+            const { data: row } = await supabaseAdmin
+              .from("tracked_form_links")
+              .select("id, label, is_active, expires_at")
+              .eq("token", token)
+              .maybeSingle();
+            if (!row?.is_active) return null;
+            if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return null;
+            return row;
+          };
+
+          if (d.ref_token) {
+            const refLink = await resolveLink(d.ref_token);
+            if (refLink) {
+              linkId = refLink.id;
+              if (refLink.label?.trim()) trackingLabel = refLink.label.trim();
+            }
+          } else if (form.tracked_form_link_id) {
+            const { data: defaultLink } = await supabaseAdmin
+              .from("tracked_form_links")
+              .select("id, label, is_active, expires_at")
+              .eq("id", form.tracked_form_link_id)
+              .maybeSingle();
+            if (defaultLink?.is_active && !(defaultLink.expires_at && new Date(defaultLink.expires_at).getTime() < Date.now())) {
+              linkId = defaultLink.id;
+              if (defaultLink.label?.trim()) trackingLabel = defaultLink.label.trim();
+            }
           }
+
+          await supabaseAdmin.rpc("apply_contact_source", {
+            _contact_id: savedId,
+            _source_user_id: null as unknown as string,
+            _source_module: "formulario_publico",
+            _source_form_type: form.source_form_type,
+            _source_link_id: linkId as unknown as string,
+            _event_type: eventType,
+            _metadata: buildSourceMetadata({
+              capture_channel: "formulario_publico",
+              tracking_label: trackingLabel,
+              form_definition_id: form.id,
+              via: "form_builder",
+            }),
+          });
         } catch { /* ignore */ }
 
         // Geocodifica se algum campo de endereço foi incluído no formulário.

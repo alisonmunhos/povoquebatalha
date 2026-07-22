@@ -30,7 +30,8 @@ function genToken(): string {
 const createSchema = z.object({
   source_module: z.enum(SOURCE_MODULES),
   source_form_type: z.enum(SOURCE_FORM_TYPES),
-  label: z.string().trim().max(120).optional().nullable(),
+  label: z.string().trim().min(2, "Informe um nome para o link").max(120),
+  form_definition_id: z.string().uuid().optional().nullable(),
 });
 
 /** Lógica de inserção compartilhada, reaproveitada por createTrackedLink e por
@@ -40,7 +41,12 @@ export async function insertTrackedLink(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   createdByUserId: string,
-  input: { source_module: (typeof SOURCE_MODULES)[number]; source_form_type: (typeof SOURCE_FORM_TYPES)[number]; label?: string | null },
+  input: {
+    source_module: (typeof SOURCE_MODULES)[number];
+    source_form_type: (typeof SOURCE_FORM_TYPES)[number];
+    label: string;
+    form_definition_id?: string | null;
+  },
 ) {
   const token = genToken();
   const { data: row, error } = await supabase
@@ -50,7 +56,8 @@ export async function insertTrackedLink(
       created_by_user_id: createdByUserId,
       source_module: input.source_module,
       source_form_type: input.source_form_type,
-      label: input.label ?? null,
+      label: input.label.trim(),
+      form_definition_id: input.form_definition_id ?? null,
       is_active: true,
     })
     .select("id, token, source_module, source_form_type, created_at")

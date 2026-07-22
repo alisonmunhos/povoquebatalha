@@ -100,11 +100,17 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
 
   const [step, setStep] = useState<Step>({ kind: "choose_action" });
   const [busy, setBusy] = useState(false);
+  const [linkLabel, setLinkLabel] = useState("");
 
   async function generateLink(type: FormType) {
+    const label = linkLabel.trim();
+    if (label.length < 2) {
+      toast.error("Informe um nome para o link (ex.: Panfletagem praça central).");
+      return;
+    }
     setBusy(true);
     try {
-      const r = await create({ data: { source_module: module, source_form_type: type } });
+      const r = await create({ data: { source_module: module, source_form_type: type, label } });
       setStep({ kind: "link", type, token: r.link.token });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
@@ -160,6 +166,14 @@ function AddContactModal({ userName, onClose }: { userName?: string | null; onCl
 
         {step.kind === "choose_link_type" && (
           <div className="space-y-3">
+            <Field label="Nome do link (obrigatório)" hint="Esse nome aparece nos filtros como ponto de rastreio — ex.: Reunião do bairro X.">
+              <Input
+                value={linkLabel}
+                onChange={(e) => setLinkLabel(e.target.value)}
+                placeholder="Ex.: Panfletagem praça central"
+                maxLength={120}
+              />
+            </Field>
             <div className="grid sm:grid-cols-2 gap-3">
               <TypeCard
                 icon={<ClipboardList className="h-6 w-6" />}
