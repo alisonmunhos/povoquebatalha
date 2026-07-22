@@ -1,4 +1,4 @@
-/** Sentinela para filtro "Captado por = Sistema" (formulário público Entrada de Dados). */
+import type { Json } from "@/integrations/supabase/types";
 export const SYSTEM_CAPTURE_SENTINEL = "__SYSTEM__";
 
 export type CaptureChannel = "formulario_publico" | "captacao_atribuida";
