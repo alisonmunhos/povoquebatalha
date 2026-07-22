@@ -27,6 +27,7 @@ import { clearAllSheetFilters, removeSheetFilterChip } from "@/lib/sheet-filter-
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -251,40 +252,26 @@ function ContatosBI() {
         <SavedViewsControl saved={savedViews} onSave={saveViewLocal} onLoad={loadViewLocal} />
       </header>
 
-      {isMobile ? (
-        <Sheet open={columnsOpen} onOpenChange={setColumnsOpen}>
-          <SheetTrigger asChild>
-            <button
-              type="button"
-              className="mb-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
-            >
-              <Columns3 className="h-4 w-4" />
-              Colunas ({cols.length})
-            </button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Colunas visíveis</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4">{columnPicker}</div>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <>
-          <div className="mb-4">
-            <button
-              type="button"
-              aria-expanded={columnsOpen}
-              aria-controls="column-picker-panel"
-              onClick={() => setColumnsOpen((open) => !open)}
-              className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
-            >
-              Colunas {columnsOpen ? "▴" : "▾"}
-            </button>
-          </div>
-          {columnsOpen && <div id="column-picker-panel">{columnPicker}</div>}
-        </>
-      )}
+      <Sheet open={columnsOpen} onOpenChange={setColumnsOpen}>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            className="mb-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+          >
+            <Columns3 className="h-4 w-4" />
+            Colunas ({cols.length})
+          </button>
+        </SheetTrigger>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader className="text-left">
+            <SheetTitle>Colunas visíveis</SheetTitle>
+            <SheetDescription className="sr-only">
+              Escolha quais colunas exibir na tabela de contatos
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">{columnPicker}</div>
+        </SheetContent>
+      </Sheet>
 
       <SheetActiveFiltersBar
         cols={cols}

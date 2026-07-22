@@ -147,12 +147,14 @@ export default function ColumnFilterPopover(props: {
       role="dialog"
       aria-modal={embedded ? "true" : "false"}
     >
+      {!embedded ? (
       <div className="popover-header shrink-0 px-3 pt-3 pb-2 border-b">
         <strong className="text-sm">{columnLabel}</strong>
       </div>
+      ) : null}
 
       <div
-        className={`popover-body flex-1 min-h-0 px-3 py-2 ${
+        className={`popover-body flex-1 min-h-0 ${embedded ? "py-0" : "px-3 py-2"} ${
           isListFilter ? "flex flex-col overflow-hidden" : "overflow-y-auto"
         }`}
       >
