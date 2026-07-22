@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, useEffect, useCallback, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Cell from "./Cell";
@@ -59,6 +59,8 @@ type SheetContainerProps = {
   pushSearch: (filtersEncodedNext?: string) => void;
   sort?: string;
   onSortChange?: (sort: string) => void;
+  columnsOpen?: boolean;
+  onFilterOpen?: () => void;
   q: { isLoading?: boolean; error?: unknown };
   isMobile?: boolean;
 };
@@ -78,12 +80,15 @@ export default function SheetContainer({
   pushSearch,
   sort,
   onSortChange,
+  columnsOpen = false,
+  onFilterOpen,
   q,
   isMobile = false,
 }: SheetContainerProps) {
   const [openFilterFor, setOpenFilterFor] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
 
   const errorMsg = q?.error
     ? q.error instanceof Error
@@ -140,20 +145,66 @@ export default function SheetContainer({
   }
 
   function openFilter(col: string, anchor: HTMLElement) {
+    const willOpen = openFilterFor !== col;
     if (isMobile) {
       setOpenFilterFor((current) => (current === col ? null : col));
+      if (willOpen) onFilterOpen?.();
       return;
     }
     const rect = anchor.getBoundingClientRect();
     if (!anchor.isConnected || !Number.isFinite(rect.left) || !Number.isFinite(rect.bottom)) return;
     setAnchorRect(rect);
     setOpenFilterFor((current) => (current === col ? null : col));
+    if (willOpen) onFilterOpen?.();
   }
 
-  function closeFilter() {
+  const closeFilter = useCallback(() => {
     setOpenFilterFor(null);
     setAnchorRect(null);
-  }
+  }, []);
+
+  /** Abrir Colunas fecha o filtro de coluna. */
+  useEffect(() => {
+    if (columnsOpen && openFilterFor) closeFilter();
+  }, [columnsOpen, openFilterFor, closeFilter]);
+
+  /** Clique fora fecha o popover (desktop). */
+  useEffect(() => {
+    if (!openFilterFor || isMobile) return;
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (filterPopoverRef.current?.contains(target)) return;
+      if ((target as Element).closest?.("[data-column-filter-trigger]")) return;
+      closeFilter();
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [openFilterFor, isMobile, closeFilter]);
+
+  /** Esc fecha o filtro. */
+  useEffect(() => {
+    if (!openFilterFor) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeFilter();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [openFilterFor, closeFilter]);
+
+  /** Rolagem da tabela fecha o popover (desktop). */
+  useEffect(() => {
+    if (!openFilterFor || isMobile) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    function onScroll() {
+      closeFilter();
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [openFilterFor, isMobile, closeFilter]);
 
   function rowBgClass(idx: number): string {
     return idx % 2 === 1 ? "bg-muted/10" : "bg-card";
@@ -200,6 +251,7 @@ export default function SheetContainer({
           {showFilter && (
             <button
               type="button"
+              data-column-filter-trigger
               aria-label={`Filtrar ${label}`}
               aria-expanded={openFilterFor === col}
               onClick={(event) => openFilter(col, event.currentTarget)}
@@ -435,6 +487,7 @@ export default function SheetContainer({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={filterPopoverRef}
             style={{
               position: "fixed",
               left: Math.min(anchorRect?.left ?? 16, window.innerWidth - 272),

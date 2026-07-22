@@ -310,6 +310,8 @@ function ContatosBI() {
         }
         sort={sort}
         onSortChange={onSortChange}
+        columnsOpen={columnsOpen}
+        onFilterOpen={() => setColumnsOpen(false)}
         q={q}
         isMobile={isMobile}
       />
