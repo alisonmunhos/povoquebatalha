@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { applyCrmFilters, splitEmptyToken, type CrmFilters } from "@/lib/crm-filters";
+import { applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 
 function decodeBase64UrlSafeToJson<T = unknown>(s?: string): T | null {
@@ -10,6 +10,20 @@ function decodeBase64UrlSafeToJson<T = unknown>(s?: string): T | null {
   const base64 = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(pad);
   const buf = Buffer.from(base64, "base64");
   return JSON.parse(buf.toString("utf8")) as T;
+}
+
+function normalizeSheetFilters(raw: CrmFilters): CrmFilters {
+  const f = { ...raw };
+  if (f.archived === undefined) f.archived = "nao";
+  return f;
+}
+
+function postgrestErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
 }
 
 const listInputSchema = z.object({
@@ -55,60 +69,32 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     if (!projectionParts.includes("created_at")) projectionParts.push("created_at");
     const projection = projectionParts.join(",");
 
-    let filters: CrmFilters | null = null;
+    let filters: CrmFilters;
     try {
       const decoded = decodeBase64UrlSafeToJson<Record<string, unknown> | null>(data.filtersEncoded);
-      filters = (decoded ?? {}) as CrmFilters;
+      filters = normalizeSheetFilters((decoded ?? {}) as CrmFilters);
     } catch (err: unknown) {
       throw new Error(`Filtros inválidos: ${(err as Error).message}`);
     }
 
     let q = context.supabase.from("contacts").select(projection, { count: "exact" });
-    if (typeof to === "number") q = q.range(from, to);
 
     try {
-      q = applyCrmFilters(q as never, (filters ?? {}) as CrmFilters);
+      q = applyCrmFilters(q as never, filters);
     } catch (err: unknown) {
       throw new Error(`Filtros inválidos: ${(err as Error).message}`);
     }
 
-    // Filtro por tag_ids (OU entre tags selecionadas) — mesmo padrão de listContactsRich.
-    // Suporta o token de "vazio": inclui contatos sem nenhuma tag.
-    const tagIdsRaw = (filters as any)?.tag_ids as string[] | undefined;
+    const tagIdsRaw = filters.tag_ids;
     if (tagIdsRaw?.length) {
-      const { values: tagIds, empty: includeEmpty } = splitEmptyToken(tagIdsRaw);
-      let matchedIds: string[] = [];
-      if (tagIds.length) {
-        const { data: rels } = await context.supabase
-          .from("contact_tags")
-          .select("contact_id")
-          .in("tag_id", tagIds);
-        matchedIds = Array.from(new Set((rels ?? []).map((r: any) => r.contact_id as string)));
+      const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, tagIdsRaw);
+      if (noMatch) {
+        return { rows: [], total: 0, page, pageSize: data.pageSize };
       }
-      if (includeEmpty) {
-        const { data: allRels } = await context.supabase
-          .from("contact_tags")
-          .select("contact_id")
-          .limit(20000);
-        const allTagged = Array.from(new Set((allRels ?? []).map((r: any) => r.contact_id as string)));
-        if (matchedIds.length && allTagged.length) {
-          const quotedMatched = matchedIds.map((v) => `"${v}"`).join(",");
-          const quotedAll = allTagged.map((v) => `"${v}"`).join(",");
-          q = q.or(`id.in.(${quotedMatched}),id.not.in.(${quotedAll})`);
-        } else if (matchedIds.length) {
-          q = q.in("id", matchedIds);
-        } else if (allTagged.length) {
-          q = q.not("id", "in", `(${allTagged.map((v) => `"${v}"`).join(",")})`);
-        }
-        // else: nenhum contato tem tag → todos combinam com "vazio" (nenhuma restrição)
-      } else {
-        if (!matchedIds.length) {
-          return { rows: [], total: 0, page, pageSize: data.pageSize };
-        }
-        q = q.in("id", matchedIds);
+      if (ids?.length) {
+        q = q.in("id", ids);
       }
     }
-
 
     if (data.sort) {
       const [field, dir] = String(data.sort).split(":");
@@ -120,17 +106,20 @@ export const listContactsSheet = createServerFn({ method: "POST" })
       q = q.order("created_at", { ascending: false });
     }
 
+    if (typeof to === "number") q = q.range(from, to);
+
     const { data: rowsRaw, count, error } = await q;
-    if (error) throw error;
+    if (error) throw new Error(postgrestErrorMessage(error));
     const rows = (rowsRaw ?? []) as unknown as Record<string, unknown>[];
 
     const ids = rows.map((r) => r.id).filter(Boolean) as string[];
     let tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
     if (ids.length) {
-      const { data: rels } = await context.supabase
+      const { data: rels, error: tagError } = await context.supabase
         .from("contact_tags")
         .select("contact_id, tags(id,nome,cor)")
         .in("contact_id", ids);
+      if (tagError) throw new Error(postgrestErrorMessage(tagError));
       tagMap = (rels ?? []).reduce((acc: typeof tagMap, r: any) => {
         const t = r.tags as { id: string; nome: string; cor: string } | null;
         if (!t) return acc;
@@ -149,7 +138,6 @@ export const listContactsSheet = createServerFn({ method: "POST" })
         }
         const f = getCatalogField(key);
         if (!f) {
-          // system column mapped directly
           out[key] = (r as Record<string, unknown>)[key] ?? null;
           continue;
         }

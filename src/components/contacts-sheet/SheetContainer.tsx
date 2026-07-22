@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import Cell from "./Cell";
 import { getCatalogField } from "@/lib/form-field-catalog";
 import ColumnFilterPopover from "./ColumnFilterPopover";
-import { resolveFilterField } from "@/lib/column-filter-mapping";
+import { resolveFilterField, isColumnFilterActive } from "@/lib/column-filter-mapping";
 import { Link } from "@tanstack/react-router";
 import { Filter } from "lucide-react";
 
@@ -24,7 +24,13 @@ export default function SheetContainer({
   const [openFilterFor, setOpenFilterFor] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
-  const errorMsg = q?.error ? (q.error instanceof Error ? q.error.message : String(q.error)) : null;
+  const errorMsg = q?.error
+    ? q.error instanceof Error
+      ? q.error.message
+      : typeof q.error === "object" && q.error && "message" in q.error
+        ? String((q.error as { message: unknown }).message)
+        : String(q.error)
+    : null;
 
   const sel: Set<string> = selection ?? new Set();
   const allOnPage: string[] = rows.map((r: any) => r.contact_id);
@@ -44,13 +50,7 @@ export default function SheetContainer({
     setSelection(next);
   }
   function isFilterActiveForColumn(col: string): boolean {
-    const info = resolveFilterField(col);
-    if (!info) return false;
-    const v = (currentFilters as any)?.[info.filterKey];
-    if (info.uiType === "text") return typeof v === "string" && v.trim() !== "";
-    if (info.uiType === "boolean") return v === true || v === false;
-    if (info.uiType === "array" || info.uiType === "tag") return Array.isArray(v) && v.length > 0;
-    return false;
+    return isColumnFilterActive(col, currentFilters ?? {});
   }
   function getActiveFilterValues(col: string): string[] | null {
     const info = resolveFilterField(col);

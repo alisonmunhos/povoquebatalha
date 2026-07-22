@@ -95,8 +95,72 @@ export const crmFilterSchema = z.object({
   erro_campanha_id: z.string().uuid().optional(),
   recebeu_template_id: z.string().uuid().optional(),
   nao_recebeu_template_id: z.string().uuid().optional(),
+
+  // Filtros usados pela planilha BI (contatos-bi)
+  formas_ajuda_outro: z.string().trim().optional(),
+  endereco_contains: z.string().trim().optional(),
+  phone_contains: z.string().trim().optional(),
+  created_contem: z.string().trim().optional(),
 });
 export type CrmFilters = z.infer<typeof crmFilterSchema>;
+
+type TagFilterSupabase = {
+  from: (table: string) => {
+    select: (cols: string, opts?: { count?: string; head?: boolean }) => unknown;
+  };
+};
+
+/** Resolve IDs de contatos para filtro de tags (OR entre tags + token de vazio). */
+export async function resolveContactIdsForTagFilter(
+  supabase: TagFilterSupabase,
+  tagIdsRaw: string[],
+): Promise<{ ids: string[] | null; noMatch: boolean }> {
+  const { values: tagIds, empty: includeEmpty } = splitEmptyToken(tagIdsRaw);
+
+  let matchedIds: string[] = [];
+  if (tagIds.length) {
+    const { data: rels, error } = await (supabase as any)
+      .from("contact_tags")
+      .select("contact_id")
+      .in("tag_id", tagIds);
+    if (error) throw new Error(error.message);
+    matchedIds = Array.from(new Set((rels ?? []).map((r: { contact_id: string }) => r.contact_id)));
+  }
+
+  if (!includeEmpty) {
+    if (!matchedIds.length) return { ids: [], noMatch: true };
+    return { ids: matchedIds, noMatch: false };
+  }
+
+  const { data: allTaggedRels, error: allTaggedErr } = await (supabase as any)
+    .from("contact_tags")
+    .select("contact_id")
+    .limit(50000);
+  if (allTaggedErr) throw new Error(allTaggedErr.message);
+  const taggedSet = new Set((allTaggedRels ?? []).map((r: { contact_id: string }) => r.contact_id));
+
+  const { data: activeContacts, error: cErr } = await (supabase as any)
+    .from("contacts")
+    .select("id")
+    .is("arquivado_at", null)
+    .limit(20000);
+  if (cErr) throw new Error(cErr.message);
+
+  if (tagIds.length) {
+    const combined = new Set(matchedIds);
+    for (const c of activeContacts ?? []) {
+      if (!taggedSet.has(c.id)) combined.add(c.id);
+    }
+    if (!combined.size) return { ids: [], noMatch: true };
+    return { ids: Array.from(combined), noMatch: false };
+  }
+
+  const untagged = (activeContacts ?? [])
+    .map((c: { id: string }) => c.id)
+    .filter((id: string) => !taggedSet.has(id));
+  if (!untagged.length) return { ids: [], noMatch: true };
+  return { ids: untagged, noMatch: false };
+}
 
 /** Remove caracteres que quebram o parser de `.or()` do PostgREST. */
 function safe(v: string): string {
@@ -299,6 +363,44 @@ export function applyCrmFilters<T extends {
   // Importação
   if (f.import_id) q = q.eq("import_id", f.import_id);
   if (f.import_ids?.length) q = q.in("import_id", f.import_ids);
+
+  if (f.formas_ajuda_outro) q = q.ilike("formas_ajuda_outro", `%${safe(f.formas_ajuda_outro)}%`);
+  if (f.phone_contains) {
+    const s = safe(f.phone_contains);
+    if (s) q = q.or(`phone_raw.ilike.%${s}%,phone_e164.ilike.%${s}%`);
+  }
+  if (f.endereco_contains) {
+    const s = safe(f.endereco_contains);
+    if (s) {
+      q = q.or(
+        [
+          "endereco",
+          "bairro",
+          "cidade",
+          "cep",
+          "complemento",
+          "referencia",
+          "numero",
+        ]
+          .map((col) => `${col}.ilike.%${s}%`)
+          .join(","),
+      );
+    }
+  }
+  if (f.created_contem) {
+    const s = safe(f.created_contem);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      q = q.gte("created_at", `${s}T00:00:00`).lte("created_at", `${s}T23:59:59.999Z`);
+    } else if (/^\d{4}-\d{2}$/.test(s)) {
+      const [y, m] = s.split("-");
+      const lastDay = new Date(Number(y), Number(m), 0).getDate();
+      q = q
+        .gte("created_at", `${s}-01T00:00:00`)
+        .lte("created_at", `${s}-${String(lastDay).padStart(2, "0")}T23:59:59.999Z`);
+    } else if (/^\d{4}$/.test(s)) {
+      q = q.gte("created_at", `${s}-01-01T00:00:00`).lte("created_at", `${s}-12-31T23:59:59.999Z`);
+    }
+  }
 
   return q;
 }

@@ -156,11 +156,27 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       }
     }
 
-    // Tags (com contagem via contact_tags)
-    const { data: tags } = await sb.from("tags").select("id,nome,cor");
-    const { data: tagRels } = await sb.from("contact_tags").select("tag_id").limit(50000);
+    // Tags (contagem apenas em contatos não arquivados)
+    const { data: tags, error: tagsError } = await sb.from("tags").select("id,nome,cor");
+    if (tagsError) throw tagsError;
+
+    const { data: activeContacts, error: activeError } = await sb
+      .from("contacts")
+      .select("id")
+      .is("arquivado_at", null)
+      .limit(20000);
+    if (activeError) throw activeError;
+    const activeIds = new Set((activeContacts ?? []).map((c) => c.id as string));
+
+    const { data: tagRels, error: tagRelsError } = await sb
+      .from("contact_tags")
+      .select("tag_id, contact_id")
+      .limit(50000);
+    if (tagRelsError) throw tagRelsError;
+
     const tagCount = new Map<string, number>();
     for (const r of tagRels ?? []) {
+      if (!activeIds.has(r.contact_id as string)) continue;
       const k = r.tag_id as string;
       tagCount.set(k, (tagCount.get(k) ?? 0) + 1);
     }

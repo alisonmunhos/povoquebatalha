@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { crmFilterSchema, applyCrmFilters, type CrmFilters } from "@/lib/crm-filters";
+import { crmFilterSchema, applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
 
 // ===== Listagem rica do CRM (substitui partes da listContacts) =====
 const listSchema = z.object({
@@ -33,13 +33,9 @@ export const listContactsRich = createServerFn({ method: "POST" })
     q = applyCrmFilters(q as never, data.filters as CrmFilters);
 
     if (data.filters.tag_ids?.length) {
-      const { data: rels } = await context.supabase
-        .from("contact_tags")
-        .select("contact_id")
-        .in("tag_id", data.filters.tag_ids);
-      const ids = Array.from(new Set((rels ?? []).map((r) => r.contact_id)));
-      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
-      q = q.in("id", ids);
+      const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, data.filters.tag_ids);
+      if (noMatch) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
+      if (ids?.length) q = q.in("id", ids);
     }
     // Histórico por campanha
     async function idsForCampaign(campaignId: string, statuses?: string[]) {
@@ -117,13 +113,9 @@ export const idsByFilter = createServerFn({ method: "POST" })
     let q = context.supabase.from("contacts").select("id").limit(data.max);
     q = applyCrmFilters(q as never, data.filters as CrmFilters);
     if (data.filters.tag_ids?.length) {
-      const { data: rels } = await context.supabase
-        .from("contact_tags")
-        .select("contact_id")
-        .in("tag_id", data.filters.tag_ids);
-      const ids = Array.from(new Set((rels ?? []).map((r) => r.contact_id)));
-      if (!ids.length) return { ids: [] as string[] };
-      q = q.in("id", ids);
+      const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, data.filters.tag_ids);
+      if (noMatch) return { ids: [] as string[] };
+      if (ids?.length) q = q.in("id", ids);
     }
     async function idsForCampaign(campaignId: string, statuses?: string[]) {
       let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
