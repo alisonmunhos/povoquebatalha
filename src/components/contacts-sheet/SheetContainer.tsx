@@ -19,8 +19,7 @@ import {
   SHEET_ALL_MAX,
   type SheetPageSizeOption,
   mobileColumnWidthClass,
-  needsHorizontalScroll,
-  SHEET_CHECKBOX_COL_PX,
+  mobileTableIsWide,
 } from "@/lib/contacts-sheet.constants";
 
 const SYSTEM_LABELS: Record<string, string> = {
@@ -91,13 +90,15 @@ export default function SheetContainer({
   const effectiveSize = pageSize === "all" ? Math.min(total, SHEET_ALL_MAX) : pageSize;
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(total / effectiveSize));
   const showPagination = pageSize !== "all" && total > effectiveSize;
-  const horizontalScroll = needsHorizontalScroll(isMobile, cols.length);
+  const wideMobileTable = mobileTableIsWide(isMobile, cols.length);
+  const useVirtualization = !isMobile;
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
+    enabled: useVirtualization,
   });
 
   function toggleSelection(id: string) {
@@ -148,22 +149,14 @@ export default function SheetContainer({
     return idx % 2 === 1 ? "bg-muted/10" : "bg-card";
   }
 
-  function renderHeaderCell(col: string, stickyFirst = false) {
+  function renderHeaderCell(col: string) {
     const f = getCatalogField(col);
     const label = f ? f.defaultLabel : (SYSTEM_LABELS[col] ?? col);
     const showFilter = resolveFilterField(col) !== null;
     const active = isFilterActiveForColumn(col);
     const widthClass = isMobile ? mobileColumnWidthClass(cols.length) : "min-w-[140px]";
     return (
-      <th
-        key={col}
-        className={`p-2 text-left font-medium whitespace-nowrap ${widthClass} ${
-          stickyFirst
-            ? "sticky z-20 bg-muted/60 shadow-[1px_0_0_0_hsl(var(--border))]"
-            : "bg-muted/60"
-        }`}
-        style={stickyFirst ? { left: SHEET_CHECKBOX_COL_PX } : undefined}
-      >
+      <th key={col} className={`p-2 text-left font-medium whitespace-nowrap bg-muted/60 ${widthClass}`}>
         <div className="flex items-center gap-1.5">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
           {showFilter && (
@@ -186,24 +179,16 @@ export default function SheetContainer({
     );
   }
 
-  function renderDataCell(r: ContactRow, col: string, colIndex: number, rowIdx: number) {
+  function renderDataCell(r: ContactRow, col: string) {
     const field = getCatalogField(col);
     const isPhone = field?.targetColumns.includes("phone_raw") || col === "whatsapp";
     const isMulti = (field?.targetColumns.length ?? 0) > 1;
     const isReadOnlySystem = READ_ONLY_SYSTEM.has(col);
-    const stickyFirst = horizontalScroll && colIndex === 0;
     const widthClass = isMobile ? mobileColumnWidthClass(cols.length) : "min-w-[140px]";
-    const stickyClass = stickyFirst
-      ? `sticky z-10 ${rowBgClass(rowIdx)} shadow-[1px_0_0_0_hsl(var(--border))]`
-      : "";
 
     if (isPhone || isMulti || isReadOnlySystem) {
       return (
-        <td
-          key={col}
-          className={`p-2 align-middle ${widthClass} ${stickyClass}`}
-          style={stickyFirst ? { left: SHEET_CHECKBOX_COL_PX } : undefined}
-        >
+        <td key={col} className={`p-2 align-middle ${widthClass}`}>
           <Link to="/contatos/$id" params={{ id: r.contact_id }} className="text-primary hover:underline">
             {isMulti ? previewComposite(r[col]) : (r[col] ? String(r[col]) : <span className="text-muted-foreground">—</span>)}
           </Link>
@@ -211,11 +196,7 @@ export default function SheetContainer({
       );
     }
     return (
-      <td
-        key={col}
-        className={`p-0 align-middle ${widthClass} ${stickyClass}`}
-        style={stickyFirst ? { left: SHEET_CHECKBOX_COL_PX } : undefined}
-      >
+      <td key={col} className={`p-0 align-middle ${widthClass}`}>
         <Cell
           contactId={r.contact_id}
           fieldKey={col}
@@ -228,25 +209,88 @@ export default function SheetContainer({
   }
 
   function renderRow(r: ContactRow, idx: number, style?: CSSProperties) {
-    const bg = rowBgClass(idx);
     return (
       <tr
         key={r.contact_id}
         style={style}
-        className={`border-t hover:bg-muted/30 transition-colors ${bg}`}
+        className={`border-t hover:bg-muted/30 transition-colors ${rowBgClass(idx)}`}
       >
-        <td
-          className={`p-2 align-middle w-10 ${
-            horizontalScroll
-              ? `sticky left-0 z-20 ${bg} shadow-[1px_0_0_0_hsl(var(--border))]`
-              : ""
-          }`}
-        >
+        <td className="p-2 align-middle w-10">
           <input type="checkbox" checked={sel.has(r.contact_id)} onChange={() => toggleSelection(r.contact_id)} />
         </td>
-        {cols.map((col, colIndex) => renderDataCell(r, col, colIndex, idx))}
+        {cols.map((col) => renderDataCell(r, col))}
       </tr>
     );
+  }
+
+  function renderBodyRows() {
+    if (q.isLoading) {
+      return Array.from({ length: 5 }).map((_, i) => (
+        <tr key={`sk-${i}`} className="border-t">
+          <td className="p-2">
+            <div className="h-4 w-4 bg-muted rounded animate-pulse" />
+          </td>
+          {cols.map((c) => (
+            <td key={c} className="p-2">
+              <div
+                className="h-4 bg-muted rounded animate-pulse"
+                style={{ width: `${40 + ((i * 13 + c.length * 7) % 40)}%` }}
+              />
+            </td>
+          ))}
+        </tr>
+      ));
+    }
+
+    if (errorMsg) {
+      return (
+        <tr>
+          <td className="p-4 text-destructive" colSpan={cols.length + 1}>
+            Erro ao carregar: {errorMsg}
+          </td>
+        </tr>
+      );
+    }
+
+    if (rows.length === 0) {
+      return (
+        <tr>
+          <td className="p-8 text-center text-muted-foreground" colSpan={cols.length + 1}>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-2xl">🔍</span>
+              <span>Nenhum contato encontrado.</span>
+              <span className="text-xs">Tente ajustar os filtros das colunas.</span>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    if (useVirtualization) {
+      return (
+        <>
+          <tr aria-hidden style={{ height: rowVirtualizer.getVirtualItems()[0]?.start ?? 0 }}>
+            <td colSpan={cols.length + 1} />
+          </tr>
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const r = rows[virtualRow.index];
+            return renderRow(r, virtualRow.index, { height: `${virtualRow.size}px` });
+          })}
+          <tr
+            aria-hidden
+            style={{
+              height:
+                rowVirtualizer.getTotalSize() -
+                (rowVirtualizer.getVirtualItems().at(-1)?.end ?? 0),
+            }}
+          >
+            <td colSpan={cols.length + 1} />
+          </tr>
+        </>
+      );
+    }
+
+    return rows.map((r, idx) => renderRow(r, idx));
   }
 
   const filterPopover = openFilterFor ? (
@@ -263,79 +307,27 @@ export default function SheetContainer({
     <div className="sheet-container border rounded-md bg-card flex flex-col" style={{ position: "relative" }}>
       <div
         ref={scrollRef}
-        className={`overflow-auto ${horizontalScroll ? "touch-pan-x" : ""}`}
-        style={{ maxHeight: VIRTUAL_VIEWPORT_HEIGHT }}
+        className={
+          isMobile
+            ? "overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+            : "overflow-auto"
+        }
+        style={isMobile ? undefined : { maxHeight: VIRTUAL_VIEWPORT_HEIGHT }}
       >
-        <table className={`text-sm border-collapse ${horizontalScroll ? "min-w-max w-max" : "w-full"}`}>
+        <table
+          className={`text-sm border-collapse ${
+            wideMobileTable || (!isMobile && cols.length > 6) ? "min-w-max w-max" : "w-full"
+          }`}
+        >
           <thead>
-            <tr className="bg-muted/60 sticky top-0 z-30 shadow-[0_1px_0_0_hsl(var(--border))]">
-              <th
-                className={`p-2 w-10 text-left bg-muted/60 ${
-                  horizontalScroll ? "sticky left-0 z-40 shadow-[1px_0_0_0_hsl(var(--border))]" : ""
-                }`}
-              >
+            <tr className={`bg-muted/60 shadow-[0_1px_0_0_hsl(var(--border))] ${!isMobile ? "sticky top-0 z-10" : ""}`}>
+              <th className="p-2 w-10 text-left bg-muted/60">
                 <input type="checkbox" checked={allChecked} onChange={togglePageSelection} />
               </th>
-              {cols.map((c, i) => renderHeaderCell(c, horizontalScroll && i === 0))}
+              {cols.map((c) => renderHeaderCell(c))}
             </tr>
           </thead>
-          <tbody>
-            {q.isLoading &&
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`sk-${i}`} className="border-t">
-                  <td className="p-2">
-                    <div className="h-4 w-4 bg-muted rounded animate-pulse" />
-                  </td>
-                  {cols.map((c) => (
-                    <td key={c} className="p-2">
-                      <div
-                        className="h-4 bg-muted rounded animate-pulse"
-                        style={{ width: `${40 + ((i * 13 + c.length * 7) % 40)}%` }}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            {!q.isLoading && errorMsg && (
-              <tr>
-                <td className="p-4 text-destructive" colSpan={cols.length + 1}>
-                  Erro ao carregar: {errorMsg}
-                </td>
-              </tr>
-            )}
-            {!q.isLoading && !errorMsg && rows.length === 0 && (
-              <tr>
-                <td className="p-8 text-center text-muted-foreground" colSpan={cols.length + 1}>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-2xl">🔍</span>
-                    <span>Nenhum contato encontrado.</span>
-                    <span className="text-xs">Tente ajustar os filtros das colunas.</span>
-                  </div>
-                </td>
-              </tr>
-            )}
-            {!q.isLoading && !errorMsg && rows.length > 0 && (
-              <>
-                <tr aria-hidden style={{ height: rowVirtualizer.getVirtualItems()[0]?.start ?? 0 }}>
-                  <td colSpan={cols.length + 1} />
-                </tr>
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const r = rows[virtualRow.index];
-                  return renderRow(r, virtualRow.index, { height: `${virtualRow.size}px` });
-                })}
-                <tr
-                  aria-hidden
-                  style={{
-                    height:
-                      rowVirtualizer.getTotalSize() -
-                      (rowVirtualizer.getVirtualItems().at(-1)?.end ?? 0),
-                  }}
-                >
-                  <td colSpan={cols.length + 1} />
-                </tr>
-              </>
-            )}
-          </tbody>
+          <tbody>{renderBodyRows()}</tbody>
         </table>
       </div>
 

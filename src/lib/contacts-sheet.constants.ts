@@ -29,9 +29,12 @@ export function mobileColumnWidthClass(colCount: number): string {
   return "min-w-[110px]";
 }
 
-/** Largura da coluna de checkbox — usada para offset do sticky da 1ª coluna de dados. */
-export const SHEET_CHECKBOX_COL_PX = 40;
+/** No mobile, tabela larga (2+ colunas) usa scroll horizontal — sem colunas fixas. */
+export function mobileTableIsWide(isMobile: boolean, colCount: number): boolean {
+  return isMobile && colCount >= 2;
+}
 
+/** @deprecated use mobileTableIsWide — mantido para compatibilidade interna */
 export function needsHorizontalScroll(isMobile: boolean, colCount: number): boolean {
-  return isMobile && colCount >= 4;
+  return mobileTableIsWide(isMobile, colCount);
 }
