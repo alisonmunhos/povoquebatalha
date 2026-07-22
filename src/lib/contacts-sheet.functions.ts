@@ -37,10 +37,11 @@ async function loadContactTagsBatched(
       .in("contact_id", chunk);
     if (tagError) throw new Error(postgrestErrorMessage(tagError));
     for (const r of rels ?? []) {
-      const row = r as { contact_id: string; tags: { id: string; nome: string; cor: string } | null };
+      const row = r as unknown as { contact_id: string; tags: { id: string; nome: string; cor: string } | { id: string; nome: string; cor: string }[] | null };
       const t = row.tags;
       if (!t) continue;
-      (tagMap[row.contact_id] ??= []).push(t);
+      const list = Array.isArray(t) ? t : [t];
+      (tagMap[row.contact_id] ??= []).push(...list);
     }
   }
   return tagMap;
