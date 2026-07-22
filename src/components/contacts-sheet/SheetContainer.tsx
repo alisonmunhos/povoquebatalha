@@ -6,7 +6,7 @@ import { getCatalogField } from "@/lib/form-field-catalog";
 import ColumnFilterPopover from "./ColumnFilterPopover";
 import { resolveFilterField, isColumnFilterActive } from "@/lib/column-filter-mapping";
 import { Link } from "@tanstack/react-router";
-import { Filter } from "lucide-react";
+import { Filter, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -21,6 +21,12 @@ import {
   mobileColumnWidthClass,
   mobileTableIsWide,
 } from "@/lib/contacts-sheet.constants";
+import {
+  cycleColumnSort,
+  getColumnSortState,
+  isColumnSortable,
+  sortDirectionLabel,
+} from "@/lib/column-sort-mapping";
 
 const SYSTEM_LABELS: Record<string, string> = {
   cidade: "Cidade",
@@ -51,6 +57,8 @@ type SheetContainerProps = {
   setSelection: (s: Set<string>) => void;
   currentFilters: Record<string, unknown>;
   pushSearch: (filtersEncodedNext?: string) => void;
+  sort?: string;
+  onSortChange?: (sort: string) => void;
   q: { isLoading?: boolean; error?: unknown };
   isMobile?: boolean;
 };
@@ -68,6 +76,8 @@ export default function SheetContainer({
   setSelection,
   currentFilters,
   pushSearch,
+  sort,
+  onSortChange,
   q,
   isMobile = false,
 }: SheetContainerProps) {
@@ -154,11 +164,39 @@ export default function SheetContainer({
     const label = f ? f.defaultLabel : (SYSTEM_LABELS[col] ?? col);
     const showFilter = resolveFilterField(col) !== null;
     const active = isFilterActiveForColumn(col);
+    const sortable = isColumnSortable(col);
+    const sortState = getColumnSortState(col, sort);
     const widthClass = isMobile ? mobileColumnWidthClass(cols.length) : "min-w-[140px]";
     return (
       <th key={col} className={`p-2 text-left font-medium whitespace-nowrap bg-muted/60 ${widthClass}`}>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+        <div className="flex items-center gap-1.5 group">
+          {sortable ? (
+            <button
+              type="button"
+              onClick={() => onSortChange?.(cycleColumnSort(col, sort))}
+              className={`inline-flex items-center gap-1 text-xs uppercase tracking-wide transition-colors ${
+                sortState !== "none"
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              aria-label={
+                sortState === "none"
+                  ? `Ordenar por ${label}`
+                  : `Ordenar por ${label}, ${sortDirectionLabel(col, sortState)}`
+              }
+            >
+              <span>{label}</span>
+              {sortState === "asc" ? (
+                <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
+              ) : sortState === "desc" ? (
+                <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-50" aria-hidden />
+              )}
+            </button>
+          ) : (
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+          )}
           {showFilter && (
             <button
               type="button"

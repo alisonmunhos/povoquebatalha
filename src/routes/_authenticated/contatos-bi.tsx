@@ -154,6 +154,13 @@ function ContatosBI() {
     applyColumnsChange(Array.from(set));
   }
 
+  function onSortChange(nextSort: string) {
+    pushSearch({
+      sort: nextSort === "created_at:desc" ? undefined : nextSort,
+      page: undefined,
+    });
+  }
+
   function onPageChange(nextPage: number) {
     pushSearch({ page: nextPage > 1 ? String(nextPage) : undefined });
   }
@@ -265,6 +272,8 @@ function ContatosBI() {
         pushSearch={(filtersEncodedNext?: string) =>
           pushSearch({ filters: filtersEncodedNext || undefined, page: undefined })
         }
+        sort={sort}
+        onSortChange={onSortChange}
         q={q}
         isMobile={isMobile}
       />

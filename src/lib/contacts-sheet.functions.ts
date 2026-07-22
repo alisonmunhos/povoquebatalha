@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
+import { parseSheetSort, resolveSortDbColumn } from "@/lib/column-sort-mapping";
 
 function decodeBase64UrlSafeToJson<T = unknown>(s?: string): T | null {
   if (!s) return null;
@@ -124,11 +125,15 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     }
 
     if (data.sort) {
-      const [field, dir] = String(data.sort).split(":");
-      const ascending = dir === "asc";
-      if (projectionParts.includes(field)) q = q.order(field, { ascending });
-      else if (field === "nome") q = q.order("nome", { ascending });
-      else q = q.order("created_at", { ascending: false });
+      const { columnKey, direction } = parseSheetSort(data.sort);
+      const dbCol = resolveSortDbColumn(columnKey);
+      const ascending = direction === "asc";
+      if (dbCol) {
+        q = q.order(dbCol, { ascending, nullsFirst: false });
+        if (dbCol !== "created_at") q = q.order("created_at", { ascending: false });
+      } else {
+        q = q.order("created_at", { ascending: false });
+      }
     } else {
       q = q.order("created_at", { ascending: false });
     }
