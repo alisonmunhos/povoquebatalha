@@ -108,7 +108,12 @@ export const listContactsRich = createServerFn({ method: "POST" })
 // ===== IDs por filtro (selecionar tudo do filtro / export) =====
 export const idsByFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ filters: crmFilterSchema.partial().default({}), max: z.number().int().min(1).max(10000).default(5000) }).parse(d ?? {}))
+  .inputValidator((d: unknown) =>
+    z.object({
+      filters: crmFilterSchema.partial().default({}),
+      max: z.number().int().min(1).max(10000).default(5000),
+    }).parse(d ?? {}),
+  )
   .handler(async ({ data, context }) => {
     let q = context.supabase.from("contacts").select("id").limit(data.max);
     q = applyCrmFilters(q as never, data.filters as CrmFilters);

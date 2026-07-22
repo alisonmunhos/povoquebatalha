@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
@@ -16,6 +17,32 @@ function normalizeSheetFilters(raw: CrmFilters): CrmFilters {
   const f = { ...raw };
   if (f.archived === undefined) f.archived = "nao";
   return f;
+}
+
+const TAG_BATCH_SIZE = 500;
+
+async function loadContactTagsBatched(
+  supabase: SupabaseClient,
+  contactIds: string[],
+): Promise<Record<string, Array<{ id: string; nome: string; cor: string }>>> {
+  const tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
+  if (!contactIds.length) return tagMap;
+
+  for (let i = 0; i < contactIds.length; i += TAG_BATCH_SIZE) {
+    const chunk = contactIds.slice(i, i + TAG_BATCH_SIZE);
+    const { data: rels, error: tagError } = await supabase
+      .from("contact_tags")
+      .select("contact_id, tags(id,nome,cor)")
+      .in("contact_id", chunk);
+    if (tagError) throw new Error(postgrestErrorMessage(tagError));
+    for (const r of rels ?? []) {
+      const row = r as { contact_id: string; tags: { id: string; nome: string; cor: string } | null };
+      const t = row.tags;
+      if (!t) continue;
+      (tagMap[row.contact_id] ??= []).push(t);
+    }
+  }
+  return tagMap;
 }
 
 function postgrestErrorMessage(error: unknown): string {
@@ -113,20 +140,7 @@ export const listContactsSheet = createServerFn({ method: "POST" })
     const rows = (rowsRaw ?? []) as unknown as Record<string, unknown>[];
 
     const ids = rows.map((r) => r.id).filter(Boolean) as string[];
-    let tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
-    if (ids.length) {
-      const { data: rels, error: tagError } = await context.supabase
-        .from("contact_tags")
-        .select("contact_id, tags(id,nome,cor)")
-        .in("contact_id", ids);
-      if (tagError) throw new Error(postgrestErrorMessage(tagError));
-      tagMap = (rels ?? []).reduce((acc: typeof tagMap, r: any) => {
-        const t = r.tags as { id: string; nome: string; cor: string } | null;
-        if (!t) return acc;
-        (acc[r.contact_id] ??= []).push(t);
-        return acc;
-      }, {});
-    }
+    const tagMap = await loadContactTagsBatched(context.supabase, ids);
 
     const finalRows = rows.map((r) => {
       const rid = r.id as string;

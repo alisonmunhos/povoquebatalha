@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -14,6 +14,22 @@ import BulkActionBar from "@/components/contacts-sheet/BulkActionBar";
 import { decodeBase64UrlSafe as decodeFilters } from "@/lib/filters-encoding";
 import type { CrmFilters } from "@/lib/crm-filters";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import {
+  parseSheetPageSize,
+  MOBILE_MAX_COLUMNS,
+  SHEET_SELECT_ALL_MAX,
+  SHEET_LARGE_PAGE_WARNING,
+  type SheetPageSizeOption,
+} from "@/lib/contacts-sheet.constants";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Columns3 } from "lucide-react";
 
 const searchSchema = z.object({
   cols: z.string().optional(),
@@ -34,19 +50,19 @@ type ContactRow = { contact_id: string; [col: string]: unknown };
 function ContatosBI() {
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  const isMobile = useIsMobile();
 
   const colsParam = (routeSearch.cols as string | undefined) ?? "nome,whatsapp";
-  const cols = colsParam.split(",").map((c) => c.trim()).filter(Boolean);
+  const colsAll = colsParam.split(",").map((c) => c.trim()).filter(Boolean);
+  const cols = isMobile ? colsAll.slice(0, MOBILE_MAX_COLUMNS) : colsAll;
   const filtersEncoded = (routeSearch.filters as string | undefined) ?? "";
   const sort = (routeSearch.sort as string | undefined) ?? "created_at:desc";
   const page = Number((routeSearch.page as string | undefined) ?? "1");
-  const pageSizeRaw = (routeSearch.pageSize as string | undefined) ?? "50";
-  const pageSize: number | "all" = pageSizeRaw === "all" ? "all" : Number(pageSizeRaw);
+  const pageSize = parseSheetPageSize(routeSearch.pageSize as string | undefined);
 
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [, setSelectAllMode] = useState<{ active: boolean; total?: number }>({ active: false });
-  const [savedViews, setSavedViews] = useState<Array<{ name: string; payload: any }>>(() => {
+  const [savedViews, setSavedViews] = useState<Array<{ name: string; payload: unknown }>>(() => {
     try {
       const raw = localStorage.getItem("whatsapp-connect.contacts-sheet.views");
       return raw ? JSON.parse(raw) : [];
@@ -72,14 +88,30 @@ function ContatosBI() {
     queryFn: () => listFn({ data: { cols, filtersEncoded, sort, page, pageSize } }),
   });
 
-  const rows: ContactRow[] = (q.data as any)?.rows ?? [];
-  const total: number = (q.data as any)?.total ?? 0;
+  const rows: ContactRow[] = (q.data as { rows?: ContactRow[] } | undefined)?.rows ?? [];
+  const total: number = (q.data as { total?: number } | undefined)?.total ?? 0;
 
   function pushSearch(patch: Record<string, string | undefined>) {
-    const next: Record<string, any> = { ...(routeSearch as Record<string, any>), ...patch };
+    const next: Record<string, string | undefined> = { ...routeSearch, ...patch };
     Object.keys(next).forEach((k) => next[k] === undefined && delete next[k]);
-    navigate({ search: next as any, replace: false } as any);
+    navigate({ search: next as never, replace: false });
   }
+
+  useEffect(() => {
+    if (q.isLoading || !q.data) return;
+    if (rows.length >= SHEET_LARGE_PAGE_WARNING) {
+      toast.info(`Exibindo ${rows.length} contatos — a tabela pode demorar um pouco para responder.`, {
+        id: "contacts-sheet-large-page",
+      });
+    }
+  }, [q.isLoading, q.data, rows.length]);
+
+  useEffect(() => {
+    if (!isMobile || colsAll.length <= MOBILE_MAX_COLUMNS) return;
+    pushSearch({ cols: colsAll.slice(0, MOBILE_MAX_COLUMNS).join(",") });
+    toast.info(`No celular, no máximo ${MOBILE_MAX_COLUMNS} colunas são exibidas.`, { id: "contacts-sheet-mobile-cols" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, colsAll.length]);
 
   function saveViewLocal(name: string) {
     const v = { name, payload: { cols, sort, filtersEncoded, pageSize } };
@@ -91,15 +123,39 @@ function ContatosBI() {
 
   function toggleColumn(colKey: string) {
     const set = new Set(cols);
-    if (set.has(colKey)) set.delete(colKey);
-    else set.add(colKey);
+    if (set.has(colKey)) {
+      if (set.size <= 1) {
+        toast.error("Mantenha pelo menos uma coluna visível.");
+        return;
+      }
+      set.delete(colKey);
+    } else {
+      if (isMobile && set.size >= MOBILE_MAX_COLUMNS) {
+        toast.error(`No celular você pode exibir no máximo ${MOBILE_MAX_COLUMNS} colunas.`);
+        return;
+      }
+      set.add(colKey);
+    }
     pushSearch({ cols: Array.from(set).join(",") || undefined, page: "1" });
   }
 
+  function onPageChange(nextPage: number) {
+    pushSearch({ page: nextPage > 1 ? String(nextPage) : undefined });
+  }
+
+  function onPageSizeChange(next: SheetPageSizeOption) {
+    pushSearch({
+      pageSize: next === 50 ? undefined : String(next),
+      page: undefined,
+    });
+    setSelection(new Set());
+  }
+
   async function selectAllByFilter() {
-    const r = await idsByFilterFn({ data: { filters: currentFilters, max: 2000 } });
-    setSelection(new Set((r as any).ids));
-    setSelectAllMode({ active: true, total: (r as any).ids.length });
+    const r = await idsByFilterFn({ data: { filters: currentFilters, max: SHEET_SELECT_ALL_MAX } });
+    const ids = (r as { ids: string[] }).ids;
+    setSelection(new Set(ids));
+    toast.success(`${ids.length} contato(s) selecionado(s)`);
   }
 
   async function onEditCell(contactId: string, fieldKey: string, newValue: unknown) {
@@ -114,46 +170,69 @@ function ContatosBI() {
     }
     try {
       const r = await copyFormattedFn({ data: { ids: [...selection], groupBy: mode } });
-      const text = (r as any).text as string;
-      const count = (r as any).count as number;
+      const text = (r as { text: string }).text;
+      const count = (r as { count: number }).count;
       if (!text) {
         toast.error("Nada para copiar");
         return;
       }
       await navigator.clipboard.writeText(text);
-      const suffix = mode === "none" ? "" :
-        mode === "cidade" ? " (agrupado por cidade)" :
-        mode === "tag" ? " (agrupado por tag)" :
-        " (agrupado por disponibilidade)";
+      const suffix =
+        mode === "none"
+          ? ""
+          : mode === "cidade"
+            ? " (agrupado por cidade)"
+            : mode === "tag"
+              ? " (agrupado por tag)"
+              : " (agrupado por disponibilidade)";
       toast.success(`${count} contato${count > 1 ? "s" : ""} copiado${count > 1 ? "s" : ""}${suffix}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao copiar para a área de transferência");
     }
   }
 
+  const columnPicker = <ColumnPickerPanel chosen={cols} onToggleColumn={toggleColumn} isMobile={isMobile} />;
+
   return (
-    <div className="contacts-sheet-page p-4">
-      <header className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Contatos — Visão BI</h1>
+    <div className="contacts-sheet-page p-3 sm:p-4">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <h1 className="text-lg sm:text-xl font-semibold">Contatos — Visão BI</h1>
         <SavedViewsControl saved={savedViews} onSave={saveViewLocal} />
       </header>
 
-      <div className="mb-4">
-        <button
-          type="button"
-          aria-expanded={columnsOpen}
-          aria-controls="column-picker-panel"
-          onClick={() => setColumnsOpen((open) => !open)}
-          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
-        >
-          Colunas {columnsOpen ? "▴" : "▾"}
-        </button>
-      </div>
-
-      {columnsOpen && (
-        <div id="column-picker-panel">
-          <ColumnPickerPanel chosen={cols} onToggleColumn={toggleColumn} />
-        </div>
+      {isMobile ? (
+        <Sheet open={columnsOpen} onOpenChange={setColumnsOpen}>
+          <SheetTrigger asChild>
+            <button
+              type="button"
+              className="mb-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+            >
+              <Columns3 className="h-4 w-4" />
+              Colunas ({cols.length})
+            </button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Colunas visíveis</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">{columnPicker}</div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <>
+          <div className="mb-4">
+            <button
+              type="button"
+              aria-expanded={columnsOpen}
+              aria-controls="column-picker-panel"
+              onClick={() => setColumnsOpen((open) => !open)}
+              className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Colunas {columnsOpen ? "▴" : "▾"}
+            </button>
+          </div>
+          {columnsOpen && <div id="column-picker-panel">{columnPicker}</div>}
+        </>
       )}
 
       <SheetContainer
@@ -162,12 +241,17 @@ function ContatosBI() {
         total={total}
         page={page}
         pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
         onEditCell={onEditCell}
         selection={selection}
         setSelection={setSelection}
         currentFilters={currentFilters}
-        pushSearch={(filtersEncodedNext?: string) => pushSearch({ filters: filtersEncodedNext || undefined, page: "1" })}
+        pushSearch={(filtersEncodedNext?: string) =>
+          pushSearch({ filters: filtersEncodedNext || undefined, page: undefined })
+        }
         q={q}
+        isMobile={isMobile}
       />
 
       <BulkActionBar
@@ -183,7 +267,7 @@ function ContatosBI() {
           if (!selection.size) return;
           const ids = [...selection];
           const r = await exportCsvFn({ data: { ids } });
-          const blob = new Blob([(r as any).csv], { type: "text/csv;charset=utf-8" });
+          const blob = new Blob([(r as { csv: string }).csv], { type: "text/csv;charset=utf-8" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -192,8 +276,8 @@ function ContatosBI() {
           URL.revokeObjectURL(url);
         }}
         onCopyFormatted={onCopyFormatted}
+        isMobile={isMobile}
       />
     </div>
   );
 }
-

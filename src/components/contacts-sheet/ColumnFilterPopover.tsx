@@ -13,8 +13,9 @@ export default function ColumnFilterPopover(props: {
   currentFilters: CrmFilters;
   onApplyEncoded: (encodedFilters: string | undefined) => void;
   onClose: () => void;
+  embedded?: boolean;
 }) {
-  const { columnKey, currentFilters, onApplyEncoded, onClose } = props;
+  const { columnKey, currentFilters, onApplyEncoded, onClose, embedded = false } = props;
   const info = resolveFilterField(columnKey);
   const optionsFn = useServerFn(getContactFilterOptions);
 
@@ -72,7 +73,11 @@ export default function ColumnFilterPopover(props: {
   }
 
   return (
-    <div className="column-filter-popover border rounded-md bg-card shadow-lg p-3 w-64" role="dialog" aria-modal="false">
+    <div
+      className={`column-filter-popover border rounded-md bg-card shadow-lg p-3 ${embedded ? "w-full border-0 shadow-none" : "w-64"}`}
+      role="dialog"
+      aria-modal={embedded ? "true" : "false"}
+    >
       <div className="popover-header mb-2">
         <strong className="text-sm">{(getCatalogField(columnKey)?.defaultLabel) ?? columnKey}</strong>
       </div>
