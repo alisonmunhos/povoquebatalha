@@ -1,5 +1,4 @@
 import { useRef, useState, useEffect, useCallback, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Cell from "./Cell";
 import { getCatalogField } from "@/lib/form-field-catalog";
@@ -8,6 +7,7 @@ import { resolveFilterField, isColumnFilterActive } from "@/lib/column-filter-ma
 import { Link } from "@tanstack/react-router";
 import { Filter, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Drawer,
   DrawerContent,
@@ -86,9 +86,7 @@ export default function SheetContainer({
   isMobile = false,
 }: SheetContainerProps) {
   const [openFilterFor, setOpenFilterFor] = useState<string | null>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const filterPopoverRef = useRef<HTMLDivElement>(null);
 
   const errorMsg = q?.error
     ? q.error instanceof Error
@@ -144,55 +142,22 @@ export default function SheetContainer({
     return cleaned.length ? cleaned : null;
   }
 
-  function openFilter(col: string, anchor: HTMLElement) {
-    const willOpen = openFilterFor !== col;
-    if (isMobile) {
-      setOpenFilterFor((current) => (current === col ? null : col));
-      if (willOpen) onFilterOpen?.();
-      return;
+  function toggleFilter(col: string) {
+    if (openFilterFor === col) closeFilter();
+    else {
+      setOpenFilterFor(col);
+      onFilterOpen?.();
     }
-    const rect = anchor.getBoundingClientRect();
-    if (!anchor.isConnected || !Number.isFinite(rect.left) || !Number.isFinite(rect.bottom)) return;
-    setAnchorRect(rect);
-    setOpenFilterFor((current) => (current === col ? null : col));
-    if (willOpen) onFilterOpen?.();
   }
 
   const closeFilter = useCallback(() => {
     setOpenFilterFor(null);
-    setAnchorRect(null);
   }, []);
 
   /** Abrir Colunas fecha o filtro de coluna. */
   useEffect(() => {
     if (columnsOpen && openFilterFor) closeFilter();
   }, [columnsOpen, openFilterFor, closeFilter]);
-
-  /** Clique fora fecha o popover (desktop). */
-  useEffect(() => {
-    if (!openFilterFor || isMobile) return;
-    function onPointerDown(event: MouseEvent) {
-      const target = event.target as Node;
-      if (filterPopoverRef.current?.contains(target)) return;
-      if ((target as Element).closest?.("[data-column-filter-trigger]")) return;
-      closeFilter();
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [openFilterFor, isMobile, closeFilter]);
-
-  /** Esc fecha o filtro. */
-  useEffect(() => {
-    if (!openFilterFor) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeFilter();
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [openFilterFor, closeFilter]);
 
   /** Rolagem da tabela fecha o popover (desktop). */
   useEffect(() => {
@@ -208,6 +173,72 @@ export default function SheetContainer({
 
   function rowBgClass(idx: number): string {
     return idx % 2 === 1 ? "bg-muted/10" : "bg-card";
+  }
+
+  function renderFilterControl(col: string, label: string, active: boolean) {
+    const triggerClassName = `inline-flex items-center justify-center w-6 h-6 rounded transition-colors ${
+      active
+        ? "bg-primary/15 text-primary"
+        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+    }`;
+
+    if (isMobile) {
+      return (
+        <button
+          type="button"
+          data-column-filter-trigger
+          aria-label={`Filtrar ${label}`}
+          aria-expanded={openFilterFor === col}
+          onClick={() => toggleFilter(col)}
+          className={triggerClassName}
+        >
+          <Filter className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+
+    return (
+      <Popover
+        open={openFilterFor === col}
+        onOpenChange={(open) => {
+          if (open) {
+            setOpenFilterFor(col);
+            onFilterOpen?.();
+          } else if (openFilterFor === col) {
+            closeFilter();
+          }
+        }}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            data-column-filter-trigger
+            aria-label={`Filtrar ${label}`}
+            aria-expanded={openFilterFor === col}
+            className={triggerClassName}
+          >
+            <Filter className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          side="bottom"
+          collisionPadding={12}
+          className="z-[1400] w-72 p-0 bg-transparent border-0 shadow-none overflow-hidden"
+          style={{ maxHeight: "var(--radix-popover-content-available-height)" }}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          {openFilterFor === col ? (
+            <ColumnFilterPopover
+              columnKey={col}
+              currentFilters={currentFilters ?? {}}
+              onApplyEncoded={(encoded) => pushSearch?.(encoded)}
+              onClose={closeFilter}
+            />
+          ) : null}
+        </PopoverContent>
+      </Popover>
+    );
   }
 
   function renderHeaderCell(col: string) {
@@ -248,22 +279,7 @@ export default function SheetContainer({
           ) : (
             <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
           )}
-          {showFilter && (
-            <button
-              type="button"
-              data-column-filter-trigger
-              aria-label={`Filtrar ${label}`}
-              aria-expanded={openFilterFor === col}
-              onClick={(event) => openFilter(col, event.currentTarget)}
-              className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors ${
-                active
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <Filter className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {showFilter && renderFilterControl(col, label, active)}
         </div>
       </th>
     );
@@ -389,15 +405,9 @@ export default function SheetContainer({
       currentFilters={currentFilters ?? {}}
       onApplyEncoded={(encoded) => pushSearch?.(encoded)}
       onClose={closeFilter}
-      embedded={isMobile}
+      embedded
     />
   ) : null;
-
-  const popoverTop = anchorRect?.bottom ?? 16;
-  const popoverMaxHeight =
-    typeof window !== "undefined"
-      ? Math.min(Math.max(220, window.innerHeight - popoverTop - 16), Math.min(window.innerHeight * 0.7, 448))
-      : 448;
 
   return (
     <div className="sheet-container border rounded-md bg-card flex flex-col" style={{ position: "relative" }}>
@@ -488,26 +498,7 @@ export default function SheetContainer({
             <div className="flex-1 min-h-0 overflow-hidden px-4 pb-4 flex flex-col">{filterPopover}</div>
           </DrawerContent>
         </Drawer>
-      ) : (
-        openFilterFor &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            ref={filterPopoverRef}
-            style={{
-              position: "fixed",
-              left: Math.min(anchorRect?.left ?? 16, window.innerWidth - 288),
-              top: popoverTop,
-              zIndex: 1400,
-              width: 288,
-              maxHeight: popoverMaxHeight,
-            }}
-          >
-            {filterPopover}
-          </div>,
-          document.body,
-        )
-      )}
+      ) : null}
     </div>
   );
 }
