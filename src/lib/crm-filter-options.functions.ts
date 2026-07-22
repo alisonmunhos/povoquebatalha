@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { LIFECYCLE_LABEL } from "@/lib/phone-labels";
 
 export type FilterOption = { value: string; label: string; count: number };
 
@@ -68,7 +69,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,participa_movimento_social,coletivo_alicerce",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -108,6 +109,17 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const zona_eleitoral: Counter = new Map();
     const disponibilidade: Counter = new Map();
     const como_conheceu: Counter = new Map();
+    const faixa_etaria_counts: Counter = new Map();
+    const lifecycle_status_counts: Counter = new Map();
+    let consentSim = 0;
+    let consentNao = 0;
+    let consentEmpty = 0;
+    let participaSim = 0;
+    let participaNao = 0;
+    let participaEmpty = 0;
+    let coletivoSim = 0;
+    let coletivoNao = 0;
+    let coletivoEmpty = 0;
 
     const DIA_LABELS: Record<string, string> = {
       segunda: "Segunda", terca: "Terça", quarta: "Quarta", quinta: "Quinta",
@@ -154,6 +166,29 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
           else disponibilidade.set(slug, { label, count: 1 });
         }
       }
+      const faixa = c.faixa_etaria as string | null | undefined;
+      if (faixa) {
+        const faixaLabel = FAIXA_ETARIA_OPTIONS.find((o) => o.value === faixa)?.label ?? faixa;
+        const cur = faixa_etaria_counts.get(faixa);
+        if (cur) cur.count += 1;
+        else faixa_etaria_counts.set(faixa, { label: faixaLabel, count: 1 });
+      }
+      const lifecycle = c.lifecycle_status as string | null | undefined;
+      if (lifecycle) {
+        const label = LIFECYCLE_LABEL[lifecycle] ?? lifecycle;
+        const cur = lifecycle_status_counts.get(lifecycle);
+        if (cur) cur.count += 1;
+        else lifecycle_status_counts.set(lifecycle, { label, count: 1 });
+      }
+      if (c.consentimento_whatsapp === true) consentSim += 1;
+      else if (c.consentimento_whatsapp === false) consentNao += 1;
+      else consentEmpty += 1;
+      if (c.participa_movimento_social === true) participaSim += 1;
+      else if (c.participa_movimento_social === false) participaNao += 1;
+      else participaEmpty += 1;
+      if (c.coletivo_alicerce === true) coletivoSim += 1;
+      else if (c.coletivo_alicerce === false) coletivoNao += 1;
+      else coletivoEmpty += 1;
     }
 
     // Tags — contagem por tag_id (mesmo padrão de /tags), só contatos não arquivados
@@ -268,7 +303,33 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       disponibilidade: [...disponibilidade.entries()]
         .map(([slug, v]) => ({ value: slug, label: v.label, count: v.count }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
-      faixa_etaria: FAIXA_ETARIA_OPTIONS.map((o) => ({ ...o, count: 0 })),
+      faixa_etaria: FAIXA_ETARIA_OPTIONS.map((o) => ({
+        value: o.value,
+        label: o.label,
+        count: faixa_etaria_counts.get(o.value)?.count ?? 0,
+      })),
+      lifecycle_statuses: Object.entries(LIFECYCLE_LABEL)
+        .map(([value, label]) => ({
+          value,
+          label,
+          count: lifecycle_status_counts.get(value)?.count ?? 0,
+        }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")),
+      consentimento: [
+        { value: "sim", label: "Sim", count: consentSim },
+        { value: "nao", label: "Não", count: consentNao },
+      ],
+      consentimento_empty: consentEmpty,
+      participa_movimento_social: [
+        { value: "true", label: "Sim", count: participaSim },
+        { value: "false", label: "Não", count: participaNao },
+      ],
+      participa_movimento_social_empty: participaEmpty,
+      coletivo_alicerce: [
+        { value: "true", label: "Sim", count: coletivoSim },
+        { value: "false", label: "Não", count: coletivoNao },
+      ],
+      coletivo_alicerce_empty: coletivoEmpty,
       tags: tagsOpts,
       segmentos: segmentsOpts,
       campanhas: campaignsOpts,

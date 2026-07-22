@@ -36,9 +36,11 @@ export const crmFilterSchema = z.object({
   instituicao: z.string().trim().optional(),
   profissoes: z.array(z.string()).optional(),
   coletivo_alicerce: z.boolean().optional(),
+  coletivo_alicerce_values: z.array(z.string()).optional(),
   tipo_contato: z.string().optional(),
   tipos_contato: z.array(z.string()).optional(),
   participa_movimento_social: z.boolean().optional(),
+  participa_movimento_social_values: z.array(z.string()).optional(),
   movimentos_sociais: z.array(z.string()).optional(),
   movimento_social_contains: z.string().trim().optional(),
 
@@ -74,6 +76,7 @@ export const crmFilterSchema = z.object({
   // Comunicação
   apto_envio: z.enum(["sim", "nao"]).optional(),
   consent: z.enum(["sim", "nao"]).optional(),
+  consent_values: z.array(z.string()).optional(),
   optOut: z.enum(["sim", "nao"]).optional(),
   bloqueado: z.enum(["sim", "nao"]).optional(),
   archived: z.enum(["sim", "nao", "todos"]).default("nao"),
@@ -181,6 +184,35 @@ const SEARCH_COLS = [
   "formas_ajuda_outro",
 ];
 
+/** Aplica filtro de coluna booleana (Sim/Não) com suporte a (Vazio). */
+function applyBooleanColumnFilter<T extends {
+  or: (v: string) => T;
+  eq: (col: string, v: unknown) => T;
+  is: (col: string, v: null) => T;
+}>(
+  q: T,
+  col: string,
+  arr: string[] | undefined,
+  valueMap: Record<string, unknown>,
+): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  const clauses: string[] = [];
+  for (const v of values) {
+    if (v in valueMap) clauses.push(`${col}.eq.${valueMap[v]}`);
+  }
+  if (empty) clauses.push(`${col}.is.null`);
+  if (!clauses.length) return q;
+  if (clauses.length === 1) {
+    const clause = clauses[0]!;
+    if (clause.endsWith(".is.null")) return q.is(col, null);
+    const eqVal = clause.split(".eq.")[1];
+    if (eqVal === "true") return q.eq(col, true);
+    if (eqVal === "false") return q.eq(col, false);
+  }
+  return q.or(clauses.join(","));
+}
+
 export function applyCrmFilters<T extends {
   ilike: (col: string, v: string) => T;
   or: (v: string) => T;
@@ -228,7 +260,12 @@ export function applyCrmFilters<T extends {
   if (f.profissoes?.length) {
     q = q.or(f.profissoes.map((v) => `profissao.ilike.${safe(v)}`).join(","));
   }
-  if (typeof f.coletivo_alicerce === "boolean") q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
+  if (typeof f.coletivo_alicerce === "boolean" && !f.coletivo_alicerce_values?.length) {
+    q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
+  }
+  if (f.coletivo_alicerce_values?.length) {
+    q = applyBooleanColumnFilter(q, "coletivo_alicerce", f.coletivo_alicerce_values, { true: true, false: false });
+  }
   if (f.tipo_contato) q = q.eq("tipo_contato", f.tipo_contato);
   if (f.tipos_contato?.length) {
     const { values, empty } = splitEmptyToken(f.tipos_contato);
@@ -236,8 +273,17 @@ export function applyCrmFilters<T extends {
     else if (empty) q = q.is("tipo_contato", null);
     else if (values.length) q = q.in("tipo_contato", values);
   }
-  if (typeof f.participa_movimento_social === "boolean")
+  if (typeof f.participa_movimento_social === "boolean" && !f.participa_movimento_social_values?.length) {
     q = q.eq("participa_movimento_social", f.participa_movimento_social);
+  }
+  if (f.participa_movimento_social_values?.length) {
+    q = applyBooleanColumnFilter(
+      q,
+      "participa_movimento_social",
+      f.participa_movimento_social_values,
+      { true: true, false: false },
+    );
+  }
   if (f.movimentos_sociais?.length) {
     q = q.or(
       f.movimentos_sociais.map((v) => `movimento_social_nome.ilike.${safe(v)}`).join(","),
@@ -332,8 +378,12 @@ export function applyCrmFilters<T extends {
     ].join(","));
   }
 
-  if (f.consent === "sim") q = q.eq("consentimento_whatsapp", true);
-  if (f.consent === "nao") q = q.eq("consentimento_whatsapp", false);
+  if (f.consent_values?.length) {
+    q = applyBooleanColumnFilter(q, "consentimento_whatsapp", f.consent_values, { sim: true, nao: false });
+  } else {
+    if (f.consent === "sim") q = q.eq("consentimento_whatsapp", true);
+    if (f.consent === "nao") q = q.eq("consentimento_whatsapp", false);
+  }
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);
   if (f.optOut === "nao") q = q.is("opt_out_at", null);
   if (f.bloqueado === "sim") q = q.eq("lifecycle_status", "nao_enviar" as never);
