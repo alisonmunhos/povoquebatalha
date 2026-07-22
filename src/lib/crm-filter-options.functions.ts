@@ -140,7 +140,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (cidadeMatch) bump(bairros, c.bairro);
       bump(ufs, c.uf, (s) => s.toUpperCase());
       bump(profissoes, c.profissao);
-      bump(instituicoes, c.instituicao);
+      // instituicao: coluna removida do schema; mantido comentário para futura reintrodução.
       bump(tipos_contato, c.tipo_contato, (s) => s);
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
