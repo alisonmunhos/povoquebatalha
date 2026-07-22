@@ -8,10 +8,11 @@ import { updateContactField } from "@/lib/update-contact-field.functions";
 import { idsByFilter, bulkApplyTag, exportContactsCsv, copyContactsFormatted } from "@/lib/crm-bulk.functions";
 import { createTag } from "@/lib/contacts.functions";
 import ColumnPickerPanel from "@/components/contacts-sheet/ColumnPickerPanel";
-import SavedViewsControl from "@/components/contacts-sheet/SavedViewsControl";
+import SavedViewsControl, { type SavedSheetViewPayload } from "@/components/contacts-sheet/SavedViewsControl";
 import SheetContainer from "@/components/contacts-sheet/SheetContainer";
+import SheetActiveFiltersBar from "@/components/contacts-sheet/SheetActiveFiltersBar";
 import BulkActionBar from "@/components/contacts-sheet/BulkActionBar";
-import { decodeBase64UrlSafe as decodeFilters } from "@/lib/filters-encoding";
+import { decodeBase64UrlSafe as decodeFilters, encodeBase64UrlSafe as encodeFilters } from "@/lib/filters-encoding";
 import type { CrmFilters } from "@/lib/crm-filters";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -22,6 +23,7 @@ import {
   SHEET_LARGE_PAGE_WARNING,
   type SheetPageSizeOption,
 } from "@/lib/contacts-sheet.constants";
+import { clearAllSheetFilters, removeSheetFilterChip } from "@/lib/sheet-filter-chips";
 import {
   Sheet,
   SheetContent,
@@ -129,11 +131,38 @@ function ContatosBI() {
   }, [isMobile, colsAll.length]);
 
   function saveViewLocal(name: string) {
-    const v = { name, payload: { cols, sort, filtersEncoded, pageSize } };
+    const v = { name, payload: { cols: cols.join(","), sort, filtersEncoded, pageSize } satisfies SavedSheetViewPayload };
     const key = "whatsapp-connect.contacts-sheet.views";
     const existing = [...savedViews.filter((s) => s.name !== name), v];
     setSavedViews(existing);
     localStorage.setItem(key, JSON.stringify(existing));
+    toast.success(`View “${name}” salva`);
+  }
+
+  function loadViewLocal(payload: SavedSheetViewPayload) {
+    setSelection(new Set());
+    pushSearch({
+      cols: payload.cols || undefined,
+      sort: payload.sort || undefined,
+      filters: payload.filtersEncoded || undefined,
+      pageSize:
+        payload.pageSize === undefined || payload.pageSize === 50
+          ? undefined
+          : String(payload.pageSize),
+      page: undefined,
+    });
+    toast.success("View carregada");
+  }
+
+  function removeFilterChip(columnKey: string) {
+    const next = removeSheetFilterChip(currentFilters, columnKey);
+    pushSearch({ filters: encodeFilters(next) || undefined, page: undefined });
+  }
+
+  function clearAllFilters() {
+    const next = clearAllSheetFilters();
+    pushSearch({ filters: encodeFilters(next) || undefined, page: undefined });
+    toast.info("Todos os filtros foram limpos");
   }
 
   function toggleColumn(colKey: string) {
@@ -219,7 +248,7 @@ function ContatosBI() {
     <div className="contacts-sheet-page p-3 sm:p-4">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
         <h1 className="text-lg sm:text-xl font-semibold">Contatos — Visão BI</h1>
-        <SavedViewsControl saved={savedViews} onSave={saveViewLocal} />
+        <SavedViewsControl saved={savedViews} onSave={saveViewLocal} onLoad={loadViewLocal} />
       </header>
 
       {isMobile ? (
@@ -256,6 +285,13 @@ function ContatosBI() {
           {columnsOpen && <div id="column-picker-panel">{columnPicker}</div>}
         </>
       )}
+
+      <SheetActiveFiltersBar
+        cols={cols}
+        filters={currentFilters}
+        onRemoveColumn={removeFilterChip}
+        onClearAll={clearAllFilters}
+      />
 
       <SheetContainer
         cols={cols}

@@ -15,8 +15,23 @@ const FAIXA_ETARIA_OPTIONS = [
 
 export type ColumnFilterInfo =
   | { uiType: "text"; filterKey: keyof CrmFilters }
+  | {
+      uiType: "textContains";
+      containsKey: keyof CrmFilters;
+      emptyKey: keyof CrmFilters;
+      placeholder?: string;
+    }
+  | {
+      uiType: "dateRange";
+      fromKey: keyof CrmFilters;
+      toKey: keyof CrmFilters;
+      quickKey: keyof CrmFilters;
+    }
   | { uiType: "array"; filterKey: keyof CrmFilters; source?: "catalog" | "server"; serverKey?: string; options?: { value: string; label: string }[]; emptyCountKey?: string }
   | { uiType: "tag"; filterKey: "tag_ids"; source: "server"; serverKey: "tags" };
+
+export type TextContainsFilterValue = { contains: string; empty: boolean };
+export type DateRangeFilterValue = { from: string; to: string; quick: string };
 
 function labelsToOptions(m: Record<string, string>): { value: string; label: string }[] {
   return Object.keys(m).map((k) => ({ value: k, label: m[k] }));
@@ -31,7 +46,7 @@ function catalogOptions(columnKey: string): { value: string; label: string }[] |
 export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
   switch (columnKey) {
     case "nome":
-      return { uiType: "text", filterKey: "nome" };
+      return { uiType: "textContains", containsKey: "nome", emptyKey: "nome_empty", placeholder: "Contém…" };
     case "nome_social":
       return { uiType: "text", filterKey: "nome_social" };
     case "profissao":
@@ -39,7 +54,7 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
     case "instituicao":
       return { uiType: "array", filterKey: "instituicoes", source: "server", serverKey: "instituicoes" };
     case "email":
-      return { uiType: "text", filterKey: "email_contains" };
+      return { uiType: "textContains", containsKey: "email_contains", emptyKey: "email_empty", placeholder: "Contém…" };
     case "consentimento":
       return {
         uiType: "array",
@@ -53,7 +68,12 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
         emptyCountKey: "consentimento_empty",
       };
     case "endereco_completo":
-      return { uiType: "text", filterKey: "endereco_contains" };
+      return {
+        uiType: "textContains",
+        containsKey: "endereco_contains",
+        emptyKey: "endereco_empty",
+        placeholder: "Contém (rua, bairro, cidade…)",
+      };
     case "formas_ajuda_outro":
       return {
         uiType: "array",
@@ -93,7 +113,12 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
         emptyCountKey: "coletivo_alicerce_empty",
       };
     case "whatsapp":
-      return { uiType: "text", filterKey: "phone_contains" };
+      return {
+        uiType: "textContains",
+        containsKey: "phone_contains",
+        emptyKey: "phone_empty",
+        placeholder: "Contém…",
+      };
     case "cidade":
       return { uiType: "array", filterKey: "cidades", source: "server", serverKey: "cidades" };
     case "bairro":
@@ -113,7 +138,7 @@ export function resolveFilterField(columnKey: string): ColumnFilterInfo | null {
         options: labelsToOptions(LIFECYCLE_LABEL),
       };
     case "created_at":
-      return { uiType: "text", filterKey: "created_contem" };
+      return { uiType: "dateRange", fromKey: "created_desde", toKey: "created_ate", quickKey: "created_contem" };
     case "faixa_etaria":
       return {
         uiType: "array",
@@ -221,6 +246,21 @@ function legacyBooleanValues(columnKey: string, filters: CrmFilters): string[] |
 export function getColumnFilterValue(columnKey: string, filters: CrmFilters): unknown {
   const info = resolveFilterField(columnKey);
   if (!info) return null;
+
+  if (info.uiType === "textContains") {
+    const contains = String((filters as Record<string, unknown>)[info.containsKey as string] ?? "");
+    const empty = (filters as Record<string, unknown>)[info.emptyKey as string] === true;
+    return { contains, empty } satisfies TextContainsFilterValue;
+  }
+
+  if (info.uiType === "dateRange") {
+    return {
+      from: String((filters as Record<string, unknown>)[info.fromKey as string] ?? ""),
+      to: String((filters as Record<string, unknown>)[info.toKey as string] ?? ""),
+      quick: String((filters as Record<string, unknown>)[info.quickKey as string] ?? ""),
+    } satisfies DateRangeFilterValue;
+  }
+
   const raw = (filters as Record<string, unknown>)[info.filterKey as string];
   if (info.uiType === "array" || info.uiType === "tag") {
     if (Array.isArray(raw) && raw.length) return raw;
@@ -238,6 +278,14 @@ export function isColumnFilterActive(columnKey: string, filters: CrmFilters): bo
   const info = resolveFilterField(columnKey);
   if (!info) return false;
   const v = getColumnFilterValue(columnKey, filters);
+  if (info.uiType === "textContains") {
+    const t = v as TextContainsFilterValue;
+    return !!t.empty || !!t.contains.trim();
+  }
+  if (info.uiType === "dateRange") {
+    const d = v as DateRangeFilterValue;
+    return !!d.from || !!d.to || !!d.quick.trim();
+  }
   if (info.uiType === "text") return typeof v === "string" && v.trim() !== "";
   if (info.uiType === "array" || info.uiType === "tag") return Array.isArray(v) && v.length > 0;
   return false;
@@ -272,7 +320,16 @@ export function applyColumnFilter(current: CrmFilters, column: string, payload: 
   clearLegacyBooleanFilter(next, column);
   clearLegacyTextFilter(next, column);
 
-  if (info.uiType === "text") {
+  if (info.uiType === "textContains") {
+    const p = (payload ?? { contains: "", empty: false }) as TextContainsFilterValue;
+    next[info.containsKey as string] = p.contains?.trim() || undefined;
+    next[info.emptyKey as string] = p.empty ? true : undefined;
+  } else if (info.uiType === "dateRange") {
+    const p = (payload ?? { from: "", to: "", quick: "" }) as DateRangeFilterValue;
+    next[info.fromKey as string] = p.from?.trim() || undefined;
+    next[info.toKey as string] = p.to?.trim() || undefined;
+    next[info.quickKey as string] = p.quick?.trim() || undefined;
+  } else if (info.uiType === "text") {
     next[info.filterKey as string] = String(payload ?? "").trim() || undefined;
   } else if (info.uiType === "array" || info.uiType === "tag") {
     const arr = Array.isArray(payload) ? payload : payload == null ? [] : [payload];
@@ -285,7 +342,16 @@ export function clearColumnFilter(current: CrmFilters, column: string): CrmFilte
   const info = resolveFilterField(column);
   if (!info) return current;
   const next = { ...current } as Record<string, unknown>;
-  delete next[info.filterKey as string];
+  if (info.uiType === "textContains") {
+    delete next[info.containsKey as string];
+    delete next[info.emptyKey as string];
+  } else if (info.uiType === "dateRange") {
+    delete next[info.fromKey as string];
+    delete next[info.toKey as string];
+    delete next[info.quickKey as string];
+  } else {
+    delete next[info.filterKey as string];
+  }
   clearLegacyBooleanFilter(next, column);
   clearLegacyTextFilter(next, column);
   return next as CrmFilters;

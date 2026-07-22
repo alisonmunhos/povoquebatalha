@@ -18,6 +18,7 @@ export const crmFilterSchema = z.object({
   // Busca geral
   search: z.string().trim().optional(),
   email_contains: z.string().trim().optional(),
+  email_empty: z.boolean().optional(),
   tem_email_secundario: z.enum(["sim", "nao"]).optional(),
   tem_phone_secundario: z.enum(["sim", "nao"]).optional(),
 
@@ -31,6 +32,7 @@ export const crmFilterSchema = z.object({
 
   // Perfil
   nome: z.string().trim().optional(),
+  nome_empty: z.boolean().optional(),
   nome_social: z.string().trim().optional(),
   profissao: z.string().trim().optional(),
   instituicao: z.string().trim().optional(),
@@ -107,8 +109,12 @@ export const crmFilterSchema = z.object({
   formas_ajuda_outro: z.string().trim().optional(),
   formas_ajuda_outro_values: z.array(z.string()).optional(),
   endereco_contains: z.string().trim().optional(),
+  endereco_empty: z.boolean().optional(),
   phone_contains: z.string().trim().optional(),
+  phone_empty: z.boolean().optional(),
   created_contem: z.string().trim().optional(),
+  created_desde: z.string().trim().optional(),
+  created_ate: z.string().trim().optional(),
 });
 export type CrmFilters = z.infer<typeof crmFilterSchema>;
 
@@ -231,6 +237,36 @@ function applyBooleanColumnFilter<T extends {
   return q.or(clauses.join(","));
 }
 
+/** Texto contém + opcional (Vazio) em uma coluna. */
+function applyTextContainsEmptyFilter<T extends {
+  or: (v: string) => T;
+  ilike: (col: string, v: string) => T;
+  is: (col: string, v: null) => T;
+  eq: (col: string, v: unknown) => T;
+}>(
+  q: T,
+  col: string,
+  contains: string | undefined,
+  empty: boolean | undefined,
+): T {
+  const text = contains?.trim();
+  const clauses: string[] = [];
+  if (text) clauses.push(`${col}.ilike.%${safe(text)}%`);
+  if (empty) {
+    clauses.push(`${col}.is.null`);
+    clauses.push(`${col}.eq.`);
+  }
+  if (!clauses.length) return q;
+  if (clauses.length === 1) {
+    const c = clauses[0]!;
+    if (c.endsWith(".is.null")) return q.is(col, null);
+    if (c.endsWith(".eq.")) return q.eq(col, "");
+    const match = c.match(/^(.+)\.ilike\.%(.+)%$/);
+    if (match) return q.ilike(match[1]!, `%${match[2]}%`);
+  }
+  return q.or(clauses.join(","));
+}
+
 export function applyCrmFilters<T extends {
   ilike: (col: string, v: string) => T;
   or: (v: string) => T;
@@ -267,7 +303,9 @@ export function applyCrmFilters<T extends {
   }
 
   // Perfil
-  if (f.nome) q = q.ilike("nome", `%${safe(f.nome)}%`);
+  if (f.nome_empty || f.nome) {
+    q = applyTextContainsEmptyFilter(q, "nome", f.nome, f.nome_empty);
+  }
   if (f.nome_social) q = q.ilike("nome_social", `%${safe(f.nome_social)}%`);
   if (f.profissoes?.length) q = applyExactIlikeArrayFilter(q, "profissao", f.profissoes);
   else if (f.profissao) q = q.ilike("profissao", `%${safe(f.profissao)}%`);
@@ -378,7 +416,9 @@ export function applyCrmFilters<T extends {
 
 
   // Comunicação
-  if (f.email_contains) q = q.ilike("email", `%${safe(f.email_contains)}%`);
+  if (f.email_empty || f.email_contains) {
+    q = applyTextContainsEmptyFilter(q, "email", f.email_contains, f.email_empty);
+  }
   if (f.tem_email_secundario === "sim") q = q.not("email_secundario", "is", null);
   if (f.tem_email_secundario === "nao") q = q.is("email_secundario", null);
   if (f.tem_phone_secundario === "sim") q = q.not("phone_secundario_raw", "is", null);
@@ -442,28 +482,37 @@ export function applyCrmFilters<T extends {
   } else if (f.formas_ajuda_outro) {
     q = q.ilike("formas_ajuda_outro", `%${safe(f.formas_ajuda_outro)}%`);
   }
-  if (f.phone_contains) {
-    const s = safe(f.phone_contains);
-    if (s) q = q.or(`phone_raw.ilike.%${s}%,phone_e164.ilike.%${s}%`);
+  if (f.phone_empty || f.phone_contains) {
+    const text = f.phone_contains?.trim();
+    const clauses: string[] = [];
+    if (text) {
+      const s = safe(text);
+      clauses.push(`phone_raw.ilike.%${s}%`, `phone_e164.ilike.%${s}%`);
+    }
+    if (f.phone_empty) {
+      clauses.push("phone_raw.is.null", "phone_e164.is.null");
+    }
+    if (clauses.length) q = q.or(clauses.join(","));
   }
-  if (f.endereco_contains) {
-    const s = safe(f.endereco_contains);
+  if (f.endereco_empty || f.endereco_contains) {
+    const s = f.endereco_contains ? safe(f.endereco_contains) : "";
+    const clauses: string[] = [];
     if (s) {
-      q = q.or(
-        [
-          "endereco",
-          "bairro",
-          "cidade",
-          "cep",
-          "complemento",
-          "referencia",
-          "numero",
-        ]
-          .map((col) => `${col}.ilike.%${s}%`)
-          .join(","),
-      );
+      for (const col of ["endereco", "bairro", "cidade", "cep", "complemento", "referencia", "numero"]) {
+        clauses.push(`${col}.ilike.%${s}%`);
+      }
+    }
+    if (f.endereco_empty) {
+      clauses.push("and(endereco.is.null,bairro.is.null,cidade.is.null,cep.is.null)");
+    }
+    if (clauses.length === 1 && f.endereco_empty && !s) {
+      q = q.is("endereco", null).is("bairro", null).is("cidade", null).is("cep", null);
+    } else if (clauses.length) {
+      q = q.or(clauses.join(","));
     }
   }
+  if (f.created_desde) q = q.gte("created_at", `${f.created_desde}T00:00:00`);
+  if (f.created_ate) q = q.lte("created_at", `${f.created_ate}T23:59:59.999Z`);
   if (f.created_contem) {
     const s = safe(f.created_contem);
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {

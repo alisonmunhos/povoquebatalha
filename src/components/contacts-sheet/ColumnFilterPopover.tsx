@@ -4,9 +4,18 @@ import { useServerFn } from "@tanstack/react-start";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { encodeBase64UrlSafe as encodeFilters } from "@/lib/filters-encoding";
 import type { CrmFilters } from "@/lib/crm-filters";
-import { resolveFilterField, getColumnFilterValue, applyColumnFilter, clearColumnFilter } from "@/lib/column-filter-mapping";
+import {
+  resolveFilterField,
+  getColumnFilterValue,
+  applyColumnFilter,
+  clearColumnFilter,
+  type TextContainsFilterValue,
+  type DateRangeFilterValue,
+} from "@/lib/column-filter-mapping";
 import { getCatalogField } from "@/lib/form-field-catalog";
 import CheckboxListFilterPanel, { type CheckboxFilterOption } from "./CheckboxListFilterPanel";
+import TextContainsFilterPanel from "./TextContainsFilterPanel";
+import DateRangeFilterPanel from "./DateRangeFilterPanel";
 
 export default function ColumnFilterPopover(props: {
   columnKey: string;
@@ -76,12 +85,30 @@ export default function ColumnFilterPopover(props: {
 
   const currentValue = getColumnFilterValue(columnKey, currentFilters);
   const [textDraft, setTextDraft] = useState<string>(() => (typeof currentValue === "string" ? currentValue : ""));
+  const [textContainsDraft, setTextContainsDraft] = useState<TextContainsFilterValue>(() =>
+    info?.uiType === "textContains"
+      ? (currentValue as TextContainsFilterValue)
+      : { contains: "", empty: false },
+  );
+  const [dateRangeDraft, setDateRangeDraft] = useState<DateRangeFilterValue>(() =>
+    info?.uiType === "dateRange"
+      ? (currentValue as DateRangeFilterValue)
+      : { from: "", to: "", quick: "" },
+  );
   const [arrayDraft, setArrayDraft] = useState<string[]>(() =>
     Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : [],
   );
 
   useEffect(() => {
     if (info?.uiType === "text") setTextDraft(typeof currentValue === "string" ? currentValue : "");
+    if (info?.uiType === "textContains") {
+      setTextContainsDraft(
+        (currentValue as TextContainsFilterValue) ?? { contains: "", empty: false },
+      );
+    }
+    if (info?.uiType === "dateRange") {
+      setDateRangeDraft((currentValue as DateRangeFilterValue) ?? { from: "", to: "", quick: "" });
+    }
     if (info?.uiType === "array" || info?.uiType === "tag") {
       setArrayDraft(Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : []);
     }
@@ -92,6 +119,8 @@ export default function ColumnFilterPopover(props: {
   function doApply() {
     let next = { ...(currentFilters ?? {}) } as CrmFilters;
     if (info!.uiType === "text") next = applyColumnFilter(next, columnKey, textDraft?.trim() ? textDraft.trim() : undefined);
+    else if (info!.uiType === "textContains") next = applyColumnFilter(next, columnKey, textContainsDraft);
+    else if (info!.uiType === "dateRange") next = applyColumnFilter(next, columnKey, dateRangeDraft);
     else if (info!.uiType === "array" || info!.uiType === "tag") next = applyColumnFilter(next, columnKey, arrayDraft);
     const encoded = encodeFilters(next);
     onApplyEncoded(encoded || undefined);
@@ -125,7 +154,28 @@ export default function ColumnFilterPopover(props: {
             type="text"
             value={textDraft}
             onChange={(e) => setTextDraft(e.target.value)}
-            placeholder={columnKey === "created_at" ? "AAAA, AAAA-MM ou AAAA-MM-DD" : "Contém..."}
+            placeholder="Contém..."
+          />
+        )}
+
+        {info.uiType === "textContains" && (
+          <TextContainsFilterPanel
+            contains={textContainsDraft.contains}
+            empty={textContainsDraft.empty}
+            onContainsChange={(contains) => setTextContainsDraft((prev) => ({ ...prev, contains }))}
+            onEmptyChange={(empty) => setTextContainsDraft((prev) => ({ ...prev, empty }))}
+            placeholder={info.placeholder}
+          />
+        )}
+
+        {info.uiType === "dateRange" && (
+          <DateRangeFilterPanel
+            from={dateRangeDraft.from}
+            to={dateRangeDraft.to}
+            quick={dateRangeDraft.quick}
+            onFromChange={(from) => setDateRangeDraft((prev) => ({ ...prev, from }))}
+            onToChange={(to) => setDateRangeDraft((prev) => ({ ...prev, to }))}
+            onQuickChange={(quick) => setDateRangeDraft((prev) => ({ ...prev, quick }))}
           />
         )}
 
