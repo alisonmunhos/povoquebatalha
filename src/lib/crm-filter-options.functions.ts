@@ -300,12 +300,12 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     if (importedByIds.length) {
       const { data: profiles } = await sb
         .from("profiles")
-        .select("id,full_name,email")
+        .select("id,full_name")
         .in("id", importedByIds);
       const nameMap = new Map(
         (profiles ?? []).map((p) => [
           p.id as string,
-          (p.full_name as string | null)?.trim() || (p.email as string | null) || (p.id as string),
+          (p.full_name as string | null)?.trim() || (p.id as string),
         ]),
       );
       importedByOpts = importedByIds
