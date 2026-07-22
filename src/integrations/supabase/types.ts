@@ -874,6 +874,13 @@ export type Database = {
       }
       contacts: {
         Row: {
+          active_capture_channel:
+            | Database["public"]["Enums"]["capture_channel"]
+            | null
+          active_captured_by_user_id: string | null
+          active_tracking_form_id: string | null
+          active_tracking_label: string | null
+          active_tracking_link_id: string | null
           arquivado_at: string | null
           bairro: string | null
           cep: string | null
@@ -907,6 +914,8 @@ export type Database = {
             | null
           id: string
           import_id: string | null
+          imported_at: string | null
+          imported_by_user_id: string | null
           instituicao: string | null
           is_system_user: boolean
           last_source_module:
@@ -970,6 +979,13 @@ export type Database = {
           zona_eleitoral: string | null
         }
         Insert: {
+          active_capture_channel?:
+            | Database["public"]["Enums"]["capture_channel"]
+            | null
+          active_captured_by_user_id?: string | null
+          active_tracking_form_id?: string | null
+          active_tracking_label?: string | null
+          active_tracking_link_id?: string | null
           arquivado_at?: string | null
           bairro?: string | null
           cep?: string | null
@@ -1003,6 +1019,8 @@ export type Database = {
             | null
           id?: string
           import_id?: string | null
+          imported_at?: string | null
+          imported_by_user_id?: string | null
           instituicao?: string | null
           is_system_user?: boolean
           last_source_module?:
@@ -1068,6 +1086,13 @@ export type Database = {
           zona_eleitoral?: string | null
         }
         Update: {
+          active_capture_channel?:
+            | Database["public"]["Enums"]["capture_channel"]
+            | null
+          active_captured_by_user_id?: string | null
+          active_tracking_form_id?: string | null
+          active_tracking_label?: string | null
+          active_tracking_link_id?: string | null
           arquivado_at?: string | null
           bairro?: string | null
           cep?: string | null
@@ -1101,6 +1126,8 @@ export type Database = {
             | null
           id?: string
           import_id?: string | null
+          imported_at?: string | null
+          imported_by_user_id?: string | null
           instituicao?: string | null
           is_system_user?: boolean
           last_source_module?:
@@ -1166,6 +1193,20 @@ export type Database = {
           zona_eleitoral?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contacts_active_tracking_form_id_fkey"
+            columns: ["active_tracking_form_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_active_tracking_link_id_fkey"
+            columns: ["active_tracking_link_id"]
+            isOneToOne: false
+            referencedRelation: "tracked_form_links"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contacts_import_id_fkey"
             columns: ["import_id"]
@@ -1489,6 +1530,7 @@ export type Database = {
           success_screen_order: string
           title: string
           tracked_form_link_id: string | null
+          tracking_name: string | null
           updated_at: string
           updated_by: string | null
           whatsapp_button_enabled: boolean
@@ -1508,6 +1550,7 @@ export type Database = {
           success_screen_order?: string
           title: string
           tracked_form_link_id?: string | null
+          tracking_name?: string | null
           updated_at?: string
           updated_by?: string | null
           whatsapp_button_enabled?: boolean
@@ -1527,6 +1570,7 @@ export type Database = {
           success_screen_order?: string
           title?: string
           tracked_form_link_id?: string | null
+          tracking_name?: string | null
           updated_at?: string
           updated_by?: string | null
           whatsapp_button_enabled?: boolean
@@ -2082,6 +2126,7 @@ export type Database = {
           created_at: string
           created_by_user_id: string
           expires_at: string | null
+          form_definition_id: string | null
           id: string
           is_active: boolean
           label: string | null
@@ -2096,6 +2141,7 @@ export type Database = {
           created_at?: string
           created_by_user_id: string
           expires_at?: string | null
+          form_definition_id?: string | null
           id?: string
           is_active?: boolean
           label?: string | null
@@ -2110,6 +2156,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string
           expires_at?: string | null
+          form_definition_id?: string | null
           id?: string
           is_active?: boolean
           label?: string | null
@@ -2120,7 +2167,15 @@ export type Database = {
           updated_at?: string
           use_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tracked_form_links_form_definition_id_fkey"
+            columns: ["form_definition_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -2334,6 +2389,7 @@ export type Database = {
         | "done"
         | "canceled"
       campaign_tipo: "text" | "image" | "document" | "link"
+      capture_channel: "formulario_publico" | "captacao_atribuida"
       contact_lifecycle_status:
         | "importado_aguardando_recadastro"
         | "link_enviado"
@@ -2580,6 +2636,7 @@ export const Constants = {
         "canceled",
       ],
       campaign_tipo: ["text", "image", "document", "link"],
+      capture_channel: ["formulario_publico", "captacao_atribuida"],
       contact_lifecycle_status: [
         "importado_aguardando_recadastro",
         "link_enviado",

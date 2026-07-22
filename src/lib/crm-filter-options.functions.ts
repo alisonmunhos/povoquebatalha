@@ -140,7 +140,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (cidadeMatch) bump(bairros, c.bairro);
       bump(ufs, c.uf, (s) => s.toUpperCase());
       bump(profissoes, c.profissao);
-      bump(instituicoes, c.instituicao);
+      // instituicao: coluna removida do schema; mantido comentário para futura reintrodução.
       bump(tipos_contato, c.tipo_contato, (s) => s);
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
@@ -300,12 +300,12 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     if (importedByIds.length) {
       const { data: profiles } = await sb
         .from("profiles")
-        .select("id,full_name,email")
+        .select("id,full_name")
         .in("id", importedByIds);
       const nameMap = new Map(
         (profiles ?? []).map((p) => [
           p.id as string,
-          (p.full_name as string | null)?.trim() || (p.email as string | null) || (p.id as string),
+          (p.full_name as string | null)?.trim() || (p.id as string),
         ]),
       );
       importedByOpts = importedByIds

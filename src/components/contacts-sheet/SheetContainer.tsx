@@ -135,7 +135,7 @@ export default function SheetContainer({
   }
 
   function isFilterActiveForColumn(col: string): boolean {
-    return isColumnFilterActive(col, currentFilters ?? {});
+    return isColumnFilterActive(col, (currentFilters ?? {}) as unknown as import("@/lib/crm-filters").CrmFilters);
   }
 
   function getActiveFilterValues(col: string): string[] | null {
@@ -367,7 +367,7 @@ export default function SheetContainer({
   const filterPopover = openFilterFor ? (
     <ColumnFilterPopover
       columnKey={openFilterFor}
-      currentFilters={currentFilters ?? {}}
+      currentFilters={(currentFilters ?? {}) as unknown as import("@/lib/crm-filters").CrmFilters}
       onApplyEncoded={(encoded) => pushSearch?.(encoded)}
       onClose={closeFilter}
       embedded

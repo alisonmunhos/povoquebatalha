@@ -297,7 +297,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
 
       <Section icon={<Zap className="h-4 w-4" />} title="Origem e captação">
         <Field label="Canal" hint="Formulário público = preenchido via Entrada de Dados. Captação atribuída = cadastro presencial ou link gerado por alguém da equipe.">
-          <MultiSelectFilter options={CAPTURE_CHANNELS} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v)} placeholder="Qualquer canal" />
+          <MultiSelectFilter options={CAPTURE_CHANNELS} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v as ("captacao_atribuida" | "formulario_publico")[])} placeholder="Qualquer canal" />
         </Field>
         <Field label="Ponto de rastreio" hint="Nome do formulário, link nomeado ou 'Cadastro presencial'.">
           <MultiSelectFilter options={opts.tracking_points} value={filters.tracking_points ?? []} onChange={(v) => set("tracking_points", v)} placeholder="Qualquer ponto" />
