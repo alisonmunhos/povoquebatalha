@@ -63,6 +63,11 @@ export const FORM_FIELD_CATALOG: FormCatalogField[] = [
     defaultLabel: "Aceito receber mensagens da campanha pelo WhatsApp",
     core: true, alwaysRequired: true,
   },
+  {
+    key: "consentimento_lgpd", responseType: "yes_no", targetColumns: ["consentimento_lgpd"], filterKind: "boolean",
+    defaultLabel:
+      "Autorizo o tratamento dos meus dados pessoais pela Campanha do Povo que Batalha, conforme a Lei Geral de Proteção de Dados (LGPD), para os fins descritos neste cadastro.",
+  },
 
   // Já existem na ficha — reusam o filtro já existente.
   {

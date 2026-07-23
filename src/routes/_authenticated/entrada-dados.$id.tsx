@@ -23,6 +23,8 @@ type QuestionDraft = {
   catalog_field_key: string | null;
   label: string;
   help_text: string | null;
+  link_text: string | null;
+  link_url: string | null;
   required: boolean;
 };
 
@@ -71,6 +73,8 @@ function FormBuilder() {
       catalog_field_key: row.catalog_field_key as string | null,
       label: row.label as string,
       help_text: row.help_text as string | null,
+      link_text: (row.link_text as string | null) ?? null,
+      link_url: (row.link_url as string | null) ?? null,
       required: Boolean(row.required),
     });
     setCoreQuestions((q.data.questions ?? []).filter((row) => coreKeys.has(row.catalog_field_key as string)).map(toDraft));
@@ -103,12 +107,14 @@ function FormBuilder() {
         catalog_field_key: field.key,
         label: field.defaultLabel,
         help_text: field.defaultHelpText ?? null,
+        link_text: null,
+        link_url: null,
         required: Boolean(field.alwaysRequired),
       },
     ]);
   }
   function addCustomQuestion() {
-    setQuestions((prev) => [...prev, { order_index: prev.length, source: "custom", catalog_field_key: null, label: "", help_text: null, required: false }]);
+    setQuestions((prev) => [...prev, { order_index: prev.length, source: "custom", catalog_field_key: null, label: "", help_text: null, link_text: null, link_url: null, required: false }]);
   }
   function removeQuestion(idx: number) {
     setQuestions((prev) => prev.filter((_, i) => i !== idx).map((qu, i) => ({ ...qu, order_index: i })));
@@ -146,15 +152,32 @@ function FormBuilder() {
     }
   }
 
+  function validateQuestionLinks(items: QuestionDraft[]): string | null {
+    for (const qu of items) {
+      const hasText = Boolean(qu.link_text?.trim());
+      const hasUrl = Boolean(qu.link_url?.trim());
+      if (hasText !== hasUrl) return "Em cada pergunta, preencha texto e URL do link juntos — ou deixe ambos vazios.";
+    }
+    return null;
+  }
+
   async function saveQuestions() {
     if (questions.some((qu) => !qu.label.trim())) { toast.error("Toda pergunta precisa de um enunciado."); return; }
+    const allDrafts = [
+      ...CORE_CATALOG_FIELDS.map((f) => coreQuestions.find((qu) => qu.catalog_field_key === f.key)).filter(Boolean) as QuestionDraft[],
+      ...questions,
+    ];
+    const linkErr = validateQuestionLinks(allDrafts);
+    if (linkErr) { toast.error(linkErr); return; }
     setSavingQuestions(true);
     try {
       const core: QuestionDraft[] = CORE_CATALOG_FIELDS.map((f, i) => {
         const existing = coreQuestions.find((qu) => qu.catalog_field_key === f.key);
         return {
           id: existing?.id, order_index: i, source: "catalog", catalog_field_key: f.key,
-          label: existing?.label ?? f.defaultLabel, help_text: existing?.help_text ?? f.defaultHelpText ?? null, required: true,
+          label: existing?.label ?? f.defaultLabel, help_text: existing?.help_text ?? f.defaultHelpText ?? null,
+          link_text: existing?.link_text ?? null, link_url: existing?.link_url ?? null,
+          required: true,
         };
       });
       const all = [...core, ...questions].map((qu, i) => ({ ...qu, order_index: i }));
@@ -313,6 +336,11 @@ function FormBuilder() {
             </div>
             <input value={qu.label} onChange={(e) => updateQuestion(idx, { label: e.target.value })} placeholder="Enunciado da pergunta" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             <input value={qu.help_text ?? ""} onChange={(e) => updateQuestion(idx, { help_text: e.target.value || null })} placeholder="Texto de ajuda (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input value={qu.link_text ?? ""} onChange={(e) => updateQuestion(idx, { link_text: e.target.value || null })} placeholder="Texto do link (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              <input value={qu.link_url ?? ""} onChange={(e) => updateQuestion(idx, { link_url: e.target.value || null })} placeholder="URL do link (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
+            <p className="text-[11px] text-muted-foreground -mt-1">Link aparece ao lado do enunciado no formulário público — ex.: &quot;Veja os termos&quot; → https://… ou /privacidade</p>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={qu.required} onChange={(e) => updateQuestion(idx, { required: e.target.checked })} /> Obrigatória
             </label>

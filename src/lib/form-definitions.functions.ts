@@ -183,6 +183,22 @@ export const deleteFormDefinition = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+function normalizeQuestionLinkFields(linkText?: string | null, linkUrl?: string | null) {
+  const text = linkText?.trim() || null;
+  const url = linkUrl?.trim() || null;
+  if (!text && !url) return { link_text: null, link_url: null };
+  if (!text || !url) throw new Error("Preencha texto e URL do link, ou deixe ambos vazios.");
+  if (!url.startsWith("/")) {
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("invalid");
+    } catch {
+      throw new Error("URL do link inválida — use http(s)://… ou um caminho relativo começando com /");
+    }
+  }
+  return { link_text: text.slice(0, 120), link_url: url.slice(0, 500) };
+}
+
 const questionSchema = z.object({
   id: z.string().uuid().optional(),
   order_index: z.number().int().min(0),
@@ -190,6 +206,8 @@ const questionSchema = z.object({
   catalog_field_key: z.string().trim().max(60).nullable().optional(),
   label: z.string().trim().min(1).max(200),
   help_text: z.string().trim().max(400).nullable().optional(),
+  link_text: z.string().trim().max(120).nullable().optional(),
+  link_url: z.string().trim().max(500).nullable().optional(),
   required: z.boolean().default(false),
 });
 
@@ -223,6 +241,7 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
     }
 
     for (const q of data.questions) {
+      const links = normalizeQuestionLinkFields(q.link_text, q.link_url);
       const row = {
         form_definition_id: data.form_definition_id,
         order_index: q.order_index,
@@ -230,6 +249,7 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
         catalog_field_key: q.catalog_field_key ?? null,
         label: q.label,
         help_text: q.help_text ?? null,
+        ...links,
         required: q.required,
       };
       if (q.id) {
@@ -387,7 +407,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
 
     const { data: questions, error: qErr } = await context.supabase
       .from("form_definition_questions")
-      .select("order_index,source,catalog_field_key,label,help_text,required")
+      .select("order_index,source,catalog_field_key,label,help_text,required,link_text,link_url")
       .eq("form_definition_id", data.id)
       .order("order_index", { ascending: true });
     if (qErr) throw qErr;
@@ -420,6 +440,8 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
           catalog_field_key: q.catalog_field_key,
           label: q.label,
           help_text: q.help_text,
+          link_text: q.link_text,
+          link_url: q.link_url,
           required: q.required,
         })),
       );
