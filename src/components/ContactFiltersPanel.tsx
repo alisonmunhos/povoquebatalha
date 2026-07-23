@@ -299,7 +299,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Canal" hint="Formulário público = preenchido via Entrada de Dados. Captação atribuída = cadastro presencial ou link gerado por alguém da equipe.">
           <MultiSelectFilter options={CAPTURE_CHANNELS} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v as ("captacao_atribuida" | "formulario_publico")[])} placeholder="Qualquer canal" />
         </Field>
-        <Field label="Ponto de rastreio" hint="Nome do formulário, link nomeado ou 'Cadastro presencial'.">
+        <Field label="Ponto de rastreio" hint="Só aparecem pontos com pelo menos um contato — nome do formulário, link nomeado ou 'Cadastro presencial'.">
           <MultiSelectFilter options={opts.tracking_points} value={filters.tracking_points ?? []} onChange={(v) => set("tracking_points", v)} placeholder="Qualquer ponto" />
         </Field>
         <Field label="Captado por" hint={systemUsersQ.isLoading ? "Carregando lista de usuários…" : "Escolha um usuário ou 'Sistema' para formulários públicos."}>
