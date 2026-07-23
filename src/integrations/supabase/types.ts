@@ -889,6 +889,8 @@ export type Database = {
           como_conheceu: string | null
           complemento: string | null
           consentimento_at: string | null
+          consentimento_lgpd: boolean
+          consentimento_lgpd_at: string | null
           consentimento_whatsapp: boolean
           cpf_hash: string | null
           created_at: string
@@ -994,6 +996,8 @@ export type Database = {
           como_conheceu?: string | null
           complemento?: string | null
           consentimento_at?: string | null
+          consentimento_lgpd?: boolean
+          consentimento_lgpd_at?: string | null
           consentimento_whatsapp?: boolean
           cpf_hash?: string | null
           created_at?: string
@@ -1101,6 +1105,8 @@ export type Database = {
           como_conheceu?: string | null
           complemento?: string | null
           consentimento_at?: string | null
+          consentimento_lgpd?: boolean
+          consentimento_lgpd_at?: string | null
           consentimento_whatsapp?: boolean
           cpf_hash?: string | null
           created_at?: string
@@ -1480,6 +1486,8 @@ export type Database = {
           help_text: string | null
           id: string
           label: string
+          link_text: string | null
+          link_url: string | null
           order_index: number
           required: boolean
           source: string
@@ -1491,6 +1499,8 @@ export type Database = {
           help_text?: string | null
           id?: string
           label: string
+          link_text?: string | null
+          link_url?: string | null
           order_index: number
           required?: boolean
           source: string
@@ -1502,6 +1512,8 @@ export type Database = {
           help_text?: string | null
           id?: string
           label?: string
+          link_text?: string | null
+          link_url?: string | null
           order_index?: number
           required?: boolean
           source?: string
