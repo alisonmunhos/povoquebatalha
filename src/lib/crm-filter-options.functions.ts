@@ -65,11 +65,21 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const sb = context.supabase;
     const cidadesFiltro = (data?.cidades ?? []).map((c) => normKey(c));
 
+    const { data: formDefs, error: formDefsError } = await sb
+      .from("form_definitions")
+      .select("id,tracking_name,title");
+    if (formDefsError) throw formDefsError;
+    const formLabelById = new Map<string, string>();
+    for (const f of formDefs ?? []) {
+      const lbl = ((f.tracking_name as string | null) || (f.title as string)).trim();
+      if (lbl) formLabelById.set(f.id as string, lbl);
+    }
+
     // Contatos ativos (arquivados fora)
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,participa_movimento_social,coletivo_alicerce,active_tracking_label,imported_by_user_id",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -144,7 +154,11 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       bump(tipos_contato, c.tipo_contato, (s) => s);
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
-      bump(tracking_points, c.active_tracking_label as string | null);
+      const formId = c.active_tracking_form_id as string | null | undefined;
+      const trackingLabel = formId
+        ? formLabelById.get(formId) ?? (c.active_tracking_label as string | null)
+        : (c.active_tracking_label as string | null);
+      bump(tracking_points, trackingLabel, (s) => s);
       if (c.imported_by_user_id) {
         const uid = c.imported_by_user_id as string;
         imported_by_counts.set(uid, (imported_by_counts.get(uid) ?? 0) + 1);
@@ -317,17 +331,6 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
     }
 
-    const { data: formLabels } = await sb
-      .from("form_definitions")
-      .select("tracking_name,title")
-      .not("tracking_name", "is", null);
-    for (const f of formLabels ?? []) {
-      const lbl = ((f.tracking_name as string | null) || (f.title as string)).trim();
-      if (!lbl) continue;
-      const k = normKey(lbl);
-      if (!tracking_points.has(k)) tracking_points.set(k, { label: lbl, count: 0 });
-    }
-
     return {
       cidades: toOptions(cidades),
       bairros: toOptions(bairros),
@@ -381,7 +384,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       campanhas: campaignsOpts,
       mensagens: templatesOpts,
       importacoes: importsOpts,
-      tracking_points: toOptions(tracking_points),
+      tracking_points: toOptions(tracking_points).filter((o) => o.count > 0),
       imported_by: importedByOpts,
       totalContatosBase: contacts?.length ?? 0,
     };

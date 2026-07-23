@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { listFormDefinitions, createFormDefinition, duplicateFormDefinition } from "@/lib/form-definitions.functions";
+import { listFormDefinitions, createFormDefinition, duplicateFormDefinition, deleteFormDefinition } from "@/lib/form-definitions.functions";
 import {
   listAutoReplyTriggers, createAutoReplyTrigger, updateAutoReplyTrigger, deleteAutoReplyTrigger,
 } from "@/lib/auto-reply-triggers.functions";
@@ -34,6 +34,7 @@ function EntradaDadosLista() {
   const listFn = useServerFn(listFormDefinitions);
   const createFn = useServerFn(createFormDefinition);
   const duplicateFn = useServerFn(duplicateFormDefinition);
+  const deleteFn = useServerFn(deleteFormDefinition);
   const q = useQuery({ queryKey: ["form-definitions"], queryFn: () => listFn() });
 
   const [open, setOpen] = useState(false);
@@ -41,6 +42,7 @@ function EntradaDadosLista() {
   const [sourceFormType, setSourceFormType] = useState<"cadastro_completo" | "receber_informacoes">("cadastro_completo");
   const [saving, setSaving] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function onCreate() {
     if (title.trim().length < 2) { toast.error("Dê um título ao formulário."); return; }
@@ -68,6 +70,20 @@ function EntradaDadosLista() {
       toast.error(e instanceof Error ? e.message : "Erro ao duplicar formulário");
     } finally {
       setDuplicatingId(null);
+    }
+  }
+
+  async function onDelete(formId: string, formTitle: string) {
+    if (!confirm(`Excluir o formulário "${formTitle}"?\n\nLinks e QR codes deixam de funcionar. Contatos já cadastrados não são apagados.`)) return;
+    setDeletingId(formId);
+    try {
+      await deleteFn({ data: { id: formId } });
+      toast.success("Formulário excluído");
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir formulário");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -121,12 +137,15 @@ function EntradaDadosLista() {
               const formId = f.id as string;
               const isFixed = Boolean(f.is_fixed);
               const publicPath = isFixed ? (FIXED_FORM_PUBLIC_PATHS[f.slug as string] ?? `/${f.slug}`) : `/f/${f.slug}`;
-              const busy = duplicatingId === formId;
+              const busyDup = duplicatingId === formId;
+              const busyDel = deletingId === formId;
+              const busy = busyDup || busyDel;
+              const formTitle = f.title as string;
               return (
                 <div key={formId} className="flex items-center gap-2 p-4 hover:bg-muted/40">
                   <Link to="/entrada-dados/$id" params={{ id: formId }} className="flex flex-1 items-center justify-between min-w-0">
                     <div className="min-w-0 pr-2">
-                      <p className="font-medium truncate">{f.title as string}</p>
+                      <p className="font-medium truncate">{formTitle}</p>
                       <p className="text-xs text-muted-foreground">{publicPath}</p>
                     </div>
                     <div className="flex items-center gap-2 text-xs shrink-0">
@@ -138,16 +157,28 @@ function EntradaDadosLista() {
                     </div>
                   </Link>
                   {!isFixed && (
-                    <button
-                      type="button"
-                      disabled={busy || duplicatingId !== null}
-                      onClick={() => onDuplicate(formId)}
-                      className="inline-flex items-center gap-1.5 shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-                      title="Criar uma cópia para editar"
-                    >
-                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CopyPlus className="h-3.5 w-3.5" />}
-                      Duplicar
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={busy || duplicatingId !== null || deletingId !== null}
+                        onClick={() => onDuplicate(formId)}
+                        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                        title="Criar uma cópia para editar"
+                      >
+                        {busyDup ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CopyPlus className="h-3.5 w-3.5" />}
+                        Duplicar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || duplicatingId !== null || deletingId !== null}
+                        onClick={() => onDelete(formId, formTitle)}
+                        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted text-destructive disabled:opacity-50"
+                        title="Excluir formulário"
+                      >
+                        {busyDel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        Excluir
+                      </button>
+                    </div>
                   )}
                 </div>
               );
