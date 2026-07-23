@@ -639,6 +639,80 @@ export type Database = {
           },
         ]
       }
+      choice_screen_options: {
+        Row: {
+          choice_screen_id: string
+          description: string | null
+          id: string
+          label: string
+          order_index: number
+          target_form_slug: string | null
+          target_type: string
+          target_url: string | null
+        }
+        Insert: {
+          choice_screen_id: string
+          description?: string | null
+          id?: string
+          label: string
+          order_index: number
+          target_form_slug?: string | null
+          target_type: string
+          target_url?: string | null
+        }
+        Update: {
+          choice_screen_id?: string
+          description?: string | null
+          id?: string
+          label?: string
+          order_index?: number
+          target_form_slug?: string | null
+          target_type?: string
+          target_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "choice_screen_options_choice_screen_id_fkey"
+            columns: ["choice_screen_id"]
+            isOneToOne: false
+            referencedRelation: "choice_screens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      choice_screens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          slug: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          slug: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          slug?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contact_audit_log: {
         Row: {
           action: string
@@ -1490,6 +1564,7 @@ export type Database = {
           link_url: string | null
           order_index: number
           required: boolean
+          section_id: string | null
           source: string
         }
         Insert: {
@@ -1503,6 +1578,7 @@ export type Database = {
           link_url?: string | null
           order_index: number
           required?: boolean
+          section_id?: string | null
           source: string
         }
         Update: {
@@ -1516,6 +1592,7 @@ export type Database = {
           link_url?: string | null
           order_index?: number
           required?: boolean
+          section_id?: string | null
           source?: string
         }
         Relationships: [
@@ -1524,6 +1601,13 @@ export type Database = {
             columns: ["form_definition_id"]
             isOneToOne: false
             referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_definition_questions_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "form_sections"
             referencedColumns: ["id"]
           },
         ]
@@ -1536,6 +1620,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_fixed: boolean
+          layout_mode: string
           prefill_from_token: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
@@ -1556,6 +1641,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_fixed?: boolean
+          layout_mode?: string
           prefill_from_token?: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
@@ -1576,6 +1662,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_fixed?: boolean
+          layout_mode?: string
           prefill_from_token?: boolean
           slug?: string
           source_form_type?: Database["public"]["Enums"]["source_form_type"]
@@ -1595,6 +1682,102 @@ export type Database = {
             columns: ["tracked_form_link_id"]
             isOneToOne: false
             referencedRelation: "tracked_form_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_question_branch_rules: {
+        Row: {
+          id: string
+          next_section_id: string | null
+          option_value: string
+          question_id: string
+        }
+        Insert: {
+          id?: string
+          next_section_id?: string | null
+          option_value: string
+          question_id: string
+        }
+        Update: {
+          id?: string
+          next_section_id?: string | null
+          option_value?: string
+          question_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_question_branch_rules_next_section_id_fkey"
+            columns: ["next_section_id"]
+            isOneToOne: false
+            referencedRelation: "form_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_question_branch_rules_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_definition_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_sections: {
+        Row: {
+          confirmation_active: boolean | null
+          confirmation_event_key: string | null
+          created_at: string
+          default_next_section_id: string | null
+          form_definition_id: string
+          id: string
+          order_index: number
+          success_screen_order: string | null
+          title: string | null
+          updated_at: string
+          whatsapp_button_enabled: boolean | null
+          whatsapp_button_message: string | null
+        }
+        Insert: {
+          confirmation_active?: boolean | null
+          confirmation_event_key?: string | null
+          created_at?: string
+          default_next_section_id?: string | null
+          form_definition_id: string
+          id?: string
+          order_index: number
+          success_screen_order?: string | null
+          title?: string | null
+          updated_at?: string
+          whatsapp_button_enabled?: boolean | null
+          whatsapp_button_message?: string | null
+        }
+        Update: {
+          confirmation_active?: boolean | null
+          confirmation_event_key?: string | null
+          created_at?: string
+          default_next_section_id?: string | null
+          form_definition_id?: string
+          id?: string
+          order_index?: number
+          success_screen_order?: string | null
+          title?: string | null
+          updated_at?: string
+          whatsapp_button_enabled?: boolean | null
+          whatsapp_button_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_sections_default_next_section_id_fkey"
+            columns: ["default_next_section_id"]
+            isOneToOne: false
+            referencedRelation: "form_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_sections_form_definition_id_fkey"
+            columns: ["form_definition_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
             referencedColumns: ["id"]
           },
         ]
