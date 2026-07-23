@@ -183,7 +183,7 @@ export const deleteFormDefinition = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-function normalizeQuestionLinkFields(linkText?: string | null, linkUrl?: string | null) {
+function normalizeQuestionLinkFields(linkText?: string | null, linkUrl?: string | null): { link_text: string | null; link_url: string | null } {
   const text = linkText?.trim() || null;
   const url = linkUrl?.trim() || null;
   if (!text && !url) return { link_text: null, link_url: null };

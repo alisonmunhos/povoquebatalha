@@ -268,7 +268,7 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
           <SingleSelectFilter options={SIM_NAO} value={filters.consent} onChange={(v) => set("consent", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
         <Field label="Consentimento LGPD" hint="Tratamento de dados pessoais — independente do consentimento de WhatsApp.">
-          <SingleSelectFilter options={opts.consentimento_lgpd} value={filters.consentimento_lgpd} onChange={(v) => set("consentimento_lgpd", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
+          <SingleSelectFilter options={SIM_NAO} value={filters.consentimento_lgpd} onChange={(v) => set("consentimento_lgpd", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
         <Field label="Opt-out (não quer receber)">
           <SingleSelectFilter options={SIM_NAO} value={filters.optOut} onChange={(v) => set("optOut", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
