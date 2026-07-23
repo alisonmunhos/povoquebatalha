@@ -2,7 +2,7 @@
 // /f/$slug e as rotas fixas (/recadastro, /atualizacao, /inscrever), que passam
 // seu próprio slug fixo + parâmetros de busca (ref/recad_token) como props.
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Megaphone, CheckCircle2, MessageCircle, Loader2 } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
@@ -17,6 +17,8 @@ type FormQuestion = {
   id: string;
   label: string;
   help_text: string | null;
+  link_text: string | null;
+  link_url: string | null;
   required: boolean;
   response_type: "short_text" | "multiple_choice" | "yes_no" | "date" | "number" | "address_block";
   filter_kind: "text" | "multiselect" | "enum" | "boolean";
@@ -155,6 +157,29 @@ export function PublicFormRenderer({
   );
 }
 
+function QuestionLabel({ label, linkText, linkUrl }: { label: string; linkText?: string | null; linkUrl?: string | null }) {
+  const showLink = Boolean(linkText?.trim() && linkUrl?.trim());
+  return (
+    <span className="inline">
+      {label}
+      {showLink && (
+        <>
+          {" "}
+          <a
+            href={linkUrl!.trim()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2 hover:text-primary/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {linkText!.trim()}
+          </a>
+        </>
+      )}
+    </span>
+  );
+}
+
 function QuestionField({
   q, value, onChange, onToggleMulti,
 }: {
@@ -163,12 +188,12 @@ function QuestionField({
   onChange: (v: AnswerValue) => void;
   onToggleMulti: (option: string) => void;
 }) {
-  const label = `${q.label}${q.required ? " *" : ""}`;
+  const labelNode = <QuestionLabel label={`${q.label}${q.required ? " *" : ""}`} linkText={q.link_text} linkUrl={q.link_url} />;
 
   if (q.response_type === "address_block") {
     return (
       <AddressBlockField
-        label={label}
+        label={labelNode}
         help_text={q.help_text}
         value={value as AddressValue | undefined}
         onChange={onChange}
@@ -184,7 +209,7 @@ function QuestionField({
     const name = `q-${q.id}`;
     return (
       <div>
-        <p className="text-sm font-medium mb-2">{label}</p>
+        <p className="text-sm font-medium mb-2">{labelNode}</p>
         <div className="flex gap-2">
           <label
             className={`flex-1 text-center rounded-md border px-4 py-2 text-sm font-medium cursor-pointer transition ${
@@ -212,7 +237,7 @@ function QuestionField({
     return (
       <label className="flex items-start gap-3 text-sm">
         <input type="checkbox" required={q.required} checked={value === true} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-4 w-4" />
-        <span>{label}</span>
+        <span>{labelNode}</span>
       </label>
     );
   }
@@ -221,7 +246,7 @@ function QuestionField({
     const cur = (value as string[]) ?? [];
     return (
       <div>
-        <p className="text-sm font-medium mb-2">{label}</p>
+        <p className="text-sm font-medium mb-2">{labelNode}</p>
         <div className="grid grid-cols-1 gap-1.5">
           {(q.options ?? []).map((o) => (
             <label key={o.value} className="flex items-center gap-2 text-sm">
@@ -238,7 +263,7 @@ function QuestionField({
   if (q.response_type === "multiple_choice") {
     return (
       <div>
-        <label className="text-sm font-medium">{label}</label>
+        <label className="text-sm font-medium">{labelNode}</label>
         <select
           required={q.required}
           value={(value as string) ?? ""}
@@ -256,7 +281,7 @@ function QuestionField({
   const inputType = q.response_type === "date" ? "date" : q.response_type === "number" ? "number" : "text";
   return (
     <div>
-      <label className="text-sm font-medium">{label}</label>
+      <label className="text-sm font-medium">{labelNode}</label>
       <input
         type={inputType}
         required={q.required}
@@ -277,7 +302,7 @@ function QuestionField({
 function AddressBlockField({
   label, help_text, value, onChange,
 }: {
-  label: string;
+  label: ReactNode;
   help_text: string | null;
   value: AddressValue | undefined;
   onChange: (v: AddressValue) => void;

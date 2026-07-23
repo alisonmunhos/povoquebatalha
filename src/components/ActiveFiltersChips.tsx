@@ -73,7 +73,8 @@ export function ActiveFiltersChips({
   for (const id of filters.tag_ids ?? []) chips.push({ key: `tag-${id}`, label: `Tag: ${findLabel(options?.tags, id)}`, onRemove: removeFromArr("tag_ids", id) });
 
   // Comunicação
-  if (filters.consent) chips.push({ key: "cs", label: `Consentimento: ${filters.consent}`, onRemove: remove("consent") });
+  if (filters.consent) chips.push({ key: "cs", label: `Consentimento WhatsApp: ${filters.consent}`, onRemove: remove("consent") });
+  if (filters.consentimento_lgpd) chips.push({ key: "clgpd", label: `Consentimento LGPD: ${filters.consentimento_lgpd}`, onRemove: remove("consentimento_lgpd") });
   if (filters.optOut) chips.push({ key: "oo", label: `Opt-out: ${filters.optOut}`, onRemove: remove("optOut") });
   if (filters.bloqueado) chips.push({ key: "bl", label: `Bloqueado: ${filters.bloqueado}`, onRemove: remove("bloqueado") });
   for (const v of filters.phone_statuses ?? []) chips.push({ key: `ps-${v}`, label: `Número: ${PHONE_STATUS_LABEL[v] ?? v}`, onRemove: removeFromArr("phone_statuses", v) });

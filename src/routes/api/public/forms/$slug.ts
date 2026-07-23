@@ -64,6 +64,8 @@ type QuestionRow = {
   label: string;
   help_text: string | null;
   required: boolean;
+  link_text: string | null;
+  link_url: string | null;
 };
 
 export const Route = createFileRoute("/api/public/forms/$slug")({
@@ -99,7 +101,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         const { data: questions } = await supabaseAdmin
           .from("form_definition_questions")
-          .select("id,order_index,source,catalog_field_key,label,help_text,required")
+          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url")
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
 
@@ -110,6 +112,8 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             label: q.label,
             help_text: q.help_text,
             required: q.required,
+            link_text: q.link_text,
+            link_url: q.link_url,
             response_type: catalog?.responseType ?? "short_text",
             filter_kind: catalog?.filterKind ?? "text",
             options: catalog?.options ?? null,
@@ -189,7 +193,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         const { data: questions } = await supabaseAdmin
           .from("form_definition_questions")
-          .select("id,order_index,source,catalog_field_key,label,help_text,required")
+          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url")
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
 
@@ -257,6 +261,14 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         if (!consentimento) {
           return new Response(JSON.stringify({ ok: false, error: "É preciso autorizar o contato por WhatsApp." }), { status: 400, headers: cors });
+        }
+        for (const q of (questions ?? []) as QuestionRow[]) {
+          if (!q.required || q.source !== "catalog" || !q.catalog_field_key) continue;
+          if (q.catalog_field_key !== "consentimento_lgpd") continue;
+          const value = answers[q.id];
+          if (value !== true) {
+            return new Response(JSON.stringify({ ok: false, error: `É preciso aceitar: ${q.label}` }), { status: 400, headers: cors });
+          }
         }
 
         const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: phoneRaw });

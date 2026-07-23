@@ -34,6 +34,11 @@ const FIELDS: Array<{ key: string; label: string }> = [
   { key: "observacoes", label: "Observações" },
 ];
 
+const BOOL_FIELDS: Array<{ key: string; label: string }> = [
+  { key: "consentimento_whatsapp", label: "Consentimento WhatsApp" },
+  { key: "consentimento_lgpd", label: "Consentimento LGPD" },
+];
+
 function DupPage() {
   const listFn = useServerFn(listPendingDuplicates);
   const resolveFn = useServerFn(resolveDuplicate);
@@ -205,6 +210,33 @@ function DupPage() {
                                 choice 
                                   ? "bg-primary text-primary-foreground" 
                                   : "border border-input bg-background hover:bg-muted"
+                              }`}
+                            >
+                              {choice ? "↑ Usar este" : "Usar este"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {BOOL_FIELDS.map((f) => {
+                    const sv = (survivorContact as Record<string, unknown>)[f.key] as boolean | null | undefined;
+                    const ov = (otherContact as Record<string, unknown>)[f.key] as boolean | null | undefined;
+                    const svLabel = sv === true ? "Sim" : sv === false ? "Não" : "—";
+                    const ovLabel = ov === true ? "Sim" : ov === false ? "Não" : "—";
+                    const isConflict = sv !== ov;
+                    const choice = overrides[f.key];
+                    return (
+                      <div key={f.key} className="grid grid-cols-[120px_1fr_1fr] text-xs px-4 py-3 items-center hover:bg-muted/40 transition">
+                        <div className="text-muted-foreground font-medium">{f.label}</div>
+                        <div className={`truncate ${isConflict ? "font-medium" : "text-muted-foreground"}`}>{svLabel}</div>
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="truncate">{ovLabel}</span>
+                          {isConflict && ov !== undefined && ov !== null && (
+                            <button
+                              onClick={() => setOverrides((o) => choice ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== f.key)) : { ...o, [f.key]: String(ov) })}
+                              className={`text-[10px] px-2 py-1 rounded font-medium transition whitespace-nowrap ${
+                                choice ? "bg-primary text-primary-foreground" : "border border-input bg-background hover:bg-muted"
                               }`}
                             >
                               {choice ? "↑ Usar este" : "Usar este"}

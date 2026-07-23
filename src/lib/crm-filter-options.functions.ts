@@ -79,7 +79,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -128,6 +128,8 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     let consentSim = 0;
     let consentNao = 0;
     let consentEmpty = 0;
+    let consentLgpdSim = 0;
+    let consentLgpdNao = 0;
     let participaSim = 0;
     let participaNao = 0;
     let participaEmpty = 0;
@@ -208,6 +210,8 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (c.consentimento_whatsapp === true) consentSim += 1;
       else if (c.consentimento_whatsapp === false) consentNao += 1;
       else consentEmpty += 1;
+      if (c.consentimento_lgpd === true) consentLgpdSim += 1;
+      else if (c.consentimento_lgpd === false) consentLgpdNao += 1;
       if (c.participa_movimento_social === true) participaSim += 1;
       else if (c.participa_movimento_social === false) participaNao += 1;
       else participaEmpty += 1;
@@ -369,6 +373,10 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
         { value: "nao", label: "Não", count: consentNao },
       ],
       consentimento_empty: consentEmpty,
+      consentimento_lgpd: [
+        { value: "sim", label: "Sim", count: consentLgpdSim },
+        { value: "nao", label: "Não", count: consentLgpdNao },
+      ],
       participa_movimento_social: [
         { value: "true", label: "Sim", count: participaSim },
         { value: "false", label: "Não", count: participaNao },

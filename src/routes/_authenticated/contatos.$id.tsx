@@ -116,6 +116,7 @@ function ContatoFicha() {
           ? (c as { disponibilidade?: string[] }).disponibilidade
           : [],
         consentimento_whatsapp: c.consentimento_whatsapp,
+        consentimento_lgpd: (c as { consentimento_lgpd?: boolean }).consentimento_lgpd ?? false,
         origem_detalhe: c.origem_detalhe ?? "",
         observacoes: c.observacoes ?? "",
       });
@@ -443,7 +444,14 @@ function ContatoFicha() {
               <input type="checkbox" checked={!!form.consentimento_whatsapp} onChange={(e) => set("consentimento_whatsapp", e.target.checked)} />
               Consentimento para receber WhatsApp
             </label>
-            {c.consentimento_at && <p className="text-xs text-muted-foreground">Desde {new Date(c.consentimento_at).toLocaleString("pt-BR")}</p>}
+            {c.consentimento_at && <p className="text-xs text-muted-foreground">WhatsApp desde {new Date(c.consentimento_at).toLocaleString("pt-BR")}</p>}
+            <label className="flex items-center gap-2 text-sm mt-3">
+              <input type="checkbox" checked={!!form.consentimento_lgpd} onChange={(e) => set("consentimento_lgpd", e.target.checked)} />
+              Consentimento LGPD (tratamento de dados pessoais)
+            </label>
+            {(c as { consentimento_lgpd_at?: string | null }).consentimento_lgpd_at && (
+              <p className="text-xs text-muted-foreground">LGPD desde {new Date((c as { consentimento_lgpd_at: string }).consentimento_lgpd_at).toLocaleString("pt-BR")}</p>
+            )}
             {!isAgitadorOnly && (
               <>
                 <Row><Field label="Origem (detalhe)" value={form.origem_detalhe} onChange={(v) => set("origem_detalhe", v)} /></Row>

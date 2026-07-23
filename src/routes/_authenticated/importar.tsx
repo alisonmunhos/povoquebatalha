@@ -60,6 +60,7 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   como_conheceu: "Como conheceu a campanha",
   formas_ajuda: "Formas de ajudar",
   formas_ajuda_outro: "Formas de ajudar (outro)",
+  consentimento_lgpd: "Consentimento LGPD (sim/não)",
   raw: "Guardar como dado bruto",
 };
 
