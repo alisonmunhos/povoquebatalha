@@ -1485,9 +1485,9 @@ export type Database = {
           form_definition_id: string
           help_text: string | null
           id: string
+          label: string
           link_text: string | null
           link_url: string | null
-          label: string
           order_index: number
           required: boolean
           source: string
@@ -1498,9 +1498,9 @@ export type Database = {
           form_definition_id: string
           help_text?: string | null
           id?: string
+          label: string
           link_text?: string | null
           link_url?: string | null
-          label: string
           order_index: number
           required?: boolean
           source: string
@@ -1511,9 +1511,9 @@ export type Database = {
           form_definition_id?: string
           help_text?: string | null
           id?: string
+          label?: string
           link_text?: string | null
           link_url?: string | null
-          label?: string
           order_index?: number
           required?: boolean
           source?: string
