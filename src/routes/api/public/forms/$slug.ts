@@ -49,6 +49,7 @@ const addressBlockSchema = z.object({
 const submitSchema = z.object({
   ref_token: z.string().trim().min(8).max(48).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
+  terminal_section_id: z.string().uuid().optional().or(z.literal("")),
   answers: z.record(
     z.string().uuid(),
     z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
@@ -66,7 +67,28 @@ type QuestionRow = {
   required: boolean;
   link_text: string | null;
   link_url: string | null;
+  section_id: string | null;
 };
+
+function enrichQuestions(rows: QuestionRow[]) {
+  return rows.map((q) => {
+    const catalog = q.source === "catalog" && q.catalog_field_key ? getCatalogField(q.catalog_field_key) : undefined;
+    return {
+      id: q.id,
+      section_id: q.section_id,
+      label: q.label,
+      help_text: q.help_text,
+      required: q.required,
+      link_text: q.link_text,
+      link_url: q.link_url,
+      response_type: catalog?.responseType ?? "short_text",
+      filter_kind: catalog?.filterKind ?? "text",
+      options: catalog?.options ?? null,
+      depends_on: catalog?.dependsOn ?? null,
+      catalog_field_key: q.catalog_field_key,
+    };
+  });
+}
 
 export const Route = createFileRoute("/api/public/forms/$slug")({
   server: {
@@ -85,7 +107,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: form, error: formErr } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,title,is_active,whatsapp_button_enabled,prefill_from_token")
+          .select("id,title,is_active,whatsapp_button_enabled,prefill_from_token,layout_mode")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -101,29 +123,46 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         const { data: questions } = await supabaseAdmin
           .from("form_definition_questions")
-          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url")
+          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id")
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
 
-        const enriched = ((questions ?? []) as QuestionRow[]).map((q) => {
-          const catalog = q.source === "catalog" && q.catalog_field_key ? getCatalogField(q.catalog_field_key) : undefined;
-          return {
-            id: q.id,
-            label: q.label,
-            help_text: q.help_text,
-            required: q.required,
-            link_text: q.link_text,
-            link_url: q.link_url,
-            response_type: catalog?.responseType ?? "short_text",
-            filter_kind: catalog?.filterKind ?? "text",
-            options: catalog?.options ?? null,
-            depends_on: catalog?.dependsOn ?? null,
-            catalog_field_key: q.catalog_field_key,
-          };
-        });
+        const enriched = enrichQuestions((questions ?? []) as QuestionRow[]);
+        const layoutMode = (form as { layout_mode?: string }).layout_mode ?? "flat";
+
+        let sections: Array<{
+          id: string;
+          order_index: number;
+          title: string | null;
+          default_next_section_id: string | null;
+          confirmation_active: boolean | null;
+          whatsapp_button_enabled: boolean | null;
+          whatsapp_button_message: string | null;
+          success_screen_order: string | null;
+        }> = [];
+        let branchRules: Array<{ question_id: string; option_value: string; next_section_id: string | null }> = [];
+
+        if (layoutMode === "sectioned") {
+          const { data: sectionRows } = await supabaseAdmin
+            .from("form_sections")
+            .select("id,order_index,title,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+            .eq("form_definition_id", form.id)
+            .order("order_index", { ascending: true });
+          sections = sectionRows ?? [];
+
+          const questionIds = (questions ?? []).map((q) => q.id);
+          if (questionIds.length > 0) {
+            const { data: rules } = await supabaseAdmin
+              .from("form_question_branch_rules")
+              .select("question_id,option_value,next_section_id")
+              .in("question_id", questionIds);
+            branchRules = rules ?? [];
+          }
+        }
 
         let initialValues: Record<string, unknown> | undefined;
-        const token = new URL(request.url).searchParams.get("t");
+        const url = new URL(request.url);
+        const token = url.searchParams.get("t");
         if (form.prefill_from_token && token) {
           const { data: contact } = await supabaseAdmin
             .from("contacts")
@@ -148,9 +187,15 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             form: {
               id: form.id,
               title: form.title,
+              layout_mode: layoutMode,
               whatsapp_button_enabled: form.whatsapp_button_enabled,
               questions: enriched,
+              sections: layoutMode === "sectioned" ? sections : null,
+              branch_rules: layoutMode === "sectioned" ? branchRules : null,
               initial_values: initialValues ?? null,
+              start_section_id: layoutMode === "sectioned"
+                ? (url.searchParams.get("s") || sections[0]?.id || null)
+                : null,
             },
           }),
           { headers: cors },
@@ -177,7 +222,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
 
         const { data: form, error: formErr } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,slug,title,tracking_name,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order")
+          .select("id,slug,title,tracking_name,is_active,source_form_type,event_key,tracked_form_link_id,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order,layout_mode")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -193,9 +238,28 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         const { data: questions } = await supabaseAdmin
           .from("form_definition_questions")
-          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url")
+          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id")
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
+
+        const layoutMode = (form as { layout_mode?: string }).layout_mode ?? "flat";
+        const isSectioned = layoutMode === "sectioned";
+
+        let terminalSection: {
+          confirmation_active: boolean | null;
+          whatsapp_button_enabled: boolean | null;
+          whatsapp_button_message: string | null;
+          success_screen_order: string | null;
+        } | null = null;
+        if (isSectioned && d.terminal_section_id) {
+          const { data: sec } = await supabaseAdmin
+            .from("form_sections")
+            .select("confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+            .eq("id", d.terminal_section_id)
+            .eq("form_definition_id", form.id)
+            .maybeSingle();
+          terminalSection = sec ?? null;
+        }
 
         type AddressAnswer = { cep?: string; endereco?: string; numero?: string; complemento?: string; bairro?: string; referencia?: string; cidade?: string; uf?: string };
         const answers = d.answers as Record<string, string | string[] | boolean | AddressAnswer | null>;
@@ -253,14 +317,26 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           }
         }
 
-        if (!nome || nome.length < 2) {
-          return new Response(JSON.stringify({ ok: false, error: "Nome ausente." }), { status: 400, headers: cors });
-        }
-        if (!phoneRaw) {
-          return new Response(JSON.stringify({ ok: false, error: "WhatsApp ausente." }), { status: 400, headers: cors });
-        }
-        if (!consentimento) {
-          return new Response(JSON.stringify({ ok: false, error: "É preciso autorizar o contato por WhatsApp." }), { status: 400, headers: cors });
+        if (!isSectioned) {
+          if (!nome || nome.length < 2) {
+            return new Response(JSON.stringify({ ok: false, error: "Nome ausente." }), { status: 400, headers: cors });
+          }
+          if (!phoneRaw) {
+            return new Response(JSON.stringify({ ok: false, error: "WhatsApp ausente." }), { status: 400, headers: cors });
+          }
+          if (!consentimento) {
+            return new Response(JSON.stringify({ ok: false, error: "É preciso autorizar o contato por WhatsApp." }), { status: 400, headers: cors });
+          }
+        } else {
+          const hasNomeField = (questions ?? []).some((q) => q.catalog_field_key === "nome");
+          const hasPhoneField = (questions ?? []).some((q) => q.catalog_field_key === "whatsapp");
+          if (hasNomeField && (!nome || nome.length < 2)) {
+            return new Response(JSON.stringify({ ok: false, error: "Nome ausente." }), { status: 400, headers: cors });
+          }
+          if (hasPhoneField && !phoneRaw) {
+            return new Response(JSON.stringify({ ok: false, error: "WhatsApp ausente." }), { status: 400, headers: cors });
+          }
+          if (!nome || nome.length < 2) nome = "Participante";
         }
         for (const q of (questions ?? []) as QuestionRow[]) {
           if (!q.required || q.source !== "catalog" || !q.catalog_field_key) continue;
@@ -271,9 +347,9 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           }
         }
 
-        const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: phoneRaw });
-        const phoneE164 = norm as string | null;
-        if (!phoneE164) {
+        const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: phoneRaw ?? "" });
+        const phoneE164 = phoneRaw ? (norm as string | null) : null;
+        if (phoneRaw && !phoneE164) {
           return new Response(JSON.stringify({ ok: false, error: "Telefone inválido" }), { status: 400, headers: cors });
         }
 
@@ -283,7 +359,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("recad_token", d.recad_token).maybeSingle();
           if (data) target = data;
         }
-        if (!target) {
+        if (!target && phoneE164) {
           const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("phone_e164", phoneE164).maybeSingle();
           if (data) target = data;
         }
@@ -298,14 +374,14 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         const origemValue = form.source_form_type === "cadastro_completo" ? "recadastro" as const : "inscricao" as const;
         const payload = {
           ...contactPayload,
-          nome,
-          phone_raw: phoneRaw,
+          ...(nome ? { nome } : {}),
+          ...(phoneRaw ? { phone_raw: phoneRaw } : {}),
           ...(email ? { email } : {}),
-          // Paridade com inscrever.ts: formulários de "receber informações" marcam o
-          // contato como lista de divulgação (recadastro.ts não seta tipo_contato).
           ...(form.source_form_type === "receber_informacoes" ? { tipo_contato: "lista_divulgacao" } : {}),
-          consentimento_whatsapp: true,
-          consentimento_at: new Date().toISOString(),
+          ...(consentimento ? {
+            consentimento_whatsapp: true,
+            consentimento_at: new Date().toISOString(),
+          } : {}),
           origem: origemValue,
           origem_detalhe: form.title,
           lifecycle_status: "recadastro_concluido" as const,
@@ -436,8 +512,17 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             .select("active")
             .eq("event_key", form.event_key)
             .maybeSingle();
-          confirmationEnabled = Boolean(auto?.active);
+          const formConfirmation = Boolean(auto?.active);
+          confirmationEnabled = terminalSection?.confirmation_active != null
+            ? Boolean(terminalSection.confirmation_active)
+            : formConfirmation;
         } catch { /* ignore */ }
+
+        const waEnabled = terminalSection?.whatsapp_button_enabled != null
+          ? Boolean(terminalSection.whatsapp_button_enabled)
+          : form.whatsapp_button_enabled;
+        const waMessage = terminalSection?.whatsapp_button_message ?? form.whatsapp_button_message;
+        const successOrder = terminalSection?.success_screen_order ?? form.success_screen_order;
 
         try {
           const origin = request.headers.get("origin") ||
@@ -454,12 +539,12 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         return new Response(
           JSON.stringify({
             ok: true,
-            nome,
-            whatsapp_button: form.whatsapp_button_enabled
-              ? { phone: form.whatsapp_button_phone, message: form.whatsapp_button_message }
+            nome: nome ?? "Participante",
+            whatsapp_button: waEnabled
+              ? { phone: form.whatsapp_button_phone, message: waMessage }
               : null,
             confirmation_enabled: confirmationEnabled,
-            success_screen_order: form.success_screen_order,
+            success_screen_order: successOrder,
           }),
           { headers: cors },
         );

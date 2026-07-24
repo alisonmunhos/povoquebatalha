@@ -40,6 +40,7 @@ function EntradaDadosLista() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [sourceFormType, setSourceFormType] = useState<"cadastro_completo" | "receber_informacoes">("cadastro_completo");
+  const [layoutMode, setLayoutMode] = useState<"flat" | "sectioned">("flat");
   const [saving, setSaving] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -48,7 +49,14 @@ function EntradaDadosLista() {
     if (title.trim().length < 2) { toast.error("Dê um título ao formulário."); return; }
     setSaving(true);
     try {
-      const row = await createFn({ data: { title: title.trim(), slug: slugify(title), source_form_type: sourceFormType } });
+      const row = await createFn({
+        data: {
+          title: title.trim(),
+          slug: slugify(title),
+          source_form_type: sourceFormType,
+          layout_mode: layoutMode,
+        },
+      });
       toast.success("Formulário criado");
       setOpen(false);
       setTitle("");
@@ -122,6 +130,18 @@ function EntradaDadosLista() {
                   <option value="receber_informacoes">Receber informações</option>
                 </select>
               </div>
+              <div>
+                <label className="text-sm font-medium">Modelo de montagem</label>
+                <select value={layoutMode} onChange={(e) => setLayoutMode(e.target.value as typeof layoutMode)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <option value="flat">Lista única (padrão atual)</option>
+                  <option value="sectioned">Por seções com ramificação</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {layoutMode === "sectioned"
+                    ? "Várias telas em sequência; respostas podem pular etapas ou finalizar antes."
+                    : "Uma única tela com nome, WhatsApp e consentimento fixos no início."}
+                </p>
+              </div>
               <div className="flex gap-2">
                 <button onClick={onCreate} disabled={saving} className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
                   {saving ? "Criando…" : "Criar e continuar"}
@@ -150,6 +170,9 @@ function EntradaDadosLista() {
                     </div>
                     <div className="flex items-center gap-2 text-xs shrink-0">
                       {isFixed && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Fixo</span>}
+                      {(f as { layout_mode?: string }).layout_mode === "sectioned" && (
+                        <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Por seções</span>
+                      )}
                       <span className={`px-2 py-0.5 rounded-full ${f.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
                         {f.is_active ? "Ativo" : "Inativo"}
                       </span>

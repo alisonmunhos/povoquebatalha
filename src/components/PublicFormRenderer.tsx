@@ -3,9 +3,10 @@
 // seu próprio slug fixo + parâmetros de busca (ref/recad_token) como props.
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Megaphone, CheckCircle2, MessageCircle, Loader2 } from "lucide-react";
+import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
+import { resolveNextSectionId, sortSections } from "@/lib/form-sections-routing";
 
 export type AddressValue = {
   cep?: string; endereco?: string; numero?: string; complemento?: string;
@@ -33,18 +34,42 @@ type FormDefinition = {
   questions: FormQuestion[];
   initial_values: Record<string, AnswerValue> | null;
 };
+type FormSection = {
+  id: string;
+  order_index: number;
+  title: string | null;
+  default_next_section_id: string | null;
+};
+type BranchRule = {
+  question_id: string;
+  option_value: string;
+  next_section_id: string | null;
+};
+type SectionedFormDefinition = {
+  id: string;
+  title: string;
+  questions: Array<FormQuestion & { section_id: string | null }>;
+  sections: FormSection[];
+  branch_rules: BranchRule[];
+  initial_values: Record<string, AnswerValue> | null;
+  start_section_id: string | null;
+};
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 type SuccessScreenOrder = "whatsapp_first" | "confirmation_first";
 
 export function PublicFormRenderer({
-  slug, refToken, recadToken,
+  slug, refToken, recadToken, startSectionId,
 }: {
   slug: string;
   refToken?: string;
   recadToken?: string;
+  startSectionId?: string;
 }) {
   useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
+  const [sectionedForm, setSectionedForm] = useState<SectionedFormDefinition | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"flat" | "sectioned" | null>(null);
+  const [currentSectionId, setCurrentSectionId] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +81,51 @@ export function PublicFormRenderer({
   } | null>(null);
 
   useEffect(() => {
-    const url = recadToken ? `/api/public/forms/${slug}?t=${recadToken}` : `/api/public/forms/${slug}`;
+    const params = new URLSearchParams();
+    if (recadToken) params.set("t", recadToken);
+    if (startSectionId) params.set("s", startSectionId);
+    const qs = params.toString();
+    const url = `/api/public/forms/${slug}${qs ? `?${qs}` : ""}`;
     fetch(url)
       .then((r) => r.json())
       .then((json) => {
-        setForm(json.ok ? json.form : null);
-        if (json.ok && json.form.initial_values) setValues(json.form.initial_values);
+        if (!json.ok) {
+          setForm(null);
+          setSectionedForm(null);
+          setLayoutMode("flat");
+          return;
+        }
+        const mode = (json.form.layout_mode as "flat" | "sectioned" | undefined) ?? "flat";
+        setLayoutMode(mode);
+        if (mode === "sectioned") {
+          const loaded = json.form as SectionedFormDefinition;
+          setSectionedForm(loaded);
+          setForm(null);
+          if (loaded.initial_values) setValues(loaded.initial_values);
+          const sections = sortSections(loaded.sections ?? []);
+          const startId = loaded.start_section_id && sections.some((s) => s.id === loaded.start_section_id)
+            ? loaded.start_section_id
+            : sections[0]?.id ?? null;
+          setCurrentSectionId(startId);
+          return;
+        }
+        setSectionedForm(null);
+        setForm(json.form);
+        if (json.form.initial_values) setValues(json.form.initial_values);
       })
-      .catch(() => setForm(null));
-  }, [slug, recadToken]);
+      .catch(() => {
+        setForm(null);
+        setSectionedForm(null);
+        setLayoutMode("flat");
+      });
+  }, [slug, recadToken, startSectionId]);
+
+  const sections = useMemo(() => sortSections(sectionedForm?.sections ?? []), [sectionedForm]);
+  const currentSection = sections.find((s) => s.id === currentSectionId) ?? sections[0];
+  const sectionQuestions = useMemo(
+    () => (sectionedForm?.questions ?? []).filter((q) => q.section_id === currentSection?.id),
+    [sectionedForm, currentSection?.id],
+  );
 
   const set = (questionId: string, v: AnswerValue) => setValues((p) => ({ ...p, [questionId]: v }));
   const toggleMulti = (questionId: string, option: string) => {
@@ -74,11 +135,62 @@ export function PublicFormRenderer({
 
   const parentAnswers = useMemo(() => {
     const map: Record<string, boolean> = {};
-    for (const q of form?.questions ?? []) {
+    const allQuestions = layoutMode === "sectioned"
+      ? (sectionedForm?.questions ?? [])
+      : (form?.questions ?? []);
+    for (const q of allQuestions) {
       if (q.catalog_field_key && typeof values[q.id] === "boolean") map[q.catalog_field_key] = values[q.id] as boolean;
     }
     return map;
-  }, [form, values]);
+  }, [form, sectionedForm, layoutMode, values]);
+
+  async function submitFinal(terminalSectionId: string) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/public/forms/${slug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref_token: refToken ?? "",
+          recad_token: recadToken ?? "",
+          terminal_section_id: terminalSectionId,
+          answers: values,
+          hp: "",
+        }),
+      });
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao enviar");
+      setSuccess({
+        nome: json.nome,
+        whatsapp_button: json.whatsapp_button ?? null,
+        confirmation_enabled: Boolean(json.confirmation_enabled),
+        success_screen_order: json.success_screen_order === "confirmation_first" ? "confirmation_first" : "whatsapp_first",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao enviar");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!sectionedForm || !currentSection) return;
+    setError(null);
+    const nextId = resolveNextSectionId(
+      currentSection.id,
+      sections,
+      sectionedForm.questions,
+      sectionedForm.branch_rules ?? [],
+      values,
+    );
+    if (nextId) {
+      setCurrentSectionId(nextId);
+      return;
+    }
+    void submitFinal(currentSection.id);
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -112,6 +224,22 @@ export function PublicFormRenderer({
     }
   }
 
+  const isLoading = layoutMode === null && form === undefined && !sectionedForm;
+  const isMissing = layoutMode === "flat" && form === null;
+  const isSectionedMissing = layoutMode === "sectioned" && (!sectionedForm || !currentSection);
+  const sectionTitle = currentSection?.title?.trim() || `Etapa ${(currentSection?.order_index ?? 0) + 1}`;
+  const sectionIndex = sections.findIndex((s) => s.id === currentSection?.id);
+  const progressLabel = sections.length > 1 ? `Etapa ${sectionIndex + 1} de ${sections.length}` : null;
+  const hasNextSection = sectionedForm && currentSection
+    ? Boolean(resolveNextSectionId(
+      currentSection.id,
+      sections,
+      sectionedForm.questions,
+      sectionedForm.branch_rules ?? [],
+      values,
+    ))
+    : false;
+
   return (
     <div className="min-h-screen bg-muted/20" translate="no">
       <header className="border-b bg-background">
@@ -123,9 +251,9 @@ export function PublicFormRenderer({
         </div>
       </header>
       <main className="max-w-md mx-auto px-6 py-10">
-        {form === undefined ? (
+        {isLoading ? (
           <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
-        ) : form === null ? (
+        ) : isMissing || isSectionedMissing ? (
           <p className="text-muted-foreground">Formulário não encontrado ou indisponível.</p>
         ) : success ? (
           <SuccessScreen
@@ -134,7 +262,26 @@ export function PublicFormRenderer({
             confirmationEnabled={success.confirmation_enabled}
             order={success.success_screen_order}
           />
-        ) : (
+        ) : layoutMode === "sectioned" && sectionedForm && currentSection ? (
+          <>
+            <h1 className="text-3xl font-bold tracking-tight">{sectionedForm.title}</h1>
+            {progressLabel && <p className="text-sm text-muted-foreground mt-1">{progressLabel}</p>}
+            <form onSubmit={onContinueSectioned} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
+              <h2 className="text-lg font-semibold">{sectionTitle}</h2>
+              <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
+              {sectionQuestions
+                .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
+                .map((q) => (
+                  <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
+                ))}
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+                <ChevronRight className="h-4 w-4" />
+                {submitting ? "Enviando…" : hasNextSection ? "Continuar" : "Enviar"}
+              </button>
+            </form>
+          </>
+        ) : form ? (
           <>
             <h1 className="text-3xl font-bold tracking-tight">{form.title}</h1>
             <form onSubmit={onSubmit} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
@@ -151,7 +298,7 @@ export function PublicFormRenderer({
               </button>
             </form>
           </>
-        )}
+        ) : null}
       </main>
     </div>
   );
@@ -180,7 +327,7 @@ function QuestionLabel({ label, linkText, linkUrl }: { label: string; linkText?:
   );
 }
 
-function QuestionField({
+export function QuestionField({
   q, value, onChange, onToggleMulti,
 }: {
   q: FormQuestion;
@@ -400,7 +547,7 @@ function AddressBlockField({
   );
 }
 
-function SuccessScreen({
+export function SuccessScreen({
   nome, whatsappButton, confirmationEnabled, order,
 }: {
   nome: string;
