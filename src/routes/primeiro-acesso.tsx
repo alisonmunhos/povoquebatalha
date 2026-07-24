@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { ShieldCheck, Mail, CheckCircle2 } from "lucide-react";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export const Route = createFileRoute("/primeiro-acesso")({
   head: () => ({
@@ -136,8 +137,7 @@ function PrimeiroAcessoPage() {
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium">Segredo de inicialização</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     required
                     autoComplete="off"
                     minLength={16}

@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Megaphone, Users, Send, Megaphone as MegaphoneIcon } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
+// TODO: confirmar slug do formulário principal em seções (Entrada de Dados → copiar slug publicado)
+const MAIN_SECTIONED_FORM_SLUG = "cadastro";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -57,16 +60,11 @@ function Landing() {
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            to="/recadastro"
+            to="/f/$slug"
+            params={{ slug: MAIN_SECTIONED_FORM_SLUG }}
             className="rounded-md bg-primary text-primary-foreground px-5 py-2.5 font-medium hover:bg-primary/90"
           >
-            Formulário de recadastro
-          </Link>
-          <Link
-            to="/inscrever"
-            className="rounded-md border px-5 py-2.5 font-medium hover:bg-accent"
-          >
-            Quero receber informações
+            Participar da campanha
           </Link>
         </div>
         <div className="mt-16 grid md:grid-cols-3 gap-6">

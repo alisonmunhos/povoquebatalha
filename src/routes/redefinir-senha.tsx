@@ -2,6 +2,7 @@ import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { KeyRound, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export const Route = createFileRoute("/redefinir-senha")({
   ssr: false,
@@ -113,8 +114,8 @@ function RedefinirSenha() {
             <form onSubmit={onSubmit} className="space-y-3">
               <div>
                 <label className="text-sm font-medium">Nova senha</label>
-                <input
-                  type="password" required minLength={8}
+                <PasswordInput
+                  required minLength={8}
                   value={password} onChange={(e) => setPassword(e.target.value)}
                   className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   autoFocus
@@ -123,8 +124,8 @@ function RedefinirSenha() {
               </div>
               <div>
                 <label className="text-sm font-medium">Confirmar senha</label>
-                <input
-                  type="password" required minLength={8}
+                <PasswordInput
+                  required minLength={8}
                   value={confirm} onChange={(e) => setConfirm(e.target.value)}
                   className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
