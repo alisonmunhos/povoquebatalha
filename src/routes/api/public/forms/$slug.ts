@@ -14,6 +14,7 @@ import {
 } from "@/lib/form-question-shape";
 import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "@/lib/public-form-guards.server";
 import { isLegalConsentCatalogKey } from "@/lib/legal-consent-fields";
+import { getSectionsOnPath, isAnswerEmpty, sortSections } from "@/lib/form-sections-routing";
 
 // Só usado quando form.prefill_from_token está ligado (opt-in, ver migration) —
 // lê o valor já existente do contato pra virar valor inicial da pergunta,
@@ -56,6 +57,7 @@ const submitSchema = z.object({
   ref_token: z.string().trim().min(8).max(48).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
   terminal_section_id: z.string().uuid().optional().or(z.literal("")),
+  start_section_id: z.string().uuid().optional().or(z.literal("")),
   answers: z.record(
     z.string().uuid(),
     z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
@@ -259,6 +261,56 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         const layoutMode = (form as { layout_mode?: string }).layout_mode ?? "flat";
         const isSectioned = layoutMode === "sectioned";
 
+        type AddressAnswer = { cep?: string; endereco?: string; numero?: string; complemento?: string; bairro?: string; referencia?: string; cidade?: string; uf?: string };
+        const answers = d.answers as Record<string, string | string[] | boolean | AddressAnswer | null>;
+        const isAddressAnswer = (v: unknown): v is AddressAnswer =>
+          typeof v === "object" && v !== null && !Array.isArray(v);
+
+        let sectionPathIds: Set<string> | null = null;
+        if (isSectioned) {
+          const { data: sectionRows } = await supabaseAdmin
+            .from("form_sections")
+            .select("id,order_index,default_next_section_id")
+            .eq("form_definition_id", form.id)
+            .order("order_index", { ascending: true });
+          const sections = sortSections(sectionRows ?? []);
+          const questionIds = (questions ?? []).map((q) => q.id);
+          let branchRules: Array<{ question_id: string; option_value: string; next_section_id: string | null }> = [];
+          if (questionIds.length > 0) {
+            const { data: rules } = await supabaseAdmin
+              .from("form_question_branch_rules")
+              .select("question_id,option_value,next_section_id")
+              .in("question_id", questionIds);
+            branchRules = rules ?? [];
+          }
+
+          const terminalId = d.terminal_section_id || null;
+          if (!terminalId) {
+            return new Response(JSON.stringify({ ok: false, error: "Seção final não informada." }), { status: 400, headers: cors });
+          }
+
+          const startId =
+            d.start_section_id && sections.some((s) => s.id === d.start_section_id)
+              ? d.start_section_id
+              : sections[0]?.id;
+          if (!startId) {
+            return new Response(JSON.stringify({ ok: false, error: "Formulário sem seções." }), { status: 400, headers: cors });
+          }
+
+          const path = getSectionsOnPath(
+            startId,
+            terminalId,
+            sections,
+            (questions ?? []) as QuestionRow[],
+            branchRules,
+            answers,
+          );
+          if (path[path.length - 1] !== terminalId) {
+            return new Response(JSON.stringify({ ok: false, error: "Fluxo de seções inválido." }), { status: 400, headers: cors });
+          }
+          sectionPathIds = new Set(path);
+        }
+
         let terminalSection: {
           confirmation_active: boolean | null;
           whatsapp_button_enabled: boolean | null;
@@ -275,11 +327,6 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           terminalSection = sec ?? null;
         }
 
-        type AddressAnswer = { cep?: string; endereco?: string; numero?: string; complemento?: string; bairro?: string; referencia?: string; cidade?: string; uf?: string };
-        const answers = d.answers as Record<string, string | string[] | boolean | AddressAnswer | null>;
-        const isAddressAnswer = (v: unknown): v is AddressAnswer =>
-          typeof v === "object" && v !== null && !Array.isArray(v);
-
         // Valida obrigatoriedade e localiza nome/telefone (sempre presentes no catálogo core).
         let nome: string | null = null;
         let phoneRaw: string | null = null;
@@ -289,11 +336,10 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         const customAnswers: { question_id: string; question_label: string; answer_text: string }[] = [];
 
         for (const q of (questions ?? []) as QuestionRow[]) {
+          if (sectionPathIds && (!q.section_id || !sectionPathIds.has(q.section_id))) continue;
+
           const value = answers[q.id];
-          const isEmpty =
-            value == null || value === "" ||
-            (Array.isArray(value) && value.length === 0) ||
-            (isAddressAnswer(value) && !Object.values(value).some((v) => v && String(v).trim()));
+          const isEmpty = isAnswerEmpty(value);
           if (q.required && isEmpty) {
             return new Response(JSON.stringify({ ok: false, error: `Campo obrigatório: ${q.label}` }), { status: 400, headers: cors });
           }
@@ -357,8 +403,10 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             return new Response(JSON.stringify({ ok: false, error: "É preciso autorizar o contato por WhatsApp." }), { status: 400, headers: cors });
           }
         } else {
-          const hasNomeField = (questions ?? []).some((q) => q.catalog_field_key === "nome");
-          const hasPhoneField = (questions ?? []).some((q) => q.catalog_field_key === "whatsapp");
+          const onPath = (q: QuestionRow) =>
+            !sectionPathIds || (q.section_id != null && sectionPathIds.has(q.section_id));
+          const hasNomeField = (questions ?? []).some((q) => q.catalog_field_key === "nome" && onPath(q));
+          const hasPhoneField = (questions ?? []).some((q) => q.catalog_field_key === "whatsapp" && onPath(q));
           if (hasNomeField && (!nome || nome.length < 2)) {
             return new Response(JSON.stringify({ ok: false, error: "Nome ausente." }), { status: 400, headers: cors });
           }
@@ -371,6 +419,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
 
         }
         for (const q of (questions ?? []) as QuestionRow[]) {
+          if (sectionPathIds && (!q.section_id || !sectionPathIds.has(q.section_id))) continue;
           if (!q.required || q.source !== "catalog" || !q.catalog_field_key) continue;
           if (!isLegalConsentCatalogKey(q.catalog_field_key)) continue;
           const value = answers[q.id];

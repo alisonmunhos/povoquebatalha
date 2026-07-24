@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
-import { resolveNextSectionId, sortSections } from "@/lib/form-sections-routing";
+import { resolveNextSectionId, sortSections, findFirstRequiredEmpty } from "@/lib/form-sections-routing";
 
 export type AddressValue = {
   cep?: string; endereco?: string; numero?: string; complemento?: string;
@@ -71,6 +71,7 @@ export function PublicFormRenderer({
   const [sectionedForm, setSectionedForm] = useState<SectionedFormDefinition | null>(null);
   const [layoutMode, setLayoutMode] = useState<"flat" | "sectioned" | null>(null);
   const [currentSectionId, setCurrentSectionId] = useState<string | null>(null);
+  const [journeyStartSectionId, setJourneyStartSectionId] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export function PublicFormRenderer({
           const startId = loaded.start_section_id && sections.some((s) => s.id === loaded.start_section_id)
             ? loaded.start_section_id
             : sections[0]?.id ?? null;
+          setJourneyStartSectionId(startId);
           setCurrentSectionId(startId);
           return;
         }
@@ -156,6 +158,7 @@ export function PublicFormRenderer({
           ref_token: refToken ?? "",
           recad_token: recadToken ?? "",
           terminal_section_id: terminalSectionId,
+          start_section_id: journeyStartSectionId ?? terminalSectionId,
           answers: values,
           hp: "",
         }),
@@ -175,10 +178,22 @@ export function PublicFormRenderer({
     }
   }
 
+  function validateCurrentSection(): string | null {
+    const visible = sectionQuestions.filter(
+      (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
+    );
+    return findFirstRequiredEmpty(visible, values, parentAnswers);
+  }
+
   function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!sectionedForm || !currentSection) return;
     setError(null);
+    const validationError = validateCurrentSection();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     const nextId = resolveNextSectionId(
       currentSection.id,
       sections,
