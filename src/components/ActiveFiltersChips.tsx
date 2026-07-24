@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import type { CrmFilters } from "@/lib/crm-filters";
+import { LEGAL_CONSENT_FILTER_LABELS } from "@/lib/legal-consent-fields";
 import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import type { FilterOptionsBundle } from "@/components/ContactFiltersPanel";
 import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/lib/phone-labels";
@@ -75,6 +76,7 @@ export function ActiveFiltersChips({
   // Comunicação
   if (filters.consent) chips.push({ key: "cs", label: `Consentimento WhatsApp: ${filters.consent}`, onRemove: remove("consent") });
   if (filters.consentimento_lgpd) chips.push({ key: "clgpd", label: `Consentimento LGPD: ${filters.consentimento_lgpd}`, onRemove: remove("consentimento_lgpd") });
+  if (filters.consentimento_dados_sensiveis) chips.push({ key: "cds", label: `${LEGAL_CONSENT_FILTER_LABELS.consentimento_dados_sensiveis}: ${filters.consentimento_dados_sensiveis}`, onRemove: remove("consentimento_dados_sensiveis") });
   if (filters.optOut) chips.push({ key: "oo", label: `Opt-out: ${filters.optOut}`, onRemove: remove("optOut") });
   if (filters.bloqueado) chips.push({ key: "bl", label: `Bloqueado: ${filters.bloqueado}`, onRemove: remove("bloqueado") });
   for (const v of filters.phone_statuses ?? []) chips.push({ key: `ps-${v}`, label: `Número: ${PHONE_STATUS_LABEL[v] ?? v}`, onRemove: removeFromArr("phone_statuses", v) });

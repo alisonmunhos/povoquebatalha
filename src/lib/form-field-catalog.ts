@@ -12,6 +12,8 @@
 // filtro, painel de filtros, importação CSV, edição manual da ficha) — por isso este
 // catálogo é uma constante de código, não uma tabela no banco.
 
+import { LEGAL_CONSENT_FICHA_LABELS } from "@/lib/legal-consent-fields";
+
 export type FormFieldResponseType = "short_text" | "multiple_choice" | "yes_no" | "date" | "number" | "address_block";
 export type FormFieldFilterKind = "text" | "multiselect" | "enum" | "boolean";
 
@@ -68,6 +70,13 @@ export const FORM_FIELD_CATALOG: FormCatalogField[] = [
     key: "consentimento_lgpd", responseType: "yes_no", targetColumns: ["consentimento_lgpd"], filterKind: "boolean",
     defaultLabel:
       "Autorizo o tratamento dos meus dados pessoais pela Campanha do Povo que Batalha, conforme a Lei Geral de Proteção de Dados (LGPD), para os fins descritos neste cadastro.",
+  },
+  {
+    key: "consentimento_dados_sensiveis",
+    responseType: "yes_no",
+    targetColumns: ["consentimento_dados_sensiveis"],
+    filterKind: "boolean",
+    defaultLabel: LEGAL_CONSENT_FICHA_LABELS.consentimento_dados_sensiveis,
   },
 
   // Já existem na ficha — reusam o filtro já existente.

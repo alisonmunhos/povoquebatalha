@@ -79,7 +79,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const { data: contacts, error } = await sb
       .from("contacts")
       .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id",
+        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,consentimento_dados_sensiveis,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id",
       )
       .is("arquivado_at", null)
       .limit(20000);
@@ -130,6 +130,8 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     let consentEmpty = 0;
     let consentLgpdSim = 0;
     let consentLgpdNao = 0;
+    let consentDadosSensiveisSim = 0;
+    let consentDadosSensiveisNao = 0;
     let participaSim = 0;
     let participaNao = 0;
     let participaEmpty = 0;
@@ -212,6 +214,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       else consentEmpty += 1;
       if (c.consentimento_lgpd === true) consentLgpdSim += 1;
       else if (c.consentimento_lgpd === false) consentLgpdNao += 1;
+      const dadosSensiveis = (c as { consentimento_dados_sensiveis?: boolean }).consentimento_dados_sensiveis;
+      if (dadosSensiveis === true) consentDadosSensiveisSim += 1;
+      else if (dadosSensiveis === false) consentDadosSensiveisNao += 1;
       if (c.participa_movimento_social === true) participaSim += 1;
       else if (c.participa_movimento_social === false) participaNao += 1;
       else participaEmpty += 1;
@@ -376,6 +381,10 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       consentimento_lgpd: [
         { value: "sim", label: "Sim", count: consentLgpdSim },
         { value: "nao", label: "Não", count: consentLgpdNao },
+      ],
+      consentimento_dados_sensiveis: [
+        { value: "sim", label: "Sim", count: consentDadosSensiveisSim },
+        { value: "nao", label: "Não", count: consentDadosSensiveisNao },
       ],
       participa_movimento_social: [
         { value: "true", label: "Sim", count: participaSim },

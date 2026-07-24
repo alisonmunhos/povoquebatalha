@@ -37,6 +37,7 @@ const FIELDS: Array<{ key: string; label: string }> = [
 const BOOL_FIELDS: Array<{ key: string; label: string }> = [
   { key: "consentimento_whatsapp", label: "Consentimento WhatsApp" },
   { key: "consentimento_lgpd", label: "Consentimento LGPD" },
+  { key: "consentimento_dados_sensiveis", label: "Dados Sensíveis" },
 ];
 
 function DupPage() {

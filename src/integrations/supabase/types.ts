@@ -963,6 +963,8 @@ export type Database = {
           como_conheceu: string | null
           complemento: string | null
           consentimento_at: string | null
+          consentimento_dados_sensiveis: boolean
+          consentimento_dados_sensiveis_at: string | null
           consentimento_lgpd: boolean
           consentimento_lgpd_at: string | null
           consentimento_whatsapp: boolean
@@ -1070,6 +1072,8 @@ export type Database = {
           como_conheceu?: string | null
           complemento?: string | null
           consentimento_at?: string | null
+          consentimento_dados_sensiveis?: boolean
+          consentimento_dados_sensiveis_at?: string | null
           consentimento_lgpd?: boolean
           consentimento_lgpd_at?: string | null
           consentimento_whatsapp?: boolean
@@ -1179,6 +1183,8 @@ export type Database = {
           como_conheceu?: string | null
           complemento?: string | null
           consentimento_at?: string | null
+          consentimento_dados_sensiveis?: boolean
+          consentimento_dados_sensiveis_at?: string | null
           consentimento_lgpd?: boolean
           consentimento_lgpd_at?: string | null
           consentimento_whatsapp?: boolean
