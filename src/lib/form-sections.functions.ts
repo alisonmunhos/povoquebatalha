@@ -48,6 +48,32 @@ function toSectionDrafts(
   }));
 }
 
+/** Normaliza seções vindas do Zod (campos .nullable().optional() podem ser undefined)
+ *  para o formato estrito SectionDraft, onde opcionais são string | null. */
+function normalizeSectionDrafts(
+  sections: Array<{
+    id?: string;
+    order_index: number;
+    title?: string | null;
+    default_next_order_index?: number | null;
+    confirmation_active?: boolean | null;
+    whatsapp_button_enabled?: boolean | null;
+    whatsapp_button_message?: string | null;
+    success_screen_order?: SuccessScreenOrder | null;
+  }>,
+): SectionDraft[] {
+  return sections.map((s) => ({
+    id: s.id,
+    order_index: s.order_index,
+    title: s.title ?? null,
+    default_next_order_index: s.default_next_order_index ?? null,
+    confirmation_active: s.confirmation_active ?? null,
+    whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
+    whatsapp_button_message: s.whatsapp_button_message ?? null,
+    success_screen_order: s.success_screen_order ?? null,
+  }));
+}
+
 function toBranchRuleDrafts(
   rules: Array<{ id: string; question_id: string; option_value: string; next_section_id: string | null }>,
   orderById: Map<string, number>,
@@ -123,7 +149,9 @@ export const upsertFormSections = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
 
-    const routingError = validateForwardOnlyRouting(data.sections);
+    const normalizedSections = normalizeSectionDrafts(data.sections);
+
+    const routingError = validateForwardOnlyRouting(normalizedSections);
     if (routingError) throw new Error(routingError);
 
     const keepIds = data.sections.map((s) => s.id).filter((id): id is string => Boolean(id));
