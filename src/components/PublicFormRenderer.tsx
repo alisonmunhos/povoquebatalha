@@ -39,6 +39,7 @@ type FormSection = {
   id: string;
   order_index: number;
   title: string | null;
+  description: string | null;
   default_next_section_id: string | null;
 };
 type BranchRule = {
@@ -269,6 +270,9 @@ export function PublicFormRenderer({
             {progressLabel && <p className="text-sm text-muted-foreground mt-1">{progressLabel}</p>}
             <form onSubmit={onContinueSectioned} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
               <h2 className="text-lg font-semibold">{sectionTitle}</h2>
+              {currentSection.description?.trim() && (
+                <p className="text-xs text-muted-foreground -mt-2">{currentSection.description.trim()}</p>
+              )}
               <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
               {sectionQuestions
                 .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
