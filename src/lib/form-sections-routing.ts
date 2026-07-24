@@ -1,4 +1,7 @@
-import { getCatalogField } from "@/lib/form-field-catalog";
+import {
+  getEffectiveQuestionShape,
+  type QuestionRowForShape,
+} from "@/lib/form-question-shape";
 
 export type SectionRouteInfo = {
   id: string;
@@ -21,14 +24,6 @@ function answerToBranchValue(value: AnswerValue): string | null {
   return null;
 }
 
-function isBranchableCatalogKey(key: string | null | undefined): boolean {
-  if (!key) return false;
-  const field = getCatalogField(key);
-  if (!field) return false;
-  if (field.responseType === "yes_no") return true;
-  return field.responseType === "multiple_choice" && field.filterKind === "enum";
-}
-
 /**
  * Decide a próxima seção após a atual. Retorna `null` quando o fluxo termina.
  * Regras de ramificação têm prioridade sobre o destino padrão da seção.
@@ -36,7 +31,7 @@ function isBranchableCatalogKey(key: string | null | undefined): boolean {
 export function resolveNextSectionId(
   currentSectionId: string,
   sections: SectionRouteInfo[],
-  questions: Array<{ id: string; section_id: string | null; catalog_field_key: string | null; source: string }>,
+  questions: Array<QuestionRowForShape & { id: string; section_id: string | null }>,
   branchRules: BranchRuleRouteInfo[],
   answers: Record<string, AnswerValue>,
 ): string | null {
@@ -45,7 +40,8 @@ export function resolveNextSectionId(
 
   const sectionQuestions = questions.filter((q) => q.section_id === currentSectionId);
   for (const q of sectionQuestions) {
-    if (q.source !== "catalog" || !isBranchableCatalogKey(q.catalog_field_key)) continue;
+    const shape = getEffectiveQuestionShape(q);
+    if (!shape.isBranchable) continue;
     const branchValue = answerToBranchValue(answers[q.id]);
     if (!branchValue) continue;
     const rule = branchRules.find((r) => r.question_id === q.id && r.option_value === branchValue);

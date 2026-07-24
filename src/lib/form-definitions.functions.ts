@@ -9,6 +9,11 @@ import { requireStaff, requireAdmin } from "@/lib/authz";
 import { insertTrackedLink } from "@/lib/tracked-links.functions";
 import { CORE_CATALOG_FIELDS } from "@/lib/form-field-catalog";
 import { loadFormSectionsBundle } from "@/lib/form-sections.functions";
+import {
+  normalizeCustomOptions,
+  type CustomOption,
+  type CustomResponseType,
+} from "@/lib/form-question-shape";
 import type { Database } from "@/integrations/supabase/types";
 
 type TemplateRow = Database["public"]["Tables"]["message_templates"]["Row"];
@@ -222,6 +227,11 @@ function normalizeQuestionLinkFields(linkText?: string | null, linkUrl?: string 
   return { link_text: text.slice(0, 120), link_url: url.slice(0, 500) };
 }
 
+const customOptionDraftSchema = z.object({
+  value: z.string().trim().max(60).optional(),
+  label: z.string().trim().min(1).max(120),
+});
+
 const questionSchema = z.object({
   id: z.string().uuid().optional(),
   order_index: z.number().int().min(0),
@@ -233,7 +243,33 @@ const questionSchema = z.object({
   link_url: z.string().trim().max(500).nullable().optional(),
   required: z.boolean().default(false),
   section_id: z.string().uuid().nullable().optional(),
+  custom_response_type: z.enum(["short_text", "single_choice"]).nullable().optional(),
+  custom_options: z.array(customOptionDraftSchema).nullable().optional(),
 });
+
+function resolveCustomQuestionFields(
+  q: z.infer<typeof questionSchema>,
+  existingOptions: CustomOption[] | null | undefined,
+): { custom_response_type: CustomResponseType | null; custom_options: CustomOption[] | null } {
+  if (q.source !== "custom") {
+    return { custom_response_type: null, custom_options: null };
+  }
+  const type = q.custom_response_type ?? "short_text";
+  if (type !== "single_choice") {
+    return { custom_response_type: "short_text", custom_options: null };
+  }
+  const drafts = q.custom_options ?? [];
+  if (drafts.length < 2) {
+    throw new Error(`"${q.label}": escolha única precisa de pelo menos 2 alternativas com texto.`);
+  }
+  if (drafts.some((o) => !o.label.trim())) {
+    throw new Error(`"${q.label}": preencha o texto de todas as alternativas.`);
+  }
+  return {
+    custom_response_type: "single_choice",
+    custom_options: normalizeCustomOptions(drafts, existingOptions),
+  };
+}
 
 const upsertQuestionsSchema = z.object({
   form_definition_id: z.string().uuid(),
@@ -266,6 +302,18 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
     }
 
     const keepIds = data.questions.map((q) => q.id).filter((id): id is string => Boolean(id));
+    const existingOptionsById = new Map<string, CustomOption[]>();
+    if (keepIds.length > 0) {
+      const { data: existingRows } = await context.supabase
+        .from("form_definition_questions")
+        .select("id,custom_options")
+        .in("id", keepIds);
+      for (const row of existingRows ?? []) {
+        const opts = row.custom_options as CustomOption[] | null;
+        if (opts?.length) existingOptionsById.set(row.id, opts);
+      }
+    }
+
     if (keepIds.length > 0) {
       await context.supabase
         .from("form_definition_questions")
@@ -278,16 +326,19 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
 
     for (const q of data.questions) {
       const links = normalizeQuestionLinkFields(q.link_text, q.link_url);
+      const customFields = resolveCustomQuestionFields(q, q.id ? existingOptionsById.get(q.id) : null);
       const row = {
         form_definition_id: data.form_definition_id,
         order_index: q.order_index,
         source: q.source,
-        catalog_field_key: q.catalog_field_key ?? null,
+        catalog_field_key: q.source === "catalog" ? (q.catalog_field_key ?? null) : null,
         label: q.label,
         help_text: q.help_text ?? null,
         ...links,
         required: q.required,
         section_id: q.section_id ?? null,
+        custom_response_type: customFields.custom_response_type,
+        custom_options: customFields.custom_options,
       };
       if (q.id) {
         const { error } = await context.supabase.from("form_definition_questions").update(row).eq("id", q.id);
@@ -444,7 +495,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
 
     const { data: questions, error: qErr } = await context.supabase
       .from("form_definition_questions")
-      .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id")
+      .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id,custom_response_type,custom_options")
       .eq("form_definition_id", data.id)
       .order("order_index", { ascending: true });
     if (qErr) throw qErr;
@@ -554,6 +605,8 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
             link_url: q.link_url,
             required: q.required,
             section_id: newSectionId,
+            custom_response_type: (q as { custom_response_type?: string | null }).custom_response_type ?? null,
+            custom_options: (q as { custom_options?: CustomOption[] | null }).custom_options ?? null,
           })
           .select("id")
           .single();
@@ -582,6 +635,8 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
           link_text: q.link_text,
           link_url: q.link_url,
           required: q.required,
+          custom_response_type: (q as { custom_response_type?: string | null }).custom_response_type ?? null,
+          custom_options: (q as { custom_options?: CustomOption[] | null }).custom_options ?? null,
         })),
       );
     }

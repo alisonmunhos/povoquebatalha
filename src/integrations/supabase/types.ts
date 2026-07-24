@@ -1556,6 +1556,8 @@ export type Database = {
         Row: {
           catalog_field_key: string | null
           created_at: string
+          custom_options: Json | null
+          custom_response_type: string | null
           form_definition_id: string
           help_text: string | null
           id: string
@@ -1570,6 +1572,8 @@ export type Database = {
         Insert: {
           catalog_field_key?: string | null
           created_at?: string
+          custom_options?: Json | null
+          custom_response_type?: string | null
           form_definition_id: string
           help_text?: string | null
           id?: string
@@ -1584,6 +1588,8 @@ export type Database = {
         Update: {
           catalog_field_key?: string | null
           created_at?: string
+          custom_options?: Json | null
+          custom_response_type?: string | null
           form_definition_id?: string
           help_text?: string | null
           id?: string

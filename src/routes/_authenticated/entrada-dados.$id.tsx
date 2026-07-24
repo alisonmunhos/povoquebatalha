@@ -8,6 +8,8 @@ import {
 } from "@/lib/form-definitions.functions";
 import { FORM_FIELD_CATALOG, CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
 import { SectionedQuestionsPanel } from "@/components/form-builder/SectionedQuestionsPanel";
+import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
+import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -17,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/entrada-dados/$id")({
   component: FormBuilder,
 });
 
-type QuestionDraft = {
+type QuestionDraft = CustomQuestionDraft & {
   id?: string;
   order_index: number;
   source: "catalog" | "custom";
@@ -77,6 +79,8 @@ function FormBuilder() {
       link_text: (row.link_text as string | null) ?? null,
       link_url: (row.link_url as string | null) ?? null,
       required: Boolean(row.required),
+      custom_response_type: (row.custom_response_type as CustomResponseType | null) ?? "short_text",
+      custom_options: (row.custom_options as CustomOption[] | null) ?? null,
     });
     setCoreQuestions((q.data.questions ?? []).filter((row) => coreKeys.has(row.catalog_field_key as string)).map(toDraft));
     setQuestions((q.data.questions ?? []).filter((row) => !coreKeys.has(row.catalog_field_key as string)).map(toDraft));
@@ -115,7 +119,10 @@ function FormBuilder() {
     ]);
   }
   function addCustomQuestion() {
-    setQuestions((prev) => [...prev, { order_index: prev.length, source: "custom", catalog_field_key: null, label: "", help_text: null, link_text: null, link_url: null, required: false }]);
+    setQuestions((prev) => [...prev, {
+      order_index: prev.length, source: "custom", catalog_field_key: null, label: "", help_text: null,
+      link_text: null, link_url: null, required: false, custom_response_type: "short_text", custom_options: null,
+    }]);
   }
   function removeQuestion(idx: number) {
     setQuestions((prev) => prev.filter((_, i) => i !== idx).map((qu, i) => ({ ...qu, order_index: i })));
@@ -170,6 +177,15 @@ function FormBuilder() {
     ];
     const linkErr = validateQuestionLinks(allDrafts);
     if (linkErr) { toast.error(linkErr); return; }
+    for (const q of [...coreQuestions, ...questions]) {
+      if (q.source === "custom" && q.custom_response_type === "single_choice") {
+        const filled = (q.custom_options ?? []).filter((o) => o.label.trim()).length;
+        if (filled < 2) {
+          toast.error(`"${q.label.trim() || "Pergunta customizada"}": escolha única precisa de pelo menos 2 alternativas preenchidas.`);
+          return;
+        }
+      }
+    }
     setSavingQuestions(true);
     try {
       const core: QuestionDraft[] = CORE_CATALOG_FIELDS.map((f, i) => {
@@ -181,7 +197,15 @@ function FormBuilder() {
           required: true,
         };
       });
-      const all = [...core, ...questions].map((qu, i) => ({ ...qu, order_index: i }));
+      const all = [...core, ...questions].map((qu, i) => ({
+        ...qu,
+        order_index: i,
+        custom_response_type: qu.source === "custom" ? (qu.custom_response_type ?? "short_text") : null,
+        custom_options:
+          qu.source === "custom" && qu.custom_response_type === "single_choice"
+            ? (qu.custom_options ?? [])
+            : null,
+      }));
       await upsertQuestionsFn({ data: { form_definition_id: id, questions: all } });
       toast.success("Perguntas salvas");
       q.refetch();
@@ -346,6 +370,8 @@ function FormBuilder() {
               link_text: string | null;
               link_url: string | null;
               required: boolean;
+              custom_response_type?: string | null;
+              custom_options?: CustomOption[] | null;
             }>}
             initialBranchRules={q.data.sections?.branchRules ?? []}
             onSaved={() => q.refetch()}
@@ -365,6 +391,9 @@ function FormBuilder() {
             </div>
             <input value={qu.label} onChange={(e) => updateQuestion(idx, { label: e.target.value })} placeholder="Enunciado da pergunta" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             <input value={qu.help_text ?? ""} onChange={(e) => updateQuestion(idx, { help_text: e.target.value || null })} placeholder="Texto de ajuda (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            {qu.source === "custom" && (
+              <CustomQuestionFields value={qu} onChange={(patch) => updateQuestion(idx, patch)} />
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input value={qu.link_text ?? ""} onChange={(e) => updateQuestion(idx, { link_text: e.target.value || null })} placeholder="Texto do link (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               <input value={qu.link_url ?? ""} onChange={(e) => updateQuestion(idx, { link_url: e.target.value || null })} placeholder="URL do link (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
@@ -386,7 +415,7 @@ function FormBuilder() {
             ))}
           </div>
           <button onClick={addCustomQuestion} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-            <Plus className="h-4 w-4" /> Pergunta customizada (texto livre)
+            <Plus className="h-4 w-4" /> Pergunta customizada
           </button>
         </div>
 

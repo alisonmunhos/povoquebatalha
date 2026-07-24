@@ -7,6 +7,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { buildSourceMetadata } from "@/lib/contact-source-metadata";
 import { getCatalogField, type FormCatalogField } from "@/lib/form-field-catalog";
+import {
+  getEffectiveQuestionShape,
+  labelForCustomOptionValue,
+  type CustomOption,
+} from "@/lib/form-question-shape";
 import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "@/lib/public-form-guards.server";
 
 // Só usado quando form.prefill_from_token está ligado (opt-in, ver migration) —
@@ -68,11 +73,13 @@ type QuestionRow = {
   link_text: string | null;
   link_url: string | null;
   section_id: string | null;
+  custom_response_type: string | null;
+  custom_options: CustomOption[] | null;
 };
 
 function enrichQuestions(rows: QuestionRow[]) {
   return rows.map((q) => {
-    const catalog = q.source === "catalog" && q.catalog_field_key ? getCatalogField(q.catalog_field_key) : undefined;
+    const shape = getEffectiveQuestionShape(q);
     return {
       id: q.id,
       section_id: q.section_id,
@@ -81,11 +88,16 @@ function enrichQuestions(rows: QuestionRow[]) {
       required: q.required,
       link_text: q.link_text,
       link_url: q.link_url,
-      response_type: catalog?.responseType ?? "short_text",
-      filter_kind: catalog?.filterKind ?? "text",
-      options: catalog?.options ?? null,
-      depends_on: catalog?.dependsOn ?? null,
+      response_type: shape.response_type,
+      filter_kind: shape.filter_kind,
+      options: shape.options,
+      depends_on:
+        q.source === "catalog" && q.catalog_field_key
+          ? getCatalogField(q.catalog_field_key)?.dependsOn ?? null
+          : null,
       catalog_field_key: q.catalog_field_key,
+      custom_response_type: q.custom_response_type,
+      custom_options: q.custom_options,
     };
   });
 }
@@ -123,7 +135,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         const { data: questions } = await supabaseAdmin
           .from("form_definition_questions")
-          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id")
+          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id,custom_response_type,custom_options")
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
 
@@ -238,7 +250,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         const { data: questions } = await supabaseAdmin
           .from("form_definition_questions")
-          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id")
+          .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id,custom_response_type,custom_options")
           .eq("form_definition_id", form.id)
           .order("order_index", { ascending: true });
 
@@ -286,7 +298,22 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           if (isEmpty) continue;
 
           if (q.source === "custom") {
-            customAnswers.push({ question_id: q.id, question_label: q.label, answer_text: String(value) });
+            const shape = getEffectiveQuestionShape(q);
+            let answerText = String(value);
+            if (shape.response_type === "multiple_choice") {
+              if (typeof value !== "string" || !value.trim()) {
+                if (q.required) {
+                  return new Response(JSON.stringify({ ok: false, error: `Campo obrigatório: ${q.label}` }), { status: 400, headers: cors });
+                }
+                continue;
+              }
+              const allowed = (q.custom_options ?? []).some((o) => o.value === value);
+              if (!allowed) {
+                return new Response(JSON.stringify({ ok: false, error: `Resposta inválida: ${q.label}` }), { status: 400, headers: cors });
+              }
+              answerText = labelForCustomOptionValue(q.custom_options, value);
+            }
+            customAnswers.push({ question_id: q.id, question_label: q.label, answer_text: answerText });
             continue;
           }
 
