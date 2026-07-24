@@ -61,6 +61,7 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   formas_ajuda: "Formas de ajudar",
   formas_ajuda_outro: "Formas de ajudar (outro)",
   consentimento_lgpd: "Consentimento LGPD (sim/não)",
+  consentimento_dados_sensiveis: "Consentimento para Tratamento de Dados Pessoais Sensíveis (sim/não)",
   raw: "Guardar como dado bruto",
 };
 

@@ -6,9 +6,10 @@ import {
   getFormDefinition, updateFormDefinition, upsertFormQuestions,
   saveFormConfirmationMessage, mintFormTrackedLink,
 } from "@/lib/form-definitions.functions";
-import { FORM_FIELD_CATALOG, CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
+import { CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
 import { SectionedQuestionsPanel } from "@/components/form-builder/SectionedQuestionsPanel";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
+import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle } from "lucide-react";
@@ -100,8 +101,10 @@ function FormBuilder() {
 
   if (q.isLoading || !q.data) return <div className="p-10 text-muted-foreground">Carregando…</div>;
 
-  const usedCatalogKeys = new Set(questions.filter((qu) => qu.source === "catalog" && qu.catalog_field_key).map((qu) => qu.catalog_field_key));
-  const availableCatalog = FORM_FIELD_CATALOG.filter((f) => !f.core && !usedCatalogKeys.has(f.key));
+  const usedCatalogKeys = new Set([
+    ...coreQuestions.map((qu) => qu.catalog_field_key).filter(Boolean) as string[],
+    ...questions.filter((qu) => qu.source === "catalog" && qu.catalog_field_key).map((qu) => qu.catalog_field_key!),
+  ]);
 
   function addCatalogField(field: FormCatalogField) {
     setQuestions((prev) => [
@@ -407,13 +410,11 @@ function FormBuilder() {
 
         <div className="pt-2 space-y-2">
           <p className="text-sm font-medium">Adicionar campo do catálogo</p>
-          <div className="flex flex-wrap gap-2">
-            {availableCatalog.map((f) => (
-              <button key={f.key} onClick={() => addCatalogField(f)} className="text-xs px-3 py-1.5 border rounded-full hover:bg-muted/60">
-                {f.defaultLabel}
-              </button>
-            ))}
-          </div>
+          <CatalogFieldPicker
+            usedCatalogKeys={usedCatalogKeys}
+            hideCoreInConsentGroup
+            onAdd={addCatalogField}
+          />
           <button onClick={addCustomQuestion} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
             <Plus className="h-4 w-4" /> Pergunta customizada
           </button>

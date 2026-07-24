@@ -13,6 +13,7 @@ import {
   type CustomOption,
 } from "@/lib/form-question-shape";
 import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "@/lib/public-form-guards.server";
+import { isLegalConsentCatalogKey } from "@/lib/legal-consent-fields";
 
 // Só usado quando form.prefill_from_token está ligado (opt-in, ver migration) —
 // lê o valor já existente do contato pra virar valor inicial da pergunta,
@@ -371,7 +372,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
         for (const q of (questions ?? []) as QuestionRow[]) {
           if (!q.required || q.source !== "catalog" || !q.catalog_field_key) continue;
-          if (q.catalog_field_key !== "consentimento_lgpd") continue;
+          if (!isLegalConsentCatalogKey(q.catalog_field_key)) continue;
           const value = answers[q.id];
           if (value !== true) {
             return new Response(JSON.stringify({ ok: false, error: `É preciso aceitar: ${q.label}` }), { status: 400, headers: cors });

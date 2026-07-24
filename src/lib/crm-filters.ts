@@ -88,6 +88,7 @@ export const crmFilterSchema = z.object({
   consent: z.enum(["sim", "nao"]).optional(),
   consent_values: z.array(z.string()).optional(),
   consentimento_lgpd: z.enum(["sim", "nao"]).optional(),
+  consentimento_dados_sensiveis: z.enum(["sim", "nao"]).optional(),
   optOut: z.enum(["sim", "nao"]).optional(),
   bloqueado: z.enum(["sim", "nao"]).optional(),
   archived: z.enum(["sim", "nao", "todos"]).default("nao"),
@@ -480,6 +481,8 @@ export function applyCrmFilters<T extends {
   }
   if (f.consentimento_lgpd === "sim") q = q.eq("consentimento_lgpd", true);
   if (f.consentimento_lgpd === "nao") q = q.eq("consentimento_lgpd", false);
+  if (f.consentimento_dados_sensiveis === "sim") q = q.eq("consentimento_dados_sensiveis", true);
+  if (f.consentimento_dados_sensiveis === "nao") q = q.eq("consentimento_dados_sensiveis", false);
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);
   if (f.optOut === "nao") q = q.is("opt_out_at", null);
   if (f.bloqueado === "sim") q = q.eq("lifecycle_status", "nao_enviar" as never);

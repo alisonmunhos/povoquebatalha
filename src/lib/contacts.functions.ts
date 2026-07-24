@@ -112,6 +112,7 @@ export const updateSchema = z.object({
   disponibilidade: z.array(z.string().max(80)).max(50).optional(),
   consentimento_whatsapp: z.boolean().optional(),
   consentimento_lgpd: z.boolean().optional(),
+  consentimento_dados_sensiveis: z.boolean().optional(),
   origem_detalhe: z.string().trim().max(120).nullable().optional(),
   observacoes: z.string().trim().max(4000).nullable().optional(),
   geocode: z.boolean().optional(),

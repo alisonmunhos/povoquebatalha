@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  FORM_FIELD_CATALOG,
   type FormCatalogField,
 } from "@/lib/form-field-catalog";
+import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import {
   destinationLabel,
   getBranchableOptions,
@@ -156,7 +156,6 @@ export function SectionedQuestionsPanel({
   const usedCatalogKeys = new Set(
     questions.filter((q) => q.source === "catalog" && q.catalog_field_key).map((q) => q.catalog_field_key!),
   );
-  const availableCatalog = FORM_FIELD_CATALOG.filter((f) => !usedCatalogKeys.has(f.key));
 
   function reindexSections(next: LocalSection[]): LocalSection[] {
     return next.map((s, i) => ({ ...s, order_index: i }));
@@ -730,18 +729,7 @@ export function SectionedQuestionsPanel({
 
         <div className="pt-2 space-y-2 border-t">
           <p className="text-sm font-medium">Adicionar campo do catálogo</p>
-          <div className="flex flex-wrap gap-2">
-            {availableCatalog.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => addCatalogField(f)}
-                className="text-xs px-3 py-1.5 border rounded-full hover:bg-muted/60"
-              >
-                {f.defaultLabel}
-              </button>
-            ))}
-          </div>
+          <CatalogFieldPicker usedCatalogKeys={usedCatalogKeys} onAdd={addCatalogField} />
           <button
             type="button"
             onClick={addCustomQuestion}

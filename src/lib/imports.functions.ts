@@ -47,6 +47,7 @@ export const FIELD_KEYS = [
   "formas_ajuda",
   "formas_ajuda_outro",
   "consentimento_lgpd",
+  "consentimento_dados_sensiveis",
   "raw",
 ] as const;
 export type FieldKey = (typeof FIELD_KEYS)[number];
@@ -229,6 +230,7 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
     else if (/(disponibilidade|diasdisponiveis|horariodisponivel|quandopodeajudar)/.test(n)) map[h] = "disponibilidade";
     else if (/(formas.*ajuda.*outro|ajudaoutro)/.test(n)) map[h] = "formas_ajuda_outro";
     else if (/(formas.*ajuda|comoajudar|comovoceajuda)/.test(n)) map[h] = "formas_ajuda";
+    else if (/(consentimentodadossensiveis|dadossensiveis|dados_pessoais_sensiveis|tratamentodadossensiveis|consentimentosensiveis)/.test(n)) map[h] = "consentimento_dados_sensiveis";
     else if (/(consentimentolgpd|lgpd|protecaodedados|consentimentodados|tratamentodados)/.test(n)) map[h] = "consentimento_lgpd";
     else if (/(origem|identificacao|lista|fonte)/.test(n)) map[h] = "origem_detalhe";
     else if (/(^tipo$|tipocontato|tipodecontato|categoriacontato|categoriadecontato)/.test(n)) map[h] = "tipo_contato";
@@ -288,6 +290,7 @@ type PreviewRow = {
     tipo_contato?: string | null;
     coletivo_alicerce?: boolean | null;
     consentimento_lgpd?: boolean | null;
+    consentimento_dados_sensiveis?: boolean | null;
     participa_movimento_social?: boolean | null;
     cep?: string | null;
     endereco?: string | null;
@@ -469,6 +472,7 @@ export const buildPreview = createServerFn({ method: "POST" })
       const tipoContato = parseTipoContato(getBy("tipo_contato"));
       const coletivoAlicerce = parseBool(getBy("coletivo_alicerce"));
       const consentimentoLgpd = parseBool(getBy("consentimento_lgpd"));
+      const consentimentoDadosSensiveis = parseBool(getBy("consentimento_dados_sensiveis"));
       const movNome = getBy("movimento_social");
       let participaMov = parseBool(getBy("participa_movimento_social"));
       // Se veio nome de movimento sem coluna de participação explícita, assume que participa.
@@ -490,6 +494,7 @@ export const buildPreview = createServerFn({ method: "POST" })
           tipo_contato: tipoContato,
           coletivo_alicerce: coletivoAlicerce,
           consentimento_lgpd: consentimentoLgpd,
+          consentimento_dados_sensiveis: consentimentoDadosSensiveis,
           participa_movimento_social: participaMov,
           cep: getBy("cep"),
           endereco: getBy("endereco"),
@@ -695,6 +700,7 @@ export const commitImport = createServerFn({ method: "POST" })
           origem_detalhe: ex.origem_detalhe ?? null,
           coletivo_alicerce: ex.coletivo_alicerce ?? null,
           consentimento_lgpd: ex.consentimento_lgpd ?? null,
+          consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? null,
           participa_movimento_social:
             ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
@@ -802,6 +808,7 @@ export const commitImport = createServerFn({ method: "POST" })
             fillIfEmpty("movimento_social_nome", ex.movimento_social_nome ?? null);
             fillIfEmpty("coletivo_alicerce", ex.coletivo_alicerce);
             fillIfEmpty("consentimento_lgpd", ex.consentimento_lgpd);
+            fillIfEmpty("consentimento_dados_sensiveis", ex.consentimento_dados_sensiveis);
             fillIfEmpty(
               "participa_movimento_social",
               ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),

@@ -33,6 +33,8 @@ export type FilterOptionsBundle = {
   importacoes: MultiOption[];
   tracking_points: MultiOption[];
   imported_by: MultiOption[];
+  consentimento_lgpd?: MultiOption[];
+  consentimento_dados_sensiveis?: MultiOption[];
 };
 
 const PHONE_STATUS: MultiOption[] = [
@@ -268,7 +270,10 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
           <SingleSelectFilter options={SIM_NAO} value={filters.consent} onChange={(v) => set("consent", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
         <Field label="Consentimento LGPD" hint="Tratamento de dados pessoais — independente do consentimento de WhatsApp.">
-          <SingleSelectFilter options={SIM_NAO} value={filters.consentimento_lgpd} onChange={(v) => set("consentimento_lgpd", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
+          <SingleSelectFilter options={opts.consentimento_lgpd ?? SIM_NAO} value={filters.consentimento_lgpd} onChange={(v) => set("consentimento_lgpd", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
+        </Field>
+        <Field label="Dados Sensíveis">
+          <SingleSelectFilter options={opts.consentimento_dados_sensiveis ?? SIM_NAO} value={filters.consentimento_dados_sensiveis} onChange={(v) => set("consentimento_dados_sensiveis", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />
         </Field>
         <Field label="Opt-out (não quer receber)">
           <SingleSelectFilter options={SIM_NAO} value={filters.optOut} onChange={(v) => set("optOut", v as "sim" | "nao" | undefined)} placeholder="Qualquer" />

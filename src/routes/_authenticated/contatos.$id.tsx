@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { PHONE_STATUS_LABEL, PHONE_STATUS_BADGE, suggestDddFor, ALL_DDDS } from "@/lib/phone-labels";
+import { LEGAL_CONSENT_FICHA_LABELS } from "@/lib/legal-consent-fields";
  
 
 const TIPO_OPTIONS = [
@@ -117,6 +118,7 @@ function ContatoFicha() {
           : [],
         consentimento_whatsapp: c.consentimento_whatsapp,
         consentimento_lgpd: (c as { consentimento_lgpd?: boolean }).consentimento_lgpd ?? false,
+        consentimento_dados_sensiveis: (c as { consentimento_dados_sensiveis?: boolean }).consentimento_dados_sensiveis ?? false,
         origem_detalhe: c.origem_detalhe ?? "",
         observacoes: c.observacoes ?? "",
       });
@@ -451,6 +453,13 @@ function ContatoFicha() {
             </label>
             {(c as { consentimento_lgpd_at?: string | null }).consentimento_lgpd_at && (
               <p className="text-xs text-muted-foreground">LGPD desde {new Date((c as { consentimento_lgpd_at: string }).consentimento_lgpd_at).toLocaleString("pt-BR")}</p>
+            )}
+            <label className="flex items-center gap-2 text-sm mt-3">
+              <input type="checkbox" checked={!!form.consentimento_dados_sensiveis} onChange={(e) => set("consentimento_dados_sensiveis", e.target.checked)} />
+              {LEGAL_CONSENT_FICHA_LABELS.consentimento_dados_sensiveis}
+            </label>
+            {(c as { consentimento_dados_sensiveis_at?: string | null }).consentimento_dados_sensiveis_at && (
+              <p className="text-xs text-muted-foreground">Dados sensíveis desde {new Date((c as { consentimento_dados_sensiveis_at: string }).consentimento_dados_sensiveis_at).toLocaleString("pt-BR")}</p>
             )}
             {!isAgitadorOnly && (
               <>
