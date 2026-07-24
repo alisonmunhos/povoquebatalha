@@ -26,6 +26,7 @@ type FormQuestion = {
   options: { value: string; label: string }[] | null;
   depends_on: { key: string; value: boolean } | null;
   catalog_field_key: string | null;
+  source: "catalog" | "custom";
 };
 type FormDefinition = {
   id: string;
