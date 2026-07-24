@@ -76,6 +76,7 @@ function enrichQuestions(rows: QuestionRow[]) {
     return {
       id: q.id,
       section_id: q.section_id,
+      source: q.source,
       label: q.label,
       help_text: q.help_text,
       required: q.required,
