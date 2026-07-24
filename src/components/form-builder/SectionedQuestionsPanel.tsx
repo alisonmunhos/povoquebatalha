@@ -14,7 +14,7 @@ import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.funct
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
 import type { BranchRuleDraft, SectionDraft } from "@/lib/form-sections.types";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
-import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
+import { getEffectiveQuestionShape, type CustomOption, type CustomResponseType } from "@/lib/form-question-shape";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -721,6 +721,11 @@ export function SectionedQuestionsPanel({
                       Destinos só podem ser seções posteriores ou finalizar.
                     </p>
                   </div>
+                )}
+                {!isBranchableQuestion(qu) && getEffectiveQuestionShape(qu).filter_kind === "multiselect" && (
+                  <p className="text-[11px] text-muted-foreground rounded-md bg-muted/40 p-3">
+                    Essa pergunta permite marcar mais de uma opção ao mesmo tempo, por isso não pode decidir sozinha o próximo passo.
+                  </p>
                 )}
               </div>
             );
