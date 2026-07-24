@@ -376,14 +376,9 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         // mesmos valores que recadastro.ts/inscrever.ts sempre usaram, mapeados pelo
         // tipo do formulário (não existe valor de enum genérico "formulario_publico").
         const origemValue = form.source_form_type === "cadastro_completo" ? "recadastro" as const : "inscricao" as const;
-        // Neste ponto `nome` é sempre uma string não-vazia: o fluxo flat retorna cedo
-        // acima quando falta, e o fluxo por seções cai no fallback "Participante" na
-        // linha 339. O `?? "Participante"` extra existe só para provar isso ao TS
-        // (a coluna contacts.nome é NOT NULL desde sempre — não tem relação com a
-        // migration recente de LGPD).
-        const payload = {
+        const hasNome = !!(nome && nome.length >= 2);
+        const basePayload = {
           ...contactPayload,
-          nome: nome ?? "Participante",
           ...(phoneRaw ? { phone_raw: phoneRaw } : {}),
           ...(email ? { email } : {}),
           ...(form.source_form_type === "receber_informacoes" ? { tipo_contato: "lista_divulgacao" } : {}),
@@ -396,12 +391,17 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           lifecycle_status: "recadastro_concluido" as const,
           opt_out_at: null,
         };
+        // INSERT precisa satisfazer contacts.nome NOT NULL — usa fallback só aqui.
+        const insertPayload = { ...basePayload, nome: hasNome ? (nome as string) : "Participante" };
+        // UPDATE só grava `nome` se a seção atual perguntou de fato — caso contrário
+        // preserva o valor já salvo (não sobrescreve "Maria Silva" com "Participante").
+        const updatePayload = hasNome ? { ...basePayload, nome: nome as string } : basePayload;
         let savedId: string | null = null;
         if (target) {
           if (target.phone_e164 && target.phone_e164 !== phoneE164) {
             // Telefone diferente do já cadastrado: não sobrescreve — cria um novo
             // contato e marca como duplicata provável pra revisão manual.
-            const { data: newRow } = await supabaseAdmin.from("contacts").insert(payload).select("id").single();
+            const { data: newRow } = await supabaseAdmin.from("contacts").insert(insertPayload).select("id").single();
             if (newRow) {
               savedId = newRow.id;
               await supabaseAdmin.from("contact_duplicates").insert({
@@ -413,13 +413,14 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
               await supabaseAdmin.from("contacts").update({ lifecycle_status: "precisa_revisao" }).eq("id", newRow.id);
             }
           } else {
-            await supabaseAdmin.from("contacts").update(payload).eq("id", target.id);
+            await supabaseAdmin.from("contacts").update(updatePayload).eq("id", target.id);
             savedId = target.id;
           }
         } else {
-          const { data: ins } = await supabaseAdmin.from("contacts").insert(payload).select("id").single();
+          const { data: ins } = await supabaseAdmin.from("contacts").insert(insertPayload).select("id").single();
           savedId = ins?.id ?? null;
         }
+
         if (!savedId) {
           return new Response(JSON.stringify({ ok: false, error: "Falha ao salvar contato." }), { status: 500, headers: cors });
         }
