@@ -41,6 +41,6 @@ export const CONSENT_CATALOG_GROUP = {
   ],
 } as const;
 
-export const CONSENT_CATALOG_GROUP_KEYS = new Set(
+export const CONSENT_CATALOG_GROUP_KEYS: ReadonlySet<string> = new Set<string>(
   CONSENT_CATALOG_GROUP.fields.map((f) => f.key),
 );
