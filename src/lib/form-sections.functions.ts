@@ -149,7 +149,9 @@ export const upsertFormSections = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
 
-    const routingError = validateForwardOnlyRouting(data.sections);
+    const normalizedSections = normalizeSectionDrafts(data.sections);
+
+    const routingError = validateForwardOnlyRouting(normalizedSections);
     if (routingError) throw new Error(routingError);
 
     const keepIds = data.sections.map((s) => s.id).filter((id): id is string => Boolean(id));
