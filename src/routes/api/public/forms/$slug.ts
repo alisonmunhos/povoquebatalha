@@ -337,7 +337,10 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           if (hasPhoneField && !phoneRaw) {
             return new Response(JSON.stringify({ ok: false, error: "WhatsApp ausente." }), { status: 400, headers: cors });
           }
-          if (!nome || nome.length < 2) nome = "Participante";
+          // Não aplicamos fallback aqui: se a seção atual não perguntou "nome",
+          // deixamos `nome` como null e decidimos abaixo (insert usa "Participante"
+          // pra satisfazer NOT NULL; update omite a chave pra preservar o nome real).
+
         }
         for (const q of (questions ?? []) as QuestionRow[]) {
           if (!q.required || q.source !== "catalog" || !q.catalog_field_key) continue;
