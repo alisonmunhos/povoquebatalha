@@ -76,6 +76,7 @@ function enrichQuestions(rows: QuestionRow[]) {
     return {
       id: q.id,
       section_id: q.section_id,
+      source: q.source,
       label: q.label,
       help_text: q.help_text,
       required: q.required,
@@ -372,9 +373,14 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         // mesmos valores que recadastro.ts/inscrever.ts sempre usaram, mapeados pelo
         // tipo do formulário (não existe valor de enum genérico "formulario_publico").
         const origemValue = form.source_form_type === "cadastro_completo" ? "recadastro" as const : "inscricao" as const;
+        // Neste ponto `nome` é sempre uma string não-vazia: o fluxo flat retorna cedo
+        // acima quando falta, e o fluxo por seções cai no fallback "Participante" na
+        // linha 339. O `?? "Participante"` extra existe só para provar isso ao TS
+        // (a coluna contacts.nome é NOT NULL desde sempre — não tem relação com a
+        // migration recente de LGPD).
         const payload = {
           ...contactPayload,
-          ...(nome ? { nome } : {}),
+          nome: nome ?? "Participante",
           ...(phoneRaw ? { phone_raw: phoneRaw } : {}),
           ...(email ? { email } : {}),
           ...(form.source_form_type === "receber_informacoes" ? { tipo_contato: "lista_divulgacao" } : {}),
