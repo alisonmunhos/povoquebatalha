@@ -1,33 +1,19 @@
-import { getCatalogField } from "@/lib/form-field-catalog";
+import {
+  getEffectiveQuestionShape,
+  getBranchableOptionsFromShape,
+  type QuestionRowForShape,
+} from "@/lib/form-question-shape";
 
-export type BranchableQuestion = {
-  source: "catalog" | "custom";
-  catalog_field_key: string | null;
-};
+export type BranchableQuestion = QuestionRowForShape;
 
 /** Opções de resposta que podem ter destino de ramificação no construtor. */
 export function getBranchableOptions(q: BranchableQuestion): { value: string; label: string }[] {
-  if (q.source !== "catalog" || !q.catalog_field_key) return [];
-  const field = getCatalogField(q.catalog_field_key);
-  if (!field) return [];
-
-  if (field.responseType === "yes_no") {
-    return [
-      { value: "true", label: "Sim" },
-      { value: "false", label: "Não" },
-    ];
-  }
-
-  // Ramificação só em escolha única — multiselect não entra no fluxo por seção.
-  if (field.responseType === "multiple_choice" && field.filterKind === "enum" && field.options?.length) {
-    return field.options.map((o) => ({ value: o.value, label: o.label }));
-  }
-
-  return [];
+  const shape = getEffectiveQuestionShape(q);
+  return getBranchableOptionsFromShape(shape);
 }
 
 export function isBranchableQuestion(q: BranchableQuestion): boolean {
-  return getBranchableOptions(q).length > 0;
+  return getEffectiveQuestionShape(q).isBranchable;
 }
 
 export function sectionLabel(orderIndex: number, title: string | null | undefined): string {

@@ -13,10 +13,12 @@ import {
 import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.functions";
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
 import type { BranchRuleDraft, SectionDraft } from "@/lib/form-sections.types";
+import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
+import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-type QuestionDraft = {
+type QuestionDraft = CustomQuestionDraft & {
   clientKey: string;
   id?: string;
   sectionClientKey: string;
@@ -50,6 +52,8 @@ type Props = {
     link_text: string | null;
     link_url: string | null;
     required: boolean;
+    custom_response_type?: string | null;
+    custom_options?: CustomOption[] | null;
   }>;
   initialBranchRules: BranchRuleDraft[];
   onSaved: () => void;
@@ -85,6 +89,8 @@ function buildInitialQuestions(
       link_text: q.link_text,
       link_url: q.link_url,
       required: Boolean(q.required),
+      custom_response_type: (q.custom_response_type as CustomResponseType | null) ?? "short_text",
+      custom_options: (q.custom_options as CustomOption[] | null) ?? null,
     }));
 }
 
@@ -247,6 +253,8 @@ export function SectionedQuestionsPanel({
         link_text: null,
         link_url: null,
         required: false,
+        custom_response_type: "short_text",
+        custom_options: null,
       },
     ]);
   }
@@ -322,6 +330,15 @@ export function SectionedQuestionsPanel({
       toast.error(linkErr);
       return;
     }
+    for (const q of questions) {
+      if (q.source === "custom" && q.custom_response_type === "single_choice") {
+        const filled = (q.custom_options ?? []).filter((o) => o.label.trim()).length;
+        if (filled < 2) {
+          toast.error(`"${q.label.trim() || "Pergunta customizada"}": escolha única precisa de pelo menos 2 alternativas preenchidas.`);
+          return;
+        }
+      }
+    }
 
     setSaving(true);
     try {
@@ -364,6 +381,11 @@ export function SectionedQuestionsPanel({
             link_url: q.link_url,
             required: q.required,
             section_id: sectionIdByClientKey.get(q.sectionClientKey) ?? null,
+            custom_response_type: q.source === "custom" ? (q.custom_response_type ?? "short_text") : null,
+            custom_options:
+              q.source === "custom" && q.custom_response_type === "single_choice"
+                ? (q.custom_options ?? [])
+                : null,
           })),
         },
       });
@@ -628,6 +650,12 @@ export function SectionedQuestionsPanel({
                   placeholder="Texto de ajuda (opcional)"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
+                {qu.source === "custom" && (
+                  <CustomQuestionFields
+                    value={qu}
+                    onChange={(patch) => updateQuestion(qu.clientKey, patch)}
+                  />
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     value={qu.link_text ?? ""}
@@ -719,7 +747,7 @@ export function SectionedQuestionsPanel({
             onClick={addCustomQuestion}
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
           >
-            <Plus className="h-4 w-4" /> Pergunta customizada (texto livre)
+            <Plus className="h-4 w-4" /> Pergunta customizada
           </button>
         </div>
       </div>
