@@ -7,6 +7,7 @@ import {
   saveFormConfirmationMessage, mintFormTrackedLink,
 } from "@/lib/form-definitions.functions";
 import { FORM_FIELD_CATALOG, CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
+import { SectionedQuestionsPanel } from "@/components/form-builder/SectionedQuestionsPanel";
 
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -226,6 +227,8 @@ function FormBuilder() {
   }
 
   const isFixed = Boolean(q.data.form.is_fixed);
+  const layoutMode = ((q.data.form as { layout_mode?: string }).layout_mode ?? "flat") as "flat" | "sectioned";
+  const isSectioned = layoutMode === "sectioned";
   const basePath = isFixed
     ? (FIXED_FORM_PUBLIC_PATHS[q.data.form.slug as string] ?? `/${q.data.form.slug}`)
     : `/f/${q.data.form.slug}`;
@@ -250,6 +253,11 @@ function FormBuilder() {
       <Link to="/entrada-dados" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</Link>
 
       <Section title="Configurações">
+        {isSectioned && (
+          <p className="text-xs bg-violet-50 text-violet-800 border border-violet-200 rounded-md px-3 py-2">
+            Este formulário usa o modelo <strong>por seções</strong> — monte as etapas e a ramificação na área abaixo.
+          </p>
+        )}
         {isFixed && (
           <p className="text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded-md px-3 py-2">
             Este é um formulário fixo do sistema (URL pública: <code>{basePath}</code>) — não pode ser excluído, mas todo o resto (perguntas, mensagem de confirmação, botão de WhatsApp) pode ser editado livremente, igual a um formulário novo.
@@ -322,7 +330,28 @@ function FormBuilder() {
         )}
       </Section>
 
-      <Section title="Perguntas">
+      <Section title={isSectioned ? "Seções e perguntas" : "Perguntas"}>
+        {isSectioned ? (
+          <SectionedQuestionsPanel
+            formId={id}
+            initialSections={q.data.sections?.sections ?? []}
+            initialQuestions={(q.data.questions ?? []) as Array<{
+              id: string;
+              section_id: string | null;
+              order_index: number;
+              source: string;
+              catalog_field_key: string | null;
+              label: string;
+              help_text: string | null;
+              link_text: string | null;
+              link_url: string | null;
+              required: boolean;
+            }>}
+            initialBranchRules={q.data.sections?.branchRules ?? []}
+            onSaved={() => q.refetch()}
+          />
+        ) : (
+          <>
         <p className="text-xs text-muted-foreground">Nome, WhatsApp e Consentimento sempre aparecem primeiro e não podem ser removidos.</p>
         {questions.map((qu, idx) => (
           <div key={idx} className="border rounded-md p-3 space-y-2">
@@ -364,6 +393,8 @@ function FormBuilder() {
         <button onClick={saveQuestions} disabled={savingQuestions} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
           <Save className="h-4 w-4" /> Salvar perguntas
         </button>
+          </>
+        )}
       </Section>
 
       <Section title="Mensagem de confirmação (automática, via WhatsApp)">

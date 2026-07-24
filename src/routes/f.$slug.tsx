@@ -6,6 +6,7 @@ export const Route = createFileRoute("/f/$slug")({
   validateSearch: z.object({
     ref: z.string().min(8).max(48).optional(),
     t: z.string().uuid().optional(),
+    s: z.string().uuid().optional(),
   }),
   head: () => ({
     meta: [
@@ -18,6 +19,6 @@ export const Route = createFileRoute("/f/$slug")({
 
 function FSlugPage() {
   const { slug } = Route.useParams();
-  const { ref, t } = Route.useSearch();
-  return <PublicFormRenderer slug={slug} refToken={ref} recadToken={t} />;
+  const { ref, t, s } = Route.useSearch();
+  return <PublicFormRenderer slug={slug} refToken={ref} recadToken={t} startSectionId={s} />;
 }
