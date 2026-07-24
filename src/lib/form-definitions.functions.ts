@@ -8,6 +8,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff, requireAdmin } from "@/lib/authz";
 import { insertTrackedLink } from "@/lib/tracked-links.functions";
 import { CORE_CATALOG_FIELDS } from "@/lib/form-field-catalog";
+import { loadFormSectionsBundle } from "@/lib/form-sections.functions";
 import type { Database } from "@/integrations/supabase/types";
 
 type TemplateRow = Database["public"]["Tables"]["message_templates"]["Row"];
@@ -23,7 +24,7 @@ export const listFormDefinitions = createServerFn({ method: "GET" })
     await requireStaff(context.supabase, context.userId);
     const { data, error } = await context.supabase
       .from("form_definitions")
-      .select("id,title,slug,is_active,is_fixed,source_form_type,created_at")
+      .select("id,title,slug,is_active,is_fixed,source_form_type,layout_mode,created_at")
       .order("is_fixed", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -78,7 +79,19 @@ export const getFormDefinition = createServerFn({ method: "GET" })
         .maybeSingle();
       trackedLink = link ?? null;
     }
-    return { form, questions: questions ?? [], template, automation, trackedLink, trackedLinks: trackedLinks ?? [] };
+    const layoutMode = (form as { layout_mode?: string }).layout_mode ?? "flat";
+    const sections = layoutMode === "sectioned"
+      ? await loadFormSectionsBundle(context.supabase, data.id)
+      : null;
+    return {
+      form,
+      questions: questions ?? [],
+      sections,
+      template,
+      automation,
+      trackedLink,
+      trackedLinks: trackedLinks ?? [],
+    };
   });
 
 const createSchema = z.object({
@@ -91,6 +104,7 @@ const createSchema = z.object({
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use apenas letras minúsculas, números e hífen."),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]),
   tracking_name: z.string().trim().min(2).max(120).optional(),
+  layout_mode: z.enum(["flat", "sectioned"]).default("flat"),
 });
 
 export const createFormDefinition = createServerFn({ method: "POST" })
@@ -114,6 +128,7 @@ export const createFormDefinition = createServerFn({ method: "POST" })
         slug: data.slug,
         tracking_name: data.tracking_name?.trim() || data.title,
         source_form_type: data.source_form_type,
+        layout_mode: data.layout_mode,
         event_key: `formulario:${data.slug}`,
         created_by: context.userId,
         ...(defaultPhone ? { whatsapp_button_phone: defaultPhone } : {}),
@@ -122,19 +137,27 @@ export const createFormDefinition = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
-    // Semeia as perguntas core (nome/WhatsApp/consentimento) para o formulário nunca
-    // ficar num estado "sem perguntas" antes de quem monta clicar em salvar.
-    await context.supabase.from("form_definition_questions").insert(
-      CORE_CATALOG_FIELDS.map((f, i) => ({
+    if (data.layout_mode === "sectioned") {
+      await context.supabase.from("form_sections").insert({
         form_definition_id: row.id,
-        order_index: i,
-        source: "catalog" as const,
-        catalog_field_key: f.key,
-        label: f.defaultLabel,
-        help_text: f.defaultHelpText ?? null,
-        required: true,
-      })),
-    );
+        order_index: 0,
+        title: "Seção 1",
+      });
+    } else {
+      // Semeia as perguntas core (nome/WhatsApp/consentimento) para o formulário nunca
+      // ficar num estado "sem perguntas" antes de quem monta clicar em salvar.
+      await context.supabase.from("form_definition_questions").insert(
+        CORE_CATALOG_FIELDS.map((f, i) => ({
+          form_definition_id: row.id,
+          order_index: i,
+          source: "catalog" as const,
+          catalog_field_key: f.key,
+          label: f.defaultLabel,
+          help_text: f.defaultHelpText ?? null,
+          required: true,
+        })),
+      );
+    }
     return row;
   });
 
@@ -209,6 +232,7 @@ const questionSchema = z.object({
   link_text: z.string().trim().max(120).nullable().optional(),
   link_url: z.string().trim().max(500).nullable().optional(),
   required: z.boolean().default(false),
+  section_id: z.string().uuid().nullable().optional(),
 });
 
 const upsertQuestionsSchema = z.object({
@@ -228,6 +252,18 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => upsertQuestionsSchema.parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
+
+    const { data: form, error: formErr } = await context.supabase
+      .from("form_definitions")
+      .select("layout_mode")
+      .eq("id", data.form_definition_id)
+      .single();
+    if (formErr) throw formErr;
+
+    const isSectioned = (form as { layout_mode?: string }).layout_mode === "sectioned";
+    if (isSectioned && data.questions.some((q) => !q.section_id)) {
+      throw new Error("Em formulários por seções, toda pergunta precisa estar vinculada a uma seção.");
+    }
 
     const keepIds = data.questions.map((q) => q.id).filter((id): id is string => Boolean(id));
     if (keepIds.length > 0) {
@@ -251,6 +287,7 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
         help_text: q.help_text ?? null,
         ...links,
         required: q.required,
+        section_id: q.section_id ?? null,
       };
       if (q.id) {
         const { error } = await context.supabase.from("form_definition_questions").update(row).eq("id", q.id);
@@ -407,10 +444,47 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
 
     const { data: questions, error: qErr } = await context.supabase
       .from("form_definition_questions")
-      .select("order_index,source,catalog_field_key,label,help_text,required,link_text,link_url")
+      .select("id,order_index,source,catalog_field_key,label,help_text,required,link_text,link_url,section_id")
       .eq("form_definition_id", data.id)
       .order("order_index", { ascending: true });
     if (qErr) throw qErr;
+
+    const srcLayoutMode = (src as { layout_mode?: string }).layout_mode ?? "flat";
+    let srcSections: Array<{
+      id: string;
+      order_index: number;
+      title: string | null;
+      default_next_section_id: string | null;
+      confirmation_active: boolean | null;
+      whatsapp_button_enabled: boolean | null;
+      whatsapp_button_message: string | null;
+      success_screen_order: string | null;
+    }> = [];
+    if (srcLayoutMode === "sectioned") {
+      const { data: sections, error: secErr } = await context.supabase
+        .from("form_sections")
+        .select(
+          "id,order_index,title,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order",
+        )
+        .eq("form_definition_id", data.id)
+        .order("order_index", { ascending: true });
+      if (secErr) throw secErr;
+      srcSections = sections ?? [];
+    }
+
+    const srcQuestionIds = (questions ?? []).map((q) => q.id);
+    let srcBranchRules: Array<{
+      question_id: string;
+      option_value: string;
+      next_section_id: string | null;
+    }> = [];
+    if (srcQuestionIds.length > 0) {
+      const { data: rules } = await context.supabase
+        .from("form_question_branch_rules")
+        .select("question_id,option_value,next_section_id")
+        .in("question_id", srcQuestionIds);
+      srcBranchRules = rules ?? [];
+    }
 
     const srcTracking = (src as { tracking_name?: string | null }).tracking_name?.trim() || src.title;
     const { data: row, error } = await context.supabase
@@ -420,6 +494,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
         slug,
         tracking_name: `${srcTracking} (cópia)`.slice(0, 120),
         source_form_type: src.source_form_type,
+        layout_mode: srcLayoutMode,
         event_key: `formulario:${slug}`,
         created_by: context.userId,
         whatsapp_button_enabled: src.whatsapp_button_enabled,
@@ -431,7 +506,71 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
-    if (questions?.length) {
+    if (srcLayoutMode === "sectioned" && srcSections.length > 0) {
+      const sectionIdMap = new Map<string, string>();
+      for (const s of srcSections) {
+        const { data: newSection, error: insSecErr } = await context.supabase
+          .from("form_sections")
+          .insert({
+            form_definition_id: row.id,
+            order_index: s.order_index,
+            title: s.title,
+            confirmation_active: s.confirmation_active,
+            whatsapp_button_enabled: s.whatsapp_button_enabled,
+            whatsapp_button_message: s.whatsapp_button_message,
+            success_screen_order: s.success_screen_order,
+          })
+          .select("id")
+          .single();
+        if (insSecErr) throw insSecErr;
+        sectionIdMap.set(s.id, newSection.id);
+      }
+
+      for (const s of srcSections) {
+        if (!s.default_next_section_id) continue;
+        const newId = sectionIdMap.get(s.id);
+        const newNextId = sectionIdMap.get(s.default_next_section_id);
+        if (!newId || !newNextId) continue;
+        const { error: linkErr } = await context.supabase
+          .from("form_sections")
+          .update({ default_next_section_id: newNextId })
+          .eq("id", newId);
+        if (linkErr) throw linkErr;
+      }
+
+      const questionIdMap = new Map<string, string>();
+      for (const q of questions ?? []) {
+        const newSectionId = q.section_id ? (sectionIdMap.get(q.section_id) ?? null) : null;
+        const { data: newQ, error: insQErr } = await context.supabase
+          .from("form_definition_questions")
+          .insert({
+            form_definition_id: row.id,
+            order_index: q.order_index,
+            source: q.source,
+            catalog_field_key: q.catalog_field_key,
+            label: q.label,
+            help_text: q.help_text,
+            link_text: q.link_text,
+            link_url: q.link_url,
+            required: q.required,
+            section_id: newSectionId,
+          })
+          .select("id")
+          .single();
+        if (insQErr) throw insQErr;
+        questionIdMap.set(q.id, newQ.id);
+      }
+
+      if (srcBranchRules.length > 0) {
+        await context.supabase.from("form_question_branch_rules").insert(
+          srcBranchRules.map((r) => ({
+            question_id: questionIdMap.get(r.question_id)!,
+            option_value: r.option_value,
+            next_section_id: r.next_section_id ? (sectionIdMap.get(r.next_section_id) ?? null) : null,
+          })),
+        );
+      }
+    } else if (questions?.length) {
       await context.supabase.from("form_definition_questions").insert(
         questions.map((q) => ({
           form_definition_id: row.id,
