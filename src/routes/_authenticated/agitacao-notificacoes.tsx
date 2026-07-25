@@ -198,7 +198,7 @@ function NotificacoesAdminPage() {
           <Select value={targetMode} onValueChange={(v) => setTargetMode(v as "all_staff" | "role")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all_staff">Todo mundo (admin, moderador e agitador)</SelectItem>
+              <SelectItem value="all_staff">Todo mundo (equipe inteira)</SelectItem>
               <SelectItem value="role">Papel específico</SelectItem>
             </SelectContent>
           </Select>
@@ -207,7 +207,10 @@ function NotificacoesAdminPage() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="agitador">Agitadores</SelectItem>
-                <SelectItem value="moderator">Moderadores</SelectItem>
+                <SelectItem value="operador">Operadores</SelectItem>
+                <SelectItem value="comunicacao">Comunicação</SelectItem>
+                <SelectItem value="admin">Administradores</SelectItem>
+
                 <SelectItem value="admin">Administradores</SelectItem>
               </SelectContent>
             </Select>
