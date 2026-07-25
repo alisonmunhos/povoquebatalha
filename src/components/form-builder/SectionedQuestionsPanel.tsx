@@ -773,9 +773,9 @@ export function SectionedQuestionsPanel({
           </div>
         </div>
 
-        {activeSection.section_type !== "account_creation" && (
         <>
         <div className="space-y-3 border-t pt-3">
+
           {isFirstSection && (
             <p className="text-xs text-muted-foreground rounded-md bg-muted/40 border px-3 py-2">
               <strong>Campos essenciais</strong> — Nome, WhatsApp e Consentimento ficam fixos nesta primeira seção.
