@@ -13,6 +13,8 @@ import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { AddContactButton } from "@/components/AddContactButton";
 import { BrandMark } from "@/components/BrandMark";
+import { NotificationBell } from "@/components/NotificationBell";
+
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
@@ -123,6 +125,7 @@ export function AppShell() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <NotificationBell />
               <AddContactButton compact userName={user?.email ?? null} />
               <button
                 onClick={handleLogout}
@@ -132,6 +135,7 @@ export function AppShell() {
                 <LogOut className="h-4 w-4" /> Sair
               </button>
             </div>
+
           </div>
         </header>
         <main className="flex-1 min-w-0">
@@ -245,14 +249,15 @@ export function AppShell() {
             <Megaphone className="h-4 w-4 text-primary shrink-0" />
             <span className="text-sm font-semibold truncate">Povo que Batalha</span>
           </div>
+          <NotificationBell />
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </header>
         {/* Desktop top bar */}
-        {canAddContact && (
-          <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center justify-end px-4">
-            <AddContactButton compact userName={user?.email ?? null} />
-          </div>
-        )}
+        <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center justify-end gap-2 px-4">
+          <NotificationBell />
+          {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
+        </div>
+
         <main className="flex-1 min-w-0">
           <Outlet />
         </main>
