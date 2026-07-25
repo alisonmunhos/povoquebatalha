@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { AddContactButton } from "@/components/AddContactButton";
+import { BrandMark } from "@/components/BrandMark";
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
@@ -143,11 +144,11 @@ export function AppShell() {
   const SidebarInner = (
     <>
       <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
-        <Megaphone className="h-5 w-5 text-sidebar-primary" />
-        <div className="font-semibold text-sm leading-tight">
-          Campanha do Povo
+        <BrandMark className="h-7 w-7" />
+        <div className="font-display text-base leading-tight tracking-wide">
+          Povo que
           <br />
-          que Batalha
+          Batalha
         </div>
       </div>
       <nav className="flex-1 p-2 space-y-4 overflow-y-auto">

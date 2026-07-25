@@ -1,25 +1,15 @@
 {
-  "name": "Território — Povo que Batalha",
-  "short_name": "Território",
-  "description": "Mini-app de campo para ativação territorial da Campanha do Povo que Batalha.",
+  "name": "Povo que Batalha — Campanha",
+  "short_name": "Povo que Batalha",
+  "description": "App de campo e gestão da Campanha do Povo que Batalha.",
   "start_url": "/territorio",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#0f172a",
+  "background_color": "#F5F1E6",
+  "theme_color": "#16130F",
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }
