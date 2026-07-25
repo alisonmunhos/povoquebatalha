@@ -94,7 +94,7 @@ export function NotificationBell() {
 
   const countQ = useQuery({
     queryKey: ["notif-unread"],
-    queryFn: () => countFn({ data: {} }),
+    queryFn: () => countFn(),
     refetchInterval: 60_000,
   });
   const listQ = useQuery({
@@ -164,7 +164,7 @@ export function NotificationBell() {
           {hasUnread && (
             <button
               onClick={async () => {
-                await markAllFn({ data: {} });
+                await markAllFn();
                 qc.invalidateQueries({ queryKey: ["notif-unread"] });
                 qc.invalidateQueries({ queryKey: ["notif-list"] });
               }}
