@@ -36,6 +36,7 @@ function toSectionDrafts(
     confirmation_active: boolean | null;
     whatsapp_button_enabled: boolean | null;
     whatsapp_button_message: string | null;
+    whatsapp_button_phone?: string | null;
     success_screen_order: string | null;
   }>,
 ): SectionDraft[] {
@@ -52,6 +53,7 @@ function toSectionDrafts(
     confirmation_active: s.confirmation_active,
     whatsapp_button_enabled: s.whatsapp_button_enabled,
     whatsapp_button_message: s.whatsapp_button_message,
+    whatsapp_button_phone: s.whatsapp_button_phone ?? null,
     success_screen_order: (s.success_screen_order as SuccessScreenOrder | null) ?? null,
   }));
 }
@@ -70,6 +72,7 @@ function normalizeSectionDrafts(
     confirmation_active?: boolean | null;
     whatsapp_button_enabled?: boolean | null;
     whatsapp_button_message?: string | null;
+    whatsapp_button_phone?: string | null;
     success_screen_order?: SuccessScreenOrder | null;
   }>,
 ): SectionDraft[] {
@@ -84,6 +87,7 @@ function normalizeSectionDrafts(
     confirmation_active: s.confirmation_active ?? null,
     whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
     whatsapp_button_message: s.whatsapp_button_message ?? null,
+    whatsapp_button_phone: s.whatsapp_button_phone ?? null,
     success_screen_order: s.success_screen_order ?? null,
   }));
 }
@@ -152,6 +156,7 @@ const sectionSchema = z.object({
   confirmation_active: z.boolean().nullable().optional(),
   whatsapp_button_enabled: z.boolean().nullable().optional(),
   whatsapp_button_message: z.string().trim().max(500).nullable().optional(),
+  whatsapp_button_phone: z.string().trim().max(20).nullable().optional(),
   success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).nullable().optional(),
 });
 
@@ -194,6 +199,7 @@ export const upsertFormSections = createServerFn({ method: "POST" })
         confirmation_active: s.confirmation_active ?? null,
         whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
         whatsapp_button_message: s.whatsapp_button_message ?? null,
+        whatsapp_button_phone: s.whatsapp_button_phone ?? null,
         success_screen_order: s.success_screen_order ?? null,
       };
       if (s.id) {

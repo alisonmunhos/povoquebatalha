@@ -1,0 +1,1 @@
+ALTER TABLE public.form_sections ADD COLUMN IF NOT EXISTS whatsapp_button_phone TEXT;

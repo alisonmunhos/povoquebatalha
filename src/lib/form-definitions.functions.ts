@@ -251,6 +251,7 @@ const customOptionDraftSchema = z.object({
 
 const questionSchema = z.object({
   id: z.string().uuid().optional(),
+  client_key: z.string().min(1).max(80).optional(),
   order_index: z.number().int().min(0),
   source: z.enum(["catalog", "custom"]),
   catalog_field_key: z.string().trim().max(60).nullable().optional(),
@@ -299,6 +300,9 @@ const upsertQuestionsSchema = z.object({
  * é a chave estrangeira de `form_custom_answers`. Recriar o id a cada salvamento
  * apagaria (via ON DELETE CASCADE) as respostas já coletadas para essas perguntas.
  * Só perguntas removidas da lista são de fato excluídas (e suas respostas com elas).
+ *
+ * Retorna também `saved: [{ client_key, id }]` para o cliente vincular regras de
+ * ramificação a perguntas recém-criadas sem depender de casamento por rótulo.
  */
 export const upsertFormQuestions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -341,6 +345,7 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
       await context.supabase.from("form_definition_questions").delete().eq("form_definition_id", data.form_definition_id);
     }
 
+    const saved: Array<{ client_key: string | null; id: string }> = [];
     for (const q of data.questions) {
       const links = normalizeQuestionLinkFields(q.link_text, q.link_url);
       const customFields = resolveCustomQuestionFields(q, q.id ? existingOptionsById.get(q.id) : null);
@@ -360,12 +365,18 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
       if (q.id) {
         const { error } = await context.supabase.from("form_definition_questions").update(row).eq("id", q.id);
         if (error) throw error;
+        saved.push({ client_key: q.client_key ?? null, id: q.id });
       } else {
-        const { error } = await context.supabase.from("form_definition_questions").insert(row);
+        const { data: inserted, error } = await context.supabase
+          .from("form_definition_questions")
+          .insert(row)
+          .select("id")
+          .single();
         if (error) throw error;
+        saved.push({ client_key: q.client_key ?? null, id: inserted!.id as string });
       }
     }
-    return { ok: true };
+    return { ok: true as const, saved };
   });
 
 const confirmationSchema = z.object({
