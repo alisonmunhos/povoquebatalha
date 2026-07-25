@@ -1736,16 +1736,13 @@ export type Database = {
       }
       form_sections: {
         Row: {
-          account_creation_role: Database["public"]["Enums"]["app_role"] | null
           confirmation_active: boolean | null
           confirmation_event_key: string | null
           created_at: string
           default_next_section_id: string | null
-          description: string | null
           form_definition_id: string
           id: string
           order_index: number
-          section_type: string
           success_screen_order: string | null
           title: string | null
           updated_at: string
@@ -1753,16 +1750,13 @@ export type Database = {
           whatsapp_button_message: string | null
         }
         Insert: {
-          account_creation_role?: Database["public"]["Enums"]["app_role"] | null
           confirmation_active?: boolean | null
           confirmation_event_key?: string | null
           created_at?: string
           default_next_section_id?: string | null
-          description?: string | null
           form_definition_id: string
           id?: string
           order_index: number
-          section_type?: string
           success_screen_order?: string | null
           title?: string | null
           updated_at?: string
@@ -1770,16 +1764,13 @@ export type Database = {
           whatsapp_button_message?: string | null
         }
         Update: {
-          account_creation_role?: Database["public"]["Enums"]["app_role"] | null
           confirmation_active?: boolean | null
           confirmation_event_key?: string | null
           created_at?: string
           default_next_section_id?: string | null
-          description?: string | null
           form_definition_id?: string
           id?: string
           order_index?: number
-          section_type?: string
           success_screen_order?: string | null
           title?: string | null
           updated_at?: string
@@ -1802,30 +1793,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      legal_pages: {
-        Row: {
-          content: string
-          id: string
-          slug: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          content?: string
-          id?: string
-          slug: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          content?: string
-          id?: string
-          slug?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       geocode_cache: {
         Row: {
