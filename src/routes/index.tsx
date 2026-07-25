@@ -1,11 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Megaphone, Users, Send, Megaphone as MegaphoneIcon } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Megaphone } from "lucide-react";
 
-// TODO: confirmar slug do formulário principal em seções (Entrada de Dados → copiar slug publicado)
-const MAIN_SECTIONED_FORM_SLUG = "cadastro";
+const MAIN_SECTIONED_FORM_SLUG = "seja-um-apoiador-a-da-campanha-do-povo-que-batalha";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -14,12 +12,12 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Plataforma para recadastrar apoiadores, organizar contatos e disparar campanhas de WhatsApp em massa com controle.",
+          "Faça parte da Campanha do Povo que Batalha. Cadastre-se e receba as próximas ações.",
       },
-      { property: "og:title", content: "Campanha do Povo que Batalha da Campanha" },
+      { property: "og:title", content: "Campanha do Povo que Batalha" },
       {
         property: "og:description",
-        content: "Recadastro de apoiadores, CRM, segmentação e campanhas de WhatsApp.",
+        content: "Faça parte da Campanha do Povo que Batalha. Cadastre-se e receba as próximas ações.",
       },
     ],
   }),
@@ -27,13 +25,57 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
+type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+
 function Landing() {
   const navigate = useNavigate();
+  const [installEvent, setInstallEvent] = useState<BIPEvent | null>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/dashboard" });
     });
   }, [navigate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsStandalone(!!standalone);
+
+    const ua = window.navigator.userAgent || "";
+    const iOS = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
+    setIsIOS(iOS);
+
+    const onBIP = (e: Event) => {
+      e.preventDefault();
+      setInstallEvent(e as BIPEvent);
+    };
+    const onInstalled = () => setInstallEvent(null);
+    window.addEventListener("beforeinstallprompt", onBIP);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBIP);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  async function handleInstall() {
+    if (!installEvent) return;
+    await installEvent.prompt();
+    try {
+      await installEvent.userChoice;
+    } catch {
+      // ignore
+    }
+    setInstallEvent(null);
+  }
+
+  const showInstallBlock = !isStandalone && (installEvent || isIOS);
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -44,7 +86,7 @@ function Landing() {
           </div>
           <Link
             to="/auth"
-            className="text-sm rounded-md border px-3 py-1.5 hover:bg-accent transition-colors"
+            className="text-sm rounded-md bg-primary text-primary-foreground px-4 py-1.5 font-medium hover:bg-primary/90 transition-colors"
           >
             Entrar
           </Link>
@@ -55,8 +97,7 @@ function Landing() {
           Organize sua base e mobilize apoiadores pelo WhatsApp.
         </h1>
         <p className="mt-4 text-lg text-muted-foreground max-w-2xl">
-          Recadastre apoiadores antigos, capte novos contatos e dispare campanhas segmentadas com
-          controle de fila e histórico.
+          Faça parte da Campanha do Povo que Batalha. Cadastre-se, receba as próximas ações
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
@@ -67,31 +108,29 @@ function Landing() {
             Participar da campanha
           </Link>
         </div>
-        <div className="mt-16 grid md:grid-cols-3 gap-6">
-          {[
-            {
-              icon: Users,
-              title: "CRM de apoiadores",
-              text: "Importe planilhas, normalize telefones, deduplique contatos e segmente por tag, cidade e perfil.",
-            },
-            {
-              icon: Send,
-              title: "Campanhas de WhatsApp",
-              text: "Crie mensagens personalizadas, pré-visualize, agende e dispare em fila com delay anti-spam.",
-            },
-            {
-              icon: MegaphoneIcon,
-              title: "Mobilização real",
-              text: "Acompanhe entrega, leitura, respostas e opt-outs. Tudo registrado por contato e campanha.",
-            },
-          ].map(({ icon: Icon, title, text }) => (
-            <div key={title} className="border rounded-xl p-5 bg-card">
-              <Icon className="h-6 w-6 text-primary" />
-              <h3 className="mt-3 font-semibold">{title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-            </div>
-          ))}
-        </div>
+        {showInstallBlock && (
+          <div className="mt-10 border rounded-xl p-5 bg-card max-w-xl">
+            <h2 className="font-semibold text-base">Instalar app</h2>
+            {installEvent ? (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Instale o app para acessar rapidamente da sua tela inicial.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleInstall}
+                  className="mt-3 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
+                >
+                  Instalar app
+                </button>
+              </>
+            ) : isIOS ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                No iPhone: toque em compartilhar e depois em “Adicionar à Tela de Início”.
+              </p>
+            ) : null}
+          </div>
+        )}
       </section>
     </div>
   );

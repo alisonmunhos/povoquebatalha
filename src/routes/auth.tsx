@@ -181,7 +181,11 @@ function AuthPage() {
             )}
           </div>
           <div className="text-xs text-center text-muted-foreground border-t pt-3">
-            <Link to="/atualizacao" className="hover:underline">
+            <Link
+              to="/f/$slug"
+              params={{ slug: "seja-um-apoiador-a-da-campanha-do-povo-que-batalha" }}
+              className="hover:underline"
+            >
               Ir para a atualização pública de apoiadores
             </Link>
           </div>

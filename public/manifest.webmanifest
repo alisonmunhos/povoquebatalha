@@ -2,7 +2,7 @@
   "name": "Povo que Batalha — Campanha",
   "short_name": "Povo que Batalha",
   "description": "App de campo e gestão da Campanha do Povo que Batalha.",
-  "start_url": "/territorio",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
