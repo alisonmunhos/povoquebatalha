@@ -57,6 +57,7 @@ type Props = {
     custom_options?: CustomOption[] | null;
   }>;
   initialBranchRules: BranchRuleDraft[];
+  formDefaultWhatsappMessage?: string | null;
   onSaved: () => void;
 };
 
@@ -68,6 +69,19 @@ function toLocalSections(sections: SectionDraft[]): LocalSection[] {
   return sections.map((s) => ({
     ...s,
     clientKey: s.id ?? newClientKey(),
+  }));
+}
+
+function mergeLocalSections(prev: LocalSection[], serverSections: SectionDraft[]): LocalSection[] {
+  const clientKeyById = new Map(prev.filter((s) => s.id).map((s) => [s.id!, s.clientKey]));
+  const clientKeyByOrder = new Map(prev.map((s) => [s.order_index, s.clientKey]));
+  return serverSections.map((s) => ({
+    ...s,
+    clientKey:
+      (s.id && clientKeyById.get(s.id)) ??
+      clientKeyByOrder.get(s.order_index) ??
+      s.id ??
+      newClientKey(),
   }));
 }
 
@@ -124,6 +138,7 @@ export function SectionedQuestionsPanel({
   initialSections,
   initialQuestions,
   initialBranchRules,
+  formDefaultWhatsappMessage,
   onSaved,
 }: Props) {
   const upsertSectionsFn = useServerFn(upsertFormSections);
@@ -141,7 +156,10 @@ export function SectionedQuestionsPanel({
       initialBranchRules,
     ),
   );
-  const [activeSectionKey, setActiveSectionKey] = useState(() => initialSections[0]?.id ?? sections[0]?.clientKey ?? "");
+  const [activeSectionKey, setActiveSectionKey] = useState(() => {
+    const initial = toLocalSections(initialSections);
+    return initial[0]?.clientKey ?? "";
+  });
   const [expandedAdvanced, setExpandedAdvanced] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
@@ -427,6 +445,12 @@ export function SectionedQuestionsPanel({
         },
       });
 
+      const freshFinal = await getFn({ data: { id: formId } });
+      const serverSections = freshFinal.sections?.sections ?? [];
+      if (serverSections.length > 0) {
+        setSections((prev) => mergeLocalSections(prev, serverSections));
+      }
+
       toast.success("Seções e perguntas salvas");
       onSaved();
     } catch (e) {
@@ -576,23 +600,34 @@ export function SectionedQuestionsPanel({
                 onChange={(e) =>
                   updateSection(activeSection.clientKey, {
                     whatsapp_button_enabled: e.target.checked ? true : null,
+                    ...(e.target.checked ? {} : { whatsapp_button_message: null }),
                   })
                 }
               />
               Mostrar botão de WhatsApp ao finalizar aqui
             </label>
-            {activeSection.whatsapp_button_enabled && (
-              <textarea
-                value={activeSection.whatsapp_button_message ?? ""}
-                onChange={(e) =>
-                  updateSection(activeSection.clientKey, {
-                    whatsapp_button_message: e.target.value || null,
-                  })
-                }
-                rows={2}
-                placeholder="Mensagem pré-preenchida do WhatsApp (opcional)"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
+            {activeSection.whatsapp_button_enabled === true && (
+              <div key={`${activeSection.clientKey}-wa`} className="space-y-1">
+                <textarea
+                  value={activeSection.whatsapp_button_message ?? ""}
+                  onChange={(e) =>
+                    updateSection(activeSection.clientKey, {
+                      whatsapp_button_message: e.target.value || null,
+                    })
+                  }
+                  rows={2}
+                  placeholder={
+                    formDefaultWhatsappMessage?.trim()
+                      ? `Padrão do formulário: ${formDefaultWhatsappMessage.trim()}`
+                      : "Mensagem pré-preenchida do WhatsApp (opcional)"
+                  }
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Deixe vazio para usar a mensagem padrão do formulário
+                  {formDefaultWhatsappMessage?.trim() ? " (veja acima em Botão de WhatsApp)." : "."}
+                </p>
+              </div>
             )}
             <div>
               <label className="text-sm font-medium">Ordem na tela de sucesso</label>
@@ -723,6 +758,11 @@ export function SectionedQuestionsPanel({
                       Destinos só podem ser seções posteriores ou finalizar.
                     </p>
                   </div>
+                )}
+                {!isBranchableQuestion(qu) && getEffectiveQuestionShape(qu).filter_kind === "multiselect" && (
+                  <p className="text-[11px] text-muted-foreground rounded-md bg-muted/40 p-3">
+                    Essa pergunta permite marcar mais de uma opção ao mesmo tempo, por isso não pode decidir sozinha o próximo passo.
+                  </p>
                 )}
               </div>
             );
