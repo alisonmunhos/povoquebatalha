@@ -499,6 +499,7 @@ export function SectionedQuestionsPanel({
             confirmation_active: s.confirmation_active ?? null,
             whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
             whatsapp_button_message: s.whatsapp_button_message ?? null,
+            whatsapp_button_phone: s.whatsapp_button_phone?.trim() || null,
             success_screen_order: s.success_screen_order ?? null,
           })),
         },
