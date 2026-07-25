@@ -572,22 +572,41 @@ export function QuestionField({
   }
 
   if (q.response_type === "multiple_choice") {
+    const name = `q-${q.id}`;
+    const current = (value as string) ?? "";
     return (
       <div>
-        <label className="text-sm font-medium">{labelNode}</label>
-        <select
-          required={q.required}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="">Selecione…</option>
-          {(q.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <p className="text-sm font-medium mb-2">{labelNode}</p>
+        <div className="flex flex-col gap-2">
+          {(q.options ?? []).map((o) => {
+            const isSelected = current === o.value;
+            return (
+              <label
+                key={o.value}
+                className={`rounded-md border px-4 py-2.5 text-sm font-medium cursor-pointer transition ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-input hover:bg-muted"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={name}
+                  required={q.required}
+                  checked={isSelected}
+                  onChange={() => onChange(o.value)}
+                  className="sr-only"
+                />
+                {o.label}
+              </label>
+            );
+          })}
+        </div>
         {q.help_text && <p className="text-xs text-muted-foreground mt-1">{q.help_text}</p>}
       </div>
     );
   }
+
 
   const inputType = q.response_type === "date" ? "date" : q.response_type === "number" ? "number" : "text";
   return (
