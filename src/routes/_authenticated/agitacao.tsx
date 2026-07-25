@@ -3,7 +3,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
   X, ExternalLink, Filter, XCircle,
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { Input } from "@/components/ui/input";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
+import { useCurrentUserRole } from "@/hooks/use-current-role";
 
 export const Route = createFileRoute("/_authenticated/agitacao")({
   head: () => ({ meta: [{ title: "Agitação — Povo que Batalha" }] }),
@@ -116,12 +117,35 @@ function AgitacaoPage() {
 
   const stats = q.data?.stats;
   const counts = q.data?.counts;
+  const role = useCurrentUserRole();
+  const isAdminLike = role === "admin" || role === "operador" || role === "vrm";
 
   const toggleStatus = (s: FieldStatus) => {
     setFieldStatus((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   };
-  const clearFilters = () => { setFieldStatus([]); setSortBy("inclusion"); };
-  const activeFilterCount = fieldStatus.length + (sortBy !== "inclusion" ? 1 : 0);
+  // Zera TUDO — search, chips e classificação — pra que "Limpar filtros" faça o que promete.
+  const clearFilters = () => { setFieldStatus([]); setSortBy("inclusion"); setSearch(""); };
+  const activeFilterCount =
+    fieldStatus.length + (sortBy !== "inclusion" ? 1 : 0) + (search.trim() ? 1 : 0);
+
+  // Cards clicáveis: cada um aplica o filtro correspondente à lista.
+  const setOnlyStatus = (s: FieldStatus) => { setSearch(""); setFieldStatus([s]); };
+  const kpis = useMemo(() => {
+    const total = stats?.total ?? 0;
+    const naoAbordado = counts?.nao_abordado ?? 0;
+    const confirmado = counts?.confirmado ?? 0;
+    const semResposta = counts?.sem_resposta ?? 0;
+    const pediuAtualizacao = counts?.pediu_atualizacao ?? 0;
+    // 4 KPIs úteis pro agitador; admin ganha o mesmo (a base geral aparece em /contatos).
+    return [
+      { label: isAdminLike ? "Meus captados" : "Meus contatos", v: total, onClick: () => clearFilters() },
+      { label: "Ainda não abordados", v: naoAbordado, onClick: () => setOnlyStatus("nao_abordado") },
+      { label: "Confirmados", v: confirmado, onClick: () => setOnlyStatus("confirmado") },
+      { label: "Sem resposta", v: semResposta + pediuAtualizacao, onClick: () => { setSearch(""); setFieldStatus(["sem_resposta", "pediu_atualizacao"]); } },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats?.total, counts?.nao_abordado, counts?.confirmado, counts?.sem_resposta, counts?.pediu_atualizacao, isAdminLike]);
+
 
   return (
     <div className="min-h-dvh bg-muted/20">
@@ -131,14 +155,11 @@ function AgitacaoPage() {
           <h1 className="text-lg font-semibold">Agitação</h1>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
-          <Kpi label="Captados" v={stats?.total ?? 0} />
-          <Kpi label="Cadastros" v={stats?.cadastros_completos ?? 0} />
-          <Kpi label="Inscrições" v={stats?.inscricoes ?? 0} />
-          <Kpi label="Pendentes" v={stats?.pendentes_atualizacao ?? 0} />
-          <Kpi label="Realizados" v={stats?.contatos_realizados ?? 0} />
-          <Kpi label="Novos 7d" v={stats?.novos_7d ?? 0} />
+        {/* KPIs — clicáveis, cada um aplica o filtro correspondente. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+          {kpis.map((k) => (
+            <Kpi key={k.label} label={k.label} v={k.v} onClick={k.onClick} />
+          ))}
         </div>
 
         {/* Busca */}
@@ -430,12 +451,19 @@ function AgitacaoDetailSheet({
   );
 }
 
-function Kpi({ label, v }: { label: string; v: number }) {
-  return (
-    <div className="rounded-lg border bg-card p-2">
+function Kpi({ label, v, onClick }: { label: string; v: number; onClick?: () => void }) {
+  const base = "rounded-lg border bg-card p-2 text-left transition-colors";
+  const cls = onClick ? `${base} hover:border-primary/40 hover:bg-primary/5 cursor-pointer w-full` : base;
+  const content = (
+    <>
       <div className="text-lg font-semibold">{v}</div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-    </div>
+    </>
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className={cls}>{content}</button>
+  ) : (
+    <div className={cls}>{content}</div>
   );
 }
 
