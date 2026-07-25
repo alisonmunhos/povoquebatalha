@@ -107,6 +107,7 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
             recad_token: saved.recad_token,
             email: saved.email,
             nome: saved.nome,
+            phone: saved.phone,
           }),
           { headers: cors },
         );

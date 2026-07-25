@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   type FormCatalogField,
+  getCatalogField,
 } from "@/lib/form-field-catalog";
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import {
@@ -206,8 +207,17 @@ export function SectionedQuestionsPanel({
     [questions, activeSection?.clientKey],
   );
 
+  // Núcleo (nome/whatsapp/consentimento): trava no formulário inteiro (só na Etapa 1).
+  // Demais campos do catálogo: podem se repetir em seções diferentes, mas não na mesma seção.
   const usedCatalogKeys = new Set(
-    questions.filter((q) => q.source === "catalog" && q.catalog_field_key).map((q) => q.catalog_field_key!),
+    questions
+      .filter((q) => q.source === "catalog" && q.catalog_field_key)
+      .filter((q) => {
+        const cat = getCatalogField(q.catalog_field_key!);
+        if (cat?.core) return true;
+        return q.sectionClientKey === activeSection?.clientKey;
+      })
+      .map((q) => q.catalog_field_key!),
   );
 
   const isFirstSection = activeSection?.order_index === 0;

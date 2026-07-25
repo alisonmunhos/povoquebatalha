@@ -47,6 +47,7 @@ type FormSection = {
 type ContactContext = {
   email: string | null;
   nome: string | null;
+  phone: string | null;
   email_already_registered: boolean;
 };
 type BranchRule = {
@@ -208,10 +209,11 @@ export function PublicFormRenderer({
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
       if (json.recad_token) setActiveRecadToken(json.recad_token);
-      if (json.email != null || json.nome != null) {
+      if (json.email != null || json.nome != null || json.phone != null) {
         setContactContext((prev) => ({
           email: json.email ?? prev?.email ?? null,
           nome: json.nome ?? prev?.nome ?? null,
+          phone: json.phone ?? prev?.phone ?? null,
           email_already_registered: prev?.email_already_registered ?? false,
         }));
       }
@@ -419,6 +421,8 @@ export function PublicFormRenderer({
               {isAccountSection ? (
                 <AccountCreationFields
                   email={contactContext?.email ?? ""}
+                  nome={contactContext?.nome ?? ""}
+                  phone={contactContext?.phone ?? ""}
                   emailAlreadyRegistered={emailAlreadyRegistered}
                   password={accountPassword}
                   passwordConfirm={accountPasswordConfirm}
@@ -568,22 +572,41 @@ export function QuestionField({
   }
 
   if (q.response_type === "multiple_choice") {
+    const name = `q-${q.id}`;
+    const current = (value as string) ?? "";
     return (
       <div>
-        <label className="text-sm font-medium">{labelNode}</label>
-        <select
-          required={q.required}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="">Selecione…</option>
-          {(q.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <p className="text-sm font-medium mb-2">{labelNode}</p>
+        <div className="flex flex-col gap-2">
+          {(q.options ?? []).map((o) => {
+            const isSelected = current === o.value;
+            return (
+              <label
+                key={o.value}
+                className={`rounded-md border px-4 py-2.5 text-sm font-medium cursor-pointer transition ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-input hover:bg-muted"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={name}
+                  required={q.required}
+                  checked={isSelected}
+                  onChange={() => onChange(o.value)}
+                  className="sr-only"
+                />
+                {o.label}
+              </label>
+            );
+          })}
+        </div>
         {q.help_text && <p className="text-xs text-muted-foreground mt-1">{q.help_text}</p>}
       </div>
     );
   }
+
 
   const inputType = q.response_type === "date" ? "date" : q.response_type === "number" ? "number" : "text";
   return (
@@ -709,6 +732,8 @@ function AddressBlockField({
 
 function AccountCreationFields({
   email,
+  nome,
+  phone,
   emailAlreadyRegistered,
   password,
   passwordConfirm,
@@ -718,6 +743,8 @@ function AccountCreationFields({
   onToggleShowPassword,
 }: {
   email: string;
+  nome: string;
+  phone: string;
   emailAlreadyRegistered: boolean;
   password: string;
   passwordConfirm: string;
@@ -732,6 +759,26 @@ function AccountCreationFields({
       <p className="text-sm text-muted-foreground">
         Crie sua conta para acessar o painel da campanha. Um administrador precisará aprovar seu acesso.
       </p>
+      {nome && (
+        <div>
+          <label className="text-sm font-medium">Nome completo</label>
+          <input
+            readOnly
+            value={nome}
+            className="mt-1 w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm"
+          />
+        </div>
+      )}
+      {phone && (
+        <div>
+          <label className="text-sm font-medium">WhatsApp</label>
+          <input
+            readOnly
+            value={phone}
+            className="mt-1 w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm"
+          />
+        </div>
+      )}
       <div>
         <label className="text-sm font-medium">E-mail</label>
         <input
@@ -744,6 +791,7 @@ function AccountCreationFields({
           <p className="text-xs text-amber-600 mt-1">Volte às etapas anteriores e informe seu e-mail.</p>
         )}
       </div>
+
       {emailAlreadyRegistered ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
           <p className="text-sm text-amber-900">
