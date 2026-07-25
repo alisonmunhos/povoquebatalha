@@ -982,26 +982,14 @@ export function SectionedQuestionsPanel({
             </p>
           </div>
 
-          <div className="rounded-md border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-950 space-y-1">
-            <p className="font-medium">Padrão geral do formulário (bloco acima: Padrões do formulário)</p>
-            <p>· Confirmação automática: <strong>{onOffLabel(formDefaultConfirmationActive)}</strong></p>
-            <p>
-              · Botão de WhatsApp: <strong>{onOffLabel(formDefaultWhatsappEnabled)}</strong>
-              {formDefaultWhatsappEnabled && formDefaultWhatsappPhone?.trim() ? (
-                <> — número <strong>{formDefaultWhatsappPhone.trim()}</strong> (único para todo o formulário)</>
-              ) : formDefaultWhatsappEnabled ? (
-                <> — configure o número em Padrões do formulário</>
-              ) : null}
-            </p>
-            <p className="text-blue-800">
-              O número de WhatsApp não muda por seção — só a mensagem e se o botão aparece ou não.
-            </p>
-          </div>
-
           <div className="rounded-md border bg-muted/20 p-3 space-y-1 text-xs">
             <p className="font-medium text-foreground">O que o participante verá ao terminar aqui</p>
             <p>· Confirmação automática: <strong>{onOffLabel(effectiveConfirmation)}</strong></p>
             <p>· Botão de WhatsApp: <strong>{onOffLabel(effectiveWhatsapp)}</strong></p>
+            <p className="text-muted-foreground">
+              Padrão do formulário: confirmação {onOffLabel(formDefaultConfirmationActive)} · WhatsApp {onOffLabel(formDefaultWhatsappEnabled)}
+              {formDefaultWhatsappEnabled && formDefaultWhatsappPhone?.trim() ? <> (nº padrão {formDefaultWhatsappPhone.trim()})</> : null}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -1039,26 +1027,47 @@ export function SectionedQuestionsPanel({
           </div>
 
           {effectiveWhatsapp && (
-            <div key={`${activeSection.clientKey}-wa`} className="space-y-1">
-              <label className="text-sm font-medium">Mensagem do botão nesta etapa (opcional)</label>
-              <textarea
-                value={activeSection.whatsapp_button_message ?? ""}
-                onChange={(e) =>
-                  updateSection(activeSection.clientKey, {
-                    whatsapp_button_message: e.target.value || null,
-                  })
-                }
-                rows={2}
-                placeholder={
-                  formDefaultWhatsappMessage?.trim()
-                    ? `Vazio = usar padrão: ${formDefaultWhatsappMessage.trim()}`
-                    : "Mensagem pré-preenchida do WhatsApp (opcional)"
-                }
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Só altera o texto da mensagem. O número continua sendo o definido nos padrões do formulário.
-              </p>
+            <div key={`${activeSection.clientKey}-wa`} className="space-y-3 rounded-md border bg-background p-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Número de WhatsApp para esta etapa (opcional)</label>
+                <input
+                  type="text"
+                  value={activeSection.whatsapp_button_phone ?? ""}
+                  onChange={(e) =>
+                    updateSection(activeSection.clientKey, {
+                      whatsapp_button_phone: e.target.value || null,
+                    })
+                  }
+                  placeholder={
+                    formDefaultWhatsappPhone?.trim()
+                      ? `Vazio = usar padrão: ${formDefaultWhatsappPhone.trim()}`
+                      : "Ex.: 5551999999999 (com DDI+DDD)"
+                  }
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Deixe em branco para usar o número padrão do formulário. Preencha para redirecionar esta etapa para um contato diferente.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Mensagem do botão nesta etapa (opcional)</label>
+                <textarea
+                  value={activeSection.whatsapp_button_message ?? ""}
+                  onChange={(e) =>
+                    updateSection(activeSection.clientKey, {
+                      whatsapp_button_message: e.target.value || null,
+                    })
+                  }
+                  rows={2}
+                  placeholder={
+                    formDefaultWhatsappMessage?.trim()
+                      ? `Vazio = usar padrão: ${formDefaultWhatsappMessage.trim()}`
+                      : "Mensagem pré-preenchida do WhatsApp (opcional)"
+                  }
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
             </div>
           )}
 
