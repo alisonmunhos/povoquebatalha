@@ -29,3 +29,26 @@ export function destinationLabel(
   const target = sections.find((s) => s.order_index === nextOrderIndex);
   return sectionLabel(nextOrderIndex, target?.title);
 }
+
+export type SectionFlowLine =
+  | { kind: "branch"; questionLabel: string; optionLabel: string; destination: string }
+  | { kind: "default"; destination: string };
+
+/** Linhas legíveis de saída de uma seção (regras + destino padrão). */
+export function buildSectionFlowLines(
+  defaultNext: number | null,
+  sections: Array<{ order_index: number; title: string | null }>,
+  rules: Array<{ questionLabel: string; optionLabel: string; nextOrderIndex: number | null }>,
+): SectionFlowLine[] {
+  const lines: SectionFlowLine[] = rules.map((r) => ({
+    kind: "branch",
+    questionLabel: r.questionLabel,
+    optionLabel: r.optionLabel,
+    destination: destinationLabel(r.nextOrderIndex, sections),
+  }));
+  lines.push({
+    kind: "default",
+    destination: destinationLabel(defaultNext, sections),
+  });
+  return lines;
+}

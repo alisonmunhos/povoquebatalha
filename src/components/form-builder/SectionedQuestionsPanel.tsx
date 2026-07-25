@@ -5,6 +5,7 @@ import {
 } from "@/lib/form-field-catalog";
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import {
+  buildSectionFlowLines,
   destinationLabel,
   getBranchableOptions,
   isBranchableQuestion,
@@ -17,7 +18,7 @@ import type { BranchRuleDraft, FormSectionType, SectionDraft } from "@/lib/form-
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
 import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
 import { getEffectiveQuestionShape, type CustomOption, type CustomResponseType } from "@/lib/form-question-shape";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type QuestionDraft = CustomQuestionDraft & {
@@ -166,8 +167,22 @@ export function SectionedQuestionsPanel({
     const initial = toLocalSections(initialSections);
     return initial[0]?.clientKey ?? "";
   });
-  const [expandedAdvanced, setExpandedAdvanced] = useState<Record<string, boolean>>({});
+  const [dirtySections, setDirtySections] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
+
+  function markDirty(sectionClientKey: string) {
+    setDirtySections((prev) => {
+      if (prev.has(sectionClientKey)) return prev;
+      const next = new Set(prev);
+      next.add(sectionClientKey);
+      return next;
+    });
+  }
+
+  function markDirtyForQuestion(questionClientKey: string) {
+    const qu = questions.find((q) => q.clientKey === questionClientKey);
+    if (qu) markDirty(qu.sectionClientKey);
+  }
 
   const activeSection = sections.find((s) => s.clientKey === activeSectionKey) ?? sections[0];
   const sectionQuestions = useMemo(
@@ -211,6 +226,7 @@ export function SectionedQuestionsPanel({
       return next;
     });
     setActiveSectionKey(clientKey);
+    markDirty(clientKey);
   }
 
   function setSectionType(clientKey: string, sectionType: FormSectionType) {
@@ -230,6 +246,7 @@ export function SectionedQuestionsPanel({
       section_type: sectionType,
       account_creation_role: sectionType === "account_creation" ? "agitador" : null,
     });
+    markDirty(clientKey);
   }
 
   function removeSection(clientKey: string) {
@@ -253,23 +270,32 @@ export function SectionedQuestionsPanel({
       const remaining = sections.filter((s) => s.clientKey !== clientKey);
       setActiveSectionKey(remaining[0]?.clientKey ?? "");
     }
+    setDirtySections((prev) => {
+      const next = new Set(prev);
+      next.delete(clientKey);
+      return next;
+    });
   }
 
   function moveSection(clientKey: string, dir: -1 | 1) {
+    const idx = sections.findIndex((s) => s.clientKey === clientKey);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= sections.length) return;
+    const swappedKey = sections[target]!.clientKey;
     setSections((prev) => {
-      const idx = prev.findIndex((s) => s.clientKey === clientKey);
-      const target = idx + dir;
-      if (idx < 0 || target < 0 || target >= prev.length) return prev;
       const next = [...prev];
       [next[idx], next[target]] = [next[target], next[idx]];
       const reindexed = reindexSections(next);
       setQuestions((q) => ensureCoreQuestionsInFirstSection(reindexed, q, newClientKey));
       return reindexed;
     });
+    markDirty(clientKey);
+    markDirty(swappedKey);
   }
 
   function updateSection(clientKey: string, patch: Partial<SectionDraft>) {
     setSections((prev) => prev.map((s) => (s.clientKey === clientKey ? { ...s, ...patch } : s)));
+    markDirty(clientKey);
   }
 
   function addCatalogField(field: FormCatalogField) {
@@ -289,6 +315,7 @@ export function SectionedQuestionsPanel({
         required: Boolean(field.alwaysRequired),
       },
     ]);
+    markDirty(activeSection.clientKey);
   }
 
   function addCustomQuestion() {
@@ -310,6 +337,7 @@ export function SectionedQuestionsPanel({
         custom_options: null,
       },
     ]);
+    markDirty(activeSection.clientKey);
   }
 
   function removeQuestion(clientKey: string) {
@@ -322,6 +350,7 @@ export function SectionedQuestionsPanel({
     const remaining = sectionQuestions.filter((q) => q.clientKey !== clientKey);
     setQuestions((prev) => reindexSectionQuestions(qu.sectionClientKey, remaining));
     setBranchRules((prev) => prev.filter((r) => r.questionClientKey !== clientKey));
+    markDirty(qu.sectionClientKey);
   }
 
   function moveQuestion(clientKey: string, dir: -1 | 1) {
@@ -336,10 +365,13 @@ export function SectionedQuestionsPanel({
     if (idx < 0 || target < 0 || target >= list.length) return;
     [list[idx], list[target]] = [list[target], list[idx]];
     setQuestions((prev) => reindexSectionQuestions(qu.sectionClientKey, list));
+    markDirty(qu.sectionClientKey);
   }
 
   function updateQuestion(clientKey: string, patch: Partial<QuestionDraft>) {
+    const qu = questions.find((q) => q.clientKey === clientKey);
     setQuestions((prev) => prev.map((q) => (q.clientKey === clientKey ? { ...q, ...patch } : q)));
+    if (qu) markDirty(qu.sectionClientKey);
   }
 
   function getBranchRule(questionClientKey: string, optionValue: string): LocalBranchRule | undefined {
@@ -370,13 +402,14 @@ export function SectionedQuestionsPanel({
         },
       ];
     });
+    markDirtyForQuestion(questionClientKey);
   }
 
   function forwardDestinations(fromOrderIndex: number) {
     return sections.filter((s) => s.order_index > fromOrderIndex);
   }
 
-  async function saveAll() {
+  async function saveSection() {
     if (sections.some((s) => !s.title?.trim())) {
       toast.error("Toda seção precisa de um título.");
       return;
@@ -515,7 +548,8 @@ export function SectionedQuestionsPanel({
         );
       }
 
-      toast.success("Seções e perguntas salvas");
+      toast.success("Seção salva");
+      setDirtySections(new Set());
       onSaved();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
@@ -524,6 +558,38 @@ export function SectionedQuestionsPanel({
     }
   }
 
+  function collectExplicitBranchRules(sectionKey: string) {
+    const sectionQs = questions
+      .filter((q) => q.sectionClientKey === sectionKey)
+      .sort((a, b) => a.order_index - b.order_index);
+    const rules: Array<{ questionLabel: string; optionLabel: string; nextOrderIndex: number | null }> = [];
+    for (const qu of sectionQs) {
+      if (!isBranchableQuestion(qu)) continue;
+      for (const opt of getBranchableOptions(qu)) {
+        const rule = getBranchRule(qu.clientKey, opt.value);
+        if (!rule) continue;
+        rules.push({
+          questionLabel: qu.label.trim() || "Pergunta sem título",
+          optionLabel: opt.label,
+          nextOrderIndex: rule.next_order_index,
+        });
+      }
+    }
+    return rules;
+  }
+
+  const activeSectionFlowLines = useMemo(() => {
+    if (!activeSection) return [];
+    return buildSectionFlowLines(
+      activeSection.default_next_order_index ?? null,
+      sections,
+      collectExplicitBranchRules(activeSection.clientKey),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collectExplicitBranchRules reads branchRules/questions
+  }, [activeSection, sections, questions, branchRules]);
+
+  const hasUnsavedChanges = dirtySections.size > 0;
+
   if (!activeSection) {
     return <p className="text-sm text-muted-foreground">Nenhuma seção encontrada.</p>;
   }
@@ -531,25 +597,34 @@ export function SectionedQuestionsPanel({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Monte o formulário em etapas. Cada seção é uma tela; você pode ramificar respostas de escolha única
-        para pular seções ou finalizar antes.
+        Monte o formulário em etapas. Você pode trocar de seção à vontade — o que editou fica guardado
+        na memória até clicar em <strong>Salvar seção</strong>. Use o salvamento como proteção se a
+        internet cair ou a página fechar sem querer.
       </p>
 
       <div className="flex flex-wrap gap-2">
-        {sections.map((s) => (
-          <button
-            key={s.clientKey}
-            type="button"
-            onClick={() => setActiveSectionKey(s.clientKey)}
-            className={`text-xs px-3 py-1.5 rounded-full border ${
-              s.clientKey === activeSection.clientKey
-                ? "bg-primary text-primary-foreground border-primary"
-                : "hover:bg-muted/60"
-            }`}
-          >
-            {sectionLabel(s.order_index, s.title)}
-          </button>
-        ))}
+        {sections.map((s) => {
+          const isActive = s.clientKey === activeSection.clientKey;
+          const isDirty = dirtySections.has(s.clientKey);
+          return (
+            <button
+              key={s.clientKey}
+              type="button"
+              onClick={() => setActiveSectionKey(s.clientKey)}
+              className={`text-xs px-3 py-1.5 rounded-full border inline-flex items-center gap-1.5 ${
+                isActive ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/60"
+              }`}
+            >
+              {sectionLabel(s.order_index, s.title)}
+              {isDirty && (
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-primary-foreground/80" : "bg-amber-500"}`}
+                  title="Alterações não salvas"
+                />
+              )}
+            </button>
+          );
+        })}
         <button
           type="button"
           onClick={addSection}
@@ -610,32 +685,6 @@ export function SectionedQuestionsPanel({
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Depois desta seção (padrão)</label>
-              <select
-                value={
-                  activeSection.default_next_order_index == null
-                    ? ""
-                    : String(activeSection.default_next_order_index)
-                }
-                onChange={(e) =>
-                  updateSection(activeSection.clientKey, {
-                    default_next_order_index: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Finalizar formulário</option>
-                {forwardDestinations(activeSection.order_index).map((s) => (
-                  <option key={s.clientKey} value={String(s.order_index)}>
-                    {sectionLabel(s.order_index, s.title)}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Usado quando nenhuma regra de ramificação abaixo se aplica.
-              </p>
-            </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -661,96 +710,6 @@ export function SectionedQuestionsPanel({
             </button>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            setExpandedAdvanced((prev) => ({
-              ...prev,
-              [activeSection.clientKey]: !prev[activeSection.clientKey],
-            }))
-          }
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          {expandedAdvanced[activeSection.clientKey] ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
-          )}
-          Tela de sucesso desta seção (opcional)
-        </button>
-
-        {expandedAdvanced[activeSection.clientKey] && (
-          <div className="space-y-3 border-t pt-3">
-            <p className="text-xs text-muted-foreground">
-              Só vale quando o fluxo termina nesta seção. Campos vazios usam a configuração geral do formulário.
-            </p>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={activeSection.confirmation_active === true}
-                onChange={(e) =>
-                  updateSection(activeSection.clientKey, {
-                    confirmation_active: e.target.checked ? true : null,
-                  })
-                }
-              />
-              Enviar confirmação automática ao finalizar aqui
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={activeSection.whatsapp_button_enabled === true}
-                onChange={(e) =>
-                  updateSection(activeSection.clientKey, {
-                    whatsapp_button_enabled: e.target.checked ? true : null,
-                    ...(e.target.checked ? {} : { whatsapp_button_message: null }),
-                  })
-                }
-              />
-              Mostrar botão de WhatsApp ao finalizar aqui
-            </label>
-            {activeSection.whatsapp_button_enabled === true && (
-              <div key={`${activeSection.clientKey}-wa`} className="space-y-1">
-                <textarea
-                  value={activeSection.whatsapp_button_message ?? ""}
-                  onChange={(e) =>
-                    updateSection(activeSection.clientKey, {
-                      whatsapp_button_message: e.target.value || null,
-                    })
-                  }
-                  rows={2}
-                  placeholder={
-                    formDefaultWhatsappMessage?.trim()
-                      ? `Padrão do formulário: ${formDefaultWhatsappMessage.trim()}`
-                      : "Mensagem pré-preenchida do WhatsApp (opcional)"
-                  }
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Deixe vazio para usar a mensagem padrão do formulário
-                  {formDefaultWhatsappMessage?.trim() ? " (veja acima em Botão de WhatsApp)." : "."}
-                </p>
-              </div>
-            )}
-            <div>
-              <label className="text-sm font-medium">Ordem na tela de sucesso</label>
-              <select
-                value={activeSection.success_screen_order ?? ""}
-                onChange={(e) =>
-                  updateSection(activeSection.clientKey, {
-                    success_screen_order: (e.target.value || null) as SectionDraft["success_screen_order"],
-                  })
-                }
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Usar configuração geral</option>
-                <option value="whatsapp_first">WhatsApp primeiro</option>
-                <option value="confirmation_first">Confirmação primeiro</option>
-              </select>
-            </div>
-          </div>
-        )}
 
         {activeSection.section_type !== "account_creation" && (
         <>
@@ -838,8 +797,8 @@ export function SectionedQuestionsPanel({
                 </label>
 
                 {isBranchableQuestion(qu) && (
-                  <div className="rounded-md bg-muted/40 p-3 space-y-2">
-                    <p className="text-xs font-medium">Ramificação por resposta</p>
+                  <div className="rounded-md bg-violet-50/70 border border-violet-200/80 p-3 space-y-2">
+                    <p className="text-xs font-medium text-violet-900">Para onde vai cada resposta desta pergunta?</p>
                     {branchOptions.map((opt) => {
                       const rule = getBranchRule(qu.clientKey, opt.value);
                       const value = !rule
@@ -904,28 +863,177 @@ export function SectionedQuestionsPanel({
         </div>
         </>
         )}
+
+        <div className="space-y-3 border-t pt-4">
+          <div>
+            <p className="text-sm font-medium">Para onde vai depois desta etapa?</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              As regras por resposta (nas perguntas de escolha única acima) têm prioridade. O destino
+              padrão abaixo só vale quando nenhuma regra se aplica.
+            </p>
+          </div>
+
+          {activeSectionFlowLines.some((l) => l.kind === "branch") && (
+            <div className="rounded-md border border-violet-200 bg-violet-50/60 p-3 space-y-1.5 text-sm">
+              <p className="text-xs font-medium text-violet-900">Regras por resposta</p>
+              {activeSectionFlowLines
+                .filter((l) => l.kind === "branch")
+                .map((line, i) => (
+                  <p key={i} className="text-violet-950">
+                    Se &quot;{line.questionLabel}&quot; = <strong>{line.optionLabel}</strong> → {line.destination}
+                  </p>
+                ))}
+            </div>
+          )}
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <label className="text-sm font-medium">Destino padrão (quando nenhuma regra se aplica)</label>
+            <select
+              value={
+                activeSection.default_next_order_index == null
+                  ? ""
+                  : String(activeSection.default_next_order_index)
+              }
+              onChange={(e) =>
+                updateSection(activeSection.clientKey, {
+                  default_next_order_index: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Finalizar formulário</option>
+              {forwardDestinations(activeSection.order_index).map((s) => (
+                <option key={s.clientKey} value={String(s.order_index)}>
+                  {sectionLabel(s.order_index, s.title)}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground">
+              Resumo: demais casos →{" "}
+              <strong>{destinationLabel(activeSection.default_next_order_index ?? null, sections)}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3 border-t pt-4">
+          <div>
+            <p className="text-sm font-medium">Ao terminar nesta etapa</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Só vale quando o participante <strong>termina o formulário aqui</strong>. Você pode usar
+              confirmação automática, botão de WhatsApp, os dois ou nenhum. Deixe desmarcado para usar o
+              padrão geral do formulário.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={activeSection.confirmation_active === true}
+              onChange={(e) =>
+                updateSection(activeSection.clientKey, {
+                  confirmation_active: e.target.checked ? true : null,
+                })
+              }
+            />
+            Enviar confirmação automática ao finalizar aqui
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={activeSection.whatsapp_button_enabled === true}
+              onChange={(e) =>
+                updateSection(activeSection.clientKey, {
+                  whatsapp_button_enabled: e.target.checked ? true : null,
+                  ...(e.target.checked ? {} : { whatsapp_button_message: null }),
+                })
+              }
+            />
+            Mostrar botão de WhatsApp ao finalizar aqui
+          </label>
+          {activeSection.whatsapp_button_enabled === true && (
+            <div key={`${activeSection.clientKey}-wa`} className="space-y-1">
+              <textarea
+                value={activeSection.whatsapp_button_message ?? ""}
+                onChange={(e) =>
+                  updateSection(activeSection.clientKey, {
+                    whatsapp_button_message: e.target.value || null,
+                  })
+                }
+                rows={2}
+                placeholder={
+                  formDefaultWhatsappMessage?.trim()
+                    ? `Padrão do formulário: ${formDefaultWhatsappMessage.trim()}`
+                    : "Mensagem pré-preenchida do WhatsApp (opcional)"
+                }
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Deixe vazio para usar a mensagem padrão do formulário.
+              </p>
+            </div>
+          )}
+          {(activeSection.confirmation_active === true || activeSection.whatsapp_button_enabled === true) && (
+            <div>
+              <label className="text-sm font-medium">Ordem na tela de sucesso desta seção</label>
+              <select
+                value={activeSection.success_screen_order ?? ""}
+                onChange={(e) =>
+                  updateSection(activeSection.clientKey, {
+                    success_screen_order: (e.target.value || null) as SectionDraft["success_screen_order"],
+                  })
+                }
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Usar configuração geral do formulário</option>
+                <option value="whatsapp_first">WhatsApp primeiro</option>
+                <option value="confirmation_first">Confirmação primeiro</option>
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {sections.length > 1 && (
-        <div className="text-xs text-muted-foreground border rounded-md p-3 space-y-1">
-          <p className="font-medium text-foreground">Resumo do fluxo</p>
-          {sections.map((s) => (
-            <p key={s.clientKey}>
-              {sectionLabel(s.order_index, s.title)} →{" "}
-              {destinationLabel(s.default_next_order_index ?? null, sections)}
-            </p>
-          ))}
+        <div className="text-xs text-muted-foreground border rounded-md p-3 space-y-3">
+          <p className="font-medium text-foreground">Resumo do fluxo do formulário</p>
+          {sections.map((s) => {
+            const lines = buildSectionFlowLines(
+              s.default_next_order_index ?? null,
+              sections,
+              collectExplicitBranchRules(s.clientKey),
+            );
+            return (
+              <div key={s.clientKey} className="space-y-0.5">
+                <p className="font-medium text-foreground">{sectionLabel(s.order_index, s.title)}</p>
+                {lines.map((line, i) =>
+                  line.kind === "branch" ? (
+                    <p key={i} className="pl-2">
+                      · Se &quot;{line.questionLabel}&quot; = {line.optionLabel} → {line.destination}
+                    </p>
+                  ) : (
+                    <p key={i} className="pl-2 text-muted-foreground">
+                      · Demais casos → {line.destination}
+                    </p>
+                  ),
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={saveAll}
-        disabled={saving}
-        className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-      >
-        <Save className="h-4 w-4" /> {saving ? "Salvando…" : "Salvar seções e perguntas"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={saveSection}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Save className="h-4 w-4" /> {saving ? "Salvando…" : "Salvar seção"}
+        </button>
+        {hasUnsavedChanges && (
+          <p className="text-xs text-amber-700">Há alterações não salvas neste formulário.</p>
+        )}
+      </div>
     </div>
   );
 }
