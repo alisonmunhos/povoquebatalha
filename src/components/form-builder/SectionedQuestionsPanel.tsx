@@ -14,12 +14,8 @@ import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.funct
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
 import type { BranchRuleDraft, SectionDraft } from "@/lib/form-sections.types";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
-<<<<<<< Updated upstream
-import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
-=======
 import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
 import { getEffectiveQuestionShape, type CustomOption, type CustomResponseType } from "@/lib/form-question-shape";
->>>>>>> Stashed changes
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
