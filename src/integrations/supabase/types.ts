@@ -127,33 +127,92 @@ export type Database = {
           },
         ]
       }
+      agitation_mission_claims: {
+        Row: {
+          claimed_at: string
+          completed_at: string | null
+          id: string
+          mission_id: string
+          task_count: number
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          completed_at?: string | null
+          id?: string
+          mission_id: string
+          task_count?: number
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string
+          completed_at?: string | null
+          id?: string
+          mission_id?: string
+          task_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agitation_mission_claims_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "agitation_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agitation_missions: {
         Row: {
+          batch_size: number
+          cooldown_minutes: number
+          coordinator_phone: string | null
           created_at: string
           created_by: string
+          ends_at: string | null
           id: string
+          instructions: string | null
+          is_open: boolean
           message_template: string
           paused_at: string | null
           source_filters: Json | null
+          starts_at: string | null
           title: string
+          whatsapp_message_template: string | null
         }
         Insert: {
+          batch_size?: number
+          cooldown_minutes?: number
+          coordinator_phone?: string | null
           created_at?: string
           created_by: string
+          ends_at?: string | null
           id?: string
+          instructions?: string | null
+          is_open?: boolean
           message_template: string
           paused_at?: string | null
           source_filters?: Json | null
+          starts_at?: string | null
           title: string
+          whatsapp_message_template?: string | null
         }
         Update: {
+          batch_size?: number
+          cooldown_minutes?: number
+          coordinator_phone?: string | null
           created_at?: string
           created_by?: string
+          ends_at?: string | null
           id?: string
+          instructions?: string | null
+          is_open?: boolean
           message_template?: string
           paused_at?: string | null
           source_filters?: Json | null
+          starts_at?: string | null
           title?: string
+          whatsapp_message_template?: string | null
         }
         Relationships: []
       }
@@ -2201,6 +2260,68 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          created_by: string | null
+          cta_kind: string | null
+          cta_label: string | null
+          cta_payload: Json | null
+          expires_at: string | null
+          id: string
+          image_url: string | null
+          kind: string
+          mission_id: string | null
+          read_at: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          cta_kind?: string | null
+          cta_label?: string | null
+          cta_payload?: Json | null
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          kind?: string
+          mission_id?: string | null
+          read_at?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          cta_kind?: string | null
+          cta_label?: string | null
+          cta_payload?: Json | null
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          kind?: string
+          mission_id?: string | null
+          read_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "agitation_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           contact_id: string | null
@@ -2247,6 +2368,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       segments: {
         Row: {
