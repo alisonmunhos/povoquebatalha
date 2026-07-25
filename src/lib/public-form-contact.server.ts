@@ -348,7 +348,7 @@ export async function saveFormContactFromAnswers(
 
   const { data: savedContact } = await supabaseAdmin
     .from("contacts")
-    .select("recad_token,nome,email")
+    .select("recad_token,nome,email,phone_raw,phone_e164")
     .eq("id", savedId)
     .single();
 
@@ -357,6 +357,7 @@ export async function saveFormContactFromAnswers(
     recad_token: savedContact?.recad_token ?? recad_token ?? "",
     nome: savedContact?.nome ?? nome,
     email: savedContact?.email ?? email,
+    phone: savedContact?.phone_raw ?? savedContact?.phone_e164 ?? phoneRaw ?? null,
   };
 }
 
