@@ -157,6 +157,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           confirmation_active: boolean | null;
           whatsapp_button_enabled: boolean | null;
           whatsapp_button_message: string | null;
+          whatsapp_button_phone: string | null;
           success_screen_order: string | null;
         }> = [];
         let branchRules: Array<{ question_id: string; option_value: string; next_section_id: string | null }> = [];
@@ -164,7 +165,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         if (layoutMode === "sectioned") {
           const { data: sectionRows } = await supabaseAdmin
             .from("form_sections")
-            .select("id,order_index,title,section_type,account_creation_role,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+            .select("id,order_index,title,section_type,account_creation_role,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order")
             .eq("form_definition_id", form.id)
             .order("order_index", { ascending: true });
           sections = sectionRows ?? [];
