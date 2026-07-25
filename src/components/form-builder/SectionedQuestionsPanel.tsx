@@ -924,7 +924,8 @@ export function SectionedQuestionsPanel({
           </button>
         </div>
         </>
-        )}
+
+
 
         <div className="space-y-3 border-t pt-4">
           <div>
