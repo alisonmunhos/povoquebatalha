@@ -83,15 +83,13 @@ export const createNotification = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => createInput.parse(raw))
   .handler(async ({ data, context }) => {
     // staff-only via RLS insert policy; verify first for a nicer error
-    const { data: isStaff } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    const { data: isMod } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "moderator",
-    });
-    if (!isStaff && !isMod) throw new Error("Sem permissão");
+    const { data: staffRoles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .in("role", ["admin", "moderator"] as never);
+    if (!staffRoles || staffRoles.length === 0) throw new Error("Sem permissão");
+
 
     // Resolve target users
     let targetUserIds: string[] = [];
