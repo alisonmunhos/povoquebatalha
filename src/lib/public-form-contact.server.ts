@@ -71,6 +71,7 @@ export type SaveFormContactResult = {
   recad_token: string;
   nome: string | null;
   email: string | null;
+  phone: string | null;
 };
 
 export type SaveFormContactError = { ok: false; status: number; error: string };
