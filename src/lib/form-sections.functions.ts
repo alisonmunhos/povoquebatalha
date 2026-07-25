@@ -36,6 +36,7 @@ function toSectionDrafts(
     confirmation_active: boolean | null;
     whatsapp_button_enabled: boolean | null;
     whatsapp_button_message: string | null;
+    whatsapp_button_phone?: string | null;
     success_screen_order: string | null;
   }>,
 ): SectionDraft[] {
@@ -52,6 +53,7 @@ function toSectionDrafts(
     confirmation_active: s.confirmation_active,
     whatsapp_button_enabled: s.whatsapp_button_enabled,
     whatsapp_button_message: s.whatsapp_button_message,
+    whatsapp_button_phone: s.whatsapp_button_phone ?? null,
     success_screen_order: (s.success_screen_order as SuccessScreenOrder | null) ?? null,
   }));
 }
