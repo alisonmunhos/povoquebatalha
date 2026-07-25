@@ -258,19 +258,13 @@ export function SectionedQuestionsPanel({
       toast.error("A primeira seção precisa ser de perguntas — ela contém Nome, WhatsApp e Consentimento.");
       return;
     }
-    if (sectionType === "account_creation") {
-      setQuestions((prev) => prev.filter((q) => q.sectionClientKey !== clientKey));
-      setBranchRules((prev) => {
-        const removedKeys = new Set(questions.filter((q) => q.sectionClientKey === clientKey).map((q) => q.clientKey));
-        return prev.filter((r) => !removedKeys.has(r.questionClientKey));
-      });
-    }
     updateSection(clientKey, {
       section_type: sectionType,
       account_creation_role: sectionType === "account_creation" ? "agitador" : null,
     });
     markDirty(clientKey);
   }
+
 
   function removeSection(clientKey: string) {
     if (sections.length <= 1) {
@@ -445,7 +439,6 @@ export function SectionedQuestionsPanel({
 
     for (const s of sections) {
       const sectionQs = questions.filter((q) => q.sectionClientKey === s.clientKey);
-      if (s.section_type === "account_creation") continue;
       for (const q of sectionQs) {
         if (!q.label.trim()) {
           return {
@@ -466,6 +459,7 @@ export function SectionedQuestionsPanel({
         }
       }
     }
+
 
     const linkErr = validateQuestionLinks(questions);
     if (linkErr) return { ok: false, message: linkErr };
@@ -526,10 +520,8 @@ export function SectionedQuestionsPanel({
 
       const questionsWithCore = ensureCoreQuestionsInFirstSection(sections, questions, newClientKey);
 
-      const questionsToSave = questionsWithCore.filter((q) => {
-        const section = sections.find((s) => s.clientKey === q.sectionClientKey);
-        return section?.section_type !== "account_creation";
-      });
+      const questionsToSave = questionsWithCore;
+
 
       const missingSection = questionsToSave.find((q) => !sectionIdByClientKey.get(q.sectionClientKey));
       if (missingSection) {
@@ -718,7 +710,7 @@ export function SectionedQuestionsPanel({
                 </option>
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                &quot;Criar conta&quot; exibe uma tela fixa de cadastro (e-mail e senha), sem perguntas.
+                &quot;Criar conta&quot; exibe a tela de cadastro (e-mail e senha) e, opcionalmente, perguntas extras nesta mesma etapa.
               </p>
             </div>
             {activeSection.section_type === "account_creation" && (
@@ -726,11 +718,13 @@ export function SectionedQuestionsPanel({
                 <p className="font-medium">Seção de criação de conta</p>
                 <p>
                   O participante verá e-mail (das etapas anteriores), senha e confirmação. Papel solicitado:{" "}
-                  <strong>agitador</strong>.
+                  <strong>agitador</strong>. Você também pode adicionar perguntas normais nesta seção — elas
+                  aparecem logo abaixo dos campos de senha.
                 </p>
                 <p>Certifique-se de que a primeira seção tem Nome e WhatsApp e que uma etapa anterior inclui E-mail.</p>
               </div>
             )}
+
             <div>
               <label className="text-sm font-medium">Título da seção</label>
               <input
@@ -779,9 +773,9 @@ export function SectionedQuestionsPanel({
           </div>
         </div>
 
-        {activeSection.section_type !== "account_creation" && (
         <>
         <div className="space-y-3 border-t pt-3">
+
           {isFirstSection && (
             <p className="text-xs text-muted-foreground rounded-md bg-muted/40 border px-3 py-2">
               <strong>Campos essenciais</strong> — Nome, WhatsApp e Consentimento ficam fixos nesta primeira seção.
@@ -864,7 +858,7 @@ export function SectionedQuestionsPanel({
                   Obrigatória{isCore ? " (sempre)" : ""}
                 </label>
 
-                {isBranchableQuestion(qu) && (
+                {isBranchableQuestion(qu) && activeSection.section_type !== "account_creation" && (
                   <div className="rounded-md bg-violet-50/70 border border-violet-200/80 p-3 space-y-2">
                     <p className="text-xs font-medium text-violet-900">Para onde vai cada resposta desta pergunta?</p>
                     {branchOptions.map((opt) => {
@@ -930,7 +924,8 @@ export function SectionedQuestionsPanel({
           </button>
         </div>
         </>
-        )}
+
+
 
         <div className="space-y-3 border-t pt-4">
           <div>

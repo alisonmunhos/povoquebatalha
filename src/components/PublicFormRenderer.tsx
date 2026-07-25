@@ -169,12 +169,12 @@ export function PublicFormRenderer({
   }, [form, sectionedForm, layoutMode, values]);
 
   function validateCurrentSection(): string | null {
-    if (isAccountSection) return null;
     const visible = sectionQuestions.filter(
       (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
     );
     return findFirstRequiredEmpty(visible, values, parentAnswers);
   }
+
 
   function validateAccountSection(): string | null {
     if (!isAccountSection || emailAlreadyRegistered) return null;
@@ -248,9 +248,12 @@ export function PublicFormRenderer({
           section_id: currentSection.id,
           password: accountPassword,
           password_confirm: accountPasswordConfirm,
+          answers: values,
+          ref_token: refToken ?? "",
           hp: "",
         }),
       });
+
       const json = await r.json();
       if (r.status === 409 && json.code === "email_already_registered") {
         setEmailAlreadyRegistered(true);
@@ -419,18 +422,25 @@ export function PublicFormRenderer({
               )}
               <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
               {isAccountSection ? (
-                <AccountCreationFields
-                  email={contactContext?.email ?? ""}
-                  nome={contactContext?.nome ?? ""}
-                  phone={contactContext?.phone ?? ""}
-                  emailAlreadyRegistered={emailAlreadyRegistered}
-                  password={accountPassword}
-                  passwordConfirm={accountPasswordConfirm}
-                  showPassword={showPassword}
-                  onPasswordChange={setAccountPassword}
-                  onPasswordConfirmChange={setAccountPasswordConfirm}
-                  onToggleShowPassword={() => setShowPassword((p) => !p)}
-                />
+                <>
+                  <AccountCreationFields
+                    email={contactContext?.email ?? ""}
+                    nome={contactContext?.nome ?? ""}
+                    phone={contactContext?.phone ?? ""}
+                    emailAlreadyRegistered={emailAlreadyRegistered}
+                    password={accountPassword}
+                    passwordConfirm={accountPasswordConfirm}
+                    showPassword={showPassword}
+                    onPasswordChange={setAccountPassword}
+                    onPasswordConfirmChange={setAccountPasswordConfirm}
+                    onToggleShowPassword={() => setShowPassword((p) => !p)}
+                  />
+                  {sectionQuestions
+                    .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
+                    .map((q) => (
+                      <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
+                    ))}
+                </>
               ) : (
                 sectionQuestions
                   .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
@@ -438,6 +448,7 @@ export function PublicFormRenderer({
                     <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
                   ))
               )}
+
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
                 <ChevronRight className="h-4 w-4" />
