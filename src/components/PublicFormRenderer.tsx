@@ -421,6 +421,8 @@ export function PublicFormRenderer({
               {isAccountSection ? (
                 <AccountCreationFields
                   email={contactContext?.email ?? ""}
+                  nome={contactContext?.nome ?? ""}
+                  phone={contactContext?.phone ?? ""}
                   emailAlreadyRegistered={emailAlreadyRegistered}
                   password={accountPassword}
                   passwordConfirm={accountPasswordConfirm}
