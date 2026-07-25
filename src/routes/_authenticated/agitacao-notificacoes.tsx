@@ -36,7 +36,7 @@ function NotificacoesAdminPage() {
   const [calEnd, setCalEnd] = useState("");
   const [calLocation, setCalLocation] = useState("");
   const [targetMode, setTargetMode] = useState<"all_staff" | "role">("all_staff");
-  const [targetRole, setTargetRole] = useState<"admin" | "moderator" | "agitador">("agitador");
+  const [targetRole, setTargetRole] = useState<"admin" | "operador" | "agitador" | "comunicacao">("agitador");
 
   const historyQ = useQuery({
     queryKey: ["notif-admin-history"],
@@ -99,7 +99,7 @@ function NotificacoesAdminPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  if (role !== "admin" && role !== "moderator") {
+  if (role !== "admin" && role !== "operador") {
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <p className="text-sm text-muted-foreground">Acesso restrito a admin/moderador.</p>

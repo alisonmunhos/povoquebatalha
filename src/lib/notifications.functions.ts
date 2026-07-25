@@ -87,8 +87,9 @@ export const createNotification = createServerFn({ method: "POST" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId)
-      .in("role", ["admin", "moderator"] as never);
+      .in("role", ["admin", "operador"] as never);
     if (!staffRoles || staffRoles.length === 0) throw new Error("Sem permissão");
+
 
 
     // Resolve target users
