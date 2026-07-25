@@ -40,6 +40,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedContatosBiRouteImport } from './routes/_authenticated/contatos-bi'
 import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenticated/comunicacao'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
+import { Route as AuthenticatedAgitacaoNotificacoesRouteImport } from './routes/_authenticated/agitacao-notificacoes'
 import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
 import { Route as AuthenticatedMissoesAgitacaoIndexRouteImport } from './routes/_authenticated/missoes-agitacao.index'
 import { Route as AuthenticatedEntradaDadosIndexRouteImport } from './routes/_authenticated/entrada-dados.index'
@@ -226,6 +227,12 @@ const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAgitacaoNotificacoesRoute =
+  AuthenticatedAgitacaoNotificacoesRouteImport.update({
+    id: '/agitacao-notificacoes',
+    path: '/agitacao-notificacoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAgitacaoRoute = AuthenticatedAgitacaoRouteImport.update({
   id: '/agitacao',
   path: '/agitacao',
@@ -399,6 +406,7 @@ export interface FileRoutesByFullPath {
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
+  '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/contatos-bi': typeof AuthenticatedContatosBiRoute
@@ -459,6 +467,7 @@ export interface FileRoutesByTo {
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
+  '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -520,6 +529,7 @@ export interface FileRoutesById {
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/_authenticated/agitacao': typeof AuthenticatedAgitacaoRoute
+  '/_authenticated/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/comunicacao': typeof AuthenticatedComunicacaoRouteWithChildren
   '/_authenticated/contatos-bi': typeof AuthenticatedContatosBiRoute
@@ -582,6 +592,7 @@ export interface FileRouteTypes {
     | '/recadastro'
     | '/redefinir-senha'
     | '/agitacao'
+    | '/agitacao-notificacoes'
     | '/calendario'
     | '/comunicacao'
     | '/contatos-bi'
@@ -642,6 +653,7 @@ export interface FileRouteTypes {
     | '/recadastro'
     | '/redefinir-senha'
     | '/agitacao'
+    | '/agitacao-notificacoes'
     | '/calendario'
     | '/contatos-bi'
     | '/dashboard'
@@ -702,6 +714,7 @@ export interface FileRouteTypes {
     | '/recadastro'
     | '/redefinir-senha'
     | '/_authenticated/agitacao'
+    | '/_authenticated/agitacao-notificacoes'
     | '/_authenticated/calendario'
     | '/_authenticated/comunicacao'
     | '/_authenticated/contatos-bi'
@@ -1000,6 +1013,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agitacao-notificacoes': {
+      id: '/_authenticated/agitacao-notificacoes'
+      path: '/agitacao-notificacoes'
+      fullPath: '/agitacao-notificacoes'
+      preLoaderRoute: typeof AuthenticatedAgitacaoNotificacoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/agitacao': {
       id: '/_authenticated/agitacao'
       path: '/agitacao'
@@ -1233,6 +1253,7 @@ const AuthenticatedUsuariosRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgitacaoRoute: typeof AuthenticatedAgitacaoRoute
+  AuthenticatedAgitacaoNotificacoesRoute: typeof AuthenticatedAgitacaoNotificacoesRoute
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedComunicacaoRoute: typeof AuthenticatedComunicacaoRouteWithChildren
   AuthenticatedContatosBiRoute: typeof AuthenticatedContatosBiRoute
@@ -1261,6 +1282,8 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgitacaoRoute: AuthenticatedAgitacaoRoute,
+  AuthenticatedAgitacaoNotificacoesRoute:
+    AuthenticatedAgitacaoNotificacoesRoute,
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
   AuthenticatedComunicacaoRoute: AuthenticatedComunicacaoRouteWithChildren,
   AuthenticatedContatosBiRoute: AuthenticatedContatosBiRoute,
