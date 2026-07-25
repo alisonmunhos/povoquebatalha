@@ -3,7 +3,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
   X, ExternalLink, Filter, XCircle,
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { Input } from "@/components/ui/input";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
+import { useCurrentUserRole } from "@/hooks/use-current-role";
 
 export const Route = createFileRoute("/_authenticated/agitacao")({
   head: () => ({ meta: [{ title: "Agitação — Povo que Batalha" }] }),
