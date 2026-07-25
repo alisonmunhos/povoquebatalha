@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles, type AppRole } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { AddContactButton } from "@/components/AddContactButton";
+import { BrandMark } from "@/components/BrandMark";
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
 type NavGroup = { label: string; items: NavItem[] };
