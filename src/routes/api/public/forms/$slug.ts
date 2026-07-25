@@ -419,8 +419,8 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         } else {
           const onPath = (q: QuestionRow) =>
             !sectionPathIds || (q.section_id != null && sectionPathIds.has(q.section_id));
-          const hasNomeField = (questions ?? []).some((q) => q.catalog_field_key === "nome" && onPath(q));
-          const hasPhoneField = (questions ?? []).some((q) => q.catalog_field_key === "whatsapp" && onPath(q));
+          const hasNomeField = ((questions ?? []) as QuestionRow[]).some((q) => q.catalog_field_key === "nome" && onPath(q));
+          const hasPhoneField = ((questions ?? []) as QuestionRow[]).some((q) => q.catalog_field_key === "whatsapp" && onPath(q));
           if (hasNomeField && (!nome || nome.length < 2)) {
             return new Response(JSON.stringify({ ok: false, error: "Nome ausente." }), { status: 400, headers: cors });
           }
