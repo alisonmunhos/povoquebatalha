@@ -258,19 +258,13 @@ export function SectionedQuestionsPanel({
       toast.error("A primeira seção precisa ser de perguntas — ela contém Nome, WhatsApp e Consentimento.");
       return;
     }
-    if (sectionType === "account_creation") {
-      setQuestions((prev) => prev.filter((q) => q.sectionClientKey !== clientKey));
-      setBranchRules((prev) => {
-        const removedKeys = new Set(questions.filter((q) => q.sectionClientKey === clientKey).map((q) => q.clientKey));
-        return prev.filter((r) => !removedKeys.has(r.questionClientKey));
-      });
-    }
     updateSection(clientKey, {
       section_type: sectionType,
       account_creation_role: sectionType === "account_creation" ? "agitador" : null,
     });
     markDirty(clientKey);
   }
+
 
   function removeSection(clientKey: string) {
     if (sections.length <= 1) {
