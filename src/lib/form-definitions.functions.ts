@@ -505,6 +505,8 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
       id: string;
       order_index: number;
       title: string | null;
+      section_type: string | null;
+      account_creation_role: string | null;
       default_next_section_id: string | null;
       confirmation_active: boolean | null;
       whatsapp_button_enabled: boolean | null;
@@ -515,7 +517,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
       const { data: sections, error: secErr } = await context.supabase
         .from("form_sections")
         .select(
-          "id,order_index,title,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order",
+          "id,order_index,title,section_type,account_creation_role,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order",
         )
         .eq("form_definition_id", data.id)
         .order("order_index", { ascending: true });
@@ -566,6 +568,8 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
             form_definition_id: row.id,
             order_index: s.order_index,
             title: s.title,
+            section_type: s.section_type ?? "questions",
+            account_creation_role: s.section_type === "account_creation" ? (s.account_creation_role ?? "agitador") : null,
             confirmation_active: s.confirmation_active,
             whatsapp_button_enabled: s.whatsapp_button_enabled,
             whatsapp_button_message: s.whatsapp_button_message,

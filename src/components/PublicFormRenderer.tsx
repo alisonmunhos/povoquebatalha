@@ -3,7 +3,7 @@
 // seu próprio slug fixo + parâmetros de busca (ref/recad_token) como props.
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight } from "lucide-react";
+import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
 import { resolveNextSectionId, sortSections } from "@/lib/form-sections-routing";
@@ -39,7 +39,14 @@ type FormSection = {
   id: string;
   order_index: number;
   title: string | null;
+  section_type?: "questions" | "account_creation";
+  account_creation_role?: string | null;
   default_next_section_id: string | null;
+};
+type ContactContext = {
+  email: string | null;
+  nome: string | null;
+  email_already_registered: boolean;
 };
 type BranchRule = {
   question_id: string;
@@ -54,6 +61,7 @@ type SectionedFormDefinition = {
   branch_rules: BranchRule[];
   initial_values: Record<string, AnswerValue> | null;
   start_section_id: string | null;
+  contact_context?: ContactContext | null;
 };
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 type SuccessScreenOrder = "whatsapp_first" | "confirmation_first";
@@ -72,6 +80,12 @@ export function PublicFormRenderer({
   const [layoutMode, setLayoutMode] = useState<"flat" | "sectioned" | null>(null);
   const [currentSectionId, setCurrentSectionId] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
+  const [activeRecadToken, setActiveRecadToken] = useState(recadToken ?? "");
+  const [contactContext, setContactContext] = useState<ContactContext | null>(null);
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountPasswordConfirm, setAccountPasswordConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailAlreadyRegistered, setEmailAlreadyRegistered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
@@ -108,6 +122,10 @@ export function PublicFormRenderer({
             ? loaded.start_section_id
             : sections[0]?.id ?? null;
           setCurrentSectionId(startId);
+          if (json.form.contact_context) {
+            setContactContext(json.form.contact_context);
+            setEmailAlreadyRegistered(Boolean(json.form.contact_context.email_already_registered));
+          }
           return;
         }
         setSectionedForm(null);
@@ -123,6 +141,7 @@ export function PublicFormRenderer({
 
   const sections = useMemo(() => sortSections(sectionedForm?.sections ?? []), [sectionedForm]);
   const currentSection = sections.find((s) => s.id === currentSectionId) ?? sections[0];
+  const isAccountSection = currentSection?.section_type === "account_creation";
   const sectionQuestions = useMemo(
     () => (sectionedForm?.questions ?? []).filter((q) => q.section_id === currentSection?.id),
     [sectionedForm, currentSection?.id],
@@ -145,6 +164,99 @@ export function PublicFormRenderer({
     return map;
   }, [form, sectionedForm, layoutMode, values]);
 
+  function findFirstRequiredEmpty(questionList: typeof sectionQuestions): string | null {
+    for (const q of questionList) {
+      if (!q.required) continue;
+      if (q.depends_on && parentAnswers[q.depends_on.key] !== q.depends_on.value) continue;
+      const value = values[q.id];
+      const isEmpty =
+        value == null || value === "" ||
+        (Array.isArray(value) && value.length === 0) ||
+        (typeof value === "object" && value !== null && !Array.isArray(value) &&
+          !Object.values(value as AddressValue).some((v) => v && String(v).trim()));
+      if (isEmpty) return q.label;
+    }
+    return null;
+  }
+
+  async function saveSectionProgress(): Promise<boolean> {
+    if (!sectionedForm || !currentSection || isAccountSection) return true;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/public/forms/${slug}/section-progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref_token: refToken ?? "",
+          recad_token: activeRecadToken || "",
+          current_section_id: currentSection.id,
+          answers: values,
+          hp: "",
+        }),
+      });
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
+      if (json.recad_token) setActiveRecadToken(json.recad_token);
+      if (json.email != null || json.nome != null) {
+        setContactContext((prev) => ({
+          email: json.email ?? prev?.email ?? null,
+          nome: json.nome ?? prev?.nome ?? null,
+          email_already_registered: prev?.email_already_registered ?? false,
+        }));
+      }
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar progresso");
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitAccountSection(): Promise<boolean> {
+    if (!sectionedForm || !currentSection) return false;
+    if (emailAlreadyRegistered) return true;
+    if (!activeRecadToken) {
+      setError("Salve as etapas anteriores antes de criar a conta.");
+      return false;
+    }
+    if (accountPassword !== accountPasswordConfirm) {
+      setError("As senhas não coincidem.");
+      return false;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/public/forms/${slug}/account-section`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recad_token: activeRecadToken,
+          section_id: currentSection.id,
+          password: accountPassword,
+          password_confirm: accountPasswordConfirm,
+          hp: "",
+        }),
+      });
+      const json = await r.json();
+      if (r.status === 409 && json.code === "email_already_registered") {
+        setEmailAlreadyRegistered(true);
+        setError(json.error ?? "E-mail já cadastrado.");
+        return true;
+      }
+      if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao criar conta");
+      setAccountPassword("");
+      setAccountPasswordConfirm("");
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao criar conta");
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function submitFinal(terminalSectionId: string) {
     setSubmitting(true);
     setError(null);
@@ -154,7 +266,7 @@ export function PublicFormRenderer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ref_token: refToken ?? "",
-          recad_token: recadToken ?? "",
+          recad_token: activeRecadToken || recadToken || "",
           terminal_section_id: terminalSectionId,
           answers: values,
           hp: "",
@@ -175,10 +287,34 @@ export function PublicFormRenderer({
     }
   }
 
-  function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
+  async function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!sectionedForm || !currentSection) return;
     setError(null);
+
+    if (!isAccountSection) {
+      const missing = findFirstRequiredEmpty(
+        sectionQuestions.filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value),
+      );
+      if (missing) {
+        setError(`Campo obrigatório: ${missing}`);
+        return;
+      }
+    } else if (!emailAlreadyRegistered) {
+      if (!accountPassword || accountPassword.length < 8) {
+        setError("A senha precisa ter pelo menos 8 caracteres.");
+        return;
+      }
+      if (!/[a-zA-Z]/.test(accountPassword) || !/\d/.test(accountPassword)) {
+        setError("Use pelo menos uma letra e um número na senha.");
+        return;
+      }
+      if (accountPassword !== accountPasswordConfirm) {
+        setError("As senhas não coincidem.");
+        return;
+      }
+    }
+
     const nextId = resolveNextSectionId(
       currentSection.id,
       sections,
@@ -186,7 +322,21 @@ export function PublicFormRenderer({
       sectionedForm.branch_rules ?? [],
       values,
     );
+
+    if (isAccountSection) {
+      const ok = await submitAccountSection();
+      if (!ok) return;
+      if (nextId) {
+        setCurrentSectionId(nextId);
+        return;
+      }
+      void submitFinal(currentSection.id);
+      return;
+    }
+
     if (nextId) {
+      const saved = await saveSectionProgress();
+      if (!saved) return;
       setCurrentSectionId(nextId);
       return;
     }
@@ -205,7 +355,7 @@ export function PublicFormRenderer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ref_token: refToken ?? "",
-          recad_token: recadToken ?? "",
+          recad_token: activeRecadToken || recadToken || "",
           answers: values,
           hp: String(fd.get("hp") ?? ""),
         }),
@@ -270,11 +420,24 @@ export function PublicFormRenderer({
             <form onSubmit={onContinueSectioned} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
               <h2 className="text-lg font-semibold">{sectionTitle}</h2>
               <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
-              {sectionQuestions
-                .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
-                .map((q) => (
-                  <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
-                ))}
+              {isAccountSection ? (
+                <AccountCreationFields
+                  email={contactContext?.email ?? ""}
+                  emailAlreadyRegistered={emailAlreadyRegistered}
+                  password={accountPassword}
+                  passwordConfirm={accountPasswordConfirm}
+                  showPassword={showPassword}
+                  onPasswordChange={setAccountPassword}
+                  onPasswordConfirmChange={setAccountPasswordConfirm}
+                  onToggleShowPassword={() => setShowPassword((p) => !p)}
+                />
+              ) : (
+                sectionQuestions
+                  .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
+                  .map((q) => (
+                    <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
+                  ))
+              )}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
                 <ChevronRight className="h-4 w-4" />
@@ -544,6 +707,94 @@ function AddressBlockField({
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
       </div>
+    </div>
+  );
+}
+
+function AccountCreationFields({
+  email,
+  emailAlreadyRegistered,
+  password,
+  passwordConfirm,
+  showPassword,
+  onPasswordChange,
+  onPasswordConfirmChange,
+  onToggleShowPassword,
+}: {
+  email: string;
+  emailAlreadyRegistered: boolean;
+  password: string;
+  passwordConfirm: string;
+  showPassword: boolean;
+  onPasswordChange: (v: string) => void;
+  onPasswordConfirmChange: (v: string) => void;
+  onToggleShowPassword: () => void;
+}) {
+  const inputType = showPassword ? "text" : "password";
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Crie sua conta para acessar o painel da campanha. Um administrador precisará aprovar seu acesso.
+      </p>
+      <div>
+        <label className="text-sm font-medium">E-mail</label>
+        <input
+          type="email"
+          readOnly
+          value={email}
+          className="mt-1 w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm"
+        />
+        {!email && (
+          <p className="text-xs text-amber-600 mt-1">Volte às etapas anteriores e informe seu e-mail.</p>
+        )}
+      </div>
+      {emailAlreadyRegistered ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <p className="text-sm text-amber-900">
+            Este e-mail já está cadastrado. Você pode fazer login com sua conta existente e continuar o formulário.
+          </p>
+          <Link
+            to="/auth"
+            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
+          >
+            Fazer login
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="text-sm font-medium">Senha</label>
+            <div className="relative mt-1">
+              <input
+                type={inputType}
+                value={password}
+                onChange={(e) => onPasswordChange(e.target.value)}
+                autoComplete="new-password"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm"
+              />
+              <button
+                type="button"
+                onClick={onToggleShowPassword}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Mínimo 8 caracteres, com letras e números.</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Confirmar senha</label>
+            <input
+              type={inputType}
+              value={passwordConfirm}
+              onChange={(e) => onPasswordConfirmChange(e.target.value)}
+              autoComplete="new-password"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
