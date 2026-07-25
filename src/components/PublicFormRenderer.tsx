@@ -47,6 +47,7 @@ type FormSection = {
 type ContactContext = {
   email: string | null;
   nome: string | null;
+  phone: string | null;
   email_already_registered: boolean;
 };
 type BranchRule = {
