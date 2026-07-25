@@ -528,11 +528,12 @@ export function SectionedQuestionsPanel({
         );
       }
 
-      await upsertQuestionsFn({
+      const upsertResult = await upsertQuestionsFn({
         data: {
           form_definition_id: formId,
           questions: questionsToSave.map((q) => ({
             id: q.id,
+            client_key: q.clientKey,
             order_index: q.order_index,
             source: q.source,
             catalog_field_key: q.catalog_field_key,
@@ -551,35 +552,26 @@ export function SectionedQuestionsPanel({
         },
       });
 
-      const fresh2 = await getFn({ data: { id: formId } });
-      const savedQuestions = fresh2.questions ?? [];
+      // Mapa determinístico: o servidor devolve o id salvo casando com o client_key
+      // que enviamos, então regras de ramificação nunca dependem de casamento por rótulo.
       const questionIdByClientKey = new Map<string, string>();
-      for (const q of questionsToSave) {
-        if (q.id) {
-          const match = savedQuestions.find((row) => row.id === q.id);
-          if (match) questionIdByClientKey.set(q.clientKey, match.id as string);
-          continue;
-        }
-        const sectionId = sectionIdByClientKey.get(q.sectionClientKey);
-        const match = savedQuestions.find(
-          (row) =>
-            row.section_id === sectionId &&
-            row.order_index === q.order_index &&
-            row.source === q.source &&
-            (row.catalog_field_key ?? null) === (q.catalog_field_key ?? null) &&
-            row.label === q.label,
-        );
-        if (match) questionIdByClientKey.set(q.clientKey, match.id as string);
+      for (const row of upsertResult.saved ?? []) {
+        if (row.client_key) questionIdByClientKey.set(row.client_key, row.id);
       }
 
-      const rulesPayload = branchRules
-        .filter((r) => questionIdByClientKey.has(r.questionClientKey))
-        .map((r) => ({
-          id: r.id,
-          question_id: questionIdByClientKey.get(r.questionClientKey)!,
-          option_value: r.option_value,
-          next_order_index: r.next_order_index,
-        }));
+      const unmappedRule = branchRules.find((r) => !questionIdByClientKey.has(r.questionClientKey));
+      if (unmappedRule) {
+        throw new Error(
+          "Uma regra de ramificação ficou sem pergunta correspondente. Recarregue a página e tente de novo.",
+        );
+      }
+
+      const rulesPayload = branchRules.map((r) => ({
+        id: r.id,
+        question_id: questionIdByClientKey.get(r.questionClientKey)!,
+        option_value: r.option_value,
+        next_order_index: r.next_order_index,
+      }));
 
       await upsertBranchRulesFn({
         data: {
