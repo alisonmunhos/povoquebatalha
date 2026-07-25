@@ -14,6 +14,13 @@ import {
 import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.functions";
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
 import { ensureCoreQuestionsInFirstSection, isCoreCatalogFieldKey } from "@/lib/form-section-core-questions";
+import {
+  effectiveBoolean,
+  onOffLabel,
+  overrideFromTriState,
+  triStateFromOverride,
+  type TriStateChoice,
+} from "@/lib/form-builder-section-success";
 import type { BranchRuleDraft, FormSectionType, SectionDraft } from "@/lib/form-sections.types";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
 import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
@@ -59,6 +66,9 @@ type Props = {
     custom_options?: CustomOption[] | null;
   }>;
   initialBranchRules: BranchRuleDraft[];
+  formDefaultConfirmationActive?: boolean;
+  formDefaultWhatsappEnabled?: boolean;
+  formDefaultWhatsappPhone?: string | null;
   formDefaultWhatsappMessage?: string | null;
   onSaved: () => void;
 };
@@ -140,6 +150,9 @@ export function SectionedQuestionsPanel({
   initialSections,
   initialQuestions,
   initialBranchRules,
+  formDefaultConfirmationActive = false,
+  formDefaultWhatsappEnabled = false,
+  formDefaultWhatsappPhone,
   formDefaultWhatsappMessage,
   onSaved,
 }: Props) {
@@ -409,34 +422,67 @@ export function SectionedQuestionsPanel({
     return sections.filter((s) => s.order_index > fromOrderIndex);
   }
 
-  async function saveSection() {
-    if (sections.some((s) => !s.title?.trim())) {
-      toast.error("Toda seção precisa de um título.");
-      return;
+  function validateForSave(): { ok: true } | { ok: false; message: string; sectionKey?: string } {
+    for (const s of sections) {
+      if (!s.title?.trim()) {
+        return {
+          ok: false,
+          message: `${sectionLabel(s.order_index, s.title)} precisa de um título.`,
+          sectionKey: s.clientKey,
+        };
+      }
     }
-    if (questions.some((q) => {
-      const section = sections.find((s) => s.clientKey === q.sectionClientKey);
-      if (section?.section_type === "account_creation") return false;
-      return !q.label.trim();
-    })) {
-      toast.error("Toda pergunta precisa de um enunciado.");
-      return;
-    }
-    const linkErr = validateQuestionLinks(questions);
-    if (linkErr) {
-      toast.error(linkErr);
-      return;
-    }
-    for (const q of questions) {
-      if (q.source === "custom" && q.custom_response_type === "single_choice") {
-        const filled = (q.custom_options ?? []).filter((o) => o.label.trim()).length;
-        if (filled < 2) {
-          toast.error(`"${q.label.trim() || "Pergunta customizada"}": escolha única precisa de pelo menos 2 alternativas preenchidas.`);
-          return;
+
+    for (const s of sections) {
+      const sectionQs = questions.filter((q) => q.sectionClientKey === s.clientKey);
+      if (s.section_type === "account_creation") continue;
+      for (const q of sectionQs) {
+        if (!q.label.trim()) {
+          return {
+            ok: false,
+            message: `${sectionLabel(s.order_index, s.title)}: toda pergunta precisa de um enunciado.`,
+            sectionKey: s.clientKey,
+          };
+        }
+        if (q.source === "custom" && q.custom_response_type === "single_choice") {
+          const filled = (q.custom_options ?? []).filter((o) => o.label.trim()).length;
+          if (filled < 2) {
+            return {
+              ok: false,
+              message: `${sectionLabel(s.order_index, s.title)}: "${q.label.trim() || "Pergunta customizada"}" precisa de pelo menos 2 alternativas.`,
+              sectionKey: s.clientKey,
+            };
+          }
         }
       }
     }
 
+    const linkErr = validateQuestionLinks(questions);
+    if (linkErr) return { ok: false, message: linkErr };
+
+    return { ok: true };
+  }
+
+  function setSectionOverride(
+    clientKey: string,
+    field: "confirmation_active" | "whatsapp_button_enabled",
+    choice: TriStateChoice,
+  ) {
+    const value = overrideFromTriState(choice);
+    if (field === "whatsapp_button_enabled" && value !== true) {
+      updateSection(clientKey, { whatsapp_button_enabled: value, whatsapp_button_message: null });
+      return;
+    }
+    updateSection(clientKey, { [field]: value });
+  }
+
+  async function saveSection() {
+    const validation = validateForSave();
+    if (!validation.ok) {
+      toast.error(validation.message);
+      if (validation.sectionKey) setActiveSectionKey(validation.sectionKey);
+      return;
+    }
     setSaving(true);
     try {
       await upsertSectionsFn({
@@ -473,6 +519,14 @@ export function SectionedQuestionsPanel({
         const section = sections.find((s) => s.clientKey === q.sectionClientKey);
         return section?.section_type !== "account_creation";
       });
+
+      const missingSection = questionsToSave.find((q) => !sectionIdByClientKey.get(q.sectionClientKey));
+      if (missingSection) {
+        const sec = sections.find((s) => s.clientKey === missingSection.sectionClientKey);
+        throw new Error(
+          `Não foi possível vincular perguntas à ${sectionLabel(sec?.order_index ?? 0, sec?.title)}. Recarregue a página e tente de novo.`,
+        );
+      }
 
       await upsertQuestionsFn({
         data: {
@@ -538,17 +592,19 @@ export function SectionedQuestionsPanel({
       const serverSections = freshFinal.sections?.sections ?? [];
       if (serverSections.length > 0) {
         const merged = mergeLocalSections(sections, serverSections);
+        const rebuiltQuestions = ensureCoreQuestionsInFirstSection(
+          merged,
+          buildInitialQuestions(merged, (freshFinal.questions ?? []) as Props["initialQuestions"]),
+          newClientKey,
+        );
         setSections(merged);
-        setQuestions(
-          ensureCoreQuestionsInFirstSection(
-            merged,
-            buildInitialQuestions(merged, (freshFinal.questions ?? []) as Props["initialQuestions"]),
-            newClientKey,
-          ),
+        setQuestions(rebuiltQuestions);
+        setBranchRules(
+          buildInitialBranchRules(rebuiltQuestions, freshFinal.sections?.branchRules ?? []),
         );
       }
 
-      toast.success("Seção salva");
+      toast.success("Seção salva com sucesso");
       setDirtySections(new Set());
       onSaved();
     } catch (e) {
@@ -589,6 +645,15 @@ export function SectionedQuestionsPanel({
   }, [activeSection, sections, questions, branchRules]);
 
   const hasUnsavedChanges = dirtySections.size > 0;
+
+  const effectiveConfirmation = effectiveBoolean(
+    activeSection?.confirmation_active,
+    formDefaultConfirmationActive,
+  );
+  const effectiveWhatsapp = effectiveBoolean(
+    activeSection?.whatsapp_button_enabled,
+    formDefaultWhatsappEnabled,
+  );
 
   if (!activeSection) {
     return <p className="text-sm text-muted-foreground">Nenhuma seção encontrada.</p>;
@@ -917,40 +982,72 @@ export function SectionedQuestionsPanel({
 
         <div className="space-y-3 border-t pt-4">
           <div>
-            <p className="text-sm font-medium">Ao terminar nesta etapa</p>
+            <p className="text-sm font-medium">Se o participante terminar o formulário nesta etapa</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Só vale quando o participante <strong>termina o formulário aqui</strong>. Você pode usar
-              confirmação automática, botão de WhatsApp, os dois ou nenhum. Deixe desmarcado para usar o
-              padrão geral do formulário.
+              Isso só aparece quando o fluxo <strong>termina aqui</strong> (não quando segue para outra seção).
+              Cada etapa pode seguir o padrão geral do formulário ou definir comportamento próprio.
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={activeSection.confirmation_active === true}
+
+          <div className="rounded-md border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-950 space-y-1">
+            <p className="font-medium">Padrão geral do formulário (bloco acima: Padrões do formulário)</p>
+            <p>· Confirmação automática: <strong>{onOffLabel(formDefaultConfirmationActive)}</strong></p>
+            <p>
+              · Botão de WhatsApp: <strong>{onOffLabel(formDefaultWhatsappEnabled)}</strong>
+              {formDefaultWhatsappEnabled && formDefaultWhatsappPhone?.trim() ? (
+                <> — número <strong>{formDefaultWhatsappPhone.trim()}</strong> (único para todo o formulário)</>
+              ) : formDefaultWhatsappEnabled ? (
+                <> — configure o número em Padrões do formulário</>
+              ) : null}
+            </p>
+            <p className="text-blue-800">
+              O número de WhatsApp não muda por seção — só a mensagem e se o botão aparece ou não.
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/20 p-3 space-y-1 text-xs">
+            <p className="font-medium text-foreground">O que o participante verá ao terminar aqui</p>
+            <p>· Confirmação automática: <strong>{onOffLabel(effectiveConfirmation)}</strong></p>
+            <p>· Botão de WhatsApp: <strong>{onOffLabel(effectiveWhatsapp)}</strong></p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Confirmação automática nesta etapa</label>
+            <select
+              value={triStateFromOverride(activeSection.confirmation_active)}
               onChange={(e) =>
-                updateSection(activeSection.clientKey, {
-                  confirmation_active: e.target.checked ? true : null,
-                })
+                setSectionOverride(activeSection.clientKey, "confirmation_active", e.target.value as TriStateChoice)
               }
-            />
-            Enviar confirmação automática ao finalizar aqui
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={activeSection.whatsapp_button_enabled === true}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="default">
+                Seguir padrão do formulário ({onOffLabel(formDefaultConfirmationActive)})
+              </option>
+              <option value="on">Sim — enviar confirmação ao terminar aqui</option>
+              <option value="off">Não — não enviar confirmação ao terminar aqui</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Botão &quot;Avisar no WhatsApp&quot; nesta etapa</label>
+            <select
+              value={triStateFromOverride(activeSection.whatsapp_button_enabled)}
               onChange={(e) =>
-                updateSection(activeSection.clientKey, {
-                  whatsapp_button_enabled: e.target.checked ? true : null,
-                  ...(e.target.checked ? {} : { whatsapp_button_message: null }),
-                })
+                setSectionOverride(activeSection.clientKey, "whatsapp_button_enabled", e.target.value as TriStateChoice)
               }
-            />
-            Mostrar botão de WhatsApp ao finalizar aqui
-          </label>
-          {activeSection.whatsapp_button_enabled === true && (
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="default">
+                Seguir padrão do formulário ({onOffLabel(formDefaultWhatsappEnabled)})
+              </option>
+              <option value="on">Sim — mostrar botão ao terminar aqui</option>
+              <option value="off">Não — não mostrar botão ao terminar aqui</option>
+            </select>
+          </div>
+
+          {effectiveWhatsapp && (
             <div key={`${activeSection.clientKey}-wa`} className="space-y-1">
+              <label className="text-sm font-medium">Mensagem do botão nesta etapa (opcional)</label>
               <textarea
                 value={activeSection.whatsapp_button_message ?? ""}
                 onChange={(e) =>
@@ -961,19 +1058,20 @@ export function SectionedQuestionsPanel({
                 rows={2}
                 placeholder={
                   formDefaultWhatsappMessage?.trim()
-                    ? `Padrão do formulário: ${formDefaultWhatsappMessage.trim()}`
+                    ? `Vazio = usar padrão: ${formDefaultWhatsappMessage.trim()}`
                     : "Mensagem pré-preenchida do WhatsApp (opcional)"
                 }
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               <p className="text-[11px] text-muted-foreground">
-                Deixe vazio para usar a mensagem padrão do formulário.
+                Só altera o texto da mensagem. O número continua sendo o definido nos padrões do formulário.
               </p>
             </div>
           )}
-          {(activeSection.confirmation_active === true || activeSection.whatsapp_button_enabled === true) && (
+
+          {effectiveConfirmation && effectiveWhatsapp && (
             <div>
-              <label className="text-sm font-medium">Ordem na tela de sucesso desta seção</label>
+              <label className="text-sm font-medium">Ordem na tela de sucesso desta etapa</label>
               <select
                 value={activeSection.success_screen_order ?? ""}
                 onChange={(e) =>
@@ -983,7 +1081,7 @@ export function SectionedQuestionsPanel({
                 }
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="">Usar configuração geral do formulário</option>
+                <option value="">Seguir padrão do formulário</option>
                 <option value="whatsapp_first">WhatsApp primeiro</option>
                 <option value="confirmation_first">Confirmação primeiro</option>
               </select>
