@@ -1803,30 +1803,6 @@ export type Database = {
           },
         ]
       }
-      legal_pages: {
-        Row: {
-          content: string
-          id: string
-          slug: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          content?: string
-          id?: string
-          slug: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          content?: string
-          id?: string
-          slug?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       geocode_cache: {
         Row: {
           created_at: string
@@ -2080,6 +2056,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      legal_pages: {
+        Row: {
+          content: string
+          id: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          id?: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       message_events: {
         Row: {
