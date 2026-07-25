@@ -439,7 +439,6 @@ export function SectionedQuestionsPanel({
 
     for (const s of sections) {
       const sectionQs = questions.filter((q) => q.sectionClientKey === s.clientKey);
-      if (s.section_type === "account_creation") continue;
       for (const q of sectionQs) {
         if (!q.label.trim()) {
           return {
@@ -460,6 +459,7 @@ export function SectionedQuestionsPanel({
         }
       }
     }
+
 
     const linkErr = validateQuestionLinks(questions);
     if (linkErr) return { ok: false, message: linkErr };
