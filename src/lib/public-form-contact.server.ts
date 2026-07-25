@@ -302,7 +302,7 @@ export async function saveFormContactFromAnswers(
         _contact_id: savedId,
         _source_user_id: null as unknown as string,
         _source_module: "formulario_publico",
-        _source_form_type: form.source_form_type,
+        _source_form_type: form.source_form_type as "cadastro_completo" | "receber_informacoes",
         _source_link_id: linkId as unknown as string,
         _event_type: eventType,
         _metadata: buildSourceMetadata({

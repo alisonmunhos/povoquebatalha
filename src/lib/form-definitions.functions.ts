@@ -570,7 +570,10 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
             order_index: s.order_index,
             title: s.title,
             section_type: s.section_type ?? "questions",
-            account_creation_role: s.section_type === "account_creation" ? (s.account_creation_role ?? "agitador") : null,
+            account_creation_role:
+              s.section_type === "account_creation"
+                ? ((s.account_creation_role ?? "agitador") as Database["public"]["Enums"]["app_role"])
+                : null,
             description: s.description,
             confirmation_active: s.confirmation_active,
             whatsapp_button_enabled: s.whatsapp_button_enabled,
