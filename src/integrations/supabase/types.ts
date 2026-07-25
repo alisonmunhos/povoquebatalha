@@ -1751,6 +1751,7 @@ export type Database = {
           updated_at: string
           whatsapp_button_enabled: boolean | null
           whatsapp_button_message: string | null
+          whatsapp_button_phone: string | null
         }
         Insert: {
           account_creation_role?: Database["public"]["Enums"]["app_role"] | null
@@ -1768,6 +1769,7 @@ export type Database = {
           updated_at?: string
           whatsapp_button_enabled?: boolean | null
           whatsapp_button_message?: string | null
+          whatsapp_button_phone?: string | null
         }
         Update: {
           account_creation_role?: Database["public"]["Enums"]["app_role"] | null
@@ -1785,6 +1787,7 @@ export type Database = {
           updated_at?: string
           whatsapp_button_enabled?: boolean | null
           whatsapp_button_message?: string | null
+          whatsapp_button_phone?: string | null
         }
         Relationships: [
           {
