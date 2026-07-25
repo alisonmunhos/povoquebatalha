@@ -161,7 +161,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         if (layoutMode === "sectioned") {
           const { data: sectionRows } = await supabaseAdmin
             .from("form_sections")
-            .select("id,order_index,title,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+            .select("id,order_index,title,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
             .eq("form_definition_id", form.id)
             .order("order_index", { ascending: true });
           sections = sectionRows ?? [];

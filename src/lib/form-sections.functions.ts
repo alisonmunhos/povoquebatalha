@@ -27,6 +27,7 @@ function toSectionDrafts(
     id: string;
     order_index: number;
     title: string | null;
+    description: string | null;
     default_next_section_id: string | null;
     confirmation_active: boolean | null;
     whatsapp_button_enabled: boolean | null;
@@ -39,6 +40,7 @@ function toSectionDrafts(
     id: s.id,
     order_index: s.order_index,
     title: s.title,
+    description: s.description,
     default_next_order_index:
       s.default_next_section_id != null ? (orderById.get(s.default_next_section_id) ?? null) : null,
     confirmation_active: s.confirmation_active,
@@ -55,6 +57,7 @@ function normalizeSectionDrafts(
     id?: string;
     order_index: number;
     title?: string | null;
+    description?: string | null;
     default_next_order_index?: number | null;
     confirmation_active?: boolean | null;
     whatsapp_button_enabled?: boolean | null;
@@ -66,6 +69,7 @@ function normalizeSectionDrafts(
     id: s.id,
     order_index: s.order_index,
     title: s.title ?? null,
+    description: s.description ?? null,
     default_next_order_index: s.default_next_order_index ?? null,
     confirmation_active: s.confirmation_active ?? null,
     whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
@@ -131,6 +135,7 @@ const sectionSchema = z.object({
   id: z.string().uuid().optional(),
   order_index: z.number().int().min(0),
   title: z.string().trim().max(200).nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
   default_next_order_index: z.number().int().min(0).nullable().optional(),
   confirmation_active: z.boolean().nullable().optional(),
   whatsapp_button_enabled: z.boolean().nullable().optional(),
@@ -170,6 +175,7 @@ export const upsertFormSections = createServerFn({ method: "POST" })
         form_definition_id: data.form_definition_id,
         order_index: s.order_index,
         title: s.title ?? null,
+        description: s.description ?? null,
         default_next_section_id: null as string | null,
         confirmation_active: s.confirmation_active ?? null,
         whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,

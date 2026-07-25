@@ -367,6 +367,7 @@ export function SectionedQuestionsPanel({
             id: s.id,
             order_index: s.order_index,
             title: s.title?.trim() || null,
+            description: s.description?.trim() || null,
             default_next_order_index: s.default_next_order_index ?? null,
             confirmation_active: s.confirmation_active ?? null,
             whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
@@ -503,6 +504,20 @@ export function SectionedQuestionsPanel({
               <input
                 value={activeSection.title ?? ""}
                 onChange={(e) => updateSection(activeSection.clientKey, { title: e.target.value })}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Instrução/descrição da seção (opcional)</label>
+              <textarea
+                value={activeSection.description ?? ""}
+                onChange={(e) =>
+                  updateSection(activeSection.clientKey, {
+                    description: e.target.value || null,
+                  })
+                }
+                rows={2}
+                placeholder="Texto exibido abaixo do título desta etapa no formulário público"
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
