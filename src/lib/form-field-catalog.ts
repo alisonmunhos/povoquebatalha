@@ -27,8 +27,7 @@ export type FormCatalogField = {
   filterKind: FormFieldFilterKind;
   defaultLabel: string;
   defaultHelpText?: string;
-  /** Sempre presente em qualquer formulário flat, não pode ser removido do construtor.
-   *  Em formulários `layout_mode='sectioned'`, os campos core não são semeados automaticamente. */
+  /** Sempre presente no formulário: flat (sem seções) ou fixo na primeira seção (order_index 0) em formulários por seções. */
   core?: boolean;
   /** Sempre obrigatório, independente do que quem monta o formulário escolher. */
   alwaysRequired?: boolean;

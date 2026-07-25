@@ -12,6 +12,7 @@ import {
 } from "@/lib/form-builder-branching";
 import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.functions";
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
+import { ensureCoreQuestionsInFirstSection, isCoreCatalogFieldKey } from "@/lib/form-section-core-questions";
 import type { BranchRuleDraft, FormSectionType, SectionDraft } from "@/lib/form-sections.types";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
 import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
@@ -147,15 +148,20 @@ export function SectionedQuestionsPanel({
   const getFn = useServerFn(getFormDefinition);
 
   const [sections, setSections] = useState<LocalSection[]>(() => toLocalSections(initialSections));
-  const [questions, setQuestions] = useState<QuestionDraft[]>(() =>
-    buildInitialQuestions(toLocalSections(initialSections), initialQuestions),
-  );
-  const [branchRules, setBranchRules] = useState<LocalBranchRule[]>(() =>
-    buildInitialBranchRules(
-      buildInitialQuestions(toLocalSections(initialSections), initialQuestions),
-      initialBranchRules,
-    ),
-  );
+  const [questions, setQuestions] = useState<QuestionDraft[]>(() => {
+    const localSections = toLocalSections(initialSections);
+    const built = buildInitialQuestions(localSections, initialQuestions);
+    return ensureCoreQuestionsInFirstSection(localSections, built, newClientKey);
+  });
+  const [branchRules, setBranchRules] = useState<LocalBranchRule[]>(() => {
+    const localSections = toLocalSections(initialSections);
+    const built = ensureCoreQuestionsInFirstSection(
+      localSections,
+      buildInitialQuestions(localSections, initialQuestions),
+      newClientKey,
+    );
+    return buildInitialBranchRules(built, initialBranchRules);
+  });
   const [activeSectionKey, setActiveSectionKey] = useState(() => {
     const initial = toLocalSections(initialSections);
     return initial[0]?.clientKey ?? "";
@@ -175,6 +181,8 @@ export function SectionedQuestionsPanel({
   const usedCatalogKeys = new Set(
     questions.filter((q) => q.source === "catalog" && q.catalog_field_key).map((q) => q.catalog_field_key!),
   );
+
+  const isFirstSection = activeSection?.order_index === 0;
 
   function reindexSections(next: LocalSection[]): LocalSection[] {
     return next.map((s, i) => ({ ...s, order_index: i }));
@@ -206,6 +214,11 @@ export function SectionedQuestionsPanel({
   }
 
   function setSectionType(clientKey: string, sectionType: FormSectionType) {
+    const section = sections.find((s) => s.clientKey === clientKey);
+    if (sectionType === "account_creation" && section?.order_index === 0) {
+      toast.error("A primeira seção precisa ser de perguntas — ela contém Nome, WhatsApp e Consentimento.");
+      return;
+    }
     if (sectionType === "account_creation") {
       setQuestions((prev) => prev.filter((q) => q.sectionClientKey !== clientKey));
       setBranchRules((prev) => {
@@ -224,7 +237,11 @@ export function SectionedQuestionsPanel({
       toast.error("O formulário precisa ter pelo menos uma seção.");
       return;
     }
-    setSections((prev) => reindexSections(prev.filter((s) => s.clientKey !== clientKey)));
+    setSections((prev) => {
+      const next = reindexSections(prev.filter((s) => s.clientKey !== clientKey));
+      setQuestions((q) => ensureCoreQuestionsInFirstSection(next, q.filter((qu) => qu.sectionClientKey !== clientKey), newClientKey));
+      return next;
+    });
     setQuestions((prev) => prev.filter((q) => q.sectionClientKey !== clientKey));
     setBranchRules((prev) => {
       const removedQuestionKeys = new Set(
@@ -245,7 +262,9 @@ export function SectionedQuestionsPanel({
       if (idx < 0 || target < 0 || target >= prev.length) return prev;
       const next = [...prev];
       [next[idx], next[target]] = [next[target], next[idx]];
-      return reindexSections(next);
+      const reindexed = reindexSections(next);
+      setQuestions((q) => ensureCoreQuestionsInFirstSection(reindexed, q, newClientKey));
+      return reindexed;
     });
   }
 
@@ -296,6 +315,10 @@ export function SectionedQuestionsPanel({
   function removeQuestion(clientKey: string) {
     const qu = questions.find((q) => q.clientKey === clientKey);
     if (!qu) return;
+    if (qu.source === "catalog" && isCoreCatalogFieldKey(qu.catalog_field_key)) {
+      toast.error("Nome, WhatsApp e Consentimento são fixos na primeira seção e não podem ser removidos.");
+      return;
+    }
     const remaining = sectionQuestions.filter((q) => q.clientKey !== clientKey);
     setQuestions((prev) => reindexSectionQuestions(qu.sectionClientKey, remaining));
     setBranchRules((prev) => prev.filter((r) => r.questionClientKey !== clientKey));
@@ -304,6 +327,9 @@ export function SectionedQuestionsPanel({
   function moveQuestion(clientKey: string, dir: -1 | 1) {
     const qu = questions.find((q) => q.clientKey === clientKey);
     if (!qu) return;
+    if (qu.source === "catalog" && isCoreCatalogFieldKey(qu.catalog_field_key)) {
+      return;
+    }
     const list = [...sectionQuestions];
     const idx = list.findIndex((q) => q.clientKey === clientKey);
     const target = idx + dir;
@@ -408,7 +434,9 @@ export function SectionedQuestionsPanel({
         if (savedId) sectionIdByClientKey.set(s.clientKey, savedId);
       }
 
-      const questionsToSave = questions.filter((q) => {
+      const questionsWithCore = ensureCoreQuestionsInFirstSection(sections, questions, newClientKey);
+
+      const questionsToSave = questionsWithCore.filter((q) => {
         const section = sections.find((s) => s.clientKey === q.sectionClientKey);
         return section?.section_type !== "account_creation";
       });
@@ -476,7 +504,15 @@ export function SectionedQuestionsPanel({
       const freshFinal = await getFn({ data: { id: formId } });
       const serverSections = freshFinal.sections?.sections ?? [];
       if (serverSections.length > 0) {
-        setSections((prev) => mergeLocalSections(prev, serverSections));
+        const merged = mergeLocalSections(sections, serverSections);
+        setSections(merged);
+        setQuestions(
+          ensureCoreQuestionsInFirstSection(
+            merged,
+            buildInitialQuestions(merged, (freshFinal.questions ?? []) as Props["initialQuestions"]),
+            newClientKey,
+          ),
+        );
       }
 
       toast.success("Seções e perguntas salvas");
@@ -534,7 +570,9 @@ export function SectionedQuestionsPanel({
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="questions">Perguntas</option>
-                <option value="account_creation">Criar conta</option>
+                <option value="account_creation" disabled={activeSection.order_index === 0}>
+                  Criar conta{activeSection.order_index === 0 ? " (não na 1ª seção)" : ""}
+                </option>
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">
                 &quot;Criar conta&quot; exibe uma tela fixa de cadastro (e-mail e senha), sem perguntas.
@@ -547,7 +585,7 @@ export function SectionedQuestionsPanel({
                   O participante verá e-mail (das etapas anteriores), senha e confirmação. Papel solicitado:{" "}
                   <strong>agitador</strong>.
                 </p>
-                <p>Certifique-se de que uma etapa anterior coleta nome, WhatsApp e e-mail.</p>
+                <p>Certifique-se de que a primeira seção tem Nome e WhatsApp e que uma etapa anterior inclui E-mail.</p>
               </div>
             )}
             <div>
@@ -717,18 +755,32 @@ export function SectionedQuestionsPanel({
         {activeSection.section_type !== "account_creation" && (
         <>
         <div className="space-y-3 border-t pt-3">
+          {isFirstSection && (
+            <p className="text-xs text-muted-foreground rounded-md bg-muted/40 border px-3 py-2">
+              <strong>Campos essenciais</strong> — Nome, WhatsApp e Consentimento ficam fixos nesta primeira seção.
+              Você pode editar o texto de cada um, mas não removê-los.
+            </p>
+          )}
           <p className="text-sm font-medium">Perguntas desta seção</p>
-          {sectionQuestions.length === 0 && (
+          {sectionQuestions.length === 0 && !isFirstSection && (
             <p className="text-xs text-muted-foreground">Nenhuma pergunta ainda — adicione abaixo.</p>
           )}
           {sectionQuestions.map((qu) => {
+            const isCore = qu.source === "catalog" && isCoreCatalogFieldKey(qu.catalog_field_key);
             const branchOptions = getBranchableOptions(qu);
             return (
-              <div key={qu.clientKey} className="border rounded-md p-3 space-y-2">
+              <div key={qu.clientKey} className={`border rounded-md p-3 space-y-2 ${isCore ? "border-primary/30 bg-primary/5" : ""}`}>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    {qu.source === "catalog" ? `Campo do catálogo: ${qu.catalog_field_key}` : "Pergunta customizada"}
+                    {isCore ? (
+                      <span className="font-medium text-primary">Campo essencial: {qu.catalog_field_key}</span>
+                    ) : qu.source === "catalog" ? (
+                      `Campo do catálogo: ${qu.catalog_field_key}`
+                    ) : (
+                      "Pergunta customizada"
+                    )}
                   </span>
+                  {!isCore && (
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => moveQuestion(qu.clientKey, -1)} className="p-1 hover:bg-muted rounded">
                       <ArrowUp className="h-3.5 w-3.5" />
@@ -740,6 +792,7 @@ export function SectionedQuestionsPanel({
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  )}
                 </div>
                 <input
                   value={qu.label}
@@ -778,9 +831,10 @@ export function SectionedQuestionsPanel({
                   <input
                     type="checkbox"
                     checked={qu.required}
+                    disabled={isCore}
                     onChange={(e) => updateQuestion(qu.clientKey, { required: e.target.checked })}
                   />
-                  Obrigatória
+                  Obrigatória{isCore ? " (sempre)" : ""}
                 </label>
 
                 {isBranchableQuestion(qu) && (

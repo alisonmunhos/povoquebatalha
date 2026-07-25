@@ -143,11 +143,28 @@ export const createFormDefinition = createServerFn({ method: "POST" })
     if (error) throw error;
 
     if (data.layout_mode === "sectioned") {
-      await context.supabase.from("form_sections").insert({
-        form_definition_id: row.id,
-        order_index: 0,
-        title: "Seção 1",
-      });
+      const { data: section, error: secErr } = await context.supabase
+        .from("form_sections")
+        .insert({
+          form_definition_id: row.id,
+          order_index: 0,
+          title: "Seção 1",
+        })
+        .select("id")
+        .single();
+      if (secErr) throw secErr;
+      await context.supabase.from("form_definition_questions").insert(
+        CORE_CATALOG_FIELDS.map((f, i) => ({
+          form_definition_id: row.id,
+          section_id: section.id,
+          order_index: i,
+          source: "catalog" as const,
+          catalog_field_key: f.key,
+          label: f.defaultLabel,
+          help_text: f.defaultHelpText ?? null,
+          required: true,
+        })),
+      );
     } else {
       // Semeia as perguntas core (nome/WhatsApp/consentimento) para o formulário nunca
       // ficar num estado "sem perguntas" antes de quem monta clicar em salvar.
