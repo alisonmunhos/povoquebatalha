@@ -21,6 +21,7 @@ export type SectionDraft = {
   confirmation_active?: boolean | null;
   whatsapp_button_enabled?: boolean | null;
   whatsapp_button_message?: string | null;
+  whatsapp_button_phone?: string | null;
   success_screen_order?: SuccessScreenOrder | null;
 };
 
