@@ -155,14 +155,11 @@ function AgitacaoPage() {
           <h1 className="text-lg font-semibold">Agitação</h1>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
-          <Kpi label="Captados" v={stats?.total ?? 0} />
-          <Kpi label="Cadastros" v={stats?.cadastros_completos ?? 0} />
-          <Kpi label="Inscrições" v={stats?.inscricoes ?? 0} />
-          <Kpi label="Pendentes" v={stats?.pendentes_atualizacao ?? 0} />
-          <Kpi label="Realizados" v={stats?.contatos_realizados ?? 0} />
-          <Kpi label="Novos 7d" v={stats?.novos_7d ?? 0} />
+        {/* KPIs — clicáveis, cada um aplica o filtro correspondente. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+          {kpis.map((k) => (
+            <Kpi key={k.label} label={k.label} v={k.v} onClick={k.onClick} />
+          ))}
         </div>
 
         {/* Busca */}
