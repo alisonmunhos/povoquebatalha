@@ -117,12 +117,35 @@ function AgitacaoPage() {
 
   const stats = q.data?.stats;
   const counts = q.data?.counts;
+  const role = useCurrentUserRole();
+  const isAdminLike = role === "admin" || role === "operador" || role === "vrm";
 
   const toggleStatus = (s: FieldStatus) => {
     setFieldStatus((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   };
-  const clearFilters = () => { setFieldStatus([]); setSortBy("inclusion"); };
-  const activeFilterCount = fieldStatus.length + (sortBy !== "inclusion" ? 1 : 0);
+  // Zera TUDO — search, chips e classificação — pra que "Limpar filtros" faça o que promete.
+  const clearFilters = () => { setFieldStatus([]); setSortBy("inclusion"); setSearch(""); };
+  const activeFilterCount =
+    fieldStatus.length + (sortBy !== "inclusion" ? 1 : 0) + (search.trim() ? 1 : 0);
+
+  // Cards clicáveis: cada um aplica o filtro correspondente à lista.
+  const setOnlyStatus = (s: FieldStatus) => { setSearch(""); setFieldStatus([s]); };
+  const kpis = useMemo(() => {
+    const total = stats?.total ?? 0;
+    const naoAbordado = counts?.nao_abordado ?? 0;
+    const confirmado = counts?.confirmado ?? 0;
+    const semResposta = counts?.sem_resposta ?? 0;
+    const pediuAtualizacao = counts?.pediu_atualizacao ?? 0;
+    // 4 KPIs úteis pro agitador; admin ganha o mesmo (a base geral aparece em /contatos).
+    return [
+      { label: isAdminLike ? "Meus captados" : "Meus contatos", v: total, onClick: () => clearFilters() },
+      { label: "Ainda não abordados", v: naoAbordado, onClick: () => setOnlyStatus("nao_abordado") },
+      { label: "Confirmados", v: confirmado, onClick: () => setOnlyStatus("confirmado") },
+      { label: "Sem resposta", v: semResposta + pediuAtualizacao, onClick: () => { setSearch(""); setFieldStatus(["sem_resposta", "pediu_atualizacao"]); } },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats?.total, counts?.nao_abordado, counts?.confirmado, counts?.sem_resposta, counts?.pediu_atualizacao, isAdminLike]);
+
 
   return (
     <div className="min-h-dvh bg-muted/20">
