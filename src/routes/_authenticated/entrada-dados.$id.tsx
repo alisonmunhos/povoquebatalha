@@ -13,7 +13,7 @@ import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsP
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 
-import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/entrada-dados/$id")({
@@ -54,9 +54,8 @@ function FormBuilder() {
   const [waMessage, setWaMessage] = useState("");
   const [waPhone, setWaPhone] = useState("");
   const [successOrder, setSuccessOrder] = useState<"whatsapp_first" | "confirmation_first">("whatsapp_first");
-  const [savingQuestions, setSavingQuestions] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [savingConfirmation, setSavingConfirmation] = useState(false);
+  const [savingSection, setSavingSection] = useState(false);
+  const [savingForm, setSavingForm] = useState(false);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [linkLabel, setLinkLabel] = useState("");
   const [trackedLinks, setTrackedLinks] = useState<Array<{ id: string; token: string; label: string | null; use_count: number }>>([]);
@@ -144,8 +143,8 @@ function FormBuilder() {
     setQuestions((prev) => prev.map((qu, i) => (i === idx ? { ...qu, ...patch } : qu)));
   }
 
-  async function saveSettings() {
-    setSavingSettings(true);
+  async function saveFormulario() {
+    setSavingForm(true);
     try {
       await updateFn({
         data: {
@@ -155,12 +154,15 @@ function FormBuilder() {
           success_screen_order: successOrder,
         },
       });
-      toast.success("Configurações salvas");
+      await saveConfirmationFn({
+        data: { form_definition_id: id, title: confTitle, body: confBody, active: confActive, require_consent: true },
+      });
+      toast.success("Formulário salvo");
       q.refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar formulário");
     } finally {
-      setSavingSettings(false);
+      setSavingForm(false);
     }
   }
 
@@ -173,7 +175,7 @@ function FormBuilder() {
     return null;
   }
 
-  async function saveQuestions() {
+  async function saveSection() {
     if (questions.some((qu) => !qu.label.trim())) { toast.error("Toda pergunta precisa de um enunciado."); return; }
     const allDrafts = [
       ...CORE_CATALOG_FIELDS.map((f) => coreQuestions.find((qu) => qu.catalog_field_key === f.key)).filter(Boolean) as QuestionDraft[],
@@ -190,7 +192,7 @@ function FormBuilder() {
         }
       }
     }
-    setSavingQuestions(true);
+    setSavingSection(true);
     try {
       const core: QuestionDraft[] = CORE_CATALOG_FIELDS.map((f, i) => {
         const existing = coreQuestions.find((qu) => qu.catalog_field_key === f.key);
@@ -211,24 +213,12 @@ function FormBuilder() {
             : null,
       }));
       await upsertQuestionsFn({ data: { form_definition_id: id, questions: all } });
-      toast.success("Perguntas salvas");
+      toast.success("Seção salva");
       q.refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar perguntas");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar seção");
     } finally {
-      setSavingQuestions(false);
-    }
-  }
-
-  async function saveConfirmation() {
-    setSavingConfirmation(true);
-    try {
-      await saveConfirmationFn({ data: { form_definition_id: id, title: confTitle, body: confBody, active: confActive, require_consent: true } });
-      toast.success("Mensagem de confirmação salva");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar mensagem");
-    } finally {
-      setSavingConfirmation(false);
+      setSavingSection(false);
     }
   }
 
@@ -260,7 +250,22 @@ function FormBuilder() {
   const basePath = isFixed
     ? (FIXED_FORM_PUBLIC_PATHS[q.data.form.slug as string] ?? `/${q.data.form.slug}`)
     : `/f/${q.data.form.slug}`;
-  const publicUrl = typeof window !== "undefined" ? `${window.location.origin}${basePath}${linkToken ? `?ref=${linkToken}` : ""}` : "";
+
+  function buildPublicUrl(token: string | null) {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}${basePath}${token ? `?ref=${token}` : ""}`;
+  }
+
+  const publicUrl = buildPublicUrl(linkToken);
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Link copiado");
+    } catch {
+      toast.error("Não foi possível copiar o link");
+    }
+  }
 
   async function loadQrCode() {
     if (!publicUrl) return;
@@ -280,10 +285,11 @@ function FormBuilder() {
     <div className="p-6 md:p-10 max-w-3xl mx-auto space-y-6">
       <Link to="/entrada-dados" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</Link>
 
-      <Section title="Configurações">
+      <Section title="Configurações do formulário">
         {isSectioned && (
           <p className="text-xs bg-violet-50 text-violet-800 border border-violet-200 rounded-md px-3 py-2">
             Este formulário usa o modelo <strong>por seções</strong> — monte as etapas e a ramificação na área abaixo.
+            Use <strong>Salvar seção</strong> para proteger cada etapa e <strong>Salvar formulário</strong> (no final da página) para título, links e padrões gerais.
           </p>
         )}
         {isFixed && (
@@ -303,9 +309,7 @@ function FormBuilder() {
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Formulário ativo (aceita respostas)
         </label>
-        <button onClick={saveSettings} disabled={savingSettings} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-          <Save className="h-4 w-4" /> Salvar configurações
-        </button>
+        <p className="text-xs text-muted-foreground">Salve estas opções com <strong>Salvar formulário</strong> no final da página.</p>
       </Section>
 
       <Section title="Link e QR code">
@@ -319,7 +323,28 @@ function FormBuilder() {
             maxLength={120}
           />
         </div>
-        {publicUrl && <p className="text-sm break-all bg-muted/40 rounded-md p-2">{publicUrl}</p>}
+        {publicUrl && (
+          <div className="space-y-2">
+            <p className="text-sm break-all bg-muted/40 rounded-md p-2 font-mono">{publicUrl}</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => copyToClipboard(publicUrl)}
+                className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
+              >
+                <Copy className="h-3.5 w-3.5" /> Copiar
+              </button>
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Abrir
+              </a>
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           <button onClick={generateLink} disabled={mintingLink} className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50">
             <LinkIcon className="h-4 w-4" /> Gerar link rastreável
@@ -339,20 +364,43 @@ function FormBuilder() {
         {trackedLinks.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-medium">Links deste formulário</p>
-            <ul className="text-sm space-y-1">
-              {trackedLinks.map((l) => (
-                <li key={l.id} className="flex flex-wrap items-center gap-2 border rounded-md px-2 py-1.5">
-                  <span className="font-medium">{l.label || "Sem nome"}</span>
-                  <span className="text-xs text-muted-foreground">{l.use_count} uso(s)</span>
-                  <button
-                    type="button"
-                    className="text-xs text-primary hover:underline"
-                    onClick={() => { setLinkToken(l.token); setQrDataUrl(null); }}
-                  >
-                    Usar este link
-                  </button>
-                </li>
-              ))}
+            <ul className="text-sm space-y-2">
+              {trackedLinks.map((l) => {
+                const linkUrl = buildPublicUrl(l.token);
+                return (
+                  <li key={l.id} className="border rounded-md p-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{l.label || "Sem nome"}</span>
+                      <span className="text-xs text-muted-foreground">{l.use_count} uso(s)</span>
+                    </div>
+                    <p className="text-xs break-all bg-muted/40 rounded-md p-2 font-mono">{linkUrl}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
+                        onClick={() => copyToClipboard(linkUrl)}
+                      >
+                        <Copy className="h-3.5 w-3.5" /> Copiar
+                      </button>
+                      <a
+                        href={linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Abrir
+                      </a>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
+                        onClick={() => { setLinkToken(l.token); setQrDataUrl(null); }}
+                      >
+                        <LinkIcon className="h-3.5 w-3.5" /> Gerar QR deste link
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -423,14 +471,19 @@ function FormBuilder() {
           </button>
         </div>
 
-        <button onClick={saveQuestions} disabled={savingQuestions} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-          <Save className="h-4 w-4" /> Salvar perguntas
+        <button onClick={saveSection} disabled={savingSection} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+          <Save className="h-4 w-4" /> {savingSection ? "Salvando…" : "Salvar seção"}
         </button>
           </>
         )}
       </Section>
 
-      <Section title="Mensagem de confirmação (automática, via WhatsApp)">
+      <Section title="Padrões do formulário (confirmação e WhatsApp)">
+        <p className="text-xs text-muted-foreground">
+          Estes são os padrões gerais. Em formulários por seções, cada etapa pode ter configuração própria
+          em <strong>Ao terminar nesta etapa</strong> — use uma, as duas ou nenhuma por seção.
+        </p>
+        <p className="text-sm font-medium pt-1">Mensagem de confirmação automática (via WhatsApp)</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={confActive} onChange={(e) => setConfActive(e.target.checked)} /> Enviar confirmação automática
         </label>
@@ -440,12 +493,7 @@ function FormBuilder() {
             <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
           </>
         )}
-        <button onClick={saveConfirmation} disabled={savingConfirmation} className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-          <Save className="h-4 w-4" /> Salvar mensagem
-        </button>
-      </Section>
-
-      <Section title="Botão de WhatsApp na tela de sucesso">
+        <p className="text-sm font-medium pt-2">Botão de WhatsApp na tela de sucesso</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={waEnabled} onChange={(e) => setWaEnabled(e.target.checked)} /> Mostrar botão "Avisar no WhatsApp"
         </label>
@@ -461,25 +509,38 @@ function FormBuilder() {
             </div>
           </div>
         )}
-        <p className="text-xs text-muted-foreground">Essa configuração é salva junto com "Salvar configurações" acima.</p>
+        {waEnabled && confActive && (
+          <>
+            <p className="text-sm font-medium pt-2">Ordem na tela de sucesso (padrão geral)</p>
+            <p className="text-xs text-muted-foreground">
+              As duas coisas continuam independentes — isso só decide qual bloco aparece primeiro quando a seção não define ordem própria.
+            </p>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="success_order" checked={successOrder === "whatsapp_first"} onChange={() => setSuccessOrder("whatsapp_first")} className="mt-1" />
+              <span>Botão de WhatsApp primeiro — a confirmação que a pessoa recebe depois soa como resposta à mensagem que ela acabou de mandar.</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="success_order" checked={successOrder === "confirmation_first"} onChange={() => setSuccessOrder("confirmation_first")} className="mt-1" />
+              <span>Confirmação primeiro — avisa que a pessoa já recebe a confirmação automaticamente, e o botão de WhatsApp aparece depois como ação extra opcional.</span>
+            </label>
+          </>
+        )}
+        <p className="text-xs text-muted-foreground">Salve com <strong>Salvar formulário</strong> abaixo.</p>
       </Section>
 
-      {waEnabled && confActive && (
-        <Section title="Ordem na tela de sucesso">
-          <p className="text-xs text-muted-foreground">
-            As duas coisas continuam independentes — isso só decide qual bloco aparece primeiro.
-          </p>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="radio" name="success_order" checked={successOrder === "whatsapp_first"} onChange={() => setSuccessOrder("whatsapp_first")} className="mt-1" />
-            <span>Botão de WhatsApp primeiro — a confirmação que a pessoa recebe depois soa como resposta à mensagem que ela acabou de mandar.</span>
-          </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="radio" name="success_order" checked={successOrder === "confirmation_first"} onChange={() => setSuccessOrder("confirmation_first")} className="mt-1" />
-            <span>Confirmação primeiro — avisa que a pessoa já recebe a confirmação automaticamente, e o botão de WhatsApp aparece depois como ação extra opcional.</span>
-          </label>
-          <p className="text-xs text-muted-foreground">Essa configuração é salva junto com "Salvar configurações" acima.</p>
-        </Section>
-      )}
+      <div className="border rounded-xl bg-card p-4">
+        <button
+          onClick={saveFormulario}
+          disabled={savingForm}
+          className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Save className="h-4 w-4" /> {savingForm ? "Salvando…" : "Salvar formulário"}
+        </button>
+        <p className="text-xs text-muted-foreground mt-2">
+          Salva título, nome de rastreio, status ativo, confirmação automática e botão de WhatsApp padrão.
+          {isSectioned ? " As seções são salvas separadamente com Salvar seção." : " As perguntas são salvas com Salvar seção acima."}
+        </p>
+      </div>
     </div>
   );
 }
