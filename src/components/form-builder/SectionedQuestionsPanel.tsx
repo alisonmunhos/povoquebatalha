@@ -858,7 +858,7 @@ export function SectionedQuestionsPanel({
                   Obrigatória{isCore ? " (sempre)" : ""}
                 </label>
 
-                {isBranchableQuestion(qu) && (
+                {isBranchableQuestion(qu) && activeSection.section_type !== "account_creation" && (
                   <div className="rounded-md bg-violet-50/70 border border-violet-200/80 p-3 space-y-2">
                     <p className="text-xs font-medium text-violet-900">Para onde vai cada resposta desta pergunta?</p>
                     {branchOptions.map((opt) => {
