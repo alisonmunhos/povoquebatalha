@@ -710,7 +710,7 @@ export function SectionedQuestionsPanel({
                 </option>
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                &quot;Criar conta&quot; exibe uma tela fixa de cadastro (e-mail e senha), sem perguntas.
+                &quot;Criar conta&quot; exibe a tela de cadastro (e-mail e senha) e, opcionalmente, perguntas extras nesta mesma etapa.
               </p>
             </div>
             {activeSection.section_type === "account_creation" && (
@@ -718,11 +718,13 @@ export function SectionedQuestionsPanel({
                 <p className="font-medium">Seção de criação de conta</p>
                 <p>
                   O participante verá e-mail (das etapas anteriores), senha e confirmação. Papel solicitado:{" "}
-                  <strong>agitador</strong>.
+                  <strong>agitador</strong>. Você também pode adicionar perguntas normais nesta seção — elas
+                  aparecem logo abaixo dos campos de senha.
                 </p>
                 <p>Certifique-se de que a primeira seção tem Nome e WhatsApp e que uma etapa anterior inclui E-mail.</p>
               </div>
             )}
+
             <div>
               <label className="text-sm font-medium">Título da seção</label>
               <input
