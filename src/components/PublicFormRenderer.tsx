@@ -169,12 +169,12 @@ export function PublicFormRenderer({
   }, [form, sectionedForm, layoutMode, values]);
 
   function validateCurrentSection(): string | null {
-    if (isAccountSection) return null;
     const visible = sectionQuestions.filter(
       (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
     );
     return findFirstRequiredEmpty(visible, values, parentAnswers);
   }
+
 
   function validateAccountSection(): string | null {
     if (!isAccountSection || emailAlreadyRegistered) return null;
