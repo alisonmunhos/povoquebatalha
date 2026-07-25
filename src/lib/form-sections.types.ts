@@ -1,6 +1,9 @@
 import type { Database } from "@/integrations/supabase/types";
 
+import type { AppRole } from "@/lib/roles";
+
 export type FormLayoutMode = "flat" | "sectioned";
+export type FormSectionType = "questions" | "account_creation";
 export type SuccessScreenOrder = "whatsapp_first" | "confirmation_first";
 
 export type FormSectionRow = Database["public"]["Tables"]["form_sections"]["Row"];
@@ -10,6 +13,8 @@ export type SectionDraft = {
   id?: string;
   order_index: number;
   title: string | null;
+  section_type?: FormSectionType;
+  account_creation_role?: AppRole | null;
   description?: string | null;
   /** Índice da seção destino padrão, ou null = terminal */
   default_next_order_index: number | null;

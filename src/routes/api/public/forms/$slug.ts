@@ -150,6 +150,9 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           id: string;
           order_index: number;
           title: string | null;
+          section_type: string;
+          account_creation_role: string | null;
+          description: string | null;
           default_next_section_id: string | null;
           confirmation_active: boolean | null;
           whatsapp_button_enabled: boolean | null;
@@ -161,7 +164,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         if (layoutMode === "sectioned") {
           const { data: sectionRows } = await supabaseAdmin
             .from("form_sections")
-            .select("id,order_index,title,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+            .select("id,order_index,title,section_type,account_creation_role,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
             .eq("form_definition_id", form.id)
             .order("order_index", { ascending: true });
           sections = sectionRows ?? [];
@@ -177,23 +180,33 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
 
         let initialValues: Record<string, unknown> | undefined;
+        let contactContext: { email: string | null; nome: string | null; email_already_registered: boolean } | null = null;
         const url = new URL(request.url);
         const token = url.searchParams.get("t");
-        if (form.prefill_from_token && token) {
+        if (token) {
           const { data: contact } = await supabaseAdmin
             .from("contacts")
             .select("*")
             .eq("recad_token", token)
             .maybeSingle();
           if (contact) {
-            initialValues = {};
-            for (const q of (questions ?? []) as QuestionRow[]) {
-              if (q.source !== "catalog" || !q.catalog_field_key) continue;
-              const catalog = getCatalogField(q.catalog_field_key);
-              if (!catalog) continue;
-              const v = catalogValueFromContact(catalog, contact as Record<string, unknown>);
-              if (v !== undefined) initialValues[q.id] = v;
+            if (form.prefill_from_token) {
+              initialValues = {};
+              for (const q of (questions ?? []) as QuestionRow[]) {
+                if (q.source !== "catalog" || !q.catalog_field_key) continue;
+                const catalog = getCatalogField(q.catalog_field_key);
+                if (!catalog) continue;
+                const v = catalogValueFromContact(catalog, contact as Record<string, unknown>);
+                if (v !== undefined) initialValues[q.id] = v;
+              }
             }
+            const { isEmailAlreadyRegistered } = await import("@/lib/public-form-contact.server");
+            const email = (contact.email as string | null)?.trim().toLowerCase() || null;
+            contactContext = {
+              email,
+              nome: (contact.nome as string | null) ?? null,
+              email_already_registered: email ? await isEmailAlreadyRegistered(email) : false,
+            };
           }
         }
 
@@ -209,6 +222,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
               sections: layoutMode === "sectioned" ? sections : null,
               branch_rules: layoutMode === "sectioned" ? branchRules : null,
               initial_values: initialValues ?? null,
+              contact_context: contactContext,
               start_section_id: layoutMode === "sectioned"
                 ? (url.searchParams.get("s") || sections[0]?.id || null)
                 : null,

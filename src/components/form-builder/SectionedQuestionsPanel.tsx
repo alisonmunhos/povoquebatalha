@@ -12,7 +12,7 @@ import {
 } from "@/lib/form-builder-branching";
 import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.functions";
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
-import type { BranchRuleDraft, SectionDraft } from "@/lib/form-sections.types";
+import type { BranchRuleDraft, FormSectionType, SectionDraft } from "@/lib/form-sections.types";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
 import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
 import { getEffectiveQuestionShape, type CustomOption, type CustomResponseType } from "@/lib/form-question-shape";
@@ -195,12 +195,28 @@ export function SectionedQuestionsPanel({
           clientKey,
           order_index: prev.length,
           title: `Seção ${prev.length + 1}`,
+          section_type: "questions",
+          account_creation_role: "agitador",
           default_next_order_index: null,
         },
       ]);
       return next;
     });
     setActiveSectionKey(clientKey);
+  }
+
+  function setSectionType(clientKey: string, sectionType: FormSectionType) {
+    if (sectionType === "account_creation") {
+      setQuestions((prev) => prev.filter((q) => q.sectionClientKey !== clientKey));
+      setBranchRules((prev) => {
+        const removedKeys = new Set(questions.filter((q) => q.sectionClientKey === clientKey).map((q) => q.clientKey));
+        return prev.filter((r) => !removedKeys.has(r.questionClientKey));
+      });
+    }
+    updateSection(clientKey, {
+      section_type: sectionType,
+      account_creation_role: sectionType === "account_creation" ? "agitador" : null,
+    });
   }
 
   function removeSection(clientKey: string) {
@@ -339,7 +355,11 @@ export function SectionedQuestionsPanel({
       toast.error("Toda seção precisa de um título.");
       return;
     }
-    if (questions.some((q) => !q.label.trim())) {
+    if (questions.some((q) => {
+      const section = sections.find((s) => s.clientKey === q.sectionClientKey);
+      if (section?.section_type === "account_creation") return false;
+      return !q.label.trim();
+    })) {
       toast.error("Toda pergunta precisa de um enunciado.");
       return;
     }
@@ -367,6 +387,8 @@ export function SectionedQuestionsPanel({
             id: s.id,
             order_index: s.order_index,
             title: s.title?.trim() || null,
+            section_type: s.section_type ?? "questions",
+            account_creation_role: s.section_type === "account_creation" ? (s.account_creation_role ?? "agitador") : null,
             description: s.description?.trim() || null,
             default_next_order_index: s.default_next_order_index ?? null,
             confirmation_active: s.confirmation_active ?? null,
@@ -386,10 +408,15 @@ export function SectionedQuestionsPanel({
         if (savedId) sectionIdByClientKey.set(s.clientKey, savedId);
       }
 
+      const questionsToSave = questions.filter((q) => {
+        const section = sections.find((s) => s.clientKey === q.sectionClientKey);
+        return section?.section_type !== "account_creation";
+      });
+
       await upsertQuestionsFn({
         data: {
           form_definition_id: formId,
-          questions: questions.map((q) => ({
+          questions: questionsToSave.map((q) => ({
             id: q.id,
             order_index: q.order_index,
             source: q.source,
@@ -412,7 +439,7 @@ export function SectionedQuestionsPanel({
       const fresh2 = await getFn({ data: { id: formId } });
       const savedQuestions = fresh2.questions ?? [];
       const questionIdByClientKey = new Map<string, string>();
-      for (const q of questions) {
+      for (const q of questionsToSave) {
         if (q.id) {
           const match = savedQuestions.find((row) => row.id === q.id);
           if (match) questionIdByClientKey.set(q.clientKey, match.id as string);
@@ -499,6 +526,30 @@ export function SectionedQuestionsPanel({
       <div className="border rounded-xl bg-card p-4 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 space-y-3">
+            <div>
+              <label className="text-sm font-medium">Tipo da seção</label>
+              <select
+                value={activeSection.section_type ?? "questions"}
+                onChange={(e) => setSectionType(activeSection.clientKey, e.target.value as FormSectionType)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="questions">Perguntas</option>
+                <option value="account_creation">Criar conta</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                &quot;Criar conta&quot; exibe uma tela fixa de cadastro (e-mail e senha), sem perguntas.
+              </p>
+            </div>
+            {activeSection.section_type === "account_creation" && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+                <p className="font-medium">Seção de criação de conta</p>
+                <p>
+                  O participante verá e-mail (das etapas anteriores), senha e confirmação. Papel solicitado:{" "}
+                  <strong>agitador</strong>.
+                </p>
+                <p>Certifique-se de que uma etapa anterior coleta nome, WhatsApp e e-mail.</p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium">Título da seção</label>
               <input
@@ -663,6 +714,8 @@ export function SectionedQuestionsPanel({
           </div>
         )}
 
+        {activeSection.section_type !== "account_creation" && (
+        <>
         <div className="space-y-3 border-t pt-3">
           <p className="text-sm font-medium">Perguntas desta seção</p>
           {sectionQuestions.length === 0 && (
@@ -795,6 +848,8 @@ export function SectionedQuestionsPanel({
             <Plus className="h-4 w-4" /> Pergunta customizada
           </button>
         </div>
+        </>
+        )}
       </div>
 
       {sections.length > 1 && (

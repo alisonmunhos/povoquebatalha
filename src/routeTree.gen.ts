@@ -66,6 +66,8 @@ import { Route as ApiPublicLegalPagesSlugRouteImport } from './routes/api/public
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as MissaoMissionIdContatoContactIdRouteImport } from './routes/missao/$missionId/contato/$contactId'
 import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$contactId'
+import { Route as ApiPublicFormsSlugAccountSectionRouteImport } from './routes/api/public/forms/$slug/account-section'
+import { Route as ApiPublicFormsSlugSectionProgressRouteImport } from './routes/api/public/forms/$slug/section-progress'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -371,6 +373,18 @@ const ApiPublicAgitationMissionsMissionIdContactIdRoute =
     path: '/api/public/agitation-missions/$missionId/$contactId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicFormsSlugAccountSectionRoute =
+  ApiPublicFormsSlugAccountSectionRouteImport.update({
+    id: '/account-section',
+    path: '/account-section',
+    getParentRoute: () => ApiPublicFormsSlugRoute,
+  } as any)
+const ApiPublicFormsSlugSectionProgressRoute =
+  ApiPublicFormsSlugSectionProgressRouteImport.update({
+    id: '/section-progress',
+    path: '/section-progress',
+    getParentRoute: () => ApiPublicFormsSlugRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -418,7 +432,7 @@ export interface FileRoutesByFullPath {
   '/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
-  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
+  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/cadastro-usuario': typeof ApiPublicFormsCadastroUsuarioRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -429,6 +443,8 @@ export interface FileRoutesByFullPath {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
+  '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -475,7 +491,7 @@ export interface FileRoutesByTo {
   '/entrada-dados': typeof AuthenticatedEntradaDadosIndexRoute
   '/missoes-agitacao': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
-  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
+  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/cadastro-usuario': typeof ApiPublicFormsCadastroUsuarioRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -486,6 +502,8 @@ export interface FileRoutesByTo {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
+  '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -535,7 +553,7 @@ export interface FileRoutesById {
   '/_authenticated/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/_authenticated/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
-  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRoute
+  '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/cadastro-usuario': typeof ApiPublicFormsCadastroUsuarioRoute
   '/api/public/forms/inscrever': typeof ApiPublicFormsInscreverRoute
@@ -546,6 +564,8 @@ export interface FileRoutesById {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
+  '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -606,6 +626,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/forms/$slug/account-section'
+    | '/api/public/forms/$slug/section-progress'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -663,6 +685,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/forms/$slug/account-section'
+    | '/api/public/forms/$slug/section-progress'
   id:
     | '__root__'
     | '/'
@@ -722,6 +746,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/forms/$slug/account-section'
+    | '/api/public/forms/$slug/section-progress'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -742,7 +768,7 @@ export interface RootRouteChildren {
   TermosSlugRoute: typeof TermosSlugRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
-  ApiPublicFormsSlugRoute: typeof ApiPublicFormsSlugRoute
+  ApiPublicFormsSlugRoute: typeof ApiPublicFormsSlugRouteWithChildren
   ApiPublicFormsCadastroAgitadorRoute: typeof ApiPublicFormsCadastroAgitadorRoute
   ApiPublicFormsCadastroUsuarioRoute: typeof ApiPublicFormsCadastroUsuarioRoute
   ApiPublicFormsInscreverRoute: typeof ApiPublicFormsInscreverRoute
@@ -1156,6 +1182,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/forms/$slug/account-section': {
+      id: '/api/public/forms/$slug/account-section'
+      path: '/account-section'
+      fullPath: '/api/public/forms/$slug/account-section'
+      preLoaderRoute: typeof ApiPublicFormsSlugAccountSectionRouteImport
+      parentRoute: typeof ApiPublicFormsSlugRoute
+    }
+    '/api/public/forms/$slug/section-progress': {
+      id: '/api/public/forms/$slug/section-progress'
+      path: '/section-progress'
+      fullPath: '/api/public/forms/$slug/section-progress'
+      preLoaderRoute: typeof ApiPublicFormsSlugSectionProgressRouteImport
+      parentRoute: typeof ApiPublicFormsSlugRoute
+    }
   }
 }
 
@@ -1252,6 +1292,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface ApiPublicFormsSlugRouteChildren {
+  ApiPublicFormsSlugAccountSectionRoute: typeof ApiPublicFormsSlugAccountSectionRoute
+  ApiPublicFormsSlugSectionProgressRoute: typeof ApiPublicFormsSlugSectionProgressRoute
+}
+
+const ApiPublicFormsSlugRouteChildren: ApiPublicFormsSlugRouteChildren = {
+  ApiPublicFormsSlugAccountSectionRoute: ApiPublicFormsSlugAccountSectionRoute,
+  ApiPublicFormsSlugSectionProgressRoute:
+    ApiPublicFormsSlugSectionProgressRoute,
+}
+
+const ApiPublicFormsSlugRouteWithChildren =
+  ApiPublicFormsSlugRoute._addFileChildren(ApiPublicFormsSlugRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
@@ -1270,7 +1324,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermosSlugRoute: TermosSlugRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
-  ApiPublicFormsSlugRoute: ApiPublicFormsSlugRoute,
+  ApiPublicFormsSlugRoute: ApiPublicFormsSlugRouteWithChildren,
   ApiPublicFormsCadastroAgitadorRoute: ApiPublicFormsCadastroAgitadorRoute,
   ApiPublicFormsCadastroUsuarioRoute: ApiPublicFormsCadastroUsuarioRoute,
   ApiPublicFormsInscreverRoute: ApiPublicFormsInscreverRoute,

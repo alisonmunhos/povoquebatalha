@@ -1,17 +1,14 @@
 // Lógica compartilhada de auto-cadastro público de usuário do sistema (sem link
-// mágico, sem expiração) — usada tanto pelo formulário genérico
-// (/cadastro-usuario, qualquer um dos 5 papéis não-admin) quanto pelo formulário
-// fixo de agitador (/cadastro-agitador, papel sempre forçado para "agitador"),
-// para não duplicar a criação de conta entre os dois handlers.
+// mágico, sem expiração) — usada pelo formulário genérico (/cadastro-usuario),
+// pelo fixo de agitador (/cadastro-agitador) e pela seção "Criar conta" dos
+// formulários por etapas.
 import { z } from "zod";
 import { getRequestIp, honeypotSchema, isHoneypotTripped, isRateLimited } from "@/lib/public-form-guards.server";
+import { isEmailAlreadyRegistered } from "@/lib/public-form-contact.server";
 import { PUBLIC_SIGNUP_ROLES, ROLE_LABEL, type AppRole } from "@/lib/roles";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" };
 
-// UUID fixo da linha "Cadastro de Usuário Alicerce" em form_definitions (ver
-// migration 20260721120000_...sql) — referenciado por id, não por slug, pra não
-// quebrar se alguém renomear o formulário depois pela aba Entrada de Dados.
 const CADASTRO_ALICERCE_FORM_ID = "a7c1e9d4-3f6b-4a82-9e15-6d0c4f8b2a91";
 
 export function corsOptionsResponse(): Response {
@@ -38,51 +35,51 @@ const bodySchema = z.object({
   ...honeypotSchema,
 });
 
-export async function handleUserSignup(request: Request, opts: { rateLimitKey: string; forcedRole?: AppRole }): Promise<Response> {
-  if (isRateLimited(opts.rateLimitKey)) {
-    return new Response(JSON.stringify({ ok: false, error: "Muitas tentativas. Tente novamente em instantes." }), { status: 429, headers: cors });
-  }
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: "JSON inválido" }), { status: 400, headers: cors });
-  }
-  const parsed = bodySchema.safeParse(body);
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" }), { status: 400, headers: cors });
-  }
-  const d = parsed.data;
-  if (isHoneypotTripped(d.hp)) return new Response(JSON.stringify({ ok: true }), { headers: cors });
+export type CreatePendingUserInput = {
+  nome: string;
+  phone: string;
+  email: string;
+  password: string;
+  requestedRole: AppRole | null;
+  via: string;
+  sendWelcomeWhatsApp?: boolean;
+  request?: Request;
+};
 
-  const requestedRole: AppRole | null = opts.forcedRole ?? d.role ?? null;
+export type CreatePendingUserResult =
+  | { ok: true; userId: string; contactId: string | null; nextStepUrl: string | null }
+  | { ok: false; code: "email_already_registered"; error: string }
+  | { ok: false; code: "invalid_phone"; error: string }
+  | { ok: false; code: "create_failed"; error: string };
 
+export async function createPendingUserFromSignup(input: CreatePendingUserInput): Promise<CreatePendingUserResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-  const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: d.phone });
+  const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: input.phone });
   const phoneE164 = norm as string | null;
   if (!phoneE164) {
-    return new Response(JSON.stringify({ ok: false, error: "Número de WhatsApp inválido." }), { status: 400, headers: cors });
+    return { ok: false, code: "invalid_phone", error: "Número de WhatsApp inválido." };
   }
 
-  const { data: existing } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-  if ((existing?.users ?? []).some((u: { email?: string | null }) => (u.email ?? "").toLowerCase() === d.email)) {
-    return new Response(
-      JSON.stringify({ ok: false, code: "email_already_registered", error: "Este e-mail já está cadastrado. Se você já tem conta, faça login normalmente." }),
-      { status: 409, headers: cors },
-    );
+  if (await isEmailAlreadyRegistered(input.email)) {
+    return {
+      ok: false,
+      code: "email_already_registered",
+      error: "Este e-mail já está cadastrado. Se você já tem conta, faça login normalmente.",
+    };
   }
 
   const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-    email: d.email,
-    password: d.password,
+    email: input.email,
+    password: input.password,
     email_confirm: true,
-    user_metadata: { full_name: d.nome },
+    user_metadata: { full_name: input.nome },
   });
   if (createErr || !created.user) {
-    return new Response(JSON.stringify({ ok: false, error: createErr?.message ?? "Erro ao criar conta." }), { status: 400, headers: cors });
+    return { ok: false, code: "create_failed", error: createErr?.message ?? "Erro ao criar conta." };
   }
   const userId = created.user.id;
+  const requestedRole = input.requestedRole;
 
   await supabaseAdmin
     .from("profiles")
@@ -91,9 +88,9 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
 
   const { data: contactIdRaw } = await supabaseAdmin.rpc("link_or_create_user_contact", {
     _user_id: userId,
-    _email: d.email,
-    _phone: d.phone,
-    _full_name: d.nome,
+    _email: input.email,
+    _phone: input.phone,
+    _full_name: input.nome,
   });
   const contactId = contactIdRaw as string | null;
 
@@ -106,7 +103,7 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
         _source_form_type: "cadastro_completo",
         _source_link_id: null as unknown as string,
         _event_type: "cadastro_completo",
-        _metadata: { via: "cadastro_usuario", requested_role: requestedRole },
+        _metadata: { via: input.via, requested_role: requestedRole },
       });
     } catch {
       /* non-blocking */
@@ -140,29 +137,25 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
       actor_id: userId,
       target_user_id: userId,
       event: "usuario_auto_cadastro",
-      meta: { email: d.email, phone: phoneE164, requested_role: requestedRole },
+      meta: { email: input.email, phone: phoneE164, requested_role: requestedRole },
     });
   } catch {
     /* non-blocking */
   }
 
-  // Cadastro encadeado: o Passo 2 ("Cadastro de Usuário Alicerce") é identificado
-  // pelo recad_token do contato recém-ligado — mesmo padrão de link individual
-  // já usado em /atualizacao. Se o formulário não existir/estiver inativo (situação
-  // defensiva, não esperada), segue sem link, sem quebrar o cadastro.
   let nextStepUrl: string | null = null;
-  try {
-    if (contactId) {
+  if (input.sendWelcomeWhatsApp !== false && contactId) {
+    try {
       const { data: c } = await supabaseAdmin
         .from("contacts")
         .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,bairro,uf,recad_token,consentimento_whatsapp,opt_out_at,whatsapp_status")
         .eq("id", contactId)
         .single();
-      if (c) {
+      if (c && input.request) {
         const origin =
-          request.headers.get("origin") ||
-          (request.headers.get("host")
-            ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}`
+          input.request.headers.get("origin") ||
+          (input.request.headers.get("host")
+            ? `${input.request.headers.get("x-forwarded-proto") ?? "https"}://${input.request.headers.get("host")}`
             : null);
         if (origin && c.recad_token) {
           const { data: alicerceForm } = await supabaseAdmin
@@ -181,36 +174,77 @@ export async function handleUserSignup(request: Request, opts: { rateLimitKey: s
           : "";
         await sendMessage({
           contact: c,
-          text: `Olá ${d.nome}! Recebemos seu cadastro na Campanha do Povo que Batalha. Você receberá acesso ao painel assim que for aprovado por um administrador.${stepText}`,
+          text: `Olá ${input.nome}! Recebemos seu cadastro na Campanha do Povo que Batalha. Você receberá acesso ao painel assim que for aprovado por um administrador.${stepText}`,
           textAlreadyRendered: true,
           origin: "automation",
           skipValidations: true,
         });
       }
+    } catch {
+      /* non-blocking */
     }
+  }
+
+  return { ok: true, userId, contactId, nextStepUrl };
+}
+
+export async function handleUserSignup(request: Request, opts: { rateLimitKey: string; forcedRole?: AppRole }): Promise<Response> {
+  if (isRateLimited(opts.rateLimitKey)) {
+    return new Response(JSON.stringify({ ok: false, error: "Muitas tentativas. Tente novamente em instantes." }), { status: 429, headers: cors });
+  }
+  let body: unknown;
+  try {
+    body = await request.json();
   } catch {
-    /* non-blocking */
+    return new Response(JSON.stringify({ ok: false, error: "JSON inválido" }), { status: 400, headers: cors });
+  }
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" }), { status: 400, headers: cors });
+  }
+  const d = parsed.data;
+  if (isHoneypotTripped(d.hp)) return new Response(JSON.stringify({ ok: true }), { headers: cors });
+
+  const requestedRole: AppRole | null = opts.forcedRole ?? d.role ?? null;
+
+  const result = await createPendingUserFromSignup({
+    nome: d.nome,
+    phone: d.phone,
+    email: d.email,
+    password: d.password,
+    requestedRole,
+    via: opts.forcedRole === "agitador" ? "cadastro_agitador" : "cadastro_usuario",
+    request,
+  });
+
+  if (!result.ok) {
+    if (result.code === "email_already_registered") {
+      return new Response(
+        JSON.stringify({ ok: false, code: result.code, error: result.error }),
+        { status: 409, headers: cors },
+      );
+    }
+    return new Response(JSON.stringify({ ok: false, error: result.error }), { status: 400, headers: cors });
   }
 
   let whatsappPhone: string | null = null;
   try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: inst } = await supabaseAdmin
       .from("whatsapp_instances")
       .select("numero_conectado, config")
       .eq("provider", "zapi")
       .maybeSingle();
     const cfg = (inst?.config ?? {}) as Record<string, unknown>;
-    // Prioriza o valor configurado manualmente; se não houver, cai para o número
-    // atualmente conectado na instância Z-API (padrão dinâmico).
     whatsappPhone =
       (cfg.signup_whatsapp_phone as string | undefined) ??
       (inst?.numero_conectado ?? null);
   } catch {
-    /* ignore — mantém o padrão */
+    /* ignore */
   }
 
   return new Response(
-    JSON.stringify({ ok: true, whatsapp_phone: whatsappPhone, next_step_url: nextStepUrl }),
+    JSON.stringify({ ok: true, whatsapp_phone: whatsappPhone, next_step_url: result.nextStepUrl }),
     { headers: cors },
   );
 }

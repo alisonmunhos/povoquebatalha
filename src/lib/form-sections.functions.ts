@@ -6,11 +6,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import {
   type BranchRuleDraft,
+  type FormSectionType,
   type SectionDraft,
   type SuccessScreenOrder,
   validateForwardOnlyRouting,
   validateForwardOnlyRoutingWithQuestionSections,
 } from "@/lib/form-sections.types";
+import type { AppRole } from "@/lib/roles";
 
 type AppSupabase = SupabaseClient<Database>;
 
@@ -27,6 +29,8 @@ function toSectionDrafts(
     id: string;
     order_index: number;
     title: string | null;
+    section_type?: string | null;
+    account_creation_role?: string | null;
     description: string | null;
     default_next_section_id: string | null;
     confirmation_active: boolean | null;
@@ -40,6 +44,8 @@ function toSectionDrafts(
     id: s.id,
     order_index: s.order_index,
     title: s.title,
+    section_type: (s.section_type === "account_creation" ? "account_creation" : "questions") as SectionDraft["section_type"],
+    account_creation_role: (s.account_creation_role as SectionDraft["account_creation_role"]) ?? "agitador",
     description: s.description,
     default_next_order_index:
       s.default_next_section_id != null ? (orderById.get(s.default_next_section_id) ?? null) : null,
@@ -57,6 +63,8 @@ function normalizeSectionDrafts(
     id?: string;
     order_index: number;
     title?: string | null;
+    section_type?: FormSectionType;
+    account_creation_role?: AppRole | null;
     description?: string | null;
     default_next_order_index?: number | null;
     confirmation_active?: boolean | null;
@@ -69,6 +77,8 @@ function normalizeSectionDrafts(
     id: s.id,
     order_index: s.order_index,
     title: s.title ?? null,
+    section_type: s.section_type ?? "questions",
+    account_creation_role: s.account_creation_role ?? "agitador",
     description: s.description ?? null,
     default_next_order_index: s.default_next_order_index ?? null,
     confirmation_active: s.confirmation_active ?? null,
@@ -135,6 +145,8 @@ const sectionSchema = z.object({
   id: z.string().uuid().optional(),
   order_index: z.number().int().min(0),
   title: z.string().trim().max(200).nullable().optional(),
+  section_type: z.enum(["questions", "account_creation"]).optional(),
+  account_creation_role: z.enum(["operador", "leitor", "vrm", "agitador", "comunicacao"]).nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   default_next_order_index: z.number().int().min(0).nullable().optional(),
   confirmation_active: z.boolean().nullable().optional(),
@@ -175,6 +187,8 @@ export const upsertFormSections = createServerFn({ method: "POST" })
         form_definition_id: data.form_definition_id,
         order_index: s.order_index,
         title: s.title ?? null,
+        section_type: s.section_type ?? "questions",
+        account_creation_role: s.section_type === "account_creation" ? (s.account_creation_role ?? "agitador") : null,
         description: s.description ?? null,
         default_next_section_id: null as string | null,
         confirmation_active: s.confirmation_active ?? null,

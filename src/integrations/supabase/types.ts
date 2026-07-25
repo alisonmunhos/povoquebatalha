@@ -1736,6 +1736,7 @@ export type Database = {
       }
       form_sections: {
         Row: {
+          account_creation_role: Database["public"]["Enums"]["app_role"] | null
           confirmation_active: boolean | null
           confirmation_event_key: string | null
           created_at: string
@@ -1744,6 +1745,7 @@ export type Database = {
           form_definition_id: string
           id: string
           order_index: number
+          section_type: string
           success_screen_order: string | null
           title: string | null
           updated_at: string
@@ -1751,6 +1753,7 @@ export type Database = {
           whatsapp_button_message: string | null
         }
         Insert: {
+          account_creation_role?: Database["public"]["Enums"]["app_role"] | null
           confirmation_active?: boolean | null
           confirmation_event_key?: string | null
           created_at?: string
@@ -1759,6 +1762,7 @@ export type Database = {
           form_definition_id: string
           id?: string
           order_index: number
+          section_type?: string
           success_screen_order?: string | null
           title?: string | null
           updated_at?: string
@@ -1766,6 +1770,7 @@ export type Database = {
           whatsapp_button_message?: string | null
         }
         Update: {
+          account_creation_role?: Database["public"]["Enums"]["app_role"] | null
           confirmation_active?: boolean | null
           confirmation_event_key?: string | null
           created_at?: string
@@ -1774,6 +1779,7 @@ export type Database = {
           form_definition_id?: string
           id?: string
           order_index?: number
+          section_type?: string
           success_screen_order?: string | null
           title?: string | null
           updated_at?: string
