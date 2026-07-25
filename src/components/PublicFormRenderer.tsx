@@ -248,9 +248,12 @@ export function PublicFormRenderer({
           section_id: currentSection.id,
           password: accountPassword,
           password_confirm: accountPasswordConfirm,
+          answers: values,
+          ref_token: refToken ?? "",
           hp: "",
         }),
       });
+
       const json = await r.json();
       if (r.status === 409 && json.code === "email_already_registered") {
         setEmailAlreadyRegistered(true);
