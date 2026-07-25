@@ -330,12 +330,13 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           confirmation_active: boolean | null;
           whatsapp_button_enabled: boolean | null;
           whatsapp_button_message: string | null;
+          whatsapp_button_phone: string | null;
           success_screen_order: string | null;
         } | null = null;
         if (isSectioned && d.terminal_section_id) {
           const { data: sec } = await supabaseAdmin
             .from("form_sections")
-            .select("confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order")
+            .select("confirmation_active,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order")
             .eq("id", d.terminal_section_id)
             .eq("form_definition_id", form.id)
             .maybeSingle();
