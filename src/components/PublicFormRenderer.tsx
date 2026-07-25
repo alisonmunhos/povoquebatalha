@@ -732,6 +732,8 @@ function AddressBlockField({
 
 function AccountCreationFields({
   email,
+  nome,
+  phone,
   emailAlreadyRegistered,
   password,
   passwordConfirm,
@@ -741,6 +743,8 @@ function AccountCreationFields({
   onToggleShowPassword,
 }: {
   email: string;
+  nome: string;
+  phone: string;
   emailAlreadyRegistered: boolean;
   password: string;
   passwordConfirm: string;
@@ -755,6 +759,26 @@ function AccountCreationFields({
       <p className="text-sm text-muted-foreground">
         Crie sua conta para acessar o painel da campanha. Um administrador precisará aprovar seu acesso.
       </p>
+      {nome && (
+        <div>
+          <label className="text-sm font-medium">Nome completo</label>
+          <input
+            readOnly
+            value={nome}
+            className="mt-1 w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm"
+          />
+        </div>
+      )}
+      {phone && (
+        <div>
+          <label className="text-sm font-medium">WhatsApp</label>
+          <input
+            readOnly
+            value={phone}
+            className="mt-1 w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm"
+          />
+        </div>
+      )}
       <div>
         <label className="text-sm font-medium">E-mail</label>
         <input
@@ -767,6 +791,7 @@ function AccountCreationFields({
           <p className="text-xs text-amber-600 mt-1">Volte às etapas anteriores e informe seu e-mail.</p>
         )}
       </div>
+
       {emailAlreadyRegistered ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
           <p className="text-sm text-amber-900">
