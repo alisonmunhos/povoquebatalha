@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   type FormCatalogField,
+  getCatalogField,
 } from "@/lib/form-field-catalog";
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import {
