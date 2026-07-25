@@ -625,6 +625,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           ? Boolean(terminalSection.whatsapp_button_enabled)
           : form.whatsapp_button_enabled;
         const waMessage = terminalSection?.whatsapp_button_message ?? form.whatsapp_button_message;
+        const waPhone = terminalSection?.whatsapp_button_phone?.trim() || form.whatsapp_button_phone;
         const successOrder = terminalSection?.success_screen_order ?? form.success_screen_order;
 
         try {
@@ -644,7 +645,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             ok: true,
             nome: nome ?? "Participante",
             whatsapp_button: waEnabled
-              ? { phone: form.whatsapp_button_phone, message: waMessage }
+              ? { phone: waPhone, message: waMessage }
               : null,
             confirmation_enabled: confirmationEnabled,
             success_screen_order: successOrder,
