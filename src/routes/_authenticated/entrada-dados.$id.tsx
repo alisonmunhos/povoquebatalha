@@ -377,6 +377,7 @@ function FormBuilder() {
               custom_options?: CustomOption[] | null;
             }>}
             initialBranchRules={q.data.sections?.branchRules ?? []}
+            formDefaultWhatsappMessage={(q.data.form.whatsapp_button_message as string | null) ?? null}
             onSaved={() => q.refetch()}
           />
         ) : (
