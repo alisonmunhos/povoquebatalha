@@ -288,8 +288,9 @@ function FormBuilder() {
       <Section title="Configurações do formulário">
         {isSectioned && (
           <p className="text-xs bg-violet-50 text-violet-800 border border-violet-200 rounded-md px-3 py-2">
-            Este formulário usa o modelo <strong>por seções</strong> — monte as etapas e a ramificação na área abaixo.
-            Use <strong>Salvar seção</strong> para proteger cada etapa e <strong>Salvar formulário</strong> (no final da página) para título, links e padrões gerais.
+            Este formulário usa o modelo <strong>por seções</strong>. Configure os padrões gerais abaixo,
+            depois monte cada etapa. Use <strong>Salvar seção</strong> para proteger o trabalho de cada etapa
+            e <strong>Salvar formulário</strong> (no final) para título, links e padrões gerais.
           </p>
         )}
         {isFixed && (
@@ -406,6 +407,54 @@ function FormBuilder() {
         )}
       </Section>
 
+      <Section title="Padrões do formulário — tela de sucesso">
+        <p className="text-xs text-muted-foreground">
+          Configuração <strong>geral</strong>, usada quando o formulário termina em qualquer etapa que não
+          defina regra própria. Em formulários por seções, cada etapa pode escolher: seguir este padrão,
+          ligar ou desligar confirmação/WhatsApp só naquela etapa.
+        </p>
+        <p className="text-sm font-medium pt-1">Confirmação automática (mensagem via WhatsApp)</p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={confActive} onChange={(e) => setConfActive(e.target.checked)} /> Enviar confirmação automática por padrão
+        </label>
+        {confActive && (
+          <>
+            <input value={confTitle} onChange={(e) => setConfTitle(e.target.value)} placeholder="Título interno" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </>
+        )}
+        <p className="text-sm font-medium pt-2">Botão &quot;Avisar no WhatsApp&quot; (padrão)</p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={waEnabled} onChange={(e) => setWaEnabled(e.target.checked)} /> Mostrar botão por padrão ao finalizar
+        </label>
+        {waEnabled && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Número de destino (único para todo o formulário)</label>
+              <input value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="+5551981951545" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Mensagem pré-preenchida (padrão)</label>
+              <textarea value={waMessage} onChange={(e) => setWaMessage(e.target.value)} rows={2} placeholder="Ex.: Olá! Acabei de preencher o formulário..." className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
+          </div>
+        )}
+        {waEnabled && confActive && (
+          <>
+            <p className="text-sm font-medium pt-2">Ordem na tela de sucesso (padrão geral)</p>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="success_order" checked={successOrder === "whatsapp_first"} onChange={() => setSuccessOrder("whatsapp_first")} className="mt-1" />
+              <span>Botão de WhatsApp primeiro</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="success_order" checked={successOrder === "confirmation_first"} onChange={() => setSuccessOrder("confirmation_first")} className="mt-1" />
+              <span>Confirmação primeiro</span>
+            </label>
+          </>
+        )}
+        <p className="text-xs text-muted-foreground">Salve com <strong>Salvar formulário</strong> no final da página.</p>
+      </Section>
+
       <Section title={isSectioned ? "Seções e perguntas" : "Perguntas"}>
         {isSectioned ? (
           <SectionedQuestionsPanel
@@ -426,7 +475,10 @@ function FormBuilder() {
               custom_options?: CustomOption[] | null;
             }>}
             initialBranchRules={q.data.sections?.branchRules ?? []}
-            formDefaultWhatsappMessage={(q.data.form.whatsapp_button_message as string | null) ?? null}
+            formDefaultConfirmationActive={confActive}
+            formDefaultWhatsappEnabled={waEnabled}
+            formDefaultWhatsappPhone={waPhone}
+            formDefaultWhatsappMessage={waMessage || null}
             onSaved={() => q.refetch()}
           />
         ) : (
@@ -476,56 +528,6 @@ function FormBuilder() {
         </button>
           </>
         )}
-      </Section>
-
-      <Section title="Padrões do formulário (confirmação e WhatsApp)">
-        <p className="text-xs text-muted-foreground">
-          Estes são os padrões gerais. Em formulários por seções, cada etapa pode ter configuração própria
-          em <strong>Ao terminar nesta etapa</strong> — use uma, as duas ou nenhuma por seção.
-        </p>
-        <p className="text-sm font-medium pt-1">Mensagem de confirmação automática (via WhatsApp)</p>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={confActive} onChange={(e) => setConfActive(e.target.checked)} /> Enviar confirmação automática
-        </label>
-        {confActive && (
-          <>
-            <input value={confTitle} onChange={(e) => setConfTitle(e.target.value)} placeholder="Título interno" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-          </>
-        )}
-        <p className="text-sm font-medium pt-2">Botão de WhatsApp na tela de sucesso</p>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={waEnabled} onChange={(e) => setWaEnabled(e.target.checked)} /> Mostrar botão "Avisar no WhatsApp"
-        </label>
-        {waEnabled && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Número de destino</label>
-              <input value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="+5551981951545" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="text-sm font-medium flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Mensagem pré-preenchida</label>
-              <textarea value={waMessage} onChange={(e) => setWaMessage(e.target.value)} rows={2} placeholder="Ex.: Olá! Acabei de preencher o formulário..." className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            </div>
-          </div>
-        )}
-        {waEnabled && confActive && (
-          <>
-            <p className="text-sm font-medium pt-2">Ordem na tela de sucesso (padrão geral)</p>
-            <p className="text-xs text-muted-foreground">
-              As duas coisas continuam independentes — isso só decide qual bloco aparece primeiro quando a seção não define ordem própria.
-            </p>
-            <label className="flex items-start gap-2 text-sm">
-              <input type="radio" name="success_order" checked={successOrder === "whatsapp_first"} onChange={() => setSuccessOrder("whatsapp_first")} className="mt-1" />
-              <span>Botão de WhatsApp primeiro — a confirmação que a pessoa recebe depois soa como resposta à mensagem que ela acabou de mandar.</span>
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input type="radio" name="success_order" checked={successOrder === "confirmation_first"} onChange={() => setSuccessOrder("confirmation_first")} className="mt-1" />
-              <span>Confirmação primeiro — avisa que a pessoa já recebe a confirmação automaticamente, e o botão de WhatsApp aparece depois como ação extra opcional.</span>
-            </label>
-          </>
-        )}
-        <p className="text-xs text-muted-foreground">Salve com <strong>Salvar formulário</strong> abaixo.</p>
       </Section>
 
       <div className="border rounded-xl bg-card p-4">
