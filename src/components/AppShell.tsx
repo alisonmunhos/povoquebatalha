@@ -143,11 +143,11 @@ export function AppShell() {
   const SidebarInner = (
     <>
       <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
-        <Megaphone className="h-5 w-5 text-sidebar-primary" />
-        <div className="font-semibold text-sm leading-tight">
-          Campanha do Povo
+        <BrandMark className="h-7 w-7" />
+        <div className="font-display text-base leading-tight tracking-wide">
+          Povo que
           <br />
-          que Batalha
+          Batalha
         </div>
       </div>
       <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
