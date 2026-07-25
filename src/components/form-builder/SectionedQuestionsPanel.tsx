@@ -520,10 +520,8 @@ export function SectionedQuestionsPanel({
 
       const questionsWithCore = ensureCoreQuestionsInFirstSection(sections, questions, newClientKey);
 
-      const questionsToSave = questionsWithCore.filter((q) => {
-        const section = sections.find((s) => s.clientKey === q.sectionClientKey);
-        return section?.section_type !== "account_creation";
-      });
+      const questionsToSave = questionsWithCore;
+
 
       const missingSection = questionsToSave.find((q) => !sectionIdByClientKey.get(q.sectionClientKey));
       if (missingSection) {
