@@ -6,7 +6,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { Megaphone, CheckCircle2, MessageCircle } from "lucide-react";
-import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
+import { PasswordInput } from "@/components/ui/password-input";
 
 type SuccessState = { whatsappPhone: string | null; nome: string };
 
@@ -106,12 +106,12 @@ export function UserSignupForm({
               </div>
               <div>
                 <label className="text-sm font-medium">Senha *</label>
-                <input type="password" name="password" required minLength={8} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <PasswordInput name="password" required minLength={8} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
                 <p className="text-[11px] text-muted-foreground mt-1">Mínimo 8 caracteres, com pelo menos uma letra e um número.</p>
               </div>
               <div>
                 <label className="text-sm font-medium">Confirmar senha *</label>
-                <input type="password" name="confirm" required minLength={8} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <PasswordInput name="confirm" required minLength={8} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               </div>
               {error && (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">

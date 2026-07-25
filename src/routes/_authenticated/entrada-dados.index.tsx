@@ -12,6 +12,7 @@ import { generateQrDataUrl } from "@/lib/qr-code-browser";
 import { Plus, ClipboardList, ExternalLink, Link2, Copy, MessageCircle, QrCode, Loader2, MessageSquareText, Trash2, CopyPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LegalPagesTab } from "@/components/admin/LegalPagesTab";
 
 export const Route = createFileRoute("/_authenticated/entrada-dados/")({
   head: () => ({ meta: [{ title: "Entrada de Dados" }] }),
@@ -105,6 +106,7 @@ function EntradaDadosLista() {
       <Tabs defaultValue="formularios">
         <TabsList>
           <TabsTrigger value="formularios">Formulários</TabsTrigger>
+          <TabsTrigger value="paginas-legais">Páginas legais</TabsTrigger>
           <TabsTrigger value="link-avulso">Link avulso</TabsTrigger>
           <TabsTrigger value="respostas-automaticas">Respostas automáticas</TabsTrigger>
         </TabsList>
@@ -207,6 +209,10 @@ function EntradaDadosLista() {
               );
             })}
           </div>
+        </TabsContent>
+
+        <TabsContent value="paginas-legais">
+          <LegalPagesTab />
         </TabsContent>
 
         <TabsContent value="link-avulso">

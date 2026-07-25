@@ -15,6 +15,7 @@ export type SectionDraft = {
   title: string | null;
   section_type?: FormSectionType;
   account_creation_role?: AppRole | null;
+  description?: string | null;
   /** Índice da seção destino padrão, ou null = terminal */
   default_next_order_index: number | null;
   confirmation_active?: boolean | null;

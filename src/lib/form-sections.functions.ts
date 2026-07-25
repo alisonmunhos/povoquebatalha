@@ -31,6 +31,7 @@ function toSectionDrafts(
     title: string | null;
     section_type?: string | null;
     account_creation_role?: string | null;
+    description: string | null;
     default_next_section_id: string | null;
     confirmation_active: boolean | null;
     whatsapp_button_enabled: boolean | null;
@@ -45,6 +46,7 @@ function toSectionDrafts(
     title: s.title,
     section_type: (s.section_type === "account_creation" ? "account_creation" : "questions") as SectionDraft["section_type"],
     account_creation_role: (s.account_creation_role as SectionDraft["account_creation_role"]) ?? "agitador",
+    description: s.description,
     default_next_order_index:
       s.default_next_section_id != null ? (orderById.get(s.default_next_section_id) ?? null) : null,
     confirmation_active: s.confirmation_active,
@@ -63,6 +65,7 @@ function normalizeSectionDrafts(
     title?: string | null;
     section_type?: FormSectionType;
     account_creation_role?: AppRole | null;
+    description?: string | null;
     default_next_order_index?: number | null;
     confirmation_active?: boolean | null;
     whatsapp_button_enabled?: boolean | null;
@@ -76,6 +79,7 @@ function normalizeSectionDrafts(
     title: s.title ?? null,
     section_type: s.section_type ?? "questions",
     account_creation_role: s.account_creation_role ?? "agitador",
+    description: s.description ?? null,
     default_next_order_index: s.default_next_order_index ?? null,
     confirmation_active: s.confirmation_active ?? null,
     whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,
@@ -143,6 +147,7 @@ const sectionSchema = z.object({
   title: z.string().trim().max(200).nullable().optional(),
   section_type: z.enum(["questions", "account_creation"]).optional(),
   account_creation_role: z.enum(["operador", "leitor", "vrm", "agitador", "comunicacao"]).nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
   default_next_order_index: z.number().int().min(0).nullable().optional(),
   confirmation_active: z.boolean().nullable().optional(),
   whatsapp_button_enabled: z.boolean().nullable().optional(),
@@ -184,6 +189,7 @@ export const upsertFormSections = createServerFn({ method: "POST" })
         title: s.title ?? null,
         section_type: s.section_type ?? "questions",
         account_creation_role: s.section_type === "account_creation" ? (s.account_creation_role ?? "agitador") : null,
+        description: s.description ?? null,
         default_next_section_id: null as string | null,
         confirmation_active: s.confirmation_active ?? null,
         whatsapp_button_enabled: s.whatsapp_button_enabled ?? null,

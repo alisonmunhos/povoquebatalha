@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
-import { resolveNextSectionId, sortSections } from "@/lib/form-sections-routing";
+import { resolveNextSectionId, sortSections, findFirstRequiredEmpty } from "@/lib/form-sections-routing";
 
 export type AddressValue = {
   cep?: string; endereco?: string; numero?: string; complemento?: string;
@@ -41,6 +41,7 @@ type FormSection = {
   title: string | null;
   section_type?: "questions" | "account_creation";
   account_creation_role?: string | null;
+  description: string | null;
   default_next_section_id: string | null;
 };
 type ContactContext = {
@@ -79,6 +80,7 @@ export function PublicFormRenderer({
   const [sectionedForm, setSectionedForm] = useState<SectionedFormDefinition | null>(null);
   const [layoutMode, setLayoutMode] = useState<"flat" | "sectioned" | null>(null);
   const [currentSectionId, setCurrentSectionId] = useState<string | null>(null);
+  const [journeyStartSectionId, setJourneyStartSectionId] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [activeRecadToken, setActiveRecadToken] = useState(recadToken ?? "");
   const [contactContext, setContactContext] = useState<ContactContext | null>(null);
@@ -121,6 +123,7 @@ export function PublicFormRenderer({
           const startId = loaded.start_section_id && sections.some((s) => s.id === loaded.start_section_id)
             ? loaded.start_section_id
             : sections[0]?.id ?? null;
+          setJourneyStartSectionId(startId);
           setCurrentSectionId(startId);
           if (json.form.contact_context) {
             setContactContext(json.form.contact_context);
@@ -164,17 +167,24 @@ export function PublicFormRenderer({
     return map;
   }, [form, sectionedForm, layoutMode, values]);
 
-  function findFirstRequiredEmpty(questionList: typeof sectionQuestions): string | null {
-    for (const q of questionList) {
-      if (!q.required) continue;
-      if (q.depends_on && parentAnswers[q.depends_on.key] !== q.depends_on.value) continue;
-      const value = values[q.id];
-      const isEmpty =
-        value == null || value === "" ||
-        (Array.isArray(value) && value.length === 0) ||
-        (typeof value === "object" && value !== null && !Array.isArray(value) &&
-          !Object.values(value as AddressValue).some((v) => v && String(v).trim()));
-      if (isEmpty) return q.label;
+  function validateCurrentSection(): string | null {
+    if (isAccountSection) return null;
+    const visible = sectionQuestions.filter(
+      (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
+    );
+    return findFirstRequiredEmpty(visible, values, parentAnswers);
+  }
+
+  function validateAccountSection(): string | null {
+    if (!isAccountSection || emailAlreadyRegistered) return null;
+    if (!accountPassword || accountPassword.length < 8) {
+      return "A senha precisa ter pelo menos 8 caracteres.";
+    }
+    if (!/[a-zA-Z]/.test(accountPassword) || !/\d/.test(accountPassword)) {
+      return "Use pelo menos uma letra e um número na senha.";
+    }
+    if (accountPassword !== accountPasswordConfirm) {
+      return "As senhas não coincidem.";
     }
     return null;
   }
@@ -268,6 +278,7 @@ export function PublicFormRenderer({
           ref_token: refToken ?? "",
           recad_token: activeRecadToken || recadToken || "",
           terminal_section_id: terminalSectionId,
+          start_section_id: journeyStartSectionId ?? terminalSectionId,
           answers: values,
           hp: "",
         }),
@@ -291,28 +302,10 @@ export function PublicFormRenderer({
     e.preventDefault();
     if (!sectionedForm || !currentSection) return;
     setError(null);
-
-    if (!isAccountSection) {
-      const missing = findFirstRequiredEmpty(
-        sectionQuestions.filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value),
-      );
-      if (missing) {
-        setError(`Campo obrigatório: ${missing}`);
-        return;
-      }
-    } else if (!emailAlreadyRegistered) {
-      if (!accountPassword || accountPassword.length < 8) {
-        setError("A senha precisa ter pelo menos 8 caracteres.");
-        return;
-      }
-      if (!/[a-zA-Z]/.test(accountPassword) || !/\d/.test(accountPassword)) {
-        setError("Use pelo menos uma letra e um número na senha.");
-        return;
-      }
-      if (accountPassword !== accountPasswordConfirm) {
-        setError("As senhas não coincidem.");
-        return;
-      }
+    const validationError = validateCurrentSection() ?? validateAccountSection();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     const nextId = resolveNextSectionId(
@@ -419,6 +412,9 @@ export function PublicFormRenderer({
             {progressLabel && <p className="text-sm text-muted-foreground mt-1">{progressLabel}</p>}
             <form onSubmit={onContinueSectioned} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
               <h2 className="text-lg font-semibold">{sectionTitle}</h2>
+              {currentSection.description?.trim() && (
+                <p className="text-xs text-muted-foreground -mt-2">{currentSection.description.trim()}</p>
+              )}
               <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
               {isAccountSection ? (
                 <AccountCreationFields

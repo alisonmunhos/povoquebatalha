@@ -1741,6 +1741,7 @@ export type Database = {
           confirmation_event_key: string | null
           created_at: string
           default_next_section_id: string | null
+          description: string | null
           form_definition_id: string
           id: string
           order_index: number
@@ -1757,6 +1758,7 @@ export type Database = {
           confirmation_event_key?: string | null
           created_at?: string
           default_next_section_id?: string | null
+          description?: string | null
           form_definition_id: string
           id?: string
           order_index: number
@@ -1773,6 +1775,7 @@ export type Database = {
           confirmation_event_key?: string | null
           created_at?: string
           default_next_section_id?: string | null
+          description?: string | null
           form_definition_id?: string
           id?: string
           order_index?: number
@@ -1799,6 +1802,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      legal_pages: {
+        Row: {
+          content: string
+          id: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          id?: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       geocode_cache: {
         Row: {

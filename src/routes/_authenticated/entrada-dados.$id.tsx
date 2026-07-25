@@ -9,6 +9,7 @@ import {
 import { CORE_CATALOG_FIELDS, FIXED_FORM_PUBLIC_PATHS, type FormCatalogField } from "@/lib/form-field-catalog";
 import { SectionedQuestionsPanel } from "@/components/form-builder/SectionedQuestionsPanel";
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
+import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 
@@ -377,6 +378,7 @@ function FormBuilder() {
               custom_options?: CustomOption[] | null;
             }>}
             initialBranchRules={q.data.sections?.branchRules ?? []}
+            formDefaultWhatsappMessage={(q.data.form.whatsapp_button_message as string | null) ?? null}
             onSaved={() => q.refetch()}
           />
         ) : (
@@ -397,6 +399,7 @@ function FormBuilder() {
             {qu.source === "custom" && (
               <CustomQuestionFields value={qu} onChange={(patch) => updateQuestion(idx, patch)} />
             )}
+            <CatalogOptionsPreview question={qu} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input value={qu.link_text ?? ""} onChange={(e) => updateQuestion(idx, { link_text: e.target.value || null })} placeholder="Texto do link (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               <input value={qu.link_url ?? ""} onChange={(e) => updateQuestion(idx, { link_url: e.target.value || null })} placeholder="URL do link (opcional)" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />

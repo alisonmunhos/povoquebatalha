@@ -40,6 +40,7 @@ import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as FSlugRouteImport } from './routes/f.$slug'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
+import { Route as TermosSlugRouteImport } from './routes/termos.$slug'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
@@ -61,6 +62,7 @@ import { Route as ApiPublicFormsInscreverRouteImport } from './routes/api/public
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/api/public/jobs/process-campaign-queue'
+import { Route as ApiPublicLegalPagesSlugRouteImport } from './routes/api/public/legal-pages/$slug'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as MissaoMissionIdContatoContactIdRouteImport } from './routes/missao/$missionId/contato/$contactId'
 import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$contactId'
@@ -224,6 +226,11 @@ const OptOutTokenRoute = OptOutTokenRouteImport.update({
   path: '/opt-out/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermosSlugRoute = TermosSlugRouteImport.update({
+  id: '/termos/$slug',
+  path: '/termos/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedCampanhasIndexRoute =
   AuthenticatedCampanhasIndexRouteImport.update({
     id: '/campanhas/',
@@ -344,6 +351,11 @@ const ApiPublicJobsProcessCampaignQueueRoute =
     path: '/api/public/jobs/process-campaign-queue',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicLegalPagesSlugRoute = ApiPublicLegalPagesSlugRouteImport.update({
+  id: '/api/public/legal-pages/$slug',
+  path: '/api/public/legal-pages/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   id: '/api/public/zapi/$evento',
   path: '/api/public/zapi/$evento',
@@ -405,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/termos/$slug': typeof TermosSlugRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -426,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -462,6 +476,7 @@ export interface FileRoutesByTo {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/termos/$slug': typeof TermosSlugRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -483,6 +498,7 @@ export interface FileRoutesByTo {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -522,6 +538,7 @@ export interface FileRoutesById {
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
+  '/termos/$slug': typeof TermosSlugRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -543,6 +560,7 @@ export interface FileRoutesById {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -582,6 +600,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/f/$slug'
     | '/opt-out/$token'
+    | '/termos/$slug'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
@@ -603,6 +622,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/legal-pages/$slug'
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
@@ -639,6 +659,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/f/$slug'
     | '/opt-out/$token'
+    | '/termos/$slug'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
@@ -660,6 +681,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/legal-pages/$slug'
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
@@ -698,6 +720,7 @@ export interface FileRouteTypes {
     | '/_authenticated/whatsapp'
     | '/f/$slug'
     | '/opt-out/$token'
+    | '/termos/$slug'
     | '/_authenticated/campanhas/$id'
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
@@ -719,6 +742,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/legal-pages/$slug'
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
@@ -741,6 +765,7 @@ export interface RootRouteChildren {
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   FSlugRoute: typeof FSlugRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
+  TermosSlugRoute: typeof TermosSlugRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
   ApiPublicFormsSlugRoute: typeof ApiPublicFormsSlugRouteWithChildren
@@ -750,6 +775,7 @@ export interface RootRouteChildren {
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
   ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
+  ApiPublicLegalPagesSlugRoute: typeof ApiPublicLegalPagesSlugRoute
   ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
   MissaoMissionIdContatoContactIdRoute: typeof MissaoMissionIdContatoContactIdRoute
   ApiPublicAgitationMissionsMissionIdContactIdRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -974,6 +1000,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OptOutTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/termos/$slug': {
+      id: '/termos/$slug'
+      path: '/termos/$slug'
+      fullPath: '/termos/$slug'
+      preLoaderRoute: typeof TermosSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/campanhas/': {
       id: '/_authenticated/campanhas/'
       path: '/campanhas'
@@ -1119,6 +1152,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/process-campaign-queue'
       fullPath: '/api/public/jobs/process-campaign-queue'
       preLoaderRoute: typeof ApiPublicJobsProcessCampaignQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/legal-pages/$slug': {
+      id: '/api/public/legal-pages/$slug'
+      path: '/api/public/legal-pages/$slug'
+      fullPath: '/api/public/legal-pages/$slug'
+      preLoaderRoute: typeof ApiPublicLegalPagesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/zapi/$evento': {
@@ -1281,6 +1321,7 @@ const rootRouteChildren: RootRouteChildren = {
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   FSlugRoute: FSlugRoute,
   OptOutTokenRoute: OptOutTokenRoute,
+  TermosSlugRoute: TermosSlugRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
   ApiPublicFormsSlugRoute: ApiPublicFormsSlugRouteWithChildren,
@@ -1291,6 +1332,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
   ApiPublicJobsProcessCampaignQueueRoute:
     ApiPublicJobsProcessCampaignQueueRoute,
+  ApiPublicLegalPagesSlugRoute: ApiPublicLegalPagesSlugRoute,
   ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
   MissaoMissionIdContatoContactIdRoute: MissaoMissionIdContatoContactIdRoute,
   ApiPublicAgitationMissionsMissionIdContactIdRoute:
