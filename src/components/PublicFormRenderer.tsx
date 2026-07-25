@@ -209,10 +209,11 @@ export function PublicFormRenderer({
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
       if (json.recad_token) setActiveRecadToken(json.recad_token);
-      if (json.email != null || json.nome != null) {
+      if (json.email != null || json.nome != null || json.phone != null) {
         setContactContext((prev) => ({
           email: json.email ?? prev?.email ?? null,
           nome: json.nome ?? prev?.nome ?? null,
+          phone: json.phone ?? prev?.phone ?? null,
           email_already_registered: prev?.email_already_registered ?? false,
         }));
       }
