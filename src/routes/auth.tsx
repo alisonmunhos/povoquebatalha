@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Megaphone, Loader2 } from "lucide-react";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const searchSchema = z.object({
   next: z.string().optional(),
@@ -138,9 +139,8 @@ function AuthPage() {
             {mode === "login" && (
               <div>
                 <label htmlFor="password" className="text-sm font-medium">Senha</label>
-                <input
+                <PasswordInput
                   id="password"
-                  type="password"
                   autoComplete="current-password"
                   required
                   minLength={6}
