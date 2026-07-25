@@ -451,12 +451,19 @@ function AgitacaoDetailSheet({
   );
 }
 
-function Kpi({ label, v }: { label: string; v: number }) {
-  return (
-    <div className="rounded-lg border bg-card p-2">
+function Kpi({ label, v, onClick }: { label: string; v: number; onClick?: () => void }) {
+  const base = "rounded-lg border bg-card p-2 text-left transition-colors";
+  const cls = onClick ? `${base} hover:border-primary/40 hover:bg-primary/5 cursor-pointer w-full` : base;
+  const content = (
+    <>
       <div className="text-lg font-semibold">{v}</div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-    </div>
+    </>
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className={cls}>{content}</button>
+  ) : (
+    <div className={cls}>{content}</div>
   );
 }
 
