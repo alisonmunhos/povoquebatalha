@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/agitacao-notificacoes")({
 type CtaKind = "none" | "wa_me" | "link" | "calendar";
 
 function NotificacoesAdminPage() {
-  const { role } = useCurrentUserRole();
+  const role = useCurrentUserRole();
   const createFn = useServerFn(createNotification);
 
   const [title, setTitle] = useState("");
