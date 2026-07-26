@@ -14,6 +14,7 @@ import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { AddContactButton } from "@/components/AddContactButton";
 import { BrandMark } from "@/components/BrandMark";
 import { NotificationBell } from "@/components/NotificationBell";
+import { InstallAppButton } from "@/components/InstallAppButton";
 
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
@@ -128,6 +129,7 @@ export function AppShell() {
             </div>
             <div className="flex items-center gap-2">
               <NotificationBell />
+              <InstallAppButton variant="chip" />
               <AddContactButton compact userName={user?.email ?? null} />
               <button
                 onClick={handleLogout}
@@ -252,11 +254,13 @@ export function AppShell() {
             <span className="text-sm font-semibold truncate">Povo que Batalha</span>
           </div>
           <NotificationBell />
+          <InstallAppButton variant="chip" />
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </header>
         {/* Desktop top bar */}
         <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center justify-end gap-2 px-4">
           <NotificationBell />
+          <InstallAppButton variant="chip" />
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </div>
 
