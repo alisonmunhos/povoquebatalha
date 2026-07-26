@@ -45,57 +45,12 @@ function detectBrowser(): BrowserKind {
 
 function Landing() {
   const navigate = useNavigate();
-  const [installEvent, setInstallEvent] = useState<BIPEvent | null>(null);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [browser, setBrowser] = useState<BrowserKind>("other");
-  const [showManualHelp, setShowManualHelp] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/dashboard" });
     });
   }, [navigate]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const standalone =
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsStandalone(!!standalone);
-    setBrowser(detectBrowser());
-
-    const onBIP = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as BIPEvent);
-    };
-    const onInstalled = () => setInstallEvent(null);
-    window.addEventListener("beforeinstallprompt", onBIP);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBIP);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  async function handleInstall() {
-    if (installEvent) {
-      await installEvent.prompt();
-      try { await installEvent.userChoice; } catch { /* ignore */ }
-      setInstallEvent(null);
-      return;
-    }
-    setShowManualHelp(true);
-  }
-
-  const manualInstructions: Record<BrowserKind, string> = {
-    "safari-ios": "No iPhone/iPad (Safari): toque no botão Compartilhar (quadrado com seta pra cima) e escolha “Adicionar à Tela de Início”.",
-    "chrome-android": "No Android (Chrome): toque no menu ⋮ no canto superior direito e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.",
-    "samsung": "No Samsung Internet: toque no menu ☰ e escolha “Adicionar página a” → “Tela inicial”.",
-    "firefox": "No Firefox: toque no menu ⋮ e escolha “Instalar” ou “Adicionar à tela inicial”.",
-    "edge": "No Edge: clique no ícone de instalação na barra de endereço, ou no menu ⋯ → “Aplicativos” → “Instalar este site como aplicativo”.",
-    "chrome-desktop": "No Chrome: clique no ícone de instalação na barra de endereço (parece um monitor com seta), ou menu ⋮ → “Instalar Povo que Batalha”.",
-    "other": "Abra o menu do seu navegador e procure a opção “Instalar aplicativo” ou “Adicionar à tela inicial”.",
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,33 +84,22 @@ function Landing() {
             Participar da campanha
           </Link>
         </div>
-        {!isStandalone && (
-          <div className="mt-10 border-2 border-primary/40 rounded-xl p-5 bg-card max-w-xl shadow-punch">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                <Megaphone className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h2 className="font-semibold text-base">Instalar o app no seu celular</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Acesse mais rápido pela tela inicial e receba alertas das próximas ações.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleInstall}
-                  className="mt-3 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold hover:bg-primary/90"
-                >
-                  {installEvent ? "Instalar agora" : "Como instalar"}
-                </button>
-                {(showManualHelp || (!installEvent && browser === "safari-ios")) && (
-                  <p className="mt-3 text-sm bg-muted/50 rounded-md p-3 leading-relaxed">
-                    {manualInstructions[browser]}
-                  </p>
-                )}
+        <div className="mt-10 border-2 border-primary/40 rounded-xl p-5 bg-card max-w-xl shadow-punch">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <Megaphone className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-semibold text-base">Instalar o app no seu celular</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Acesse mais rápido pela tela inicial e receba alertas das próximas ações.
+              </p>
+              <div className="mt-3">
+                <InstallAppButton variant="card" />
               </div>
             </div>
           </div>
-        )}
+        </div>
       </section>
     </div>
   );
