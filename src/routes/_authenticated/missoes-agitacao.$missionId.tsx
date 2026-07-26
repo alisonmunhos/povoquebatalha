@@ -331,7 +331,15 @@ function MissionDetailsPanel() {
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-xs h-8 rounded-md border px-2 bg-background cursor-pointer select-none">
+            <Checkbox
+              checked={hideSemNumero}
+              onCheckedChange={(v) => setHideSemNumero(v === true)}
+            />
+            Esconder sem número
+          </label>
         </div>
+
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <label className="flex items-center gap-2 text-sm">
