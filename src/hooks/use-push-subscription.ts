@@ -73,7 +73,7 @@ export function usePushSubscription() {
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       });
     }
     const raw = sub.toJSON() as { endpoint: string; keys?: { p256dh?: string; auth?: string } };
