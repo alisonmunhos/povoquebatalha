@@ -256,6 +256,11 @@ function MissionBlockCard({
                 </span>
               </div>
             )}
+            {cd && !cd.can_claim && !releasesIn && (
+              <div className="text-xs text-muted-foreground bg-muted/40 border rounded p-2">
+                Essa missão não tem mais contatos disponíveis no momento.
+              </div>
+            )}
             {cd?.can_claim && (
               <>
                 <div className="text-xs text-muted-foreground italic px-1">
@@ -274,6 +279,7 @@ function MissionBlockCard({
             )}
           </>
         )}
+
       </div>
     </div>
   );
