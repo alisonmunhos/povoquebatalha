@@ -751,3 +751,24 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
       })),
     };
   });
+
+// Marca uma task da MINHA leva como concluída ou não-enviada.
+const markTaskSchema = z.object({
+  task_id: z.string().uuid(),
+  status: z.enum(["concluido", "nao_enviado", "pending"]),
+});
+export const markMyMissionTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => markTaskSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_tasks")
+      .update({
+        status: data.status,
+        completed_at: data.status === "concluido" ? new Date().toISOString() : null,
+      } as never)
+      .eq("id", data.task_id)
+      .eq("assigned_user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
