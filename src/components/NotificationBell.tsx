@@ -190,7 +190,13 @@ export function NotificationBell() {
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (v) primeNotificationAudio();
+        }}
+      >
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -224,19 +230,69 @@ export function NotificationBell() {
         <PopoverContent align="end" className="w-[22rem] max-w-[calc(100vw-1rem)] p-0">
           <div className="flex items-center justify-between border-b p-3">
             <div className="font-semibold text-sm">Notificações</div>
-            {hasUnread && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={async () => {
-                  await markAllFn();
-                  qc.invalidateQueries({ queryKey: ["notif-unread"] });
-                  qc.invalidateQueries({ queryKey: ["notif-list"] });
-                }}
-                className="text-xs text-muted-foreground hover:text-foreground"
+                type="button"
+                onClick={() => { primeNotificationAudio(); playPqbNotificationSound(); }}
+                title="Ouvir som"
+                className="text-muted-foreground hover:text-foreground"
               >
-                Marcar todas como lidas
+                <Volume2 className="h-4 w-4" />
               </button>
-            )}
+              {hasUnread && (
+                <button
+                  onClick={async () => {
+                    await markAllFn();
+                    qc.invalidateQueries({ queryKey: ["notif-unread"] });
+                    qc.invalidateQueries({ queryKey: ["notif-list"] });
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Marcar todas
+                </button>
+              )}
+            </div>
           </div>
+          {push.state.status !== "unsupported" && push.state.status !== "subscribed" && (
+            <div className="border-b p-3 bg-primary/5">
+              <div className="text-xs font-semibold text-foreground">Receber alertas no celular</div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {push.state.status === "denied"
+                  ? "Você bloqueou. Libere nas configurações do navegador."
+                  : "Ative pra receber avisos mesmo com o app fechado."}
+              </p>
+              {push.state.status !== "denied" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-2 w-full h-8 text-xs"
+                  onClick={async () => {
+                    try {
+                      primeNotificationAudio();
+                      await push.subscribe();
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
+                >
+                  <Bell className="h-3.5 w-3.5 mr-1" /> Ativar notificações
+                </Button>
+              )}
+            </div>
+          )}
+          {push.state.status === "subscribed" && (
+            <div className="border-b px-3 py-2 flex items-center justify-between bg-primary/5 text-[11px]">
+              <span className="text-muted-foreground">✓ Alertas no celular ativos</span>
+              <button
+                type="button"
+                onClick={() => push.unsubscribe()}
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              >
+                <BellOff className="h-3 w-3" /> Desligar
+              </button>
+            </div>
+          )}
+
           <div className="max-h-[24rem] overflow-y-auto">
             {items.length === 0 && (
               <div className="p-6 text-center text-sm text-muted-foreground">
