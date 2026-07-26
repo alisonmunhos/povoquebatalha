@@ -11,6 +11,7 @@ import {
   resumeMission,
   pauseAssignmentLink,
   resumeAssignmentLink,
+  getMissionRecipientsPanel,
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -81,6 +82,11 @@ function MissionDetailsPanel() {
   const q = useQuery({
     queryKey: ["agitation-mission-detail", missionId],
     queryFn: () => detailFn({ data: { mission_id: missionId } }),
+  });
+  const recipientsFn = useServerFn(getMissionRecipientsPanel);
+  const recipientsQ = useQuery({
+    queryKey: ["mission-recipients", missionId],
+    queryFn: () => recipientsFn({ data: { mission_id: missionId } }),
   });
 
   function invalidate() {
@@ -222,6 +228,44 @@ function MissionDetailsPanel() {
           )}
         </div>
       </div>
+
+      {(recipientsQ.data?.recipients?.length ?? 0) > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold mb-2">Destinatários</h2>
+          <div className="rounded-xl border divide-y">
+            {(recipientsQ.data?.recipients ?? []).map((r) => {
+              const isCancelled = !!r.cancelled_at;
+              const claim = r.claim;
+              const status = isCancelled
+                ? { label: "Cancelada", className: "bg-rose-100 text-rose-800" }
+                : claim?.completed_at
+                  ? { label: "Concluída", className: "bg-emerald-100 text-emerald-800" }
+                  : claim
+                    ? { label: "Em andamento", className: "bg-amber-100 text-amber-800" }
+                    : r.read_at
+                      ? { label: "Lida", className: "bg-blue-100 text-blue-800" }
+                      : { label: "Não lida", className: "bg-muted text-muted-foreground" };
+              return (
+                <div key={r.notif_id} className="flex items-center gap-3 p-3 text-sm flex-wrap">
+                  <div className="flex-1 min-w-[160px]">
+                    <div className="font-medium">{r.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Notificada em {new Date(r.notified_at).toLocaleString("pt-BR")}
+                      {r.read_at && ` · lida em ${new Date(r.read_at).toLocaleString("pt-BR")}`}
+                      {claim &&
+                        ` · ${claim.task_count} contato(s)${claim.completed_at ? ` · concluída em ${new Date(claim.completed_at).toLocaleString("pt-BR")}` : ""}`}
+                    </div>
+                  </div>
+                  <span className={`text-xs rounded-full px-2 py-0.5 ${status.className}`}>
+                    {status.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
 
       {links.length > 0 && (
         <div>

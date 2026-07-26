@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { createNotification } from "@/lib/notifications.functions";
+import { createNotification, cancelNotification } from "@/lib/notifications.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,13 +43,26 @@ function NotificacoesAdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
-        .select("id, title, kind, created_at, created_by")
+        .select("id, title, kind, created_at, created_by, cancelled_at, mission_id")
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw new Error(error.message);
       return data ?? [];
     },
   });
+
+  const cancelFn = useServerFn(cancelNotification);
+  async function onCancel(id: string) {
+    if (!confirm("Cancelar essa notificação? Ela some da lista de quem recebeu.")) return;
+    try {
+      await cancelFn({ data: { id } });
+      toast.success("Notificação cancelada.");
+      historyQ.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao cancelar.");
+    }
+  }
+
 
   const sendMut = useMutation({
     mutationFn: async () => {
@@ -231,9 +244,27 @@ function NotificacoesAdminPage() {
         <ul className="space-y-2 text-sm">
           {(historyQ.data ?? []).map((n) => (
             <li key={n.id} className="flex items-center justify-between gap-2 border-b last:border-b-0 pb-2">
-              <span className="truncate">{n.title}</span>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {new Date(n.created_at).toLocaleString("pt-BR")}
+              <span className="truncate flex items-center gap-2">
+                {n.title}
+                {n.cancelled_at && (
+                  <span className="text-[10px] rounded-full bg-rose-100 text-rose-800 px-1.5 py-0.5">
+                    cancelada
+                  </span>
+                )}
+              </span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-muted-foreground">
+                  {new Date(n.created_at).toLocaleString("pt-BR")}
+                </span>
+                {!n.cancelled_at && (
+                  <button
+                    type="button"
+                    onClick={() => onCancel(n.id)}
+                    className="text-xs text-rose-700 hover:underline"
+                  >
+                    Cancelar
+                  </button>
+                )}
               </span>
             </li>
           ))}

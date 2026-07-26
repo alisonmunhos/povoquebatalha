@@ -220,6 +220,10 @@ export type Database = {
         Row: {
           assigned_at: string | null
           assigned_contact_id: string | null
+          assigned_to_user_at: string | null
+          assigned_user_id: string | null
+          claim_id: string | null
+          completed_at: string | null
           contact_id: string
           created_at: string
           id: string
@@ -230,6 +234,10 @@ export type Database = {
         Insert: {
           assigned_at?: string | null
           assigned_contact_id?: string | null
+          assigned_to_user_at?: string | null
+          assigned_user_id?: string | null
+          claim_id?: string | null
+          completed_at?: string | null
           contact_id: string
           created_at?: string
           id?: string
@@ -240,6 +248,10 @@ export type Database = {
         Update: {
           assigned_at?: string | null
           assigned_contact_id?: string | null
+          assigned_to_user_at?: string | null
+          assigned_user_id?: string | null
+          claim_id?: string | null
+          completed_at?: string | null
           contact_id?: string
           created_at?: string
           id?: string
@@ -253,6 +265,13 @@ export type Database = {
             columns: ["assigned_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agitation_tasks_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "agitation_mission_claims"
             referencedColumns: ["id"]
           },
           {
@@ -2263,6 +2282,8 @@ export type Database = {
       notifications: {
         Row: {
           body: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           created_by: string | null
           cta_kind: string | null
@@ -2280,6 +2301,8 @@ export type Database = {
         }
         Insert: {
           body?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           created_by?: string | null
           cta_kind?: string | null
@@ -2297,6 +2320,8 @@ export type Database = {
         }
         Update: {
           body?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           created_by?: string | null
           cta_kind?: string | null
@@ -2711,6 +2736,13 @@ export type Database = {
         }
         Returns: string
       }
+      assign_mission_direct: {
+        Args: { _count: number; _mission_id: string; _user_id: string }
+        Returns: {
+          claim_id: string
+          task_ids: string[]
+        }[]
+      }
       build_endereco_completo: {
         Args: {
           p_bairro: string
@@ -2722,6 +2754,17 @@ export type Database = {
           p_uf: string
         }
         Returns: string
+      }
+      claim_mission_batch: {
+        Args: { _mission_id: string }
+        Returns: {
+          claim_id: string
+          task_ids: string[]
+        }[]
+      }
+      complete_mission_claim: {
+        Args: { _claim_id: string }
+        Returns: undefined
       }
       detect_contact_duplicates_for: { Args: { _id: string }; Returns: number }
       link_or_create_user_contact: {
@@ -2744,7 +2787,44 @@ export type Database = {
         Returns: string
       }
       normalize_phone_br: { Args: { input: string }; Returns: string }
+      notify_mission_targets: {
+        Args: {
+          _body: string
+          _mission_id: string
+          _title: string
+          _user_ids: string[]
+        }
+        Returns: {
+          body: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          cta_kind: string | null
+          cta_label: string | null
+          cta_payload: Json | null
+          expires_at: string | null
+          id: string
+          image_url: string | null
+          kind: string
+          mission_id: string | null
+          read_at: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notifications"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       phone_last8: { Args: { input: string }; Returns: string }
+      release_mission_pending: {
+        Args: { _mission_id: string }
+        Returns: undefined
+      }
       resolve_tracked_link: {
         Args: { _token: string }
         Returns: {

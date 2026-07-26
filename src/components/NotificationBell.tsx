@@ -82,7 +82,7 @@ function runCta(n: Notification) {
       break;
     }
     case "mission": {
-      if (n.mission_id) window.location.href = `/agitacao?missao=${n.mission_id}`;
+      window.location.href = "/minhas-missoes";
       break;
     }
     default:
