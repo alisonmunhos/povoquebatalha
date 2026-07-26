@@ -127,6 +127,22 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+    // Registra o SW só em produção real (evita interferência no editor Lovable).
+    const host = window.location.hostname;
+    const isPreview =
+      host.startsWith("id-preview--") ||
+      host.startsWith("preview--") ||
+      host.endsWith(".lovableproject.com") ||
+      host.endsWith(".lovableproject-dev.com");
+    if (isPreview) return;
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.warn("[sw] falha ao registrar", err);
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -134,3 +150,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
