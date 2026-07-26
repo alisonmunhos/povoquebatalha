@@ -324,7 +324,7 @@ export function NotificationBell() {
       <Dialog open={showEntryAlert} onOpenChange={setShowEntryAlert}>
         <DialogContent
           className="p-0 gap-0 max-w-sm w-[calc(100vw-2rem)] text-center overflow-hidden"
-          showCloseButton={false}
+
         >
           <div className="p-6 flex flex-col items-center gap-4">
             <div className="relative inline-flex items-center justify-center">
