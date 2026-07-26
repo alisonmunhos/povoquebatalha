@@ -60,14 +60,14 @@ async function signVapidJwt(audience: string, subject: string, publicKey: string
   const encPayload = b64urlEncode(utf8(JSON.stringify(payload)));
   const toSign = utf8(`${encHeader}.${encPayload}`);
   const key = await importVapidPrivateKey(privateKey, publicKey);
-  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, toSign);
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, toSign as BufferSource);
   return `${encHeader}.${encPayload}.${b64urlEncode(sig)}`;
 }
 
 // ---- HKDF ----
 async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm, { name: "HKDF" }, false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, length * 8);
+  const key = await crypto.subtle.importKey("raw", ikm as BufferSource, { name: "HKDF" }, false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: salt as BufferSource, info: info as BufferSource }, key, length * 8);
   return new Uint8Array(bits);
 }
 
@@ -119,8 +119,8 @@ async function encryptPayload(
   // Pad: single record — append 0x02 then zero padding (we use just 0x02)
   const record = concat(plaintext, new Uint8Array([0x02]));
 
-  const aesKey = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, record));
+  const aesKey = await crypto.subtle.importKey("raw", cek as BufferSource, { name: "AES-GCM" }, false, ["encrypt"]);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, aesKey, record as BufferSource));
 
   return { body: concat(header, ct) };
 }
@@ -149,7 +149,7 @@ export async function sendWebPush(sub: PushSub, payload: object): Promise<{ ok: 
       Urgency: "high",
       Authorization: `vapid t=${jwt}, k=${VAPID_PUB}`,
     },
-    body,
+    body: body as BufferSource,
   });
   return { ok: res.ok, status: res.status, gone: res.status === 404 || res.status === 410 };
 }
