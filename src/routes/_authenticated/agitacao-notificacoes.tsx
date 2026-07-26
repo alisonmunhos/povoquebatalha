@@ -244,9 +244,27 @@ function NotificacoesAdminPage() {
         <ul className="space-y-2 text-sm">
           {(historyQ.data ?? []).map((n) => (
             <li key={n.id} className="flex items-center justify-between gap-2 border-b last:border-b-0 pb-2">
-              <span className="truncate">{n.title}</span>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {new Date(n.created_at).toLocaleString("pt-BR")}
+              <span className="truncate flex items-center gap-2">
+                {n.title}
+                {n.cancelled_at && (
+                  <span className="text-[10px] rounded-full bg-rose-100 text-rose-800 px-1.5 py-0.5">
+                    cancelada
+                  </span>
+                )}
+              </span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-muted-foreground">
+                  {new Date(n.created_at).toLocaleString("pt-BR")}
+                </span>
+                {!n.cancelled_at && (
+                  <button
+                    type="button"
+                    onClick={() => onCancel(n.id)}
+                    className="text-xs text-rose-700 hover:underline"
+                  >
+                    Cancelar
+                  </button>
+                )}
               </span>
             </li>
           ))}
