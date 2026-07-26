@@ -530,3 +530,224 @@ export const resumeAssignmentLink = createServerFn({ method: "POST" })
 // aqui — seguem o mesmo padrão dos outros dados públicos do sistema (fetch a uma
 // rota REST em src/routes/api/public/*, não um createServerFn autenticável por
 // engano): ver src/routes/api/public/agitation-missions/$missionId/$contactId.ts.
+
+// ===== Novas fns unificadas (leva/auto-atribuição/painel) =====
+
+// Lista usuários com role 'agitador' — para o seletor "atribuir a pessoa específica".
+export const listAgitadorUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["agitador", "admin", "operador"] as never);
+    const ids = Array.from(new Set((roles ?? []).map((r) => r.user_id)));
+    if (!ids.length) return { users: [] as { id: string; name: string; email: string }[] };
+    const { data: profs } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", ids);
+    const nameById = new Map((profs ?? []).map((p) => [p.id, p.full_name] as const));
+    const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const emailById = new Map((data?.users ?? []).map((u) => [u.id, u.email ?? ""] as const));
+    return {
+      users: ids
+        .map((id) => ({
+          id,
+          name: nameById.get(id) ?? emailById.get(id) ?? id.slice(0, 8),
+          email: emailById.get(id) ?? "",
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  });
+
+// Auto-atribuição: agitador aceita a missão aberta e recebe um lote atômico.
+export const claimMissionBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase.rpc(
+      "claim_mission_batch" as never,
+      { _mission_id: data.mission_id } as never,
+    );
+    if (error) throw new Error(error.message);
+    const row = (rows as { claim_id: string; task_ids: string[] }[] | null)?.[0];
+    return { ok: true as const, claim_id: row?.claim_id ?? null, task_ids: row?.task_ids ?? [] };
+  });
+
+// Conclui a leva atual do agitador.
+const claimIdSchema = z.object({ claim_id: z.string().uuid() });
+export const completeMissionClaim = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => claimIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.rpc(
+      "complete_mission_claim" as never,
+      { _claim_id: data.claim_id } as never,
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// Status de cooldown / disponibilidade da missão para o usuário atual.
+export const getMissionCooldownStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: mission } = await context.supabase
+      .from("agitation_missions")
+      .select("cooldown_minutes, is_open, paused_at, batch_size")
+      .eq("id", data.mission_id)
+      .single();
+    if (!mission) throw new Error("Missão não encontrada");
+
+    const { data: lastCompleted } = await context.supabase
+      .from("agitation_mission_claims")
+      .select("completed_at")
+      .eq("mission_id", data.mission_id)
+      .eq("user_id", context.userId)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { count: available } = await context.supabase
+      .from("agitation_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("mission_id", data.mission_id)
+      .is("assigned_user_id", null)
+      .eq("status", "pending");
+
+    const now = Date.now();
+    let releasesAt: string | null = null;
+    if (lastCompleted?.completed_at) {
+      releasesAt = new Date(
+        new Date(lastCompleted.completed_at).getTime() + mission.cooldown_minutes * 60_000,
+      ).toISOString();
+    }
+    const canClaim =
+      mission.is_open &&
+      !mission.paused_at &&
+      (available ?? 0) > 0 &&
+      (!releasesAt || new Date(releasesAt).getTime() <= now);
+
+    return {
+      is_open: !!mission.is_open,
+      paused: !!mission.paused_at,
+      batch_size: mission.batch_size,
+      cooldown_minutes: mission.cooldown_minutes,
+      available_now: available ?? 0,
+      releases_at: releasesAt,
+      can_claim: canClaim,
+    };
+  });
+
+// Missões do agitador atual: leva aberta OU tasks atribuídas não concluídas.
+export const listMyMissions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: tasks } = await context.supabase
+      .from("agitation_tasks")
+      .select(
+        "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw)",
+      )
+      .eq("assigned_user_id", context.userId);
+    const missionIds = Array.from(new Set((tasks ?? []).map((t) => t.mission_id)));
+    if (!missionIds.length) return { missions: [] };
+    const { data: missions } = await context.supabase
+      .from("agitation_missions")
+      .select(
+        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at",
+      )
+      .in("id", missionIds);
+    const { data: claims } = await context.supabase
+      .from("agitation_mission_claims")
+      .select("id, mission_id, completed_at, claimed_at")
+      .eq("user_id", context.userId)
+      .in("mission_id", missionIds);
+
+    const claimsByMission = new Map<
+      string,
+      { id: string; completed_at: string | null; claimed_at: string }[]
+    >();
+    (claims ?? []).forEach((c) => {
+      const arr = claimsByMission.get(c.mission_id) ?? [];
+      arr.push(c);
+      claimsByMission.set(c.mission_id, arr);
+    });
+
+    const tasksByMission = new Map<string, typeof tasks>();
+    (tasks ?? []).forEach((t) => {
+      const arr = tasksByMission.get(t.mission_id) ?? [];
+      arr!.push(t);
+      tasksByMission.set(t.mission_id, arr);
+    });
+
+    return {
+      missions: (missions ?? []).map((m) => {
+        const mTasks = tasksByMission.get(m.id) ?? [];
+        const openClaim = (claimsByMission.get(m.id) ?? []).find((c) => !c.completed_at) ?? null;
+        return {
+          mission: m,
+          claim: openClaim,
+          tasks: mTasks,
+          pending: mTasks!.filter((t) => !t.completed_at && t.status === "pending").length,
+          concluded: mTasks!.filter((t) => t.status === "concluido" || !!t.completed_at).length,
+        };
+      }),
+    };
+  });
+
+// Painel admin: destinatários das notificações de uma missão + status de leva.
+export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: notifs } = await context.supabase
+      .from("notifications")
+      .select("id, user_id, created_at, read_at, cancelled_at, title")
+      .eq("mission_id", data.mission_id)
+      .order("created_at", { ascending: false });
+    const userIds = Array.from(new Set((notifs ?? []).map((n) => n.user_id)));
+    if (!userIds.length) return { recipients: [] };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profs } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+    const nameById = new Map((profs ?? []).map((p) => [p.id, p.full_name] as const));
+
+    const { data: claims } = await context.supabase
+      .from("agitation_mission_claims")
+      .select("user_id, task_count, completed_at, claimed_at")
+      .eq("mission_id", data.mission_id)
+      .in("user_id", userIds);
+    const claimByUser = new Map<
+      string,
+      { task_count: number; completed_at: string | null; claimed_at: string }
+    >();
+    (claims ?? []).forEach((c) => {
+      const cur = claimByUser.get(c.user_id);
+      // pega a claim mais recente (aberta se houver)
+      if (!cur || (!c.completed_at && cur.completed_at) || c.claimed_at > cur.claimed_at) {
+        claimByUser.set(c.user_id, {
+          task_count: c.task_count,
+          completed_at: c.completed_at,
+          claimed_at: c.claimed_at,
+        });
+      }
+    });
+
+    return {
+      recipients: (notifs ?? []).map((n) => ({
+        notif_id: n.id,
+        user_id: n.user_id,
+        name: nameById.get(n.user_id) ?? n.user_id.slice(0, 8),
+        notified_at: n.created_at,
+        read_at: n.read_at,
+        cancelled_at: n.cancelled_at,
+        claim: claimByUser.get(n.user_id) ?? null,
+      })),
+    };
+  });
