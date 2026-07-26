@@ -78,6 +78,8 @@ function MissionDetailsPanel() {
   const [tagOpen, setTagOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [responsavelFilter, setResponsavelFilter] = useState<string>("todos");
+  const [hideSemNumero, setHideSemNumero] = useState(false);
+
 
   const q = useQuery({
     queryKey: ["agitation-mission-detail", missionId],
