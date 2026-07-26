@@ -653,7 +653,23 @@ export const listMyMissions = createServerFn({ method: "GET" })
         "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw)",
       )
       .eq("assigned_user_id", context.userId);
-    const missionIds = Array.from(new Set((tasks ?? []).map((t) => t.mission_id)));
+
+    // Também inclui missões abertas em que fui notificado, mesmo sem tasks atribuídas ainda,
+    // pra permitir o primeiro "pegar lote".
+    const { data: notifs } = await context.supabase
+      .from("notifications")
+      .select("mission_id")
+      .eq("user_id", context.userId)
+      .eq("kind", "mission")
+      .is("cancelled_at", null)
+      .not("mission_id", "is", null);
+
+    const missionIds = Array.from(
+      new Set([
+        ...(tasks ?? []).map((t) => t.mission_id),
+        ...((notifs ?? []).map((n) => n.mission_id).filter((v): v is string => !!v)),
+      ]),
+    );
     if (!missionIds.length) return { missions: [] };
     const { data: missions } = await context.supabase
       .from("agitation_missions")
@@ -661,11 +677,17 @@ export const listMyMissions = createServerFn({ method: "GET" })
         "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at",
       )
       .in("id", missionIds);
+    // Filtra: mantém missões com tasks minhas OU missões abertas/não pausadas quando só tenho notificação.
+    const missionIdsWithTasks = new Set((tasks ?? []).map((t) => t.mission_id));
+    const missionsFiltered = (missions ?? []).filter(
+      (m) => missionIdsWithTasks.has(m.id) || (m.is_open && !m.paused_at),
+    );
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
       .select("id, mission_id, completed_at, claimed_at")
       .eq("user_id", context.userId)
-      .in("mission_id", missionIds);
+      .in("mission_id", missionsFiltered.map((m) => m.id));
+
 
     const claimsByMission = new Map<
       string,
@@ -685,7 +707,7 @@ export const listMyMissions = createServerFn({ method: "GET" })
     });
 
     return {
-      missions: (missions ?? []).map((m) => {
+      missions: missionsFiltered.map((m) => {
         const mTasks = tasksByMission.get(m.id) ?? [];
         const openClaim = (claimsByMission.get(m.id) ?? []).find((c) => !c.completed_at) ?? null;
         return {
