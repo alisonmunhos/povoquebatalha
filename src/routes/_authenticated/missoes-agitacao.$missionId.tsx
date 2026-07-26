@@ -83,6 +83,11 @@ function MissionDetailsPanel() {
     queryKey: ["agitation-mission-detail", missionId],
     queryFn: () => detailFn({ data: { mission_id: missionId } }),
   });
+  const recipientsFn = useServerFn(getMissionRecipientsPanel);
+  const recipientsQ = useQuery({
+    queryKey: ["mission-recipients", missionId],
+    queryFn: () => recipientsFn({ data: { mission_id: missionId } }),
+  });
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["agitation-mission-detail", missionId] });
