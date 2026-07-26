@@ -283,19 +283,11 @@ export function NotificationBell() {
       <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
         <DialogContent
           className="p-0 gap-0 max-w-lg w-[calc(100vw-1rem)] max-h-[90dvh] overflow-hidden flex flex-col"
-          showCloseButton={false}
         >
           {detail && (
             <>
-              <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-4 py-3 border-b bg-card">
+              <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-3 pr-12 border-b bg-card">
                 <div className="font-semibold text-sm truncate">{detail.title}</div>
-                <button
-                  onClick={() => setDetail(null)}
-                  aria-label="Fechar"
-                  className="p-2 -mr-2 rounded-md hover:bg-muted shrink-0"
-                >
-                  <X className="h-5 w-5" />
-                </button>
               </div>
               <div className="overflow-y-auto flex-1">
                 {detail.image_url && (
