@@ -128,7 +128,47 @@ export const createNotification = createServerFn({ method: "POST" })
       created_by: context.userId,
     }));
 
-    const { error } = await context.supabase.from("notifications").insert(rows);
+    const { data: inserted, error } = await context.supabase
+      .from("notifications")
+      .insert(rows)
+      .select("id, user_id");
     if (error) throw new Error(error.message);
+
+    // Envia web push para todos os inscritos dos usuários alvo (best-effort).
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { sendWebPush } = await import("@/lib/web-push.server");
+      const { data: subs } = await supabaseAdmin
+        .from("push_subscriptions")
+        .select("user_id, endpoint, p256dh, auth")
+        .in("user_id", targetUserIds);
+      if (subs && subs.length) {
+        const firstNotifByUser = new Map<string, string>();
+        for (const r of inserted ?? []) if (!firstNotifByUser.has(r.user_id)) firstNotifByUser.set(r.user_id, r.id);
+        await Promise.allSettled(
+          subs.map(async (s) => {
+            const notifId = firstNotifByUser.get(s.user_id);
+            const result = await sendWebPush(
+              { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+              {
+                title: data.title,
+                body: data.body ?? "",
+                image: data.image_url ?? undefined,
+                url: "/dashboard",
+                notificationId: notifId ?? null,
+                tag: `pqb-${notifId ?? Date.now()}`,
+              },
+            );
+            if (result.gone) {
+              await supabaseAdmin.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+            }
+          }),
+        );
+      }
+    } catch (e) {
+      console.error("[push] falha ao enviar", e);
+    }
+
     return { ok: true, inserted: rows.length };
   });
+

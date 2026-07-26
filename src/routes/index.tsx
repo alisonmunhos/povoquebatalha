@@ -27,11 +27,27 @@ export const Route = createFileRoute("/")({
 
 type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
+type BrowserKind = "chrome-android" | "safari-ios" | "firefox" | "edge" | "chrome-desktop" | "samsung" | "other";
+
+function detectBrowser(): BrowserKind {
+  if (typeof window === "undefined") return "other";
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
+  if (isIOS) return "safari-ios";
+  if (/SamsungBrowser/i.test(ua)) return "samsung";
+  if (/Edg\//i.test(ua)) return "edge";
+  if (/Firefox\//i.test(ua)) return "firefox";
+  if (/Android/i.test(ua) && /Chrome\//i.test(ua)) return "chrome-android";
+  if (/Chrome\//i.test(ua)) return "chrome-desktop";
+  return "other";
+}
+
 function Landing() {
   const navigate = useNavigate();
   const [installEvent, setInstallEvent] = useState<BIPEvent | null>(null);
-  const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [browser, setBrowser] = useState<BrowserKind>("other");
+  const [showManualHelp, setShowManualHelp] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -45,10 +61,7 @@ function Landing() {
       window.matchMedia?.("(display-mode: standalone)").matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsStandalone(!!standalone);
-
-    const ua = window.navigator.userAgent || "";
-    const iOS = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
-    setIsIOS(iOS);
+    setBrowser(detectBrowser());
 
     const onBIP = (e: Event) => {
       e.preventDefault();
@@ -64,17 +77,24 @@ function Landing() {
   }, []);
 
   async function handleInstall() {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    try {
-      await installEvent.userChoice;
-    } catch {
-      // ignore
+    if (installEvent) {
+      await installEvent.prompt();
+      try { await installEvent.userChoice; } catch { /* ignore */ }
+      setInstallEvent(null);
+      return;
     }
-    setInstallEvent(null);
+    setShowManualHelp(true);
   }
 
-  const showInstallBlock = !isStandalone && (installEvent || isIOS);
+  const manualInstructions: Record<BrowserKind, string> = {
+    "safari-ios": "No iPhone/iPad (Safari): toque no botão Compartilhar (quadrado com seta pra cima) e escolha “Adicionar à Tela de Início”.",
+    "chrome-android": "No Android (Chrome): toque no menu ⋮ no canto superior direito e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.",
+    "samsung": "No Samsung Internet: toque no menu ☰ e escolha “Adicionar página a” → “Tela inicial”.",
+    "firefox": "No Firefox: toque no menu ⋮ e escolha “Instalar” ou “Adicionar à tela inicial”.",
+    "edge": "No Edge: clique no ícone de instalação na barra de endereço, ou no menu ⋯ → “Aplicativos” → “Instalar este site como aplicativo”.",
+    "chrome-desktop": "No Chrome: clique no ícone de instalação na barra de endereço (parece um monitor com seta), ou menu ⋮ → “Instalar Povo que Batalha”.",
+    "other": "Abra o menu do seu navegador e procure a opção “Instalar aplicativo” ou “Adicionar à tela inicial”.",
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -108,30 +128,35 @@ function Landing() {
             Participar da campanha
           </Link>
         </div>
-        {showInstallBlock && (
-          <div className="mt-10 border rounded-xl p-5 bg-card max-w-xl">
-            <h2 className="font-semibold text-base">Instalar app</h2>
-            {installEvent ? (
-              <>
+        {!isStandalone && (
+          <div className="mt-10 border-2 border-primary/40 rounded-xl p-5 bg-card max-w-xl shadow-punch">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                <Megaphone className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-semibold text-base">Instalar o app no seu celular</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Instale o app para acessar rapidamente da sua tela inicial.
+                  Acesse mais rápido pela tela inicial e receba alertas das próximas ações.
                 </p>
                 <button
                   type="button"
                   onClick={handleInstall}
-                  className="mt-3 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
+                  className="mt-3 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold hover:bg-primary/90"
                 >
-                  Instalar app
+                  {installEvent ? "Instalar agora" : "Como instalar"}
                 </button>
-              </>
-            ) : isIOS ? (
-              <p className="mt-1 text-sm text-muted-foreground">
-                No iPhone: toque em compartilhar e depois em “Adicionar à Tela de Início”.
-              </p>
-            ) : null}
+                {(showManualHelp || (!installEvent && browser === "safari-ios")) && (
+                  <p className="mt-3 text-sm bg-muted/50 rounded-md p-3 leading-relaxed">
+                    {manualInstructions[browser]}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </section>
     </div>
   );
 }
+
