@@ -132,7 +132,10 @@ export function NotificationBell() {
           () => {
             qc.invalidateQueries({ queryKey: ["notif-unread"] });
             qc.invalidateQueries({ queryKey: ["notif-list"] });
+            // Toca o som exclusivo quando o app está aberto.
+            playPqbNotificationSound();
           },
+
         )
         .subscribe();
       (window as unknown as { __notifChannel?: unknown }).__notifChannel = channel;
