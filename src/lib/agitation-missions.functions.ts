@@ -16,16 +16,25 @@ const createMissionSchema = z.object({
   message_template: z.string().min(1).max(4000),
   ids: z.array(z.string().uuid()).max(20000).optional(),
   filters: crmFilterSchema.partial().optional(),
-  // Quando true, roda a mesma checagem real de WhatsApp (Z-API) já usada em
-  // "Verificar no WhatsApp" da Gestão da Base antes de criar as tarefas —
-  // mais lento, mas garante que só entra quem tem WhatsApp confirmado.
   verify_whatsapp: z.boolean().optional(),
+  // Nova configuração unificada de missão:
+  mode: z.enum(["open", "direct"]).default("open"),
+  assignee_user_id: z.string().uuid().optional(),
+  batch_size: z.number().int().min(1).max(100).default(10),
+  cooldown_minutes: z.number().int().min(0).max(1440).default(60),
+  instructions: z.string().max(4000).optional(),
+  coordinator_phone: z.string().max(40).optional(),
+  whatsapp_message_template: z.string().max(2000).optional(),
 });
 
 export const createAgitationMission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => createMissionSchema.parse(d))
   .handler(async ({ data, context }) => {
+    if (data.mode === "direct" && !data.assignee_user_id) {
+      throw new Error("Selecione a pessoa responsável.");
+    }
+
     // Resolve audiência -> IDs (mesmo padrão de createCampaignFromSelection).
     let baseIds = data.ids ?? [];
     if (!baseIds.length && data.filters) {
@@ -48,7 +57,6 @@ export const createAgitationMission = createServerFn({ method: "POST" })
     }
     if (!baseIds.length) throw new Error("Nenhum contato selecionado.");
 
-    // Sempre exclui quem não tem telefone nenhum cadastrado.
     const { data: contatos, error: cErr } = await context.supabase
       .from("contacts")
       .select("id,phone_e164,phone_whatsapp_candidate")
@@ -77,9 +85,7 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         try {
           results = await zapi.phoneExistsBatch(checkable.map((c) => c.phone));
         } catch {
-          // Falha na chamada em lote inteira — não bloqueia a missão, só não
-          // filtra por WhatsApp (mesma postura de checkWhatsappForContacts):
-          // mantém `elegiveis` como já estava (comTelefone), sem marcar nada.
+          // ignore
         }
         if (results) {
           const nowIso = new Date().toISOString();
@@ -114,7 +120,13 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         message_template: data.message_template,
         created_by: context.userId,
         source_filters: (!data.ids && data.filters ? data.filters : null) as never,
-      })
+        is_open: data.mode === "open",
+        batch_size: data.batch_size,
+        cooldown_minutes: data.cooldown_minutes,
+        instructions: data.instructions ?? null,
+        coordinator_phone: data.coordinator_phone ?? null,
+        whatsapp_message_template: data.whatsapp_message_template ?? null,
+      } as never)
       .select("id")
       .single();
     if (error) throw error;
@@ -124,6 +136,83 @@ export const createAgitationMission = createServerFn({ method: "POST" })
       const chunk = rows.slice(i, i + 500);
       const { error: e2 } = await context.supabase.from("agitation_tasks").insert(chunk);
       if (e2) throw e2;
+    }
+
+    // Modo direto: já atribui todos os contatos ao responsável escolhido.
+    if (data.mode === "direct" && data.assignee_user_id) {
+      await context.supabase.rpc("assign_mission_direct" as never, {
+        _mission_id: mission.id,
+        _user_id: data.assignee_user_id,
+        _count: elegiveis.length,
+      } as never);
+    }
+
+    // Cria notificações + web push. Modo aberto notifica todos os agitadores;
+    // modo direto notifica só a pessoa escolhida.
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      let targetUserIds: string[] = [];
+      if (data.mode === "direct" && data.assignee_user_id) {
+        targetUserIds = [data.assignee_user_id];
+      } else {
+        const { data: rows } = await supabaseAdmin
+          .from("user_roles")
+          .select("user_id")
+          .in("role", ["agitador", "admin", "operador"] as never);
+        targetUserIds = Array.from(new Set((rows ?? []).map((r) => r.user_id)));
+      }
+      if (targetUserIds.length) {
+        const body =
+          data.mode === "direct"
+            ? `${elegiveis.length} contato(s) atribuído(s) a você.`
+            : `Missão aberta com ${elegiveis.length} contato(s). Pegue seu lote.`;
+        const rows = targetUserIds.map((uid) => ({
+          user_id: uid,
+          title: `Nova missão: ${data.title}`,
+          body,
+          kind: "mission",
+          cta_label: "Abrir missão",
+          cta_kind: "mission",
+          cta_payload: { mission_id: mission.id },
+          mission_id: mission.id,
+          created_by: context.userId,
+        }));
+        const { data: inserted } = await supabaseAdmin
+          .from("notifications")
+          .insert(rows as never)
+          .select("id, user_id");
+
+        // Web push best-effort
+        const { data: subs } = await supabaseAdmin
+          .from("push_subscriptions")
+          .select("user_id, endpoint, p256dh, auth")
+          .in("user_id", targetUserIds);
+        if (subs && subs.length) {
+          const { sendWebPush } = await import("@/lib/web-push.server");
+          const firstByUser = new Map<string, string>();
+          for (const r of inserted ?? []) if (!firstByUser.has(r.user_id)) firstByUser.set(r.user_id, r.id);
+          await Promise.allSettled(
+            subs.map(async (s) => {
+              const notifId = firstByUser.get(s.user_id);
+              const r = await sendWebPush(
+                { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+                {
+                  title: `Nova missão: ${data.title}`,
+                  body,
+                  url: "/minhas-missoes",
+                  notificationId: notifId ?? null,
+                  tag: `mission-${mission.id}`,
+                },
+              );
+              if (r.gone) {
+                await supabaseAdmin.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+              }
+            }),
+          );
+        }
+      }
+    } catch (e) {
+      console.error("[missão] falha ao notificar", e);
     }
 
     return {
