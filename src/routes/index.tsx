@@ -26,22 +26,6 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
-
-type BrowserKind = "chrome-android" | "safari-ios" | "firefox" | "edge" | "chrome-desktop" | "samsung" | "other";
-
-function detectBrowser(): BrowserKind {
-  if (typeof window === "undefined") return "other";
-  const ua = navigator.userAgent;
-  const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
-  if (isIOS) return "safari-ios";
-  if (/SamsungBrowser/i.test(ua)) return "samsung";
-  if (/Edg\//i.test(ua)) return "edge";
-  if (/Firefox\//i.test(ua)) return "firefox";
-  if (/Android/i.test(ua) && /Chrome\//i.test(ua)) return "chrome-android";
-  if (/Chrome\//i.test(ua)) return "chrome-desktop";
-  return "other";
-}
 
 function Landing() {
   const navigate = useNavigate();
