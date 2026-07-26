@@ -30,6 +30,7 @@ import { Route as AuthenticatedTerritorioRouteImport } from './routes/_authentic
 import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
 import { Route as AuthenticatedRelacionamentoRouteImport } from './routes/_authenticated/relacionamento'
+import { Route as AuthenticatedMinhasMissoesRouteImport } from './routes/_authenticated/minhas-missoes'
 import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
@@ -173,6 +174,12 @@ const AuthenticatedRelacionamentoRoute =
   AuthenticatedRelacionamentoRouteImport.update({
     id: '/relacionamento',
     path: '/relacionamento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMinhasMissoesRoute =
+  AuthenticatedMinhasMissoesRouteImport.update({
+    id: '/minhas-missoes',
+    path: '/minhas-missoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedMensagensRoute = AuthenticatedMensagensRouteImport.update({
@@ -417,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
+  '/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
@@ -477,6 +485,7 @@ export interface FileRoutesByTo {
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
+  '/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
   '/tags': typeof AuthenticatedTagsRoute
@@ -540,6 +549,7 @@ export interface FileRoutesById {
   '/_authenticated/links': typeof AuthenticatedLinksRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
+  '/_authenticated/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/_authenticated/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
@@ -603,6 +613,7 @@ export interface FileRouteTypes {
     | '/links'
     | '/mapa'
     | '/mensagens'
+    | '/minhas-missoes'
     | '/relacionamento'
     | '/segmentos'
     | '/tags'
@@ -663,6 +674,7 @@ export interface FileRouteTypes {
     | '/links'
     | '/mapa'
     | '/mensagens'
+    | '/minhas-missoes'
     | '/relacionamento'
     | '/segmentos'
     | '/tags'
@@ -725,6 +737,7 @@ export interface FileRouteTypes {
     | '/_authenticated/links'
     | '/_authenticated/mapa'
     | '/_authenticated/mensagens'
+    | '/_authenticated/minhas-missoes'
     | '/_authenticated/relacionamento'
     | '/_authenticated/segmentos'
     | '/_authenticated/tags'
@@ -941,6 +954,13 @@ declare module '@tanstack/react-router' {
       path: '/relacionamento'
       fullPath: '/relacionamento'
       preLoaderRoute: typeof AuthenticatedRelacionamentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/minhas-missoes': {
+      id: '/_authenticated/minhas-missoes'
+      path: '/minhas-missoes'
+      fullPath: '/minhas-missoes'
+      preLoaderRoute: typeof AuthenticatedMinhasMissoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/mensagens': {
@@ -1264,6 +1284,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
+  AuthenticatedMinhasMissoesRoute: typeof AuthenticatedMinhasMissoesRoute
   AuthenticatedRelacionamentoRoute: typeof AuthenticatedRelacionamentoRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
   AuthenticatedTagsRoute: typeof AuthenticatedTagsRoute
@@ -1294,6 +1315,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
+  AuthenticatedMinhasMissoesRoute: AuthenticatedMinhasMissoesRoute,
   AuthenticatedRelacionamentoRoute: AuthenticatedRelacionamentoRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
   AuthenticatedTagsRoute: AuthenticatedTagsRoute,
