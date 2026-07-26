@@ -707,7 +707,7 @@ export const listMyMissions = createServerFn({ method: "GET" })
     });
 
     return {
-      missions: (missions ?? []).map((m) => {
+      missions: missionsFiltered.map((m) => {
         const mTasks = tasksByMission.get(m.id) ?? [];
         const openClaim = (claimsByMission.get(m.id) ?? []).find((c) => !c.completed_at) ?? null;
         return {
