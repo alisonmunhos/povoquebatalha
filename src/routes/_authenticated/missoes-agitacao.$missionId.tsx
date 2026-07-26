@@ -112,6 +112,7 @@ function MissionDetailsPanel() {
       responsavelFilter !== "sem_atribuicao" &&
       t.assigned_contact_id !== responsavelFilter
     )
+      return false;
     if (hideSemNumero && !t.contact?.phone_e164) return false;
     return true;
   });
