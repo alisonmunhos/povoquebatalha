@@ -15,6 +15,7 @@ export const listMyNotifications = createServerFn({ method: "GET" })
       .from("notifications")
       .select("*")
       .eq("user_id", context.userId)
+      .is("cancelled_at", null)
       .order("created_at", { ascending: false })
       .limit(data.limit);
     if (data.onlyUnread) q = q.is("read_at", null);
@@ -30,9 +31,23 @@ export const countMyUnread = createServerFn({ method: "GET" })
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("user_id", context.userId)
-      .is("read_at", null);
+      .is("read_at", null)
+      .is("cancelled_at", null);
     if (error) throw new Error(error.message);
     return { unread: count ?? 0 };
+  });
+
+export const cancelNotification = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .handler(async ({ data, context }) => {
+    // RLS: só staff pode UPDATE arbitrária. Marcamos cancelled_at + cancelled_by.
+    const { error } = await context.supabase
+      .from("notifications")
+      .update({ cancelled_at: new Date().toISOString(), cancelled_by: context.userId } as never)
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 export const markNotificationRead = createServerFn({ method: "POST" })
