@@ -43,13 +43,26 @@ function NotificacoesAdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
-        .select("id, title, kind, created_at, created_by")
+        .select("id, title, kind, created_at, created_by, cancelled_at, mission_id")
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw new Error(error.message);
       return data ?? [];
     },
   });
+
+  const cancelFn = useServerFn(cancelNotification);
+  async function onCancel(id: string) {
+    if (!confirm("Cancelar essa notificação? Ela some da lista de quem recebeu.")) return;
+    try {
+      await cancelFn({ data: { id } });
+      toast.success("Notificação cancelada.");
+      historyQ.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao cancelar.");
+    }
+  }
+
 
   const sendMut = useMutation({
     mutationFn: async () => {
