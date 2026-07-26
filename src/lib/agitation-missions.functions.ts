@@ -466,6 +466,8 @@ export const unassignMissionTask = createServerFn({ method: "POST" })
   });
 
 // ===== Pausar/retomar missão inteira =====
+// "Pausar" agora é uma interrupção completa: libera tasks não concluídas,
+// fecha claims abertas e cancela notificações pendentes ligadas à missão.
 export const pauseMission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => missionIdSchema.parse(d))
@@ -475,6 +477,13 @@ export const pauseMission = createServerFn({ method: "POST" })
       .update({ paused_at: new Date().toISOString() })
       .eq("id", data.mission_id);
     if (error) throw error;
+
+    // Libera tasks/claims + cancela notificações pendentes da missão.
+    const { error: relErr } = await context.supabase.rpc(
+      "release_mission_pending" as never,
+      { _mission_id: data.mission_id } as never,
+    );
+    if (relErr) throw relErr;
     return { ok: true as const };
   });
 
