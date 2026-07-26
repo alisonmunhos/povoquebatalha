@@ -149,7 +149,7 @@ export async function sendWebPush(sub: PushSub, payload: object): Promise<{ ok: 
       Urgency: "high",
       Authorization: `vapid t=${jwt}, k=${VAPID_PUB}`,
     },
-    body: body as BufferSource,
+    body: new Blob([body as BlobPart]),
   });
   return { ok: res.ok, status: res.status, gone: res.status === 404 || res.status === 410 };
 }
