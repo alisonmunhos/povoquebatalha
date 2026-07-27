@@ -17,13 +17,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   MessageComposer,
   emptyComposerValue,
   COMPOSER_VARIABLES,
@@ -50,7 +43,7 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
   const [composer, setComposer] = useState(emptyComposerValue());
   const [verifyWhatsapp, setVerifyWhatsapp] = useState(false);
   const [mode, setMode] = useState<"open" | "direct">("open");
-  const [assigneeUserId, setAssigneeUserId] = useState<string>("");
+  const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
   const [batchSize, setBatchSize] = useState(10);
   const [cooldownMinutes, setCooldownMinutes] = useState(60);
   const [instructions, setInstructions] = useState("");
@@ -69,8 +62,8 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
   async function onSubmit() {
     if (title.trim().length < 2) return toast.error("Informe um título para a missão.");
     if (!composer.body.trim()) return toast.error("Escreva a mensagem da missão.");
-    if (mode === "direct" && !assigneeUserId)
-      return toast.error("Escolha a pessoa responsável.");
+    if (mode === "direct" && assigneeUserIds.length === 0)
+      return toast.error("Escolha ao menos uma pessoa responsável.");
     setSaving(true);
     try {
       const r = await createFn({
@@ -79,7 +72,7 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
           message_template: composer.body,
           verify_whatsapp: verifyWhatsapp,
           mode,
-          assignee_user_id: mode === "direct" ? assigneeUserId : undefined,
+          assignee_user_ids: mode === "direct" ? assigneeUserIds : undefined,
           batch_size: batchSize,
           cooldown_minutes: cooldownMinutes,
           instructions: instructions.trim() || undefined,
@@ -146,28 +139,42 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
               <label className="flex items-start gap-2 text-sm cursor-pointer">
                 <RadioGroupItem value="direct" className="mt-0.5" />
                 <div>
-                  <div className="font-medium">Atribuir para pessoa específica</div>
+                  <div className="font-medium">Atribuir para pessoa(s) específica(s)</div>
                   <div className="text-xs text-muted-foreground">
-                    Escolha um responsável; só ele(a) vai ver os contatos.
+                    Escolha um ou mais responsáveis; cada um recebe sua própria leva.
                   </div>
                 </div>
               </label>
             </RadioGroup>
             {mode === "direct" && (
               <div>
-                <Label className="text-xs font-medium">Responsável</Label>
-                <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione uma pessoa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(usersQ.data?.users ?? []).map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name} {u.email ? `· ${u.email}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-medium">Responsáveis</Label>
+                <div className="mt-2 max-h-48 overflow-y-auto rounded-md border divide-y">
+                  {(usersQ.data?.users ?? []).map((u) => {
+                    const checked = assigneeUserIds.includes(u.id);
+                    return (
+                      <label
+                        key={u.id}
+                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            setAssigneeUserIds((prev) =>
+                              v ? [...prev, u.id] : prev.filter((id) => id !== u.id),
+                            );
+                          }}
+                        />
+                        <span>
+                          {u.name} {u.email ? `· ${u.email}` : ""}
+                        </span>
+                      </label>
+                    );
+                  })}
+                  {!usersQ.data?.users?.length && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum agitador encontrado.</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

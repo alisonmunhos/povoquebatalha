@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
 } from "@/lib/notifications.functions";
+import { claimMissionBatch, getMissionNotificationBriefing } from "@/lib/agitation-missions.functions";
 import { playPqbNotificationSound, primeNotificationAudio } from "@/lib/notification-sound";
 import { usePushSubscription } from "@/hooks/use-push-subscription";
 import fistAsset from "@/assets/fist-alert.png.asset.json";
@@ -95,13 +96,17 @@ const SESSION_ALERT_KEY = "pqb:notif-alert-shown";
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Notification | null>(null);
+  const [acceptingMission, setAcceptingMission] = useState(false);
   const [showEntryAlert, setShowEntryAlert] = useState(false);
   const entryAlertChecked = useRef(false);
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const listFn = useServerFn(listMyNotifications);
   const countFn = useServerFn(countMyUnread);
   const markFn = useServerFn(markNotificationRead);
   const markAllFn = useServerFn(markAllNotificationsRead);
+  const claimFn = useServerFn(claimMissionBatch);
+  const briefingFn = useServerFn(getMissionNotificationBriefing);
   const push = usePushSubscription();
 
 
@@ -114,6 +119,11 @@ export function NotificationBell() {
     queryKey: ["notif-list"],
     queryFn: () => listFn({ data: { limit: 20 } }),
     enabled: open || showEntryAlert,
+  });
+  const missionBriefingQ = useQuery({
+    queryKey: ["mission-briefing", detail?.mission_id],
+    queryFn: () => briefingFn({ data: { mission_id: detail!.mission_id! } }),
+    enabled: !!detail && detail.kind === "mission" && !!detail.mission_id,
   });
 
   useEffect(() => {
@@ -187,6 +197,24 @@ export function NotificationBell() {
       setOpen(true);
     }
   }
+
+  async function acceptMission() {
+    if (!detail?.mission_id) return;
+    setAcceptingMission(true);
+    try {
+      await claimFn({ data: { mission_id: detail.mission_id } });
+      setDetail(null);
+      navigate({ to: "/minhas-missoes" });
+    } catch (e) {
+      console.error(e);
+      window.location.href = "/minhas-missoes";
+    } finally {
+      setAcceptingMission(false);
+    }
+  }
+
+  const isMissionDetail = detail?.kind === "mission";
+  const briefing = missionBriefingQ.data;
 
   return (
     <>
@@ -352,6 +380,11 @@ export function NotificationBell() {
           {detail && (
             <>
               <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-3 pr-12 border-b bg-card">
+                {isMissionDetail && (
+                  <span className="text-[10px] font-bold tracking-wide rounded-full bg-primary/10 text-primary px-2 py-0.5 shrink-0">
+                    MISSÃO
+                  </span>
+                )}
                 <div className="font-semibold text-sm truncate">{detail.title}</div>
               </div>
               <div className="overflow-y-auto flex-1">
@@ -363,20 +396,58 @@ export function NotificationBell() {
                   />
                 )}
                 <div className="p-4 space-y-3">
-                  {detail.body && (
-                    <p className="text-sm whitespace-pre-wrap break-words">{detail.body}</p>
+                  {isMissionDetail ? (
+                    <>
+                      {missionBriefingQ.isLoading && (
+                        <p className="text-sm text-muted-foreground">Carregando briefing…</p>
+                      )}
+                      {briefing && (
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-xs font-medium text-muted-foreground">Missão</div>
+                            <div className="text-sm font-semibold">{briefing.title}</div>
+                          </div>
+                          {briefing.instructions && (
+                            <div>
+                              <div className="text-xs font-medium text-muted-foreground">Instruções</div>
+                              <p className="text-sm whitespace-pre-wrap break-words">{briefing.instructions}</p>
+                            </div>
+                          )}
+                          <div className="text-sm text-muted-foreground">
+                            Público-alvo: <span className="font-medium text-foreground">{briefing.contact_count}</span> contato(s)
+                            {briefing.batch_size ? ` · leva de ${briefing.batch_size}` : ""}
+                          </div>
+                        </div>
+                      )}
+                      {!briefing && !missionBriefingQ.isLoading && detail.body && (
+                        <p className="text-sm whitespace-pre-wrap break-words">{detail.body}</p>
+                      )}
+                    </>
+                  ) : (
+                    detail.body && (
+                      <p className="text-sm whitespace-pre-wrap break-words">{detail.body}</p>
+                    )
                   )}
                   <div className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(detail.created_at), { addSuffix: true, locale: ptBR })}
                   </div>
-                  {detail.cta_label && detail.cta_kind && detail.cta_kind !== "none" && (
-                    <Button
-                      size="lg"
-                      className="w-full"
-                      onClick={() => runCta(detail)}
-                    >
-                      {detail.cta_label}
-                    </Button>
+                  {isMissionDetail ? (
+                    <div className="flex flex-col gap-2">
+                      <Button size="lg" className="w-full" onClick={acceptMission} disabled={acceptingMission}>
+                        {acceptingMission ? "Aceitando…" : "Aceitar missão"}
+                      </Button>
+                      <Button size="lg" variant="outline" className="w-full" onClick={() => setDetail(null)}>
+                        Agora não
+                      </Button>
+                    </div>
+                  ) : (
+                    detail.cta_label &&
+                    detail.cta_kind &&
+                    detail.cta_kind !== "none" && (
+                      <Button size="lg" className="w-full" onClick={() => runCta(detail)}>
+                        {detail.cta_label}
+                      </Button>
+                    )
                   )}
                 </div>
               </div>

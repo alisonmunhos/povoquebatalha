@@ -32,6 +32,7 @@ type Task = {
   id: string;
   status: string;
   assigned_contact_id: string | null;
+  assigned_user_id: string | null;
   assigned_contact_name: string | null;
   assigned_at: string | null;
   contact: {
@@ -99,6 +100,10 @@ function MissionDetailsPanel() {
   const tasks = (q.data?.tasks ?? []) as Task[];
   const links = (q.data?.links ?? []) as LinkRow[];
   const missionPaused = !!q.data?.mission.paused_at;
+  const assignedTaskIds = tasks
+    .filter((t) => t.assigned_contact_id || t.assigned_user_id)
+    .map((t) => t.id);
+  const hasAnyAssignment = assignedTaskIds.length > 0;
 
   const filteredTasks = tasks.filter((t) => {
     if (statusFilter === "sem_atribuicao" && t.assigned_contact_id) return false;
@@ -132,12 +137,10 @@ function MissionDetailsPanel() {
       prev.size === filteredTasks.length ? new Set() : new Set(filteredTasks.map((t) => t.id)),
     );
   }
-
   function onAssigned() {
     setSelected(new Set());
     invalidate();
   }
-
   async function onUnassign(taskIds: string[]) {
     if (
       !confirm(
@@ -146,10 +149,29 @@ function MissionDetailsPanel() {
     )
       return;
     try {
-      await unassignFn({ data: { task_ids: taskIds } });
+      await unassignFn({ data: { mission_id: missionId, task_ids: taskIds } });
       setSelected(new Set());
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
       toast.success(`${taskIds.length} contato(s) desatribuído(s).`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
+    }
+  }
+
+  async function onUnassignAll() {
+    if (
+      !confirm(
+        `Desatribuir TODOS os ${assignedTaskIds.length} contato(s) atribuídos desta missão?\n\nA missão inteira será esvaziada.`,
+      )
+    )
+      return;
+    try {
+      await unassignFn({ data: { mission_id: missionId, task_ids: assignedTaskIds } });
+      setSelected(new Set());
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
+      toast.success("Todos os contatos foram desatribuídos.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
     }
@@ -361,6 +383,14 @@ function MissionDetailsPanel() {
               onClick={() => onUnassign([...selected])}
             >
               Desatribuir selecionados ({selected.size})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!hasAnyAssignment}
+              onClick={onUnassignAll}
+            >
+              Desatribuir todos
             </Button>
             <Button
               size="sm"
