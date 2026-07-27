@@ -40,6 +40,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
 type Row = {
   id: string;
   email: string;
+  full_name: string | null;
   created_at: string;
   last_sign_in_at: string | null;
   confirmed_at: string | null;
@@ -333,6 +334,7 @@ function UsuariosPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-left">
                     <tr>
+                      <th className="px-4 py-2">Nome</th>
                       <th className="px-4 py-2">E-mail</th>
                       <th className="px-4 py-2">Papel</th>
                       <th className="px-4 py-2">Status</th>
@@ -346,6 +348,7 @@ function UsuariosPage() {
                       const currentRole = (u.roles[0] ?? "leitor") as AppRole;
                       return (
                         <tr key={u.id} className="border-t">
+                          <td className="px-4 py-2">{u.full_name ?? "—"}</td>
                           <td className="px-4 py-2 max-w-[220px] truncate" title={u.email}>{u.email}</td>
                           <td className="px-4 py-2">
                             <select
@@ -430,6 +433,7 @@ function UsuariosPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-left">
                     <tr>
+                      <th className="px-4 py-2">Nome</th>
                       <th className="px-4 py-2">E-mail</th>
                       <th className="px-4 py-2">Papel</th>
                       <th className="px-4 py-2">Status</th>
@@ -440,6 +444,7 @@ function UsuariosPage() {
                   <tbody>
                     {pendentes.map((u) => (
                       <tr key={u.id} className="border-t">
+                        <td className="px-4 py-2">{u.full_name ?? "—"}</td>
                         <td className="px-4 py-2 max-w-[220px] truncate">{u.email}</td>
                         <td className="px-4 py-2 text-xs">{ROLE_LABEL[u.roles[0] ?? "leitor"] ?? "—"}</td>
                         <td className="px-4 py-2"><StatusPill status={u.derived_status} /></td>

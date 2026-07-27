@@ -55,7 +55,7 @@ export const listUsers = createServerFn({ method: "GET" })
     const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
     const [{ data: roles }, { data: profiles }, { data: scopes }] = await Promise.all([
       supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", safeIds),
-      supabaseAdmin.from("profiles").select("id, status, invited_by, suspended_at, revoked_at").in("id", safeIds),
+      supabaseAdmin.from("profiles").select("id, full_name, status, invited_by, suspended_at, revoked_at").in("id", safeIds),
       supabaseAdmin.from("user_territory_scopes").select("user_id, uf, cidade, bairro").in("user_id", safeIds),
     ]);
 
@@ -65,8 +65,8 @@ export const listUsers = createServerFn({ method: "GET" })
       arr.push(r.role);
       byUser.set(r.user_id, arr);
     });
-    const profByUser = new Map<string, { status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }>();
-    (profiles ?? []).forEach((p: { id: string; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }) => {
+    const profByUser = new Map<string, { full_name: string | null; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }>();
+    (profiles ?? []).forEach((p: { id: string; full_name: string | null; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }) => {
       profByUser.set(p.id, p);
     });
     const scopeCount = new Map<string, number>();
@@ -100,6 +100,7 @@ export const listUsers = createServerFn({ method: "GET" })
         return {
           id: u.id,
           email: u.email ?? "",
+          full_name: prof?.full_name ?? null,
           created_at: u.created_at,
           last_sign_in_at: lastSignIn,
           confirmed_at: confirmed,

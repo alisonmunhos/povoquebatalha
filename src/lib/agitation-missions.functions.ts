@@ -19,7 +19,7 @@ const createMissionSchema = z.object({
   verify_whatsapp: z.boolean().optional(),
   // Nova configuração unificada de missão:
   mode: z.enum(["open", "direct"]).default("open"),
-  assignee_user_id: z.string().uuid().optional(),
+  assignee_user_ids: z.array(z.string().uuid()).optional(),
   batch_size: z.number().int().min(1).max(100).default(10),
   cooldown_minutes: z.number().int().min(0).max(1440).default(60),
   instructions: z.string().max(4000).optional(),
@@ -31,8 +31,8 @@ export const createAgitationMission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => createMissionSchema.parse(d))
   .handler(async ({ data, context }) => {
-    if (data.mode === "direct" && !data.assignee_user_id) {
-      throw new Error("Selecione a pessoa responsável.");
+    if (data.mode === "direct" && !data.assignee_user_ids?.length) {
+      throw new Error("Selecione ao menos uma pessoa responsável.");
     }
 
     // Resolve audiência -> IDs (mesmo padrão de createCampaignFromSelection).
@@ -138,22 +138,25 @@ export const createAgitationMission = createServerFn({ method: "POST" })
       if (e2) throw e2;
     }
 
-    // Modo direto: já atribui todos os contatos ao responsável escolhido.
-    if (data.mode === "direct" && data.assignee_user_id) {
-      await context.supabase.rpc("assign_mission_direct" as never, {
-        _mission_id: mission.id,
-        _user_id: data.assignee_user_id,
-        _count: elegiveis.length,
-      } as never);
+    // Modo direto: atribui batch_size contatos por pessoa selecionada.
+    if (data.mode === "direct" && data.assignee_user_ids?.length) {
+      for (const userId of data.assignee_user_ids) {
+        await context.supabase.rpc("assign_mission_direct" as never, {
+          _mission_id: mission.id,
+          _user_id: userId,
+          _count: data.batch_size,
+        } as never);
+      }
     }
 
     // Cria notificações + web push. Modo aberto notifica todos os agitadores;
-    // modo direto notifica só a pessoa escolhida.
+    // modo direto notifica cada pessoa escolhida (1 envio por pessoa).
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { randomUUID } = await import("node:crypto");
       let targetUserIds: string[] = [];
-      if (data.mode === "direct" && data.assignee_user_id) {
-        targetUserIds = [data.assignee_user_id];
+      if (data.mode === "direct" && data.assignee_user_ids?.length) {
+        targetUserIds = data.assignee_user_ids;
       } else {
         const { data: rows } = await supabaseAdmin
           .from("user_roles")
@@ -162,25 +165,50 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         targetUserIds = Array.from(new Set((rows ?? []).map((r) => r.user_id)));
       }
       if (targetUserIds.length) {
-        const body =
-          data.mode === "direct"
-            ? `${elegiveis.length} contato(s) atribuído(s) a você.`
-            : `Missão aberta com ${elegiveis.length} contato(s). Pegue seu lote.`;
-        const rows = targetUserIds.map((uid) => ({
-          user_id: uid,
-          title: `Nova missão: ${data.title}`,
-          body,
-          kind: "mission",
-          cta_label: "Abrir missão",
-          cta_kind: "mission",
-          cta_payload: { mission_id: mission.id },
-          mission_id: mission.id,
-          created_by: context.userId,
-        }));
-        const { data: inserted } = await supabaseAdmin
-          .from("notifications")
-          .insert(rows as never)
-          .select("id, user_id");
+        const openBody = `Missão aberta com ${elegiveis.length} contato(s). Pegue seu lote.`;
+        const directBody = `${data.batch_size} contato(s) atribuído(s) a você.`;
+        const insertedAll: Array<{ id: string; user_id: string }> = [];
+
+        if (data.mode === "direct") {
+          for (const uid of targetUserIds) {
+            const batchId = randomUUID();
+            const { data: inserted } = await supabaseAdmin
+              .from("notifications")
+              .insert({
+                user_id: uid,
+                title: `Nova missão: ${data.title}`,
+                body: directBody,
+                kind: "mission",
+                cta_label: "Abrir missão",
+                cta_kind: "mission",
+                cta_payload: { mission_id: mission.id },
+                mission_id: mission.id,
+                created_by: context.userId,
+                batch_id: batchId,
+              } as never)
+              .select("id, user_id");
+            insertedAll.push(...(inserted ?? []));
+          }
+        } else {
+          const batchId = randomUUID();
+          const rows = targetUserIds.map((uid) => ({
+            user_id: uid,
+            title: `Nova missão: ${data.title}`,
+            body: openBody,
+            kind: "mission",
+            cta_label: "Abrir missão",
+            cta_kind: "mission",
+            cta_payload: { mission_id: mission.id },
+            mission_id: mission.id,
+            created_by: context.userId,
+            batch_id: batchId,
+          }));
+          const { data: inserted } = await supabaseAdmin
+            .from("notifications")
+            .insert(rows as never)
+            .select("id, user_id");
+          insertedAll.push(...(inserted ?? []));
+        }
 
         // Web push best-effort
         const { data: subs } = await supabaseAdmin
@@ -190,7 +218,8 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         if (subs && subs.length) {
           const { sendWebPush } = await import("@/lib/web-push.server");
           const firstByUser = new Map<string, string>();
-          for (const r of inserted ?? []) if (!firstByUser.has(r.user_id)) firstByUser.set(r.user_id, r.id);
+          for (const r of insertedAll) if (!firstByUser.has(r.user_id)) firstByUser.set(r.user_id, r.id);
+          const pushBody = data.mode === "direct" ? directBody : openBody;
           await Promise.allSettled(
             subs.map(async (s) => {
               const notifId = firstByUser.get(s.user_id);
@@ -198,7 +227,7 @@ export const createAgitationMission = createServerFn({ method: "POST" })
                 { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
                 {
                   title: `Nova missão: ${data.title}`,
-                  body,
+                  body: pushBody,
                   url: "/minhas-missoes",
                   notificationId: notifId ?? null,
                   tag: `mission-${mission.id}`,
@@ -310,7 +339,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
     const { data: tasks, error: e2 } = await context.supabase
       .from("agitation_tasks")
       .select(
-        "id,status,assigned_contact_id,assigned_at,created_at,contacts!agitation_tasks_contact_id_fkey(id,nome,phone_e164,cidade)",
+        "id,status,assigned_contact_id,assigned_user_id,assigned_at,created_at,contacts!agitation_tasks_contact_id_fkey(id,nome,phone_e164,cidade)",
       )
       .eq("mission_id", data.mission_id)
       .order("created_at", { ascending: true });
@@ -374,6 +403,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
         id: t.id,
         status: t.status,
         assigned_contact_id: t.assigned_contact_id,
+        assigned_user_id: t.assigned_user_id,
         assigned_contact_name: t.assigned_contact_id
           ? (nameById.get(t.assigned_contact_id) ?? null)
           : null,
@@ -451,17 +481,62 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
   });
 
 // ===== Desfazer atribuição (volta pra lista de "sem atribuição") =====
-const unassignSchema = z.object({ task_ids: z.array(z.string().uuid()).min(1).max(2000) });
+const unassignSchema = z.object({
+  mission_id: z.string().uuid(),
+  task_ids: z.array(z.string().uuid()).min(1).max(2000),
+});
 
 export const unassignMissionTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => unassignSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const { data: before, error: fetchErr } = await context.supabase
+      .from("agitation_tasks")
+      .select("id, assigned_user_id")
+      .eq("mission_id", data.mission_id)
+      .in("id", data.task_ids);
+    if (fetchErr) throw fetchErr;
+
+    const affectedUserIds = Array.from(
+      new Set(
+        (before ?? [])
+          .map((t) => t.assigned_user_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+
     const { error } = await context.supabase
       .from("agitation_tasks")
-      .update({ assigned_contact_id: null, assigned_at: null, status: "pending" })
+      .update({
+        assigned_contact_id: null,
+        assigned_at: null,
+        assigned_user_id: null,
+        claim_id: null,
+        assigned_to_user_at: null,
+        status: "pending",
+      } as never)
+      .eq("mission_id", data.mission_id)
       .in("id", data.task_ids);
     if (error) throw error;
+
+    const now = new Date().toISOString();
+    for (const userId of affectedUserIds) {
+      const { count } = await context.supabase
+        .from("agitation_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("mission_id", data.mission_id)
+        .eq("assigned_user_id", userId);
+      if ((count ?? 0) === 0) {
+        await context.supabase
+          .from("notifications")
+          .update({ cancelled_at: now, cancelled_by: context.userId } as never)
+          .eq("mission_id", data.mission_id)
+          .eq("user_id", userId)
+          .eq("kind", "mission")
+          .is("cancelled_at", null);
+      }
+    }
+
     return { ok: true as const, updated: data.task_ids.length };
   });
 
@@ -559,6 +634,29 @@ export const listAgitadorUsers = createServerFn({ method: "GET" })
           email: emailById.get(id) ?? "",
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  });
+
+// Briefing exibido no popup de notificação de missão.
+export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: mission, error } = await context.supabase
+      .from("agitation_missions")
+      .select("title, instructions, batch_size")
+      .eq("id", data.mission_id)
+      .single();
+    if (error || !mission) throw new Error("Missão não encontrada");
+    const { count } = await context.supabase
+      .from("agitation_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("mission_id", data.mission_id);
+    return {
+      title: mission.title,
+      instructions: mission.instructions,
+      contact_count: count ?? 0,
+      batch_size: mission.batch_size,
     };
   });
 
@@ -742,18 +840,24 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
 
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
-      .select("user_id, task_count, completed_at, claimed_at")
+      .select("id, user_id, task_count, completed_at, claimed_at")
       .eq("mission_id", data.mission_id)
-      .in("user_id", userIds);
-    const claimByUser = new Map<
+      .in("user_id", userIds)
+      .order("claimed_at", { ascending: true });
+    const claimsByUser = new Map<string, typeof claims>();
+    (claims ?? []).forEach((c) => {
+      const arr = claimsByUser.get(c.user_id) ?? [];
+      arr.push(c);
+      claimsByUser.set(c.user_id, arr);
+    });
+    const latestClaimByUser = new Map<
       string,
       { task_count: number; completed_at: string | null; claimed_at: string }
     >();
     (claims ?? []).forEach((c) => {
-      const cur = claimByUser.get(c.user_id);
-      // pega a claim mais recente (aberta se houver)
+      const cur = latestClaimByUser.get(c.user_id);
       if (!cur || (!c.completed_at && cur.completed_at) || c.claimed_at > cur.claimed_at) {
-        claimByUser.set(c.user_id, {
+        latestClaimByUser.set(c.user_id, {
           task_count: c.task_count,
           completed_at: c.completed_at,
           claimed_at: c.claimed_at,
@@ -769,7 +873,8 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
         notified_at: n.created_at,
         read_at: n.read_at,
         cancelled_at: n.cancelled_at,
-        claim: claimByUser.get(n.user_id) ?? null,
+        claim: latestClaimByUser.get(n.user_id) ?? null,
+        claims: claimsByUser.get(n.user_id) ?? [],
       })),
     };
   });

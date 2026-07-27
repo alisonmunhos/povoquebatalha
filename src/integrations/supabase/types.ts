@@ -2281,6 +2281,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          batch_id: string | null
           body: string | null
           cancelled_at: string | null
           cancelled_by: string | null
@@ -2300,6 +2301,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          batch_id?: string | null
           body?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -2319,6 +2321,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          batch_id?: string | null
           body?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -2789,12 +2792,14 @@ export type Database = {
       normalize_phone_br: { Args: { input: string }; Returns: string }
       notify_mission_targets: {
         Args: {
+          _batch_id?: string
           _body: string
           _mission_id: string
           _title: string
           _user_ids: string[]
         }
         Returns: {
+          batch_id: string | null
           body: string | null
           cancelled_at: string | null
           cancelled_by: string | null
