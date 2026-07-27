@@ -2790,41 +2790,76 @@ export type Database = {
         Returns: string
       }
       normalize_phone_br: { Args: { input: string }; Returns: string }
-      notify_mission_targets: {
-        Args: {
-          _batch_id?: string
-          _body: string
-          _mission_id: string
-          _title: string
-          _user_ids: string[]
-        }
-        Returns: {
-          batch_id: string | null
-          body: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          created_at: string
-          created_by: string | null
-          cta_kind: string | null
-          cta_label: string | null
-          cta_payload: Json | null
-          expires_at: string | null
-          id: string
-          image_url: string | null
-          kind: string
-          mission_id: string | null
-          read_at: string | null
-          title: string
-          updated_at: string
-          user_id: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "notifications"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
+      notify_mission_targets:
+        | {
+            Args: {
+              _body: string
+              _mission_id: string
+              _title: string
+              _user_ids: string[]
+            }
+            Returns: {
+              batch_id: string | null
+              body: string | null
+              cancelled_at: string | null
+              cancelled_by: string | null
+              created_at: string
+              created_by: string | null
+              cta_kind: string | null
+              cta_label: string | null
+              cta_payload: Json | null
+              expires_at: string | null
+              id: string
+              image_url: string | null
+              kind: string
+              mission_id: string | null
+              read_at: string | null
+              title: string
+              updated_at: string
+              user_id: string
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "notifications"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
+        | {
+            Args: {
+              _batch_id?: string
+              _body: string
+              _mission_id: string
+              _title: string
+              _user_ids: string[]
+            }
+            Returns: {
+              batch_id: string | null
+              body: string | null
+              cancelled_at: string | null
+              cancelled_by: string | null
+              created_at: string
+              created_by: string | null
+              cta_kind: string | null
+              cta_label: string | null
+              cta_payload: Json | null
+              expires_at: string | null
+              id: string
+              image_url: string | null
+              kind: string
+              mission_id: string | null
+              read_at: string | null
+              title: string
+              updated_at: string
+              user_id: string
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "notifications"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
       phone_last8: { Args: { input: string }; Returns: string }
       release_mission_pending: {
         Args: { _mission_id: string }
