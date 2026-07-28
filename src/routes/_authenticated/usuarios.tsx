@@ -28,9 +28,18 @@ import {
   Info,
   CheckCircle2,
   UserMinus,
+  Bell,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ALL_ROLES, PUBLIC_SIGNUP_ROLES, ROLE_LABEL, type AppRole } from "@/lib/roles";
+import {
+  listSystemNotificationSettings,
+  updateSystemNotificationSetting,
+  SYSTEM_NOTIFICATION_KEYS,
+  SYSTEM_NOTIFICATION_LABELS,
+  SYSTEM_NOTIFICATION_PLACEHOLDERS,
+  type SystemNotificationKey,
+} from "@/lib/system-notification-settings.functions";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   head: () => ({ meta: [{ title: "Usuários — Campanha do Povo que Batalha" }] }),
@@ -65,6 +74,15 @@ type PendingRow = {
   requested_role: AppRole | null;
 };
 
+type NotificationSettingRow = {
+  key: SystemNotificationKey;
+  recipient_roles: AppRole[];
+  title_template: string;
+  body_template: string;
+  updated_at?: string;
+  updated_by?: string | null;
+};
+
 type InviteModal = { email: string; role: string; link: string | null };
 type ResetModal = { email: string; userId: string };
 
@@ -81,6 +99,8 @@ function UsuariosPage() {
   const fetchPending = useServerFn(listPendingApprovals);
   const approve = useServerFn(approvePendingUser);
   const reject = useServerFn(rejectPendingUser);
+  const fetchNotificationSettings = useServerFn(listSystemNotificationSettings);
+  const saveNotificationSetting = useServerFn(updateSystemNotificationSetting);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
@@ -103,6 +123,9 @@ function UsuariosPage() {
     target_name: string | null;
   }[]>([]);
   const [origin, setOrigin] = useState<string>("");
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettingRow[]>([]);
+  const [notificationDrafts, setNotificationDrafts] = useState<Record<SystemNotificationKey, NotificationSettingRow>>({} as Record<SystemNotificationKey, NotificationSettingRow>);
+  const [notificationSaving, setNotificationSaving] = useState<SystemNotificationKey | null>(null);
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const [linkRole, setLinkRole] = useState<AppRole>("agitador");
   const signupUrl = origin
@@ -115,10 +138,11 @@ function UsuariosPage() {
     setErr(null);
     const errors: string[] = [];
 
-    const [usersRes, auditRes, pendingRes] = await Promise.allSettled([
+    const [usersRes, auditRes, pendingRes, settingsRes] = await Promise.allSettled([
       fetchList(),
       audit(),
       fetchPending(),
+      fetchNotificationSettings(),
     ]);
 
     if (usersRes.status === "fulfilled") {
@@ -147,6 +171,20 @@ function UsuariosPage() {
       });
     } else {
       errors.push("Erro ao carregar aprovações pendentes.");
+    }
+
+    if (settingsRes.status === "fulfilled") {
+      const settings = settingsRes.value.settings as NotificationSettingRow[];
+      setNotificationSettings(settings);
+      setNotificationDrafts((prev) => {
+        const next = { ...prev };
+        for (const row of settings) {
+          next[row.key] = row;
+        }
+        return next;
+      });
+    } else {
+      errors.push("Erro ao carregar templates de notificação.");
     }
 
     if (errors.length) setErr(errors.join(" "));
@@ -303,6 +341,7 @@ function UsuariosPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="pendentes">Convites pendentes ({pendentes.length})</TabsTrigger>
+          <TabsTrigger value="notificacoes">Notificações do sistema</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
 
@@ -541,6 +580,53 @@ function UsuariosPage() {
           </section>
         </TabsContent>
 
+        <TabsContent value="notificacoes">
+          <SystemNotificationSettingsPanel
+            settings={notificationSettings}
+            drafts={notificationDrafts}
+            saving={notificationSaving}
+            onDraftChange={(key, patch) =>
+              setNotificationDrafts((prev) => ({
+                ...prev,
+                [key]: { ...prev[key], ...patch, key },
+              }))
+            }
+            onToggleRole={(key, role) =>
+              setNotificationDrafts((prev) => {
+                const current = prev[key];
+                if (!current) return prev;
+                const roles = current.recipient_roles.includes(role)
+                  ? current.recipient_roles.filter((r) => r !== role)
+                  : [...current.recipient_roles, role];
+                return { ...prev, [key]: { ...current, recipient_roles: roles.length ? roles : [role] } };
+              })
+            }
+            onSave={async (key) => {
+              const draft = notificationDrafts[key];
+              if (!draft) return;
+              setNotificationSaving(key);
+              try {
+                const r = await saveNotificationSetting({
+                  data: {
+                    key: draft.key,
+                    recipient_roles: draft.recipient_roles,
+                    title_template: draft.title_template,
+                    body_template: draft.body_template,
+                  },
+                });
+                const saved = r.setting as NotificationSettingRow;
+                setNotificationSettings((prev) => prev.map((s) => (s.key === key ? saved : s)));
+                setNotificationDrafts((prev) => ({ ...prev, [key]: saved }));
+                setMsg(`Template "${SYSTEM_NOTIFICATION_LABELS[key]}" salvo.`);
+              } catch (e) {
+                alert(e instanceof Error ? e.message : "Erro ao salvar template.");
+              } finally {
+                setNotificationSaving(null);
+              }
+            }}
+          />
+        </TabsContent>
+
         <TabsContent value="auditoria">
           <section className="border rounded-xl bg-card overflow-hidden">
             {auditRows.length === 0 ? (
@@ -642,6 +728,124 @@ function UsuariosPage() {
           )}
         </Modal>
       )}
+    </div>
+  );
+}
+
+function SystemNotificationSettingsPanel({
+  settings,
+  drafts,
+  saving,
+  onDraftChange,
+  onToggleRole,
+  onSave,
+}: {
+  settings: NotificationSettingRow[];
+  drafts: Record<SystemNotificationKey, NotificationSettingRow>;
+  saving: SystemNotificationKey | null;
+  onDraftChange: (key: SystemNotificationKey, patch: Partial<NotificationSettingRow>) => void;
+  onToggleRole: (key: SystemNotificationKey, role: AppRole) => void;
+  onSave: (key: SystemNotificationKey) => void | Promise<void>;
+}) {
+  if (!settings.length) {
+    return (
+      <section className="border rounded-xl bg-card p-6 text-sm text-muted-foreground">
+        Nenhum template configurado. Aplique a migration da Fase 0 no Supabase para habilitar esta aba.
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="border rounded-xl p-4 bg-muted/30 text-xs text-muted-foreground">
+        <div className="font-medium text-foreground mb-1 flex items-center gap-1.5">
+          <Bell className="h-3.5 w-3.5" /> Notificações automáticas para a equipe
+        </div>
+        <p>
+          Estes templates alimentam o sino do painel. Por padrão, só administradores recebem — amplie os papéis
+          destinatários quando quiser, sem mudança de código.
+        </p>
+      </section>
+
+      {SYSTEM_NOTIFICATION_KEYS.map((key) => {
+        const draft = drafts[key];
+        if (!draft) return null;
+        const placeholders = SYSTEM_NOTIFICATION_PLACEHOLDERS[key];
+        const isSaving = saving === key;
+        return (
+          <section key={key} className="border rounded-xl bg-card p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold">{SYSTEM_NOTIFICATION_LABELS[key]}</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Placeholders: {placeholders.map((p) => (
+                  <code key={p} className="mx-0.5 rounded bg-muted px-1 py-0.5">{p}</code>
+                ))}
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Quem recebe</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ALL_ROLES.map((role) => {
+                  const checked = draft.recipient_roles.includes(role);
+                  return (
+                    <label
+                      key={role}
+                      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs cursor-pointer ${checked ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="rounded border-input"
+                        checked={checked}
+                        onChange={() => onToggleRole(key, role)}
+                      />
+                      {ROLE_LABEL[role]}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Título</label>
+                <input
+                  value={draft.title_template}
+                  onChange={(e) => onDraftChange(key, { title_template: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  maxLength={200}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
+                <textarea
+                  value={draft.body_template}
+                  onChange={(e) => onDraftChange(key, { body_template: e.target.value })}
+                  className="mt-1 w-full min-h-[88px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  maxLength={2000}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              {draft.updated_at && (
+                <span className="text-xs text-muted-foreground">
+                  Atualizado em {new Date(draft.updated_at).toLocaleString("pt-BR")}
+                </span>
+              )}
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => onSave(key)}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Salvar template
+              </button>
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -221,7 +221,9 @@ export const createAgitationMission = createServerFn({ method: "POST" })
           for (const r of insertedAll) if (!firstByUser.has(r.user_id)) firstByUser.set(r.user_id, r.id);
           const pushBody = data.mode === "direct" ? directBody : openBody;
           await Promise.allSettled(
-            subs.map(async (s) => {
+            subs
+              .filter((s): s is typeof s & { user_id: string } => s.user_id != null)
+              .map(async (s) => {
               const notifId = firstByUser.get(s.user_id);
               const r = await sendWebPush(
                 { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },

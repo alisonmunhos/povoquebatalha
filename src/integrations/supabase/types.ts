@@ -2400,32 +2400,43 @@ export type Database = {
       push_subscriptions: {
         Row: {
           auth: string
+          contact_id: string | null
           created_at: string
           endpoint: string
           id: string
           p256dh: string
           user_agent: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           auth: string
+          contact_id?: string | null
           created_at?: string
           endpoint: string
           id?: string
           p256dh: string
           user_agent?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           auth?: string
+          contact_id?: string | null
           created_at?: string
           endpoint?: string
           id?: string
           p256dh?: string
           user_agent?: string | null
-          user_id?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       segments: {
         Row: {
@@ -2460,6 +2471,33 @@ export type Database = {
           nome?: string
           tipo?: Database["public"]["Enums"]["segment_tipo"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      system_notification_settings: {
+        Row: {
+          body_template: string
+          key: string
+          recipient_roles: string[]
+          title_template: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body_template: string
+          key: string
+          recipient_roles?: string[]
+          title_template: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body_template?: string
+          key?: string
+          recipient_roles?: string[]
+          title_template?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
