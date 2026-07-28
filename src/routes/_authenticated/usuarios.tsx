@@ -92,7 +92,16 @@ function UsuariosPage() {
   const [resetModal, setResetModal] = useState<ResetModal | null>(null);
   const [resetLink, setResetLink] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
-  const [auditRows, setAuditRows] = useState<{ id: string; event: string; created_at: string; meta: Record<string, unknown>; target_user_id: string | null; actor_id: string | null }[]>([]);
+  const [auditRows, setAuditRows] = useState<{
+    id: string;
+    event: string;
+    created_at: string;
+    meta: Record<string, unknown>;
+    target_user_id: string | null;
+    actor_id: string | null;
+    actor_name: string | null;
+    target_name: string | null;
+  }[]>([]);
   const [origin, setOrigin] = useState<string>("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const [linkRole, setLinkRole] = useState<AppRole>("agitador");
@@ -104,13 +113,30 @@ function UsuariosPage() {
   async function load() {
     setLoading(true);
     setErr(null);
-    try {
-      const r = await fetchList();
-      setRows(r.users as Row[]);
-      const a = await audit();
-      setAuditRows(a.rows as typeof auditRows);
-      const p = await fetchPending();
-      const pending = p.rows as PendingRow[];
+    const errors: string[] = [];
+
+    const [usersRes, auditRes, pendingRes] = await Promise.allSettled([
+      fetchList(),
+      audit(),
+      fetchPending(),
+    ]);
+
+    if (usersRes.status === "fulfilled") {
+      setRows(usersRes.value.users as Row[]);
+    } else {
+      errors.push(
+        usersRes.reason instanceof Error ? usersRes.reason.message : "Erro ao carregar usuários.",
+      );
+    }
+
+    if (auditRes.status === "fulfilled") {
+      setAuditRows(auditRes.value.rows as typeof auditRows);
+    } else {
+      errors.push("Erro ao carregar auditoria.");
+    }
+
+    if (pendingRes.status === "fulfilled") {
+      const pending = pendingRes.value.rows as PendingRow[];
       setPendingRows(pending);
       setApproveRoleByUser((prev) => {
         const next = { ...prev };
@@ -119,11 +145,12 @@ function UsuariosPage() {
         }
         return next;
       });
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erro ao carregar usuários.");
-    } finally {
-      setLoading(false);
+    } else {
+      errors.push("Erro ao carregar aprovações pendentes.");
     }
+
+    if (errors.length) setErr(errors.join(" "));
+    setLoading(false);
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
@@ -135,6 +162,30 @@ function UsuariosPage() {
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Erro.");
+    }
+  }
+
+  async function approvePending(userId: string, role: AppRole, successMsg: string) {
+    setPendingRows((prev) => prev.filter((p) => p.id !== userId));
+    try {
+      await approve({ data: { userId, role } });
+      setMsg(successMsg);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro.");
+      await load();
+    }
+  }
+
+  async function rejectPending(userId: string, successMsg: string) {
+    setPendingRows((prev) => prev.filter((p) => p.id !== userId));
+    try {
+      await reject({ data: { userId } });
+      setMsg(successMsg);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro.");
+      await load();
     }
   }
 
@@ -294,8 +345,9 @@ function UsuariosPage() {
                           </td>
                           <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
                             <button
-                              onClick={() => act(
-                                () => approve({ data: { userId: p.id, role: selectedRole } }),
+                              onClick={() => approvePending(
+                                p.id,
+                                selectedRole,
                                 `${p.full_name ?? p.email} aprovado(a) como ${ROLE_LABEL[selectedRole]}.`,
                               )}
                               className="text-emerald-700 hover:underline inline-flex items-center gap-1 text-xs"
@@ -306,7 +358,7 @@ function UsuariosPage() {
                               onClick={() => {
                                 const first = prompt(`REJEITAR o cadastro de ${p.full_name ?? p.email}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`);
                                 if (first !== "REJEITAR") return;
-                                act(() => reject({ data: { userId: p.id } }), "Cadastro rejeitado.");
+                                rejectPending(p.id, "Cadastro rejeitado.");
                               }}
                               className="text-destructive hover:underline inline-flex items-center gap-1 text-xs"
                             >
@@ -501,6 +553,13 @@ function UsuariosPage() {
                       <span className="font-medium">{a.event}</span>
                       <span className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</span>
                     </div>
+                    {(a.actor_name || a.target_name) && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {a.actor_name && <span>Por: {a.actor_name}</span>}
+                        {a.actor_name && a.target_name && <span> · </span>}
+                        {a.target_name && <span>Usuário: {a.target_name}</span>}
+                      </div>
+                    )}
                     {Object.keys(a.meta ?? {}).length > 0 && (
                       <div className="mt-1 text-xs text-muted-foreground truncate">{JSON.stringify(a.meta)}</div>
                     )}

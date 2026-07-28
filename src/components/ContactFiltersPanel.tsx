@@ -33,6 +33,7 @@ export type FilterOptionsBundle = {
   importacoes: MultiOption[];
   tracking_points: MultiOption[];
   imported_by: MultiOption[];
+  system_users?: MultiOption[];
   consentimento_lgpd?: MultiOption[];
   consentimento_dados_sensiveis?: MultiOption[];
 };
@@ -127,7 +128,8 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
   const systemUsersQ = useQuery({
     queryKey: ["system-user-options"],
     queryFn: () => systemUsersFn(),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
   });
   const systemUserOptions = useMemo<MultiOption[]>(() => {
     const arr = (systemUsersQ.data?.users ?? []).map((u) => ({

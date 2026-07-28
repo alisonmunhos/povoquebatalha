@@ -28,6 +28,7 @@ import { ActiveFiltersChips } from "@/components/ActiveFiltersChips";
 import { ColumnFilterHeader, ColumnSortHeader, type ColumnFilterOption } from "@/components/ColumnFilterHeader";
 import type { CrmFilters } from "@/lib/crm-filters";
 import { decodeBase64UrlSafe, encodeBase64UrlSafe } from "@/lib/filters-encoding";
+import { listSystemUserOptions } from "@/lib/users.functions";
 
 const searchSchema = z.object({
   segment: z.string().uuid().optional(),
@@ -102,9 +103,26 @@ function Contatos() {
   const optionsQ = useQuery({
     queryKey: ["contact-filter-options", cidadesSelecionadas],
     queryFn: () => optionsFn({ data: { cidades: cidadesSelecionadas } }),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
   });
-  const filterOptions = optionsQ.data as unknown as FilterOptionsBundle | undefined;
+  const systemUsersFn = useServerFn(listSystemUserOptions);
+  const systemUsersQ = useQuery({
+    queryKey: ["system-user-options"],
+    queryFn: () => systemUsersFn(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const filterOptions = useMemo((): FilterOptionsBundle | undefined => {
+    const base = optionsQ.data as unknown as FilterOptionsBundle | undefined;
+    if (!base) return undefined;
+    const system_users = (systemUsersQ.data?.users ?? []).map((u) => ({
+      value: u.id,
+      label: u.full_name?.trim() || u.email || u.id,
+    }));
+    system_users.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    return { ...base, system_users };
+  }, [optionsQ.data, systemUsersQ.data]);
 
   // Debounce da busca geral
   useEffect(() => {
