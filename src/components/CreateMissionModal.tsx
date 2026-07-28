@@ -57,6 +57,8 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
     queryKey: ["agitator-users"],
     queryFn: () => usersFn(),
     enabled: open,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   async function onSubmit() {

@@ -123,7 +123,12 @@ export function CommunicationInbox() {
   });
 
   const tplsQ = useQuery({ queryKey: ["comm-tpls"], queryFn: () => tplsFn() });
-  const staffQ = useQuery({ queryKey: ["comm-staff"], queryFn: () => staffFn() });
+  const staffQ = useQuery({
+    queryKey: ["comm-staff"],
+    queryFn: () => staffFn(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
 
   // Realtime: refresh list quando conversas mudam
   useEffect(() => {

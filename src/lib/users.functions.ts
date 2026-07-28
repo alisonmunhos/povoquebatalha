@@ -255,7 +255,35 @@ export const listAccessAudit = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw error;
-    return { rows: data ?? [] };
+    const rows = data ?? [];
+    const userIds = Array.from(
+      new Set(
+        rows.flatMap((r) => [r.actor_id, r.target_user_id]).filter((v): v is string => !!v),
+      ),
+    );
+    const nameById = new Map<string, string>();
+    if (userIds.length) {
+      const { data: profs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", userIds);
+      (profs ?? []).forEach((p) => {
+        const name = p.full_name?.trim();
+        if (name) nameById.set(p.id, name);
+      });
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+      (authUsers?.users ?? []).forEach((u) => {
+        if (!userIds.includes(u.id)) return;
+        if (!nameById.has(u.id) && u.email) nameById.set(u.id, u.email);
+      });
+    }
+    return {
+      rows: rows.map((r) => ({
+        ...r,
+        actor_name: r.actor_id ? (nameById.get(r.actor_id) ?? null) : null,
+        target_name: r.target_user_id ? (nameById.get(r.target_user_id) ?? null) : null,
+      })),
+    };
   });
 
 const resetPwdSchema = z.object({

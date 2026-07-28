@@ -65,7 +65,7 @@ export function ActiveFiltersChips({
   for (const v of filters.captured_by_user_ids ?? []) {
     chips.push({
       key: `cb-${v}`,
-      label: `Captado por: ${v === SYSTEM_CAPTURE_SENTINEL ? "Sistema" : findLabel(options?.imported_by, v) || v}`,
+      label: `Captado por: ${v === SYSTEM_CAPTURE_SENTINEL ? "Sistema" : findLabel(options?.system_users, v) || findLabel(options?.imported_by, v) || v}`,
       onRemove: removeFromArr("captured_by_user_ids", v),
     });
   }
