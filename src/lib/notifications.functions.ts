@@ -164,7 +164,9 @@ export const createNotification = createServerFn({ method: "POST" })
         const firstNotifByUser = new Map<string, string>();
         for (const r of inserted ?? []) if (!firstNotifByUser.has(r.user_id)) firstNotifByUser.set(r.user_id, r.id);
         await Promise.allSettled(
-          subs.map(async (s) => {
+          subs
+            .filter((s): s is typeof s & { user_id: string } => s.user_id != null)
+            .map(async (s) => {
             const notifId = firstNotifByUser.get(s.user_id);
             const result = await sendWebPush(
               { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
