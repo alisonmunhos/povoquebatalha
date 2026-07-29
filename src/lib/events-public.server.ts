@@ -78,7 +78,7 @@ export async function handlePublicGetEvent(request: Request, slug: string): Prom
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: event, error } = await supabaseAdmin
     .from("events")
-    .select("id,title,slug,description,location,starts_at,ends_at,is_published")
+    .select("id,title,slug,description,location,starts_at,ends_at,is_published,cover_path,post_rsvp_title,post_rsvp_button_text,post_rsvp_button_url")
     .eq("slug", slug)
     .maybeSingle();
   if (error) {
@@ -107,10 +107,18 @@ export async function handlePublicGetEvent(request: Request, slug: string): Prom
     }
   }
 
+  let cover_url: string | null = null;
+  if (event.cover_path) {
+    const { data: signed } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUrl(event.cover_path, 60 * 60);
+    cover_url = signed?.signedUrl ?? null;
+  }
+
   return new Response(
     JSON.stringify({
       ok: true,
-      event,
+      event: { ...event, cover_url },
       contact,
       rsvp_status,
     }),
@@ -123,6 +131,9 @@ const rsvpBodySchema = z.object({
   contact_token: z.string().trim().min(8).max(48).optional(),
   nome: z.string().trim().min(2).max(120).optional(),
   phone: z.string().trim().min(8).max(40).optional(),
+  consentimento_whatsapp: z.boolean().optional(),
+  consentimento_lgpd: z.boolean().optional(),
+  consentimento_dados_sensiveis: z.boolean().optional(),
   ...honeypotSchema,
 });
 
@@ -155,7 +166,7 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: event, error: eventErr } = await supabaseAdmin
     .from("events")
-    .select("id,title,slug,is_published")
+    .select("id,title,slug,is_published,post_rsvp_title,post_rsvp_button_text,post_rsvp_button_url")
     .eq("slug", slug)
     .maybeSingle();
   if (eventErr) {
@@ -163,6 +174,19 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
   }
   if (!event || !event.is_published) {
     return new Response(JSON.stringify({ ok: false, error: "Evento não encontrado." }), { status: 404, headers: cors });
+  }
+
+  if (
+    d.status === "confirmed" &&
+    !(d.consentimento_whatsapp && d.consentimento_lgpd && d.consentimento_dados_sensiveis)
+  ) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "Para confirmar presença é preciso aceitar os três consentimentos.",
+      }),
+      { status: 400, headers: cors },
+    );
   }
 
   const contact = await resolvePublicContact({
@@ -196,6 +220,43 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
     return new Response(JSON.stringify({ ok: false, error: upsertErr.message }), { status: 400, headers: cors });
   }
 
+  if (d.status === "confirmed") {
+    const nowIso = new Date().toISOString();
+    await supabaseAdmin
+      .from("contacts")
+      .update({
+        consentimento_whatsapp: true,
+        consentimento_at: nowIso,
+        consentimento_lgpd: true,
+        consentimento_lgpd_at: nowIso,
+        consentimento_dados_sensiveis: true,
+        consentimento_dados_sensiveis_at: nowIso,
+      })
+      .eq("id", contact.id);
+
+    // Rastro de origem: registra que a pessoa veio por este evento.
+    try {
+      await supabaseAdmin.rpc("apply_contact_source", {
+        _contact_id: contact.id,
+        _source_user_id: null,
+        _source_module: "formulario_publico",
+        _source_form_type: null,
+        _source_link_id: null,
+        _event_type: "inscricao_simples",
+        _metadata: {
+          via: "evento_rsvp",
+          event_id: event.id,
+          event_slug: event.slug,
+          event_title: event.title,
+          tracking_label: `Evento: ${event.title}`,
+          capture_channel: "formulario_publico",
+        },
+      });
+    } catch {
+      /* rastro é complementar, não bloqueia a confirmação */
+    }
+  }
+
   if (d.status === "confirmed" && prev?.status !== "confirmed") {
     try {
       await notifyEventRsvpConfirmed({
@@ -215,6 +276,11 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
       status: d.status,
       contact_token: contact.recad_token,
       contact_name: contact.nome,
+      post_rsvp: {
+        title: (event as { post_rsvp_title?: string | null }).post_rsvp_title ?? null,
+        button_text: (event as { post_rsvp_button_text?: string | null }).post_rsvp_button_text ?? null,
+        button_url: (event as { post_rsvp_button_url?: string | null }).post_rsvp_button_url ?? null,
+      },
     }),
     { headers: cors },
   );
