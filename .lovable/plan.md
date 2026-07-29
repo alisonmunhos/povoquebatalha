@@ -1,86 +1,78 @@
-## Escopo
+**Confirmação de acesso:** os 7 repositórios respondem como públicos (corteza, metabase, twenty, superset, civicrm-core, espocrm, appsmith). Serão usados apenas como referência conceitual, sem leitura profunda de código, conforme sua escolha.
 
-Unificar Missões de Agitação + Notificações usando os campos que já existem em `agitation_missions` (`batch_size`, `cooldown_minutes`, `is_open`, `coordinator_phone`, `whatsapp_message_template`, `instructions`), adicionar auto-atribuição atômica, atribuição direta, notificação automática, painel de visibilidade e cancelamento/interrupção.
+**Regras desta auditoria:** nenhum código de aplicação será alterado, nenhuma migration será criada, nenhuma funcionalidade implementada. O único material produzido são documentos `.md` dentro de `docs/auditoria/`.
 
-## 1. Migration (banco)
+## Entrega por fases, com checkpoint
 
-Adicionar a `public.agitation_tasks`:
-- `assigned_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL`
-- `claim_id uuid REFERENCES agitation_mission_claims(id) ON DELETE SET NULL`
-- `assigned_to_user_at timestamptz`
-- `completed_at timestamptz`
-- índices em `(mission_id, assigned_user_id)` e `(mission_id, status) WHERE assigned_user_id IS NULL`
-- policy adicional: `assigned_user_id = auth.uid()` pode SELECT/UPDATE suas próprias tasks
+### Entrega 1 — Diagnóstico da Gestão da Base (prioridade que você definiu)
 
-Adicionar a `public.notifications`:
-- `cancelled_at timestamptz`
-- `cancelled_by uuid REFERENCES auth.users(id)`
-- índice parcial `WHERE cancelled_at IS NULL`
+Documentos:
+- `docs/auditoria/01-mapa-do-sistema.md` — entidades, módulos, telas, fluxo dos dados.
+- `docs/auditoria/02-gestao-da-base.md` — o diagnóstico central.
+- `docs/auditoria/03-glossario-e-definicoes.md` — **novo**: dicionário de conceitos.
 
-Nova função SQL `claim_mission_batch(_mission_id uuid, _user_id uuid)`:
-- SECURITY DEFINER, checa `is_open=true`, `paused_at IS NULL`
-- valida cooldown (última claim completa do usuário + `cooldown_minutes` já passou)
-- faz `UPDATE agitation_tasks SET assigned_user_id=_user_id, claim_id=_new_claim, assigned_to_user_at=now() WHERE id IN (SELECT id FROM agitation_tasks WHERE mission_id=_mission_id AND assigned_user_id IS NULL AND status='pending' ORDER BY created_at LIMIT batch_size FOR UPDATE SKIP LOCKED)` (evita corrida)
-- retorna claim_id + task_ids
+O que será investigado, com evidência de arquivo e linha em cada afirmação:
 
-Nova função `assign_mission_direct(_mission_id, _user_id, _count)` — mesma lógica sem checar is_open/cooldown, usada pelo modo pessoa-específica.
+1. **Anatomia dos filtros** — leitura completa de `crm-filters.ts` (577 linhas, onde parece concentrar a tradução de filtro→consulta), `column-filter-mapping.ts`, `column-sort-mapping.ts`, `sheet-filter-chips.ts`, `filters-encoding.ts`, `ContactFiltersPanel.tsx`, `ColumnFilterHeader.tsx` e os painéis em `components/contacts-sheet/`.
+2. **Comparação de caminhos de consulta** — as consultas de contatos aparecem em pelo menos 6 lugares distintos: `contacts.functions.ts`, `contacts-sheet.functions.ts`, `crm-bulk.functions.ts` (`idsByFilter`, export CSV, cópia formatada), `map.functions.ts`, `territory.functions.ts`, `segments.functions.ts`. Matriz mostrando, para cada uma: quais filtros aplica, se respeita `arquivado_at`, `opt_out_at`, `is_system_user`, escopo territorial, e se o resultado bate com a tela principal.
+3. **Registros que podem "sumir"** — filtros sobre coluna derivada (ex.: `phone_e164` nulo enquanto `phone_raw` tem valor), `.eq()` onde deveria considerar NULL, combinação de filtros que vira AND implícito, `.or()` mal parentizado, tetos de linhas em seleção em massa/exportação, e o default `archived: "nao"` aplicado em uma tela mas não em outra.
+4. **Pesquisa geral × filtros equivalentes** — campos cobertos, acento, telefone, e-mail; verificar se "buscar João" retorna o mesmo conjunto que filtrar nome contém "João".
+5. **Saved views** — hoje em `localStorage`: não compartilháveis, não versionadas, e podem carregar um estado de filtro cujo significado mudou desde que foi salvo.
+6. **Ações em massa** — se "selecionar tudo pelo filtro" usa exatamente a mesma consulta da listagem.
+7. **Validação contra o banco** — para cada divergência suspeita, consultas SQL de leitura reproduzindo as duas versões da lógica, com os números lado a lado. Nenhuma conclusão sem número.
 
-Nova função `release_mission_pending(_mission_id)` — usada por `pauseMission`: zera `assigned_user_id/claim_id` em tasks não concluídas + marca notifications da missão como canceladas + fecha claims abertas.
+**8. Consistência das definições de negócio (acréscimo)** — para cada conceito abaixo, levantar todas as definições operacionais em uso no código e no banco, e apontar onde divergem:
 
-## 2. `src/lib/agitation-missions.functions.ts`
+| Conceito | O que será verificado |
+|---|---|
+| Contato | inclui `is_system_user`? inclui arquivado? inclui duplicado mesclado? |
+| Apoiador | existe distinção real de "contato" ou é o mesmo registro? |
+| Usuário | `profiles` × `user_roles` × `contacts.is_system_user` × `contact_id` — quem é a autoridade |
+| Arquivado | `arquivado_at` é o único marcador? interage com `lifecycle_status = duplicado_mesclado`? |
+| Opt-out | `opt_out_at` × `consentimento_whatsapp` × `whatsapp_status` — qual regra bloqueia envio, e se é a mesma em campanha, disparo direto, automação e missão |
+| Missão | elegibilidade, "aberta", "disponível", "concluída" — definição em SQL × definição na tela |
+| Campanha | o que conta como "enviada", "entregue", "falha" |
+| Segmento | dinâmico × estático; o filtro salvo usa a mesma engine dos filtros da tela? |
+| Território | escopo por `user_territory_scopes` × filtro de cidade/bairro na Gestão da Base |
+| Telefone válido | `phone_status` × `phone_e164` × `phone_whatsapp_candidate` |
 
-Estender `createAgitationMission` inputSchema com: `mode` ('open'|'direct'), `assignee_user_id` (quando direct), `batch_size`, `instructions`, `coordinator_phone`, `whatsapp_message_template`, `cooldown_minutes`. Salvar tudo. Se `mode='direct'`: chamar `assign_mission_direct` e criar notificação. Se `mode='open'`: criar notificação `kind='mission'` pra todos agitadores do público-alvo.
+O resultado vira o glossário `03-glossario-e-definicoes.md`, com uma linha por conceito: definição encontrada, variações por módulo, e risco de interpretação errada.
 
-Novas server fns:
-- `claimMissionBatch({ missionId })` → chama SQL, retorna tarefas atribuídas
-- `completeMissionClaim({ claimId })` → marca claim.completed_at + tasks.completed_at
-- `listMyActiveMissionTasks()` → tasks atribuídas ao user atual não concluídas
-- `getMissionCooldownStatus({ missionId })` → retorna se pode pegar mais e quando libera
-- `getMissionRecipientsPanel({ missionId })` → admin, lista destinatários das notificações da missão com read_at/cancelled_at
-- Estender `pauseMission` → chama `release_mission_pending`
+**9. Ciclo de vida de cada informação importante (acréscimo)** — ficha padronizada para cada campo/indicador crítico:
 
-## 3. `src/lib/notifications.functions.ts`
+```text
+Campo: contacts.opt_out_at
+Nasce em .......: rota pública /opt-out, merge_contacts, edição manual
+Alterado por ...: <lista de funções e triggers>
+Consumido por ..: envio de campanha, disparo direto, automações
+Exibido em .....: ficha, tabela, BI, dashboard
+Exportado em ...: CSV, cópia formatada
+Depende dele ...: contagem "Opt-out" do dashboard, filtros de audiência
+Fonte da verdade: sim / não — se não, onde diverge
+```
 
-- Filtrar `cancelled_at IS NULL` em `listMyNotifications` e `countMyUnread`
-- Nova `cancelNotification({ id })` (staff-only): seta `cancelled_at`
-- Nova `getNotificationRecipients({ ...criteria })` admin (usada pelo painel)
+Serão fichadas no mínimo: identidade do contato, telefone, consentimento/opt-out, arquivamento, `lifecycle_status`, origem/captação, geolocalização, tags, papéis de usuário e status de missão.
 
-## 4. UI — `CreateMissionModal`
+Ao final da Entrega 1 eu paro e trago a lista de **perguntas de regra de negócio** que o código não permite inferir. Só sigo depois das suas respostas.
 
-Adicionar seções:
-- Radio "Aberta pra agitação" vs "Atribuir a pessoa específica" (reutiliza `listAgitadorCandidates`)
-- Campo `batch_size` (default 10)
-- Textarea `instructions`
-- Bloco "Ao concluir": input telefone `coordinator_phone` + textarea `whatsapp_message_template`
-- Number `cooldown_minutes` (default 60)
+### Entrega 2 — Indicadores, fonte única da verdade e dependências entre módulos
 
-## 5. UI — Tela do agitador
+- `04-indicadores.md` — cada indicador (dashboard, KPIs de agitação, contadores de campanha, mapa, território) com pergunta que responde, fórmula exata, origem, onde mais o mesmo número é calculado, e classificação Alta / Média / Baixa confiança. Já há sinal de risco: `dashboard.functions.ts` conta contatos com regras próprias (`arquivado_at`, `latitude`) que podem não coincidir com as da Gestão da Base.
+- `05-fonte-unica-da-verdade.md` — **acréscimo formalizado**: para toda informação usada em mais de um lugar, dizer explicitamente se existe implementação única ou duplicada, listando cada implementação concorrente e a diferença entre elas.
+- `06-mapa-de-dependencias.md` — **novo**: mapa de impacto entre módulos. Para cada peça de lógica compartilhada (a engine de filtros, a normalização de telefone, a regra de arquivado, a regra de opt-out, o escopo territorial), listar todas as telas, dashboards, exportações, segmentos, missões e relatórios que quebrariam ou mudariam de número se ela fosse alterada. Inclui um diagrama Mermaid de dependências e uma tabela "se eu mexer em X, tenho que reconferir Y, Z, W".
 
-Nova rota `/_authenticated/minhas-missoes` (ou reuso do detalhe existente) que:
-- Lista missões em que o user tem claim aberta OU tasks atribuídas
-- Mostra `instructions`, lista de contatos daquela leva com link pra tela de envio existente
-- Botão "Avisar que concluí" → `wa.me/<coordinator_phone>?text=<template>` + marca claim como completa
-- Se missão aberta: botão "Pegar mais X contatos" (respeita cooldown, mostra aviso "confira sua taxa de resposta antes de pegar mais" acima do botão)
+### Entrega 3 — Referências externas, UX e relatório final
 
-Notificação `kind='mission'` no sino → CTA leva pra essa tela.
-
-## 6. Painel admin de visibilidade
-
-Dentro de `/_authenticated/missoes-agitacao/$missionId`, aba/seção "Destinatários":
-- Tabela: nome do agitador · notificado em · abriu em (`read_at`) · status (pendente/aberta/cancelada) · tasks atribuídas · concluídas
-- Também acessível na tela de admin de notificações para notificações avulsas
-
-## 7. Interrupção
-
-`pauseMission` estendida chama `release_mission_pending(mission_id)` que: (a) cancela notifications pendentes da missão (não abertas OU abertas mas claim não concluída), (b) fecha claims abertas com nota, (c) libera tasks não concluídas (`assigned_user_id=NULL, claim_id=NULL`). Painel admin passa a mostrar essas como "canceladas".
+- `00-referencias-open-source.md` — tabela comparativa dos 7 projetos (organização de dados, filtros, saved views, governança, fonte única da verdade), somente conceitos aplicáveis sem mexer na sua arquitetura.
+- `07-experiencia-uso.md` — previsibilidade, modelo mental, clareza; sem redesign.
+- `08-relatorio-final.md` — os 15 itens que você listou, com as sugestões separadas em correções críticas / consistência / usabilidade / evoluções futuras. Cada sugestão com custo estimado e risco de regressão, nenhuma implementada.
 
 ## Detalhes técnicos
 
-- Concorrência: `FOR UPDATE SKIP LOCKED` no CTE de seleção de tasks, tudo dentro de uma função plpgsql (uma transação).
-- Notificações são criadas em bloco direto pela server fn de missão (sem passar por `createNotification`); web push é disparado no mesmo bloco reusando `sendWebPush` + `push_subscriptions`.
-- Aba admin de visibilidade também respeita `cancelled_at` mostrando ainda a linha, com badge "cancelada".
-- Não altera fluxo `/missao/$missionId/contato/$contactId` (link público antigo) — segue em paralelo.
+- Leitura apenas: `code--view`, `rg`, e `supabase--read_query` para conferir dados reais. Nenhuma escrita no banco.
+- Toda afirmação de estado atual virá com referência `arquivo:linha` ou com o resultado da consulta que a comprova. Onde eu não conseguir confirmar, o texto dirá explicitamente **hipótese** ou **dúvida**, nunca fato.
+- Os documentos ficam versionados no projeto, servindo de base para as próximas conversas sem reprocessar tudo.
 
-## Entrega
+## O que fica de fora
 
-10 arquivos afetados aprox.: 1 migration, `agitation-missions.functions.ts`, `notifications.functions.ts`, `CreateMissionModal.tsx`, nova página do agitador, `missoes-agitacao.$missionId.tsx` (aba destinatários), `NotificationBell.tsx` (CTA mission), 1 componente de painel de destinatários, ajustes menores no auth/tipos.
+Não haverá alteração de código, migration, refatoração ou proposta de redesenho nesta auditoria. Melhorias só serão descritas, priorizadas e estimadas — a decisão de executar qualquer uma delas é sua, em uma conversa separada.
