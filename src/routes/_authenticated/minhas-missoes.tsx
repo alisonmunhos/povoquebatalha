@@ -47,6 +47,8 @@ type MissionBlock = {
     batch_size: number;
     is_open: boolean;
     paused_at: string | null;
+    media_path?: string | null;
+    media_filename?: string | null;
   };
   claim: { id: string; completed_at: string | null; claimed_at: string } | null;
   tasks: Task[];
@@ -208,6 +210,12 @@ function MissionBlockCard({
           <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">
             {block.mission.instructions}
           </p>
+        )}
+        {block.mission.media_path && (
+          <MissionMediaBlock
+            path={block.mission.media_path}
+            filename={block.mission.media_filename ?? "imagem-da-missao"}
+          />
         )}
         <div className="text-xs text-muted-foreground mt-2">
           {block.tasks.length} contato(s) na sua leva · {block.concluded} concluído(s) ·{" "}
