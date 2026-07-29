@@ -14,6 +14,7 @@ import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/p
 import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2, PhoneCall, CheckCircle2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
+import { MergeContactsModal } from "@/components/MergeContactsModal";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -781,6 +782,13 @@ function Contatos() {
           }
         }}
       />
+      {mergeIds.length >= 2 && (
+        <MergeContactsModal
+          ids={mergeIds}
+          onClose={() => setMergeIds([])}
+          onMerged={() => { setSelected(new Set()); q.refetch(); dupCountQ.refetch(); }}
+        />
+      )}
       <PhoneReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} onDone={() => { q.refetch(); countsQ.refetch(); }} />
     </div>
     </TooltipProvider>
