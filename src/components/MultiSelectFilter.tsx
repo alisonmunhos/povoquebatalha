@@ -4,7 +4,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
-export type MultiOption = { value: string; label: string; count?: number };
+export type MultiOption = {
+  value: string;
+  label: string;
+  count?: number;
+  /** Quando true, a opção aparece mas não pode ser marcada (ex.: sem contatos na base). */
+  disabled?: boolean;
+  /** Explicação curta mostrada ao lado de uma opção desabilitada. */
+  disabledReason?: string;
+};
 
 type Props = {
   options: MultiOption[];
