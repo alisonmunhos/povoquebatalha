@@ -641,8 +641,8 @@ function Contatos() {
                     </div>
                   </td>
                   <td className="px-3 py-3 space-x-1">
-                    {c.arquivado_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Arquivado</span>}
-                    {c.opt_out_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Opt-out</span>}
+                    {c.arquivado_at && <span title="Contato arquivado: não entra em contagens nem em envios" className="text-[10px] uppercase px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">Fora da base</span>}
+                    {c.opt_out_at && <span title="A pessoa pediu para não receber mensagens" className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Pediu para não receber</span>}
                     {!c.opt_out_at && c.consentimento_whatsapp && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">Ativo</span>}
                     {c.phone_status && c.phone_status !== "valido" && <span className={"text-[10px] uppercase px-1.5 py-0.5 rounded " + (PHONE_STATUS_BADGE[c.phone_status] ?? "bg-amber-100 text-amber-700")}>{PHONE_STATUS_LABEL[c.phone_status] ?? c.phone_status}</span>}
                   </td>
