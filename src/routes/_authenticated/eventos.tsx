@@ -222,8 +222,13 @@ function EventosPage() {
           cover_path: coverPath,
           cover_mime: coverMime,
           post_rsvp_title: postTitle.trim() || null,
+          post_rsvp_body: postBody.trim() || null,
           post_rsvp_button_text: postButtonText.trim() || null,
           post_rsvp_button_url: postButtonUrl.trim() || null,
+          post_decline_title: declineTitle.trim() || null,
+          post_decline_body: declineBody.trim() || null,
+          post_decline_button_text: declineButtonText.trim() || null,
+          post_decline_button_url: declineButtonUrl.trim() || null,
           linked_form_definition_id: linkedFormId || null,
         },
       });
