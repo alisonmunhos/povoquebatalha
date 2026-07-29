@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
+import {
+  applyCrmFilters,
+  resolveContactIdsForTagFilter,
+  paginateWithAllowedIds,
+  INLINE_ID_LIMIT,
+  type CrmFilters,
+} from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 import { parseSheetSort, resolveSortDbColumn } from "@/lib/column-sort-mapping";
 
