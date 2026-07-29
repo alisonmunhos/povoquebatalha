@@ -72,7 +72,7 @@ type SectionedFormDefinition = {
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 
 export function PublicFormRenderer({
-  slug, refToken, recadToken, startSectionId, eventSlug,
+  slug, refToken, recadToken, startSectionId, eventSlug, onEventConfirmed,
 }: {
   slug: string;
   refToken?: string;
@@ -80,6 +80,11 @@ export function PublicFormRenderer({
   startSectionId?: string;
   /** Quando renderizado dentro da tela pública de um evento: confirma presença junto. */
   eventSlug?: string;
+  /**
+   * Chamado quando a seção enviada confirmou presença no evento. Quando definido,
+   * o motor PARA aqui (não avança sozinho) e quem chama mostra a tela de confirmação.
+   */
+  onEventConfirmed?: (info: { recadToken: string | null; nextSectionId: string | null }) => void;
 }) {
   useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
