@@ -225,6 +225,9 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         source_filters: (!data.ids && data.filters ? data.filters : null) as never,
         is_open: false,
         instructions: data.instructions ?? null,
+        media_path: data.media_path ?? null,
+        media_mime: data.media_mime ?? null,
+        media_filename: data.media_filename ?? null,
       } as never)
       .select("id")
       .single();
