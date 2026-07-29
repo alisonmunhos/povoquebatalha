@@ -101,7 +101,10 @@ export function PublicFormRenderer({
   const [sectionedForm, setSectionedForm] = useState<SectionedFormDefinition | null>(null);
   const [layoutMode, setLayoutMode] = useState<"flat" | "sectioned" | null>(null);
   const [currentSectionId, setCurrentSectionId] = useState<string | null>(null);
+  /** Pilha das etapas já visitadas, pra permitir "Voltar" sem perder respostas. */
+  const [sectionHistory, setSectionHistory] = useState<string[]>([]);
   const [journeyStartSectionId, setJourneyStartSectionId] = useState<string | null>(null);
+
   const [values, setValues] = useState<Record<string, AnswerValue>>({});
   const [activeRecadToken, setActiveRecadToken] = useState(recadToken ?? "");
   const [contactContext, setContactContext] = useState<ContactContext | null>(null);
