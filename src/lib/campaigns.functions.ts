@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { bestPhone, canReceiveMessage, summarizeEligibility } from "@/lib/contact-rules";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
 import { applyCrmFilters, crmFilterSchema, type CrmFilters } from "@/lib/crm-filters";
@@ -141,27 +142,28 @@ export const getAudienceStats = createServerFn({ method: "POST" })
       }
     }
     if (!ids.length) {
-      return { total: 0, aptos: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, aptosIds: [] as string[], amostra: [] as Array<{ id: string; nome: string | null; nome_social: string | null; phone_e164: string | null; cidade: string | null; bairro: string | null }> };
+      return { total: 0, aptos: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, whatsappIndisponivel: 0, motivos: null as null | Record<string, number>, aptosIds: [] as string[], amostra: [] as Array<{ id: string; nome: string | null; nome_social: string | null; phone_e164: string | null; cidade: string | null; bairro: string | null }> };
     }
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status")
+      .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
       .in("id", ids);
-    let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
-    const aptos: typeof contatos = [];
-    for (const c of contatos ?? []) {
-      if (c.arquivado_at || c.lifecycle_status === "nao_enviar") { arquivados++; continue; }
-      if (c.opt_out_at) { optOut++; continue; }
-      if (!c.consentimento_whatsapp) { semConsent++; continue; }
-      if (!c.phone_e164) { semTelefone++; continue; }
-      aptos.push(c);
-    }
+    // C2/C6 — mesma decisão de elegibilidade usada pelo envio.
+    const { aptos, motivos } = summarizeEligibility(contatos ?? [], { requireConsent: true });
     return {
       total: ids.length,
       aptos: aptos.length,
-      semConsent, optOut, arquivados, semTelefone,
-      aptosIds: aptos.map((c) => c.id),
-      amostra: aptos.slice(0, 3).map((c) => ({ id: c.id, nome: c.nome, nome_social: c.nome_social, phone_e164: c.phone_e164, cidade: c.cidade, bairro: c.bairro })),
+      semConsent: motivos.sem_consentimento,
+      optOut: motivos.opt_out,
+      arquivados: motivos.arquivado + motivos.nao_enviar,
+      semTelefone: motivos.sem_telefone,
+      whatsappIndisponivel: motivos.whatsapp_indisponivel,
+      motivos,
+      aptosIds: aptos.map((c) => (c as { id: string }).id),
+      amostra: aptos.slice(0, 3).map((c) => {
+        const r = c as { id: string; nome: string | null; nome_social: string | null; cidade: string | null; bairro: string | null };
+        return { id: r.id, nome: r.nome, nome_social: r.nome_social, phone_e164: bestPhone(c), cidade: r.cidade, bairro: r.bairro };
+      }),
     };
   });
 
@@ -227,9 +229,9 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
     // 2) Filter eligibility
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status")
+      .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
       .in("id", baseIds);
-    const elegiveis = (contatos ?? []).filter((c) => c.consentimento_whatsapp && !c.opt_out_at && !c.arquivado_at && c.lifecycle_status !== "nao_enviar" && c.phone_e164);
+    const elegiveis = (contatos ?? []).filter((c) => canReceiveMessage(c, { requireConsent: true }));
     if (!elegiveis.length) throw new Error("Nenhum contato apto (com consentimento, telefone e sem opt-out/arquivado).");
 
     // 3) Optionally save as reusable template
@@ -377,12 +379,10 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status")
+      .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
       .in("id", audience.slice(0, 20000));
 
-    const elegiveis = (contatos ?? []).filter((c2) =>
-      c2.consentimento_whatsapp === true && !c2.opt_out_at && !c2.arquivado_at && c2.lifecycle_status !== "nao_enviar" && c2.phone_e164,
-    );
+    const elegiveis = (contatos ?? []).filter((c2) => canReceiveMessage(c2, { requireConsent: true }));
 
     await context.supabase.from("campaign_recipients").delete().eq("campaign_id", data.id);
 
