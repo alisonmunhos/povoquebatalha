@@ -333,6 +333,7 @@ export function PublicFormRenderer({
           terminal_section_id: terminalSectionId,
           start_section_id: journeyStartSectionId ?? terminalSectionId,
           event_slug: eventSlug ?? "",
+          event_rsvp_status: eventRsvpStatus ?? "confirmed",
           answers: values,
           hp: "",
         }),
