@@ -90,12 +90,18 @@ export function MultiSelectFilter({
             <CommandGroup>
               {options.map((o) => {
                 const checked = selectedSet.has(o.value);
+                const isDisabled = !!o.disabled && !checked;
                 return (
                   <CommandItem
                     key={o.value}
                     value={`${o.label} ${o.value}`}
-                    onSelect={() => toggle(o.value)}
-                    className="flex items-center gap-2"
+                    disabled={isDisabled}
+                    onSelect={() => {
+                      if (isDisabled) return;
+                      toggle(o.value);
+                    }}
+                    className={cn("flex items-center gap-2", isDisabled && "opacity-50 cursor-not-allowed")}
+                    title={isDisabled ? (o.disabledReason ?? "Nenhum contato com esta opção") : undefined}
                   >
                     <div
                       className={cn(
@@ -106,6 +112,11 @@ export function MultiSelectFilter({
                       {checked && <Check className="h-3 w-3" />}
                     </div>
                     <span className="flex-1 truncate">{o.label}</span>
+                    {isDisabled && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {o.disabledReason ?? "sem contatos"}
+                      </span>
+                    )}
                     {typeof o.count === "number" && (
                       <span className="text-xs text-muted-foreground tabular-nums">{o.count}</span>
                     )}
