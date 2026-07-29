@@ -1683,6 +1683,11 @@ export type Database = {
           linked_form_definition_id: string | null
           linked_form_start_section_id: string | null
           location: string | null
+          post_decline_body: string | null
+          post_decline_button_text: string | null
+          post_decline_button_url: string | null
+          post_decline_title: string | null
+          post_rsvp_body: string | null
           post_rsvp_button_text: string | null
           post_rsvp_button_url: string | null
           post_rsvp_title: string | null
@@ -1703,6 +1708,11 @@ export type Database = {
           linked_form_definition_id?: string | null
           linked_form_start_section_id?: string | null
           location?: string | null
+          post_decline_body?: string | null
+          post_decline_button_text?: string | null
+          post_decline_button_url?: string | null
+          post_decline_title?: string | null
+          post_rsvp_body?: string | null
           post_rsvp_button_text?: string | null
           post_rsvp_button_url?: string | null
           post_rsvp_title?: string | null
@@ -1723,6 +1733,11 @@ export type Database = {
           linked_form_definition_id?: string | null
           linked_form_start_section_id?: string | null
           location?: string | null
+          post_decline_body?: string | null
+          post_decline_button_text?: string | null
+          post_decline_button_url?: string | null
+          post_decline_title?: string | null
+          post_rsvp_body?: string | null
           post_rsvp_button_text?: string | null
           post_rsvp_button_url?: string | null
           post_rsvp_title?: string | null
