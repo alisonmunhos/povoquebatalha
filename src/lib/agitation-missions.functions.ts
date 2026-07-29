@@ -20,7 +20,11 @@ const createMissionSchema = z.object({
   filters: crmFilterSchema.partial().optional(),
   verify_whatsapp: z.boolean().optional(),
   instructions: z.string().max(4000).optional(),
+  media_path: z.string().max(500).nullable().optional(),
+  media_mime: z.string().max(120).nullable().optional(),
+  media_filename: z.string().max(200).nullable().optional(),
 });
+
 
 async function sendMissionNotifications(input: {
   missionId: string;
