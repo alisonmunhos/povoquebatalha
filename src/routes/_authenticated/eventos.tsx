@@ -174,8 +174,13 @@ function EventosPage() {
       cover_path: string | null;
       cover_mime: string | null;
       post_rsvp_title: string | null;
+      post_rsvp_body: string | null;
       post_rsvp_button_text: string | null;
       post_rsvp_button_url: string | null;
+      post_decline_title: string | null;
+      post_decline_body: string | null;
+      post_decline_button_text: string | null;
+      post_decline_button_url: string | null;
       linked_form_definition_id: string | null;
     };
     setCoverPath(extra.cover_path ?? null);
@@ -187,8 +192,13 @@ function EventosPage() {
         .catch(() => setCoverPreview(null));
     }
     setPostTitle(extra.post_rsvp_title ?? "");
+    setPostBody(extra.post_rsvp_body ?? "");
     setPostButtonText(extra.post_rsvp_button_text ?? "");
     setPostButtonUrl(extra.post_rsvp_button_url ?? "");
+    setDeclineTitle(extra.post_decline_title ?? "");
+    setDeclineBody(extra.post_decline_body ?? "");
+    setDeclineButtonText(extra.post_decline_button_text ?? "");
+    setDeclineButtonUrl(extra.post_decline_button_url ?? "");
     setLinkedFormId(extra.linked_form_definition_id ?? "");
   }
 
