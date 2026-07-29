@@ -459,7 +459,23 @@ function Contatos() {
               <TooltipContent className="max-w-xs">Isso selecionará todos os contatos que correspondem aos filtros atuais, não apenas os visíveis nesta página.</TooltipContent>
             </Tooltip>
             <button onClick={clearSel} className="text-xs underline">Limpar seleção</button>
+            {selected.size >= 2 && selected.size <= 10 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setMergeIds([...selected])}
+                    className="text-xs font-medium rounded-md bg-primary-foreground text-primary px-2.5 py-1"
+                  >
+                    Unificar {selected.size} cadastros
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Junta os cadastros selecionados em um só, preservando histórico, tags e acesso ao sistema.
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
+
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-primary-foreground/20 pt-2">
             {/* Tags */}
