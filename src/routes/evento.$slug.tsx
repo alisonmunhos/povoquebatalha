@@ -142,7 +142,7 @@ function EventoPublicPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Erro ao registrar resposta.");
       if (json.contact_token) setContactToken(json.contact_token);
       setShowForm(false);
-      setDeclineOpen(false);
+      setDeclinedLocal(false);
       setConfirmedStop(null);
       setContinueFrom(undefined);
       setPage({
