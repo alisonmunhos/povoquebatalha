@@ -142,7 +142,10 @@ export function PublicFormRenderer({
           setCurrentSectionId(startId);
           if (json.form.contact_context) {
             setContactContext(json.form.contact_context);
-            setEmailAlreadyRegistered(Boolean(json.form.contact_context.email_already_registered));
+            setEmailAlreadyRegistered(
+              Boolean(json.form.contact_context.email_already_registered) ||
+                Boolean(json.form.contact_context.has_account),
+            );
           }
           return;
         }
