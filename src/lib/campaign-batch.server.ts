@@ -128,6 +128,14 @@ export async function processCampaignBatchShared(
     const ct = (r as unknown as { contacts: RecipientContact | null }).contacts;
     // Pré-check de elegibilidade — mantém status "opted_out" com a mesma mensagem
     // usada antes da unificação, para não mudar comportamento visível ao usuário.
+    if (ct?.arquivado_at || ct?.lifecycle_status === "nao_enviar") {
+      await db.from("campaign_recipients").update({
+        status: "opted_out", failed_at: new Date().toISOString(),
+        erro: ct.arquivado_at ? "contato arquivado" : "marcado como não enviar",
+      }).eq("id", r.id);
+      skipped++;
+      continue;
+    }
     if (!ct?.phone_e164 || !ct.consentimento_whatsapp || ct.opt_out_at) {
       await db.from("campaign_recipients").update({
         status: "opted_out", failed_at: new Date().toISOString(), erro: "sem consentimento ou opt-out",
