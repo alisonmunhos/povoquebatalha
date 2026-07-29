@@ -45,19 +45,12 @@ export function StepOverlay({
     return () => window.removeEventListener("popstate", onPop);
   }, [onBack]);
 
-  const Panel = onSubmit ? "form" : "div";
+  const panelClass =
+    "animate-in slide-in-from-right-4 fade-in flex h-[100dvh] w-full flex-col bg-background shadow-xl sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:border";
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-stretch justify-center bg-background/70 backdrop-blur-sm sm:items-center sm:p-6"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <Panel
-        {...(onSubmit ? { onSubmit } : {})}
-        className="animate-in slide-in-from-right-4 fade-in flex h-[100dvh] w-full flex-col bg-background shadow-xl sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:border"
-      >
+  const panelBody = (
+    <>
+
         <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3">
           {onBack ? (
             <button
