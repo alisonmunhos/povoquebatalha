@@ -9,22 +9,25 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     since.setDate(since.getDate() - 7);
     const sinceIso = since.toISOString();
 
-    const [total, novosSemana, comConsent, optOut, campanhas, enviadasSemana, semGeo, comGeo, campDraft, campRunning] = await Promise.all([
-      supabase.from("contacts").select("*", { count: "exact", head: true }).is("arquivado_at", null),
-      supabase.from("contacts").select("*", { count: "exact", head: true }).gte("created_at", sinceIso),
+    // Escopo único: todo indicador de pessoas exclui arquivados e usuários do sistema.
+    const base = () =>
       supabase.from("contacts").select("*", { count: "exact", head: true })
-        .eq("consentimento_whatsapp", true).is("opt_out_at", null),
-      supabase.from("contacts").select("*", { count: "exact", head: true }).not("opt_out_at", "is", null),
+        .is("arquivado_at", null).eq("is_system_user", false);
+
+    const [total, novosSemana, comConsent, optOut, campanhas, enviadasSemana, semGeo, comGeo, campDraft, campRunning] = await Promise.all([
+      base(),
+      base().gte("created_at", sinceIso),
+      base().eq("consentimento_whatsapp", true).is("opt_out_at", null),
+      base().not("opt_out_at", "is", null),
       supabase.from("campaigns").select("*", { count: "exact", head: true }),
       supabase.from("campaign_recipients").select("*", { count: "exact", head: true })
         .gte("sent_at", sinceIso).in("status", ["sent", "delivered", "read"]),
-      supabase.from("contacts").select("*", { count: "exact", head: true })
-        .is("arquivado_at", null).is("latitude", null),
-      supabase.from("contacts").select("*", { count: "exact", head: true })
-        .is("arquivado_at", null).not("latitude", "is", null),
+      base().is("latitude", null),
+      base().not("latitude", "is", null),
       supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "draft"),
       supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "running"),
     ]);
+
 
     return {
       totalContatos: total.count ?? 0,
