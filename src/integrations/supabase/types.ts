@@ -2969,6 +2969,8 @@ export type Database = {
         }
         Returns: string
       }
+      name_is_subset: { Args: { _a: string; _b: string }; Returns: boolean }
+      name_tokens: { Args: { _n: string }; Returns: string[] }
       normalize_phone_br: { Args: { input: string }; Returns: string }
       notify_mission_targets:
         | {
@@ -3045,6 +3047,7 @@ export type Database = {
         Args: { _mission_id: string }
         Returns: undefined
       }
+      rescan_contact_duplicates: { Args: never; Returns: number }
       resolve_tracked_link: {
         Args: { _token: string }
         Returns: {
