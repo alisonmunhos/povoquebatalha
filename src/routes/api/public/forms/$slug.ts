@@ -184,7 +184,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
 
         let initialValues: Record<string, unknown> | undefined;
-        let contactContext: { email: string | null; nome: string | null; phone: string | null; email_already_registered: boolean } | null = null;
+        let contactContext: { email: string | null; nome: string | null; phone: string | null; email_already_registered: boolean; has_account: boolean } | null = null;
         const url = new URL(request.url);
         const token = url.searchParams.get("t");
         if (token) {
