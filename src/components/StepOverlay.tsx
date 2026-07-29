@@ -92,7 +92,24 @@ export function StepOverlay({
             {footer}
           </div>
         )}
-      </Panel>
+    </>
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-background/70 backdrop-blur-sm sm:items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      {onSubmit ? (
+        <form onSubmit={onSubmit} className={panelClass}>
+          {panelBody}
+        </form>
+      ) : (
+        <div className={panelClass}>{panelBody}</div>
+      )}
     </div>
   );
+
 }
