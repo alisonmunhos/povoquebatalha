@@ -23,6 +23,7 @@ export type SectionDraft = {
   whatsapp_button_message?: string | null;
   whatsapp_button_phone?: string | null;
   success_screen_order?: SuccessScreenOrder | null;
+  push_button_enabled?: boolean | null;
 };
 
 export type BranchRuleDraft = {

@@ -51,6 +51,7 @@ function FormBuilder() {
   const [confBody, setConfBody] = useState("");
   const [confActive, setConfActive] = useState(true);
   const [waEnabled, setWaEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [waMessage, setWaMessage] = useState("");
   const [waPhone, setWaPhone] = useState("");
   const [successOrder, setSuccessOrder] = useState<"whatsapp_first" | "confirmation_first">("whatsapp_first");
@@ -93,6 +94,7 @@ function FormBuilder() {
     setWaEnabled(Boolean(q.data.form.whatsapp_button_enabled));
     setWaMessage((q.data.form.whatsapp_button_message as string | null) ?? "");
     setWaPhone((q.data.form.whatsapp_button_phone as string | null) ?? "+5551981951545");
+    setPushEnabled(Boolean((q.data.form as { push_button_enabled?: boolean }).push_button_enabled));
     setSuccessOrder((q.data.form.success_screen_order as "whatsapp_first" | "confirmation_first" | undefined) ?? "whatsapp_first");
     const link = q.data.trackedLink as { token?: string } | null;
     setLinkToken(link?.token ?? null);
@@ -151,6 +153,7 @@ function FormBuilder() {
           id, title, tracking_name: trackingName.trim() || title, is_active: isActive,
           whatsapp_button_enabled: waEnabled, whatsapp_button_message: waMessage || null,
           whatsapp_button_phone: waPhone,
+          push_button_enabled: pushEnabled,
           success_screen_order: successOrder,
         },
       });
@@ -439,6 +442,15 @@ function FormBuilder() {
             </div>
           </div>
         )}
+        <p className="text-sm font-medium pt-2">Botão &quot;Ativar notificações&quot; (padrão)</p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={pushEnabled} onChange={(e) => setPushEnabled(e.target.checked)} /> Mostrar opção de alertas no celular ao finalizar
+        </label>
+        {pushEnabled && (
+          <p className="text-xs text-muted-foreground">
+            O visitante ativa push sem criar conta — a inscrição fica vinculada ao contato do formulário.
+          </p>
+        )}
         {waEnabled && confActive && (
           <>
             <p className="text-sm font-medium pt-2">Ordem na tela de sucesso (padrão geral)</p>
@@ -479,6 +491,7 @@ function FormBuilder() {
             formDefaultWhatsappEnabled={waEnabled}
             formDefaultWhatsappPhone={waPhone}
             formDefaultWhatsappMessage={waMessage || null}
+            formDefaultPushEnabled={pushEnabled}
             onSaved={() => q.refetch()}
           />
         ) : (
