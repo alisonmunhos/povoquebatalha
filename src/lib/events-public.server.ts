@@ -238,10 +238,7 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
     try {
       await supabaseAdmin.rpc("apply_contact_source", {
         _contact_id: contact.id,
-        _source_user_id: null,
         _source_module: "formulario_publico",
-        _source_form_type: null,
-        _source_link_id: null,
         _event_type: "inscricao_simples",
         _metadata: {
           via: "evento_rsvp",
