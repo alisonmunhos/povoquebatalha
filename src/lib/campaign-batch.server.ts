@@ -132,7 +132,7 @@ export async function processCampaignBatchShared(
     // usada antes da unificação, para não mudar comportamento visível ao usuário.
     // C2 — pré-check pela regra única; o motivo gravado vem do módulo central.
     const block = ct ? messageBlockReason(ct, { requireConsent: true }) : "sem_telefone";
-    if (block) {
+    if (!ct || block) {
       await db.from("campaign_recipients").update({
         status: "opted_out", failed_at: new Date().toISOString(), erro: BLOCK_LABELS[block],
       }).eq("id", r.id);
