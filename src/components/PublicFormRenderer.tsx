@@ -168,6 +168,25 @@ export function PublicFormRenderer({
     [sectionedForm, currentSection?.id],
   );
 
+  // Quem já tem conta no sistema não precisa criar login/senha de novo:
+  // pulamos a seção de criação de conta automaticamente.
+  const alreadyHasAccount = Boolean(contactContext?.has_account);
+  useEffect(() => {
+    if (!sectionedForm || !currentSection || !isAccountSection || !alreadyHasAccount) return;
+    const nextId = resolveNextSectionId(
+      currentSection.id,
+      sections,
+      sectionedForm.questions,
+      sectionedForm.branch_rules ?? [],
+      values,
+    );
+    if (nextId) setCurrentSectionId(nextId);
+    else void submitFinal(currentSection.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alreadyHasAccount, isAccountSection, currentSection?.id, sectionedForm]);
+
+
+
   const set = (questionId: string, v: AnswerValue) => setValues((p) => ({ ...p, [questionId]: v }));
   const toggleMulti = (questionId: string, option: string) => {
     const cur = (values[questionId] as string[]) ?? [];
