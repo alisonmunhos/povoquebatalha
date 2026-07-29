@@ -10,6 +10,10 @@ import {
   markAllNotificationsRead,
 } from "@/lib/notifications.functions";
 import { claimMissionBatch, getMissionNotificationBriefing } from "@/lib/agitation-missions.functions";
+import { approvePendingUser, rejectPendingUser } from "@/lib/users.functions";
+import type { UserApprovalPayload } from "@/lib/system-notifications.server";
+import { ALL_ROLES, ROLE_LABEL, type AppRole } from "@/lib/roles";
+import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { playPqbNotificationSound, primeNotificationAudio } from "@/lib/notification-sound";
 import { usePushSubscription } from "@/hooks/use-push-subscription";
 import fistAsset from "@/assets/fist-alert.png.asset.json";
@@ -94,20 +98,41 @@ function runCta(n: Notification) {
 
 const SESSION_ALERT_KEY = "pqb:notif-alert-shown";
 
+function parseUserApprovalPayload(
+  payload: Record<string, unknown> | null | undefined,
+): UserApprovalPayload | null {
+  if (!payload?.pending_user_id || typeof payload.pending_user_id !== "string") return null;
+  const role = payload.requested_role;
+  return {
+    pending_user_id: payload.pending_user_id,
+    full_name: String(payload.full_name ?? ""),
+    email: String(payload.email ?? ""),
+    requested_role:
+      typeof role === "string" && ALL_ROLES.includes(role as AppRole) ? (role as AppRole) : null,
+    phone: payload.phone ? String(payload.phone) : null,
+  };
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Notification | null>(null);
   const [acceptingMission, setAcceptingMission] = useState(false);
+  const [approvalRole, setApprovalRole] = useState<AppRole>("agitador");
+  const [approvingUser, setApprovingUser] = useState(false);
+  const [rejectingUser, setRejectingUser] = useState(false);
   const [showEntryAlert, setShowEntryAlert] = useState(false);
   const entryAlertChecked = useRef(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const role = useCurrentUserRole();
   const listFn = useServerFn(listMyNotifications);
   const countFn = useServerFn(countMyUnread);
   const markFn = useServerFn(markNotificationRead);
   const markAllFn = useServerFn(markAllNotificationsRead);
   const claimFn = useServerFn(claimMissionBatch);
   const briefingFn = useServerFn(getMissionNotificationBriefing);
+  const approveFn = useServerFn(approvePendingUser);
+  const rejectFn = useServerFn(rejectPendingUser);
   const push = usePushSubscription();
 
 
@@ -182,6 +207,10 @@ export function NotificationBell() {
   async function openDetail(n: Notification) {
     setOpen(false);
     setDetail(n);
+    if (n.kind === "user_approval") {
+      const payload = parseUserApprovalPayload(n.cta_payload);
+      setApprovalRole(payload?.requested_role ?? "agitador");
+    }
     if (!n.read_at) {
       await markFn({ data: { id: n.id } });
       qc.invalidateQueries({ queryKey: ["notif-unread"] });
@@ -214,7 +243,47 @@ export function NotificationBell() {
     }
   }
 
+  const userApprovalPayload =
+    detail?.kind === "user_approval" ? parseUserApprovalPayload(detail.cta_payload) : null;
+  const isAdmin = role === "admin";
+
+  async function approveFromBell() {
+    if (!userApprovalPayload) return;
+    setApprovingUser(true);
+    try {
+      await approveFn({ data: { userId: userApprovalPayload.pending_user_id, role: approvalRole } });
+      setDetail(null);
+      qc.invalidateQueries({ queryKey: ["notif-unread"] });
+      qc.invalidateQueries({ queryKey: ["notif-list"] });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao aprovar.");
+    } finally {
+      setApprovingUser(false);
+    }
+  }
+
+  async function rejectFromBell() {
+    if (!userApprovalPayload) return;
+    const label = userApprovalPayload.full_name || userApprovalPayload.email;
+    const first = prompt(
+      `REJEITAR o cadastro de ${label}?\n\nA conta será apagada permanentemente. Esta ação não pode ser desfeita.\n\nDigite REJEITAR para confirmar.`,
+    );
+    if (first !== "REJEITAR") return;
+    setRejectingUser(true);
+    try {
+      await rejectFn({ data: { userId: userApprovalPayload.pending_user_id } });
+      setDetail(null);
+      qc.invalidateQueries({ queryKey: ["notif-unread"] });
+      qc.invalidateQueries({ queryKey: ["notif-list"] });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao rejeitar.");
+    } finally {
+      setRejectingUser(false);
+    }
+  }
+
   const isMissionDetail = detail?.kind === "mission";
+  const isUserApprovalDetail = detail?.kind === "user_approval";
   const briefing = missionBriefingQ.data;
 
   return (
@@ -353,7 +422,14 @@ export function NotificationBell() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold text-sm truncate">{n.title}</div>
+                        <div className="font-semibold text-sm truncate flex items-center gap-1.5">
+                          {n.kind === "user_approval" && (
+                            <span className="text-[10px] font-bold tracking-wide rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 shrink-0">
+                              APROVAÇÃO
+                            </span>
+                          )}
+                          {n.title}
+                        </div>
                         {isUnread && <span className="h-2 w-2 rounded-full bg-accent shrink-0" />}
                       </div>
                       {n.body && (
@@ -384,6 +460,11 @@ export function NotificationBell() {
                 {isMissionDetail && (
                   <span className="text-[10px] font-bold tracking-wide rounded-full bg-primary/10 text-primary px-2 py-0.5 shrink-0">
                     MISSÃO
+                  </span>
+                )}
+                {isUserApprovalDetail && (
+                  <span className="text-[10px] font-bold tracking-wide rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 shrink-0">
+                    APROVAÇÃO
                   </span>
                 )}
                 <div className="font-semibold text-sm truncate">{detail.title}</div>
@@ -424,6 +505,46 @@ export function NotificationBell() {
                         <p className="text-sm whitespace-pre-wrap break-words">{detail.body}</p>
                       )}
                     </>
+                  ) : isUserApprovalDetail && userApprovalPayload ? (
+                    <div className="space-y-3">
+                      <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+                        <div>
+                          <div className="text-xs font-medium text-muted-foreground">Nome</div>
+                          <div className="font-medium">{userApprovalPayload.full_name || "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium text-muted-foreground">E-mail</div>
+                          <div className="break-all">{userApprovalPayload.email}</div>
+                        </div>
+                        {userApprovalPayload.phone && (
+                          <div>
+                            <div className="text-xs font-medium text-muted-foreground">WhatsApp</div>
+                            <div>{userApprovalPayload.phone}</div>
+                          </div>
+                        )}
+                      </div>
+                      {detail.body && (
+                        <p className="text-sm whitespace-pre-wrap break-words text-muted-foreground">{detail.body}</p>
+                      )}
+                      {isAdmin ? (
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">Papel ao aprovar</label>
+                          <select
+                            value={approvalRole}
+                            onChange={(e) => setApprovalRole(e.target.value as AppRole)}
+                            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            {ALL_ROLES.map((r) => (
+                              <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Apenas administradores podem aprovar ou rejeitar cadastros.
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     detail.body && (
                       <p className="text-sm whitespace-pre-wrap break-words">{detail.body}</p>
@@ -441,6 +562,33 @@ export function NotificationBell() {
                         Agora não
                       </Button>
                     </div>
+                  ) : isUserApprovalDetail && userApprovalPayload && isAdmin ? (
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        onClick={approveFromBell}
+                        disabled={approvingUser || rejectingUser}
+                      >
+                        {approvingUser ? "Aprovando…" : `Aprovar como ${ROLE_LABEL[approvalRole]}`}
+                      </Button>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="w-full text-destructive border-destructive/30 hover:bg-destructive/5"
+                        onClick={rejectFromBell}
+                        disabled={approvingUser || rejectingUser}
+                      >
+                        {rejectingUser ? "Rejeitando…" : "Rejeitar cadastro"}
+                      </Button>
+                      <Button size="lg" variant="ghost" className="w-full" onClick={() => setDetail(null)}>
+                        Agora não
+                      </Button>
+                    </div>
+                  ) : isUserApprovalDetail ? (
+                    <Button size="lg" variant="outline" className="w-full" onClick={() => setDetail(null)}>
+                      Fechar
+                    </Button>
                   ) : (
                     detail.cta_label &&
                     detail.cta_kind &&

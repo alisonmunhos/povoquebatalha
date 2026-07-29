@@ -7,6 +7,9 @@ import { ALL_ROLES } from "@/lib/roles";
 export const SYSTEM_NOTIFICATION_KEYS = ["user_approval", "event"] as const;
 export type SystemNotificationKey = (typeof SYSTEM_NOTIFICATION_KEYS)[number];
 
+/** Kinds gerados automaticamente pelo sistema — não aparecem na Central de Notificações manual. */
+export const SYSTEM_AUTO_NOTIFICATION_KINDS = [...SYSTEM_NOTIFICATION_KEYS] as const;
+
 export const SYSTEM_NOTIFICATION_LABELS: Record<SystemNotificationKey, string> = {
   user_approval: "Aprovação de cadastro",
   event: "Confirmação de presença (evento)",
