@@ -52,6 +52,7 @@ type ContactContext = {
   nome: string | null;
   phone: string | null;
   email_already_registered: boolean;
+  has_account?: boolean;
 };
 type BranchRule = {
   question_id: string;
