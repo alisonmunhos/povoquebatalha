@@ -267,7 +267,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       );
 
       const activeSet = new Set<string>();
-      const BATCH = 500;
+      // 500 IDs geravam URL de ~19.500 caracteres e estouravam o limite de
+      // cabeçalho HTTP (HeadersOverflowError → "fetch failed"). 150 mantém a URL curta.
+      const BATCH = 150;
       for (let i = 0; i < linkedContactIds.length; i += BATCH) {
         const chunk = linkedContactIds.slice(i, i + BATCH);
         const { data: activeChunk, error: activeError } = await sb
