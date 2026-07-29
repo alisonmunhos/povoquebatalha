@@ -181,14 +181,14 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         <Field label="Tags">
           <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
         </Field>
-        <Field label="Cadastro (ciclo de vida)" hint="Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização.">
-          <MultiSelectFilter options={LIFECYCLE} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
+        <Field label="Cadastro (ciclo de vida)" hint="Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
+          <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
         </Field>
         <Field label="Status do número" hint="Qualidade técnica do telefone. 'Falta DDD' = precisa completar o código de área.">
-          <MultiSelectFilter options={PHONE_STATUS} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(PHONE_STATUS, facets?.phone)} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
         </Field>
         <Field label="Confirmado no WhatsApp?" hint="Preenchido só após você rodar 'Verificar no WhatsApp'.">
-          <MultiSelectFilter options={WPP_STATUS} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(WPP_STATUS, facets?.whatsapp)} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
         </Field>
       </Section>
 
