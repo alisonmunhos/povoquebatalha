@@ -1,65 +1,69 @@
-## Etapa 1 — Parar o sangramento
+## Objetivo
 
-Três correções pontuais, sem migration, sem redesenho de tela e sem mudança no modelo de dados. Cada uma fecha um caminho por onde o sistema hoje faz algo diferente do que promete na interface.
+Executar de uma vez as Etapas 2, 3 e 4 do relatório final: cada regra de negócio passa a existir em **um único lugar**, os indicadores passam a bater entre si, e as telas param de oferecer opções que não significam nada.
 
----
-
-### Correção 1 — O envio passa a respeitar arquivado e "não enviar"
-
-**Hoje:** o motor de envio (`src/lib/wa-send.server.ts`) bloqueia opt-out, falta de consentimento, status de WhatsApp inválido e ausência de telefone — mas **não** checa `arquivado_at` nem `lifecycle_status = 'nao_enviar'`. Confirmado na base: 3 contatos arquivados receberiam campanha hoje.
-
-**O que muda:**
-- Acrescentar as duas checagens no mesmo bloco de validações comuns, devolvendo motivos legíveis ("arquivado" e "marcado como não enviar"), no mesmo formato dos motivos já existentes.
-- Garantir que os campos necessários venham nas consultas que alimentam o envio (campanhas e envio direto), para que a checagem não seja silenciosamente ignorada por campo ausente.
-- A prévia de audiência de campanha passa a aplicar os mesmos dois bloqueios, para prévia e disparo darem o mesmo número.
-
-**Efeito visível:** o número da prévia passa a bater com o que é realmente enviado, e contatos arquivados/bloqueados deixam de receber mensagem.
+Decisões já tomadas por você e que valem para tudo abaixo:
+- **Arquivado não entra no "Total da base".** Vira indicador próprio.
+- **Usuário do sistema não conta como apoiador.** Continua na base de contatos, com marcação.
 
 ---
 
-### Correção 2 — O formulário público deixa de reativar quem pediu descadastro
+## Etapa 2 — Centralizar as regras
 
-**Hoje:** o fluxo de recadastro em `src/routes/api/public/forms/$slug.ts` grava `opt_out_at: null` ao concluir, ou seja, um preenchimento anula um pedido de descadastro anterior. Também não trata o caso de quem está arquivado.
+Um módulo único de regras (`src/lib/contact-rules.ts`) passa a ser a fonte da verdade. Nada de banco muda; nada de tela é redesenhado.
 
-**O que muda:**
-- Deixar de limpar `opt_out_at` automaticamente. O descadastro só é revertido por consentimento explícito na própria submissão (quando o formulário tiver o campo de consentimento marcado) — caso contrário permanece.
-- Quando a pessoa está arquivada e se recadastra, registrar o recadastro sem desarquivar por conta própria: o contato fica visível para revisão em vez de voltar sozinho ao fluxo de comunicação.
-- Preservar todos os dados enviados (nome, telefone, respostas) em qualquer um dos casos — nada é descartado.
+**C4 — Acesso por lista de IDs**
+Toda consulta que recebe uma lista grande de IDs passa a usar a busca em lotes que já existe (`fetchContactsBatched`). Hoje várias consultas mandam a lista inteira de uma vez e podem falhar em silêncio quando a lista é grande.
 
-**Efeito visível:** descadastro passa a ser respeitado; nenhum dado deixa de ser gravado.
+**C3 — "Tem telefone"**
+Uma única regra de precedência: candidato de WhatsApp → número formatado → número bruto. É a regra que o motor de envio já usa corretamente; passa a valer também para exibição em lista, planilha, exportação e contagem.
 
----
+**C1 — "Contato ativo"**
+Um único filtro base, com `crm-filters.ts` como referência. Todas as telas passam a assumir o mesmo padrão (não arquivado), e quem quiser incluir arquivados precisa pedir explicitamente.
 
-### Correção 3 — Seleção em massa avisa em vez de truncar em silêncio
+**C2 — "Apto a receber"**
+Uma única função, extraída do motor de envio, usada pela prévia de campanha, pelo painel de relacionamento, pelo lote de envio e pelas automações. Inclui os bloqueios já corrigidos na Etapa 1 (arquivado, "não enviar", opt-out, consentimento, telefone).
 
-**Hoje:** "Selecionar todos do filtro" pede no máximo 5.000 IDs (`selectAllFiltered` em `src/routes/_authenticated/contatos.index.tsx`), e as funções de lote aceitam no máximo 5.000. Se o filtro tiver mais que isso, a seleção é cortada sem aviso e a ação em massa afeta menos contatos do que o usuário acredita.
+**C6 — Contagem de público**
+Painel, prévia e envio passam a chamar a mesma contagem (`buildAudienceIds`). Deixa de existir número de prévia diferente do número enviado.
 
-**O que muda:**
-- A função que devolve os IDs passa a informar também o total real do filtro.
-- Quando o total for maior que o limite, mostrar um aviso claro: "Seu filtro tem X contatos; foram selecionados os primeiros Y. Refine o filtro para agir sobre todos."
-- Nas confirmações de ação em massa, exibir sempre a quantidade exata que será afetada.
-
-**Efeito visível:** nunca mais uma ação em massa afeta menos do que a tela diz.
+**C5 — Busca textual**
+A busca por nome passa a usar a coluna já existente e já normalizada (`nome_normalizado`, sem acento e em minúsculas), com o termo digitado normalizado do mesmo jeito. Buscar "jose" passa a encontrar "José". Os demais campos (cidade, e-mail, telefone) continuam como estão.
 
 ---
 
-### O que **não** entra nesta etapa
+## Etapa 3 — Corrigir os indicadores
 
-Centralização das 8 regras (C1–C6), correção dos indicadores, busca com acentos, fila de duplicidades e distinção visual entre arquivado e opt-out. São as etapas 2 a 5 do `08-relatorio-final.md`.
-
-### Duas decisões ainda abertas
-
-Elas não bloqueiam a Etapa 1, mas travam a Etapa 3 (indicadores):
-1. Arquivado entra no "Total da base"? (recomendação: não)
-2. Usuário do sistema conta como apoiador? (recomendação: não)
+- **"Sem resposta"** passa a contar pessoas que não responderam, e não "aptos menos mensagens recebidas" (hoje mistura duas dimensões e mostra um número menor do que o real).
+- **Todo cartão declara seu escopo.** Cada indicador do painel passa a excluir arquivados por padrão, com "Arquivados" como cartão separado.
+- **Apoiadores** passa a excluir usuários do sistema; a base de contatos continua contando todo mundo.
+- **Prévia de campanha = envio.** Mesma função, mesmo número, e a prévia passa a discriminar quantos foram descartados e por qual motivo.
 
 ---
 
-### Detalhes técnicos
+## Etapa 4 — Limpar significado
 
-- `src/lib/wa-send.server.ts`: novas checagens no bloco `if (!input.skipValidations)`, com `baseSkip`; ampliar o tipo do contato de entrada com `arquivado_at` e `lifecycle_status`.
-- `src/lib/campaigns.functions.ts`: aplicar os mesmos filtros em `buildAudienceIds` e na contagem da prévia; incluir os campos no `select` dos destinatários.
-- `src/routes/api/public/forms/$slug.ts`: remover `opt_out_at: null` incondicional (linha ~488) e condicionar ao consentimento explícito; tratar `arquivado_at` sem desarquivar automaticamente.
-- `src/lib/crm-bulk.functions.ts`: a função de IDs por filtro passa a retornar `{ ids, total, truncated }` usando `count: "exact"`.
-- `src/routes/_authenticated/contatos.index.tsx`: `selectAllFiltered` mostra aviso quando `truncated`; confirmações de ação em massa exibem a contagem.
-- Ao final: typecheck do projeto inteiro.
+- **Filtros vazios:** as opções de filtro que nunca retornam nada (por exemplo, os status de WhatsApp que não existem na base e os estados de ciclo de vida nunca gravados) passam a aparecer com contagem, e as de contagem zero ficam desabilitadas com explicação, em vez de sumirem sem aviso.
+- **Arquivado ≠ opt-out:** passam a ser dois selos visuais distintos na lista e na ficha, com texto claro ("Fora da base" x "Pediu para não receber").
+- **Fila de duplicidades:** os 166 pares pendentes ganham contador visível e acesso direto a partir da Gestão da Base.
+
+---
+
+## Detalhes técnicos
+
+Arquivos principais:
+- **Novo:** `src/lib/contact-rules.ts` — `isActiveContact`, `bestPhone`, `canReceiveMessage`, `normalizeSearchTerm`.
+- `src/lib/crm-filters.ts` — busca por `nome_normalizado`; filtro base único.
+- `src/lib/wa-send.server.ts`, `src/lib/campaign-batch.server.ts`, `src/lib/automations.server.ts` — passam a importar `canReceiveMessage`.
+- `src/lib/campaigns.functions.ts` — prévia, criação e preparo compartilhando `buildAudienceIds` + `canReceiveMessage`, com motivos de descarte.
+- `src/lib/crm-bulk.functions.ts`, `src/lib/contacts-sheet.functions.ts`, `src/lib/map.functions.ts`, `src/lib/agitation-missions.functions.ts`, `src/lib/segments.functions.ts` — consumo do módulo central e uso de `fetchContactsBatched`.
+- `src/lib/dashboard.functions.ts`, `src/lib/relacionamento.functions.ts` — indicadores recalculados.
+- `src/routes/_authenticated/contatos.index.tsx`, `src/components/ContactFiltersPanel.tsx`, `src/components/contacts-sheet/*` — selos, contagens nos filtros, atalho de duplicidades.
+
+Sem migration. Sem alteração de modelo de dados. Typecheck do projeto inteiro ao final.
+
+## Riscos e cuidados
+
+- É uma refatoração transversal: o comportamento visível deve mudar **apenas** onde o relatório apontou erro. Vou manter os nomes e a aparência das telas.
+- Números do painel vão mudar (ficam corretos). Vou listar no final o antes/depois de cada indicador afetado para você conferir.
+- Nenhum dado é apagado ou reescrito no banco.
