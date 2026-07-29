@@ -110,8 +110,12 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
         let eventConfirmed = false;
         if (d.event_slug) {
           const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
-          const rsvp = await confirmEventRsvpForContact({ eventSlug: d.event_slug, contactId: saved.contactId });
-          eventConfirmed = rsvp.ok;
+          const rsvp = await confirmEventRsvpForContact({
+            eventSlug: d.event_slug,
+            contactId: saved.contactId,
+            status: d.event_rsvp_status ?? "confirmed",
+          });
+          eventConfirmed = rsvp.ok && (d.event_rsvp_status ?? "confirmed") === "confirmed";
         }
 
         // A pessoa já tem conta no sistema? (evita pedir criação de senha de novo)
