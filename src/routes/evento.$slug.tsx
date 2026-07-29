@@ -61,6 +61,7 @@ function EventoPublicPage() {
   const { t: tokenFromUrl } = useSearch({ from: "/evento/$slug" });
   const [page, setPage] = useState<PageState>({ status: "loading" });
   const [nome, setNome] = useState("");
+  const [phone, setPhone] = useState("");
   const [consentWhatsapp, setConsentWhatsapp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
