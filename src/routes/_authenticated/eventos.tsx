@@ -387,14 +387,25 @@ function EventosPage() {
             </p>
           </div>
 
+          <div className="sm:col-span-2 pt-2 border-t">
+            <p className="text-sm font-semibold">Depois de confirmar presença</p>
+          </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">
-              Mensagem exibida depois de confirmar presença
-            </label>
+            <label className="text-xs font-medium text-muted-foreground">Título</label>
             <input
               value={postTitle}
               onChange={(e) => setPostTitle(e.target.value)}
-              placeholder="Ex.: Presença confirmada! Chame mais gente."
+              placeholder="Ex.: Presença confirmada! 🎉"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
+            <textarea
+              value={postBody}
+              onChange={(e) => setPostBody(e.target.value)}
+              rows={3}
+              placeholder="Ex.: Obrigado(a) por confirmar! Agora, clique abaixo pra completar seu cadastro."
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -403,7 +414,7 @@ function EventosPage() {
             <input
               value={postButtonText}
               onChange={(e) => setPostButtonText(e.target.value)}
-              placeholder="Ex.: Entrar no grupo"
+              placeholder="Ex.: Completar meu cadastro"
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -412,7 +423,48 @@ function EventosPage() {
             <input
               value={postButtonUrl}
               onChange={(e) => setPostButtonUrl(e.target.value)}
-              placeholder="https://…"
+              placeholder="Deixe em branco pra continuar o cadastro na própria página"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="sm:col-span-2 pt-2 border-t">
+            <p className="text-sm font-semibold">Depois de marcar que não poderá ir</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Título</label>
+            <input
+              value={declineTitle}
+              onChange={(e) => setDeclineTitle(e.target.value)}
+              placeholder="Ex.: Tudo bem, obrigado por avisar!"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
+            <textarea
+              value={declineBody}
+              onChange={(e) => setDeclineBody(e.target.value)}
+              rows={3}
+              placeholder="Ex.: Mesmo não podendo estar lá, você pode continuar com a gente."
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Texto do botão (opcional)</label>
+            <input
+              value={declineButtonText}
+              onChange={(e) => setDeclineButtonText(e.target.value)}
+              placeholder="Ex.: Quero continuar com vocês"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Link do botão (opcional)</label>
+            <input
+              value={declineButtonUrl}
+              onChange={(e) => setDeclineButtonUrl(e.target.value)}
+              placeholder="Deixe em branco pra abrir o formulário na própria página"
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
