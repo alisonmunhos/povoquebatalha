@@ -101,13 +101,32 @@ function mergeLabels(dynamic: MultiOption[] | undefined, labels: MultiOption[]):
   return list.length ? list : labels;
 }
 
+export type StatusFacets = {
+  lifecycle: Record<string, number>;
+  phone: Record<string, number>;
+  whatsapp: Record<string, number>;
+};
+
+/** Anexa a contagem real da base a uma lista fixa; opções com zero ficam desabilitadas. */
+function withCounts(list: MultiOption[], facet: Record<string, number> | undefined): MultiOption[] {
+  if (!facet) return list;
+  return list.map((o) => {
+    const count = facet[o.value] ?? 0;
+    return count > 0
+      ? { ...o, count }
+      : { ...o, count: 0, disabled: true, disabledReason: "nenhum contato" };
+  });
+}
+
 type Props = {
   filters: CrmFilters;
   onChange: (f: CrmFilters) => void;
   options: FilterOptionsBundle | undefined;
+  /** Contagens reais por status, vindas do banco. Sem elas, as listas ficam sem número. */
+  facets?: StatusFacets;
 };
 
-export function ContactFiltersPanel({ filters, onChange, options }: Props) {
+export function ContactFiltersPanel({ filters, onChange, options, facets }: Props) {
   const set = <K extends keyof CrmFilters>(k: K, v: CrmFilters[K]) => {
     const next = { ...filters, [k]: v } as CrmFilters;
     if (v === undefined || (Array.isArray(v) && v.length === 0) || v === "") {
