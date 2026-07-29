@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { SYSTEM_AUTO_NOTIFICATION_KINDS } from "@/lib/system-notification-settings.functions";
 
 const listInput = z.object({
   limit: z.number().int().min(1).max(50).optional().default(20),
@@ -225,6 +226,7 @@ export const listNotificationBatches = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("notifications")
       .select("id, batch_id, title, kind, created_at, read_at, cancelled_at, mission_id")
+      .not("kind", "in", `(${SYSTEM_AUTO_NOTIFICATION_KINDS.map((k) => `"${k}"`).join(",")})`)
       .order("created_at", { ascending: false })
       .limit(2000);
     if (data.kind === "mission") q = q.eq("kind", "mission");

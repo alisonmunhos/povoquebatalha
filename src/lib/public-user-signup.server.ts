@@ -143,6 +143,19 @@ export async function createPendingUserFromSignup(input: CreatePendingUserInput)
     /* non-blocking */
   }
 
+  try {
+    const { notifyUserApprovalPending } = await import("@/lib/system-notifications.server");
+    await notifyUserApprovalPending({
+      pendingUserId: userId,
+      fullName: input.nome,
+      email: input.email,
+      requestedRole: requestedRole,
+      phone: phoneE164,
+    });
+  } catch {
+    /* non-blocking */
+  }
+
   let nextStepUrl: string | null = null;
   if (input.sendWelcomeWhatsApp !== false && contactId) {
     try {

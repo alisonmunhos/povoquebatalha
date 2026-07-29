@@ -454,6 +454,12 @@ export const approvePendingUser = createServerFn({ method: "POST" })
     if (upErr) throw new Error(upErr.message);
     await syncContactSystemRole(supabaseAdmin, data.userId, data.role);
     await audit(context, data.userId, "usuario_aprovado", { role: data.role });
+    try {
+      const { cancelNotificationsForPendingUser } = await import("@/lib/system-notifications.server");
+      await cancelNotificationsForPendingUser(data.userId, context.userId);
+    } catch {
+      /* non-blocking */
+    }
     return { ok: true as const };
   });
 
@@ -477,6 +483,12 @@ export const rejectPendingUser = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
     await audit(context, data.userId, "usuario_rejeitado", {});
+    try {
+      const { cancelNotificationsForPendingUser } = await import("@/lib/system-notifications.server");
+      await cancelNotificationsForPendingUser(data.userId, context.userId);
+    } catch {
+      /* non-blocking */
+    }
     return { ok: true as const };
   });
 
