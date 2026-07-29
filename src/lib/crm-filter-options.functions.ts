@@ -82,9 +82,11 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,consentimento_dados_sensiveis,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id";
     const CHUNK = 1000;
     const MAX_ROWS = 20000;
-    const contacts: Record<string, unknown>[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type ContactRow = any;
+    const contacts: ContactRow[] = [];
     for (let from = 0; from < MAX_ROWS; from += CHUNK) {
-      let page: Record<string, unknown>[] | null = null;
+      let page: ContactRow[] | null = null;
       let lastErr: unknown = null;
       for (let attempt = 0; attempt < 3 && !page; attempt++) {
         const res = await sb
@@ -97,7 +99,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
           lastErr = res.error;
           await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
         } else {
-          page = (res.data ?? []) as unknown as Record<string, unknown>[];
+          page = (res.data ?? []) as unknown as ContactRow[];
         }
       }
       if (!page) throw lastErr;
