@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "@/lib/authz";
+import type { Database } from "@/integrations/supabase/types";
+
+type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
 
 
 export const listImportedContactsTokens = createServerFn({ method: "POST" })
@@ -243,12 +246,12 @@ export const listDuplicateGroups = createServerFn({ method: "GET" })
     const ids = [...parent.keys()];
     const { data: contacts } = ids.length
       ? await context.supabase.from("contacts").select("*").in("id", ids)
-      : { data: [] as Array<Record<string, unknown>> };
-    const byId = new Map((contacts ?? []).map((c) => [c.id as string, c]));
+      : { data: [] as ContactRow[] };
+    const byId = new Map((contacts ?? []).map((c) => [c.id, c] as const));
 
     const groups = new Map<
       string,
-      { key: string; contacts: Array<Record<string, unknown>>; pairs: DupPairRow[]; match_type: string }
+      { key: string; contacts: ContactRow[]; pairs: DupPairRow[]; match_type: string }
     >();
     for (const p of rows) {
       const key = find(p.contact_a);
