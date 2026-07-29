@@ -2,6 +2,7 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Calendar, CheckCircle2, Loader2, MapPin, XCircle } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { PublicFormRenderer } from "@/components/PublicFormRenderer";
 
 export const Route = createFileRoute("/evento/$slug")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -28,11 +29,7 @@ type EventData = {
   post_rsvp_button_url?: string | null;
 };
 
-type PostRsvp = {
-  title: string | null;
-  button_text: string | null;
-  button_url: string | null;
-};
+type LinkedForm = { slug: string; start_section_id: string | null };
 
 type PageState =
   | { status: "loading" }
@@ -40,6 +37,7 @@ type PageState =
   | {
       status: "ready";
       event: EventData;
+      form: LinkedForm | null;
       contact: { id: string; nome: string } | null;
       rsvp_status: "confirmed" | "declined" | null;
     };
@@ -59,19 +57,19 @@ function EventoPublicPage() {
   const [page, setPage] = useState<PageState>({ status: "loading" });
   const [nome, setNome] = useState("");
   const [phone, setPhone] = useState("");
+  const [consentWhatsapp, setConsentWhatsapp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [contactToken, setContactToken] = useState<string | undefined>(tokenFromUrl);
-  const [consentWhatsapp, setConsentWhatsapp] = useState(false);
-  const [consentLgpd, setConsentLgpd] = useState(false);
-  const [consentSensiveis, setConsentSensiveis] = useState(false);
-  const [postRsvp, setPostRsvp] = useState<PostRsvp | null>(null);
-
-  const consentsOk = consentWhatsapp && consentLgpd && consentSensiveis;
+  const [showForm, setShowForm] = useState(false);
 
   async function load() {
     setErr(null);
-    const qs = contactToken ? `?t=${encodeURIComponent(contactToken)}` : tokenFromUrl ? `?t=${encodeURIComponent(tokenFromUrl)}` : "";
+    const qs = contactToken
+      ? `?t=${encodeURIComponent(contactToken)}`
+      : tokenFromUrl
+        ? `?t=${encodeURIComponent(tokenFromUrl)}`
+        : "";
     const res = await fetch(`/api/public/events/${encodeURIComponent(slug)}${qs}`);
     const json = await res.json();
     if (!res.ok || !json.ok) {
@@ -81,6 +79,7 @@ function EventoPublicPage() {
     setPage({
       status: "ready",
       event: json.event as EventData,
+      form: (json.form as LinkedForm | null) ?? null,
       contact: json.contact ?? null,
       rsvp_status: json.rsvp_status ?? null,
     });
@@ -92,21 +91,14 @@ function EventoPublicPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, tokenFromUrl, contactToken]);
 
+  /** Fluxo simples: recusa, e confirmação de eventos sem formulário vinculado. */
   async function submitRsvp(status: "confirmed" | "declined") {
     if (page.status !== "ready") return;
     setBusy(true);
     setErr(null);
     try {
-      if (status === "confirmed" && !consentsOk) {
-        throw new Error("Marque os três consentimentos para confirmar sua presença.");
-      }
-      const body: Record<string, unknown> = {
-        status,
-        hp: "",
-        consentimento_whatsapp: consentWhatsapp,
-        consentimento_lgpd: consentLgpd,
-        consentimento_dados_sensiveis: consentSensiveis,
-      };
+      const body: Record<string, unknown> = { status, hp: "" };
+      if (status === "confirmed") body.consentimento_whatsapp = consentWhatsapp;
       if (page.contact || contactToken || tokenFromUrl) {
         body.contact_token = contactToken ?? tokenFromUrl;
       } else {
@@ -121,11 +113,11 @@ function EventoPublicPage() {
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Erro ao registrar resposta.");
       if (json.contact_token) setContactToken(json.contact_token);
-      if (status === "confirmed") setPostRsvp((json.post_rsvp as PostRsvp) ?? null);
-      else setPostRsvp(null);
+      setShowForm(false);
       setPage({
         status: "ready",
         event: page.event,
+        form: page.form,
         contact: { id: page.contact?.id ?? "known", nome: json.contact_name ?? nome },
         rsvp_status: status,
       });
@@ -191,74 +183,133 @@ function EventoPublicPage() {
             </div>
           )}
 
-          <a
-            href={icsUrl}
-            className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-          >
+          <a href={icsUrl} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
             <Calendar className="h-4 w-4" /> Adicionar à agenda (.ics)
           </a>
 
-          <section className="bg-card border rounded-xl p-5 space-y-4">
-            <h2 className="font-semibold">Sua presença</h2>
-
-            {page.rsvp_status === "confirmed" && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-emerald-700 text-sm">
-                  <CheckCircle2 className="h-5 w-5" />
-                  {postRsvp?.title ?? page.event.post_rsvp_title ?? "Presença confirmada. Até lá!"}
+          {/* ===== Com formulário vinculado: o motor de seções cuida de tudo ===== */}
+          {page.form ? (
+            <section className="space-y-4">
+              {page.rsvp_status === "confirmed" && !showForm && (
+                <div className="bg-card border rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700 text-sm">
+                    <CheckCircle2 className="h-5 w-5" />
+                    {page.event.post_rsvp_title ?? "Presença confirmada. Até lá!"}
+                  </div>
+                  {page.event.post_rsvp_button_url && (
+                    <a
+                      href={page.event.post_rsvp_button_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
+                    >
+                      {page.event.post_rsvp_button_text ?? "Saiba mais"}
+                    </a>
+                  )}
+                  <div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => submitRsvp("declined")}
+                      className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                    >
+                      Mudar para: não vou
+                    </button>
+                  </div>
                 </div>
-                {(postRsvp?.button_url ?? page.event.post_rsvp_button_url) && (
-                  <a
-                    href={(postRsvp?.button_url ?? page.event.post_rsvp_button_url) as string}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
+              )}
+
+              {page.rsvp_status === "declined" && !showForm && (
+                <div className="bg-card border rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <XCircle className="h-5 w-5" /> Você informou que não poderá ir.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(true)}
+                    className="rounded-md border px-4 py-2 text-sm hover:bg-muted"
                   >
-                    {postRsvp?.button_text ?? page.event.post_rsvp_button_text ?? "Saiba mais"}
-                  </a>
-                )}
-              </div>
-            )}
-            {page.rsvp_status === "declined" && (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <XCircle className="h-5 w-5" /> Você informou que não poderá ir.
-              </div>
-            )}
-
-            {!page.contact && !contactToken && !tokenFromUrl && (
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">Para confirmar, informe seu nome e WhatsApp:</p>
-                <div>
-                  <label className="text-xs font-medium">Nome</label>
-                  <input
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
+                    Mudar para: vou sim
+                  </button>
                 </div>
-                <div>
-                  <label className="text-xs font-medium">WhatsApp</label>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(51) 99999-9999"
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              )}
+
+              {(page.rsvp_status == null || showForm) && (
+                <>
+                  <PublicFormRenderer
+                    slug={page.form.slug}
+                    startSectionId={page.form.start_section_id ?? undefined}
+                    recadToken={contactToken ?? tokenFromUrl}
+                    eventSlug={slug}
                   />
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => submitRsvp("declined")}
+                      className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+                    >
+                      Não poderei ir
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {err && <p className="text-sm text-destructive">{err}</p>}
+            </section>
+          ) : (
+            /* ===== Sem formulário vinculado: fluxo simples de sempre ===== */
+            <section className="bg-card border rounded-xl p-5 space-y-4">
+              <h2 className="font-semibold">Sua presença</h2>
+
+              {page.rsvp_status === "confirmed" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700 text-sm">
+                    <CheckCircle2 className="h-5 w-5" />
+                    {page.event.post_rsvp_title ?? "Presença confirmada. Até lá!"}
+                  </div>
+                  {page.event.post_rsvp_button_url && (
+                    <a
+                      href={page.event.post_rsvp_button_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
+                    >
+                      {page.event.post_rsvp_button_text ?? "Saiba mais"}
+                    </a>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+              {page.rsvp_status === "declined" && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <XCircle className="h-5 w-5" /> Você informou que não poderá ir.
+                </div>
+              )}
 
-            {(page.contact || contactToken || tokenFromUrl) && page.rsvp_status == null && (
-              <p className="text-sm text-muted-foreground">
-                Olá{page.contact?.nome ? `, ${page.contact.nome}` : ""}! Confirme sua presença:
-              </p>
-            )}
+              {!page.contact && !contactToken && !tokenFromUrl && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Para confirmar, informe seu nome e WhatsApp:</p>
+                  <div>
+                    <label className="text-xs font-medium">Nome</label>
+                    <input
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">WhatsApp</label>
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="(51) 99999-9999"
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
 
-            {page.rsvp_status !== "confirmed" && (
-              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-                <p className="text-xs font-medium">
-                  Para confirmar presença, precisamos da sua autorização:
-                </p>
+              {page.rsvp_status !== "confirmed" && (
                 <label className="flex items-start gap-2 text-xs cursor-pointer">
                   <input
                     type="checkbox"
@@ -268,67 +319,45 @@ function EventoPublicPage() {
                   />
                   Autorizo receber mensagens no WhatsApp sobre este evento e outras atividades.
                 </label>
-                <label className="flex items-start gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={consentLgpd}
-                    onChange={(e) => setConsentLgpd(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  Concordo com o uso dos meus dados conforme a{" "}
-                  <Link to="/termos/$slug" params={{ slug: "privacidade" }} className="text-primary hover:underline">
-                    política de privacidade
-                  </Link>
-                  .
-                </label>
-                <label className="flex items-start gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={consentSensiveis}
-                    onChange={(e) => setConsentSensiveis(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  Autorizo o tratamento de dados sensíveis (como opinião política) para fins de mobilização.
-                </label>
-              </div>
-            )}
+              )}
 
-            {page.rsvp_status == null && (
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  disabled={busy || !consentsOk}
-                  onClick={() => submitRsvp("confirmed")}
-                  className="flex-1 rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {busy ? "Salvando…" : "Confirmar presença"}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => submitRsvp("declined")}
-                  className="flex-1 rounded-md border px-4 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
-                >
-                  Não poderei ir
-                </button>
-              </div>
-            )}
+              {page.rsvp_status == null && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || !consentWhatsapp}
+                    onClick={() => submitRsvp("confirmed")}
+                    className="flex-1 rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {busy ? "Salvando…" : "Confirmar presença"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => submitRsvp("declined")}
+                    className="flex-1 rounded-md border px-4 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                  >
+                    Não poderei ir
+                  </button>
+                </div>
+              )}
 
-            {page.rsvp_status != null && (
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  disabled={busy || (page.rsvp_status !== "confirmed" && !consentsOk)}
-                  onClick={() => submitRsvp(page.rsvp_status === "confirmed" ? "declined" : "confirmed")}
-                  className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                >
-                  {page.rsvp_status === "confirmed" ? "Mudar para: não vou" : "Mudar para: vou sim"}
-                </button>
-              </div>
-            )}
+              {page.rsvp_status != null && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || (page.rsvp_status !== "confirmed" && !consentWhatsapp)}
+                    onClick={() => submitRsvp(page.rsvp_status === "confirmed" ? "declined" : "confirmed")}
+                    className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    {page.rsvp_status === "confirmed" ? "Mudar para: não vou" : "Mudar para: vou sim"}
+                  </button>
+                </div>
+              )}
 
-            {err && <p className="text-sm text-destructive">{err}</p>}
-          </section>
+              {err && <p className="text-sm text-destructive">{err}</p>}
+            </section>
+          )}
         </article>
       )}
     </PublicPageLayout>
