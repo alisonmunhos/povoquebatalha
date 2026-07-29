@@ -122,8 +122,13 @@ export const upsertEvent = createServerFn({ method: "POST" })
       cover_path: data.cover_path ?? null,
       cover_mime: data.cover_mime ?? null,
       post_rsvp_title: data.post_rsvp_title || null,
+      post_rsvp_body: data.post_rsvp_body || null,
       post_rsvp_button_text: data.post_rsvp_button_text || null,
       post_rsvp_button_url: data.post_rsvp_button_url || null,
+      post_decline_title: data.post_decline_title || null,
+      post_decline_body: data.post_decline_body || null,
+      post_decline_button_text: data.post_decline_button_text || null,
+      post_decline_button_url: data.post_decline_button_url || null,
       linked_form_definition_id: data.linked_form_definition_id ?? null,
       linked_form_start_section_id: data.linked_form_start_section_id ?? null,
     };
