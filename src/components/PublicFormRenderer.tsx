@@ -243,6 +243,7 @@ export function PublicFormRenderer({
           recad_token: activeRecadToken || "",
           current_section_id: currentSection.id,
           event_slug: eventSlug ?? "",
+          event_rsvp_status: eventRsvpStatus ?? "confirmed",
           answers: values,
           hp: "",
         }),
