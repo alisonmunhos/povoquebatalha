@@ -1,5 +1,6 @@
 // Salva/atualiza contato a partir de respostas de formulário público — compartilhado
 // entre o POST final ($slug) e o save parcial entre seções (section-progress).
+import { resolveExistingContact } from "@/lib/contact-identity.server";
 import { buildSourceMetadata } from "@/lib/contact-source-metadata";
 import { getCatalogField } from "@/lib/form-field-catalog";
 import {
