@@ -680,6 +680,19 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           contactRecadToken = cToken?.recad_token ?? null;
         } catch { /* ignore */ }
 
+        // Presença no evento gravada na mesma submissão, quando o formulário
+        // foi aberto a partir da tela pública de um evento.
+        let eventConfirmed = false;
+        if (d.event_slug) {
+          try {
+            const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
+            const rsvp = await confirmEventRsvpForContact({ eventSlug: d.event_slug, contactId: savedId });
+            eventConfirmed = rsvp.ok;
+          } catch { /* non-blocking */ }
+        }
+
+
+
         try {
           const origin = request.headers.get("origin") ||
             (request.headers.get("host") ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}` : null);
