@@ -6,6 +6,7 @@
 // é delegado a `renderVars`; `renderTemplate` permanece exportado como wrapper fino
 // apenas para não quebrar chamadas em messages.functions.ts (fase 2 unifica lá também).
 
+import { messageBlockReason } from "@/lib/contact-rules";
 import { renderVars, sendMessage } from "@/lib/wa-send.server";
 
 type ContactCtx = {
@@ -77,7 +78,7 @@ export async function triggerAutomationsForEvent(params: {
         }, { onConflict: "automation_id,contact_id" });
         continue;
       }
-      if (contact.opt_out_at || contact.arquivado_at) {
+      if (messageBlockReason(contact, { requireConsent: false })) {
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Contato opt-out/arquivado",
