@@ -181,6 +181,27 @@ export function PublicFormRenderer({
     [sectionedForm, currentSection?.id],
   );
 
+  /** Avança pra próxima etapa guardando a atual na pilha de "Voltar". */
+  function goToSection(nextId: string) {
+    setSectionHistory((prev) => (currentSectionId ? [...prev, currentSectionId] : prev));
+    setCurrentSectionId(nextId);
+    setError(null);
+  }
+
+  /** Volta uma etapa; na primeira, devolve o controle a quem abriu o formulário. */
+  function goBack() {
+    setError(null);
+    if (sectionHistory.length === 0) {
+      onExit?.();
+      return;
+    }
+    const prev = sectionHistory[sectionHistory.length - 1];
+    setSectionHistory((s) => s.slice(0, -1));
+    setCurrentSectionId(prev);
+  }
+
+
+
   // Quem já tem conta no sistema não precisa criar login/senha de novo:
   // pulamos a seção de criação de conta automaticamente.
   const alreadyHasAccount = Boolean(contactContext?.has_account);
