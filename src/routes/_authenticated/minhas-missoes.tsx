@@ -10,6 +10,7 @@ import {
   completeMissionClaim,
   getMissionCooldownStatus,
   markMyMissionTask,
+  getMissionMediaUrl,
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
@@ -55,6 +56,33 @@ type MissionBlock = {
   pending: number;
   concluded: number;
 };
+
+/** Mostra a imagem da missão pro agitador baixar e anexar no WhatsApp. */
+function MissionMediaBlock({ path, filename }: { path: string; filename: string }) {
+  const mediaFn = useServerFn(getMissionMediaUrl);
+  const q = useQuery({
+    queryKey: ["mission-media", path],
+    queryFn: () => mediaFn({ data: { path } }),
+    staleTime: 30 * 60_000,
+  });
+  if (!q.data?.url) return null;
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-lg border bg-background p-2">
+      <img src={q.data.url} alt="Imagem da missão" className="h-16 w-16 rounded object-cover" />
+      <div className="flex-1 min-w-[140px]">
+        <p className="text-xs font-medium">Imagem para enviar junto</p>
+        <p className="text-[11px] text-muted-foreground">
+          Baixe e anexe no WhatsApp junto com a mensagem.
+        </p>
+      </div>
+      <Button asChild size="sm" variant="outline">
+        <a href={q.data.url} download={filename} target="_blank" rel="noreferrer">
+          Baixar
+        </a>
+      </Button>
+    </div>
+  );
+}
 
 function digitsFromPhone(c: ContactShape | null): string {
   return ((c?.phone_e164 ?? c?.phone_raw ?? "") as string).replace(/\D/g, "");
