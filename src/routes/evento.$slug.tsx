@@ -25,8 +25,13 @@ type EventData = {
   ends_at: string | null;
   cover_url?: string | null;
   post_rsvp_title?: string | null;
+  post_rsvp_body?: string | null;
   post_rsvp_button_text?: string | null;
   post_rsvp_button_url?: string | null;
+  post_decline_title?: string | null;
+  post_decline_body?: string | null;
+  post_decline_button_text?: string | null;
+  post_decline_button_url?: string | null;
 };
 
 type LinkedForm = { slug: string; start_section_id: string | null };
