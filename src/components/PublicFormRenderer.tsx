@@ -72,14 +72,16 @@ type SectionedFormDefinition = {
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 
 export function PublicFormRenderer({
-  slug, refToken, recadToken, startSectionId, eventSlug, onEventConfirmed,
+  slug, refToken, recadToken, startSectionId, eventSlug, eventRsvpStatus, onEventConfirmed,
 }: {
   slug: string;
   refToken?: string;
   recadToken?: string;
   startSectionId?: string;
-  /** Quando renderizado dentro da tela pública de um evento: confirma presença junto. */
+  /** Quando renderizado dentro da tela pública de um evento: registra presença junto. */
   eventSlug?: string;
+  /** `declined` quando a pessoa já avisou que não poderá ir e só quer se cadastrar. */
+  eventRsvpStatus?: "confirmed" | "declined";
   /**
    * Chamado quando a seção enviada confirmou presença no evento. Quando definido,
    * o motor PARA aqui (não avança sozinho) e quem chama mostra a tela de confirmação.
@@ -241,6 +243,7 @@ export function PublicFormRenderer({
           recad_token: activeRecadToken || "",
           current_section_id: currentSection.id,
           event_slug: eventSlug ?? "",
+          event_rsvp_status: eventRsvpStatus ?? "confirmed",
           answers: values,
           hp: "",
         }),
@@ -330,6 +333,7 @@ export function PublicFormRenderer({
           terminal_section_id: terminalSectionId,
           start_section_id: journeyStartSectionId ?? terminalSectionId,
           event_slug: eventSlug ?? "",
+          event_rsvp_status: eventRsvpStatus ?? "confirmed",
           answers: values,
           hp: "",
         }),

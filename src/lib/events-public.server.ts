@@ -78,7 +78,10 @@ async function resolvePublicContact(input: {
 export async function confirmEventRsvpForContact(input: {
   eventSlug: string;
   contactId: string;
+  /** `declined` = registrou que não poderá ir; padrão é confirmação. */
+  status?: "confirmed" | "declined";
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const status = input.status ?? "confirmed";
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: event } = await supabaseAdmin
     .from("events")
@@ -96,7 +99,7 @@ export async function confirmEventRsvpForContact(input: {
 
   const { error: upsertErr } = await supabaseAdmin
     .from("event_rsvps")
-    .upsert({ event_id: event.id, contact_id: input.contactId, status: "confirmed" }, { onConflict: "event_id,contact_id" });
+    .upsert({ event_id: event.id, contact_id: input.contactId, status }, { onConflict: "event_id,contact_id" });
   if (upsertErr) return { ok: false, error: upsertErr.message };
 
   // Rastro de origem: registra que a pessoa veio por este evento.
@@ -110,6 +113,7 @@ export async function confirmEventRsvpForContact(input: {
       _event_type: "inscricao_simples",
       _metadata: {
         via: "evento_rsvp",
+        rsvp_status: status,
         event_id: event.id,
         event_slug: event.slug,
         event_title: event.title,
@@ -121,7 +125,7 @@ export async function confirmEventRsvpForContact(input: {
     /* rastro é complementar, não bloqueia a confirmação */
   }
 
-  if (prev?.status !== "confirmed") {
+  if (status === "confirmed" && prev?.status !== "confirmed") {
     try {
       const { data: contact } = await supabaseAdmin
         .from("contacts")

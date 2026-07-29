@@ -67,12 +67,14 @@ function EventoPublicPage() {
   const [err, setErr] = useState<string | null>(null);
   const [contactToken, setContactToken] = useState<string | undefined>(tokenFromUrl);
   const [showForm, setShowForm] = useState(false);
+  /** Em que modo o formulário é exibido: confirmando presença ou só cadastro após recusa. */
+  const [formMode, setFormMode] = useState<"confirm" | "declined">("confirm");
   /** Tela de parada depois de confirmar presença pelo formulário vinculado. */
   const [confirmedStop, setConfirmedStop] = useState<{ nextSectionId: string | null } | null>(null);
   /** Continuar o cadastro (Seção 2 em diante) depois da tela de confirmação. */
   const [continueFrom, setContinueFrom] = useState<string | null | undefined>(undefined);
-  /** Recusa sem identificação prévia: pedimos nome + WhatsApp. */
-  const [declineOpen, setDeclineOpen] = useState(false);
+  /** Recusa de quem ainda não foi identificado: só mostramos a mensagem, sem pedir dados. */
+  const [declinedLocal, setDeclinedLocal] = useState(false);
 
   async function load() {
     setErr(null);
@@ -102,14 +104,20 @@ function EventoPublicPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, tokenFromUrl, contactToken]);
 
-  /** Fluxo simples: recusa, e confirmação de eventos sem formulário vinculado. */
+  /** Fluxo simples: recusa identificada, e confirmação de eventos sem formulário vinculado. */
   async function submitRsvp(status: "confirmed" | "declined") {
     if (page.status !== "ready") return;
     const identified = Boolean(page.contact || contactToken || tokenFromUrl);
     if (!identified) {
-      // Sem identificação não dá pra registrar nada: pedimos o mínimo.
+      // Sem identificação não dá pra registrar nada no banco.
       if (nome.trim().length < 2 || phone.trim().length < 8) {
-        setDeclineOpen(true);
+        if (status === "declined") {
+          // Recusar não deve exigir preenchimento: mostramos só a mensagem.
+          setDeclinedLocal(true);
+          setErr(null);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
         setErr("Informe seu nome e WhatsApp para registrar sua resposta.");
         return;
       }
@@ -134,7 +142,7 @@ function EventoPublicPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Erro ao registrar resposta.");
       if (json.contact_token) setContactToken(json.contact_token);
       setShowForm(false);
-      setDeclineOpen(false);
+      setDeclinedLocal(false);
       setConfirmedStop(null);
       setContinueFrom(undefined);
       setPage({
@@ -285,7 +293,7 @@ function EventoPublicPage() {
                 </div>
               )}
 
-              {!confirmedStop && page.rsvp_status === "declined" && !showForm && (
+              {!confirmedStop && (page.rsvp_status === "declined" || declinedLocal) && !showForm && (
                 <div className="bg-card border rounded-xl p-5 space-y-3">
                   <div className="flex items-center gap-2 text-muted-foreground font-semibold">
                     <XCircle className="h-5 w-5" />
@@ -306,7 +314,10 @@ function EventoPublicPage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setShowForm(true)}
+                      onClick={() => {
+                        setFormMode("declined");
+                        setShowForm(true);
+                      }}
                       className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
                     >
                       {page.event.post_decline_button_text?.trim() || "Quero continuar com vocês"}
@@ -315,7 +326,11 @@ function EventoPublicPage() {
                   <div>
                     <button
                       type="button"
-                      onClick={() => setShowForm(true)}
+                      onClick={() => {
+                        setFormMode("confirm");
+                        setDeclinedLocal(false);
+                        setShowForm(true);
+                      }}
                       className="rounded-md border px-4 py-2 text-sm hover:bg-muted"
                     >
                       Mudar para: vou sim
@@ -324,67 +339,40 @@ function EventoPublicPage() {
                 </div>
               )}
 
-              {!confirmedStop && (page.rsvp_status == null || showForm) && (
+              {!confirmedStop && ((page.rsvp_status == null && !declinedLocal) || showForm) && (
                 <>
                   <PublicFormRenderer
                     slug={page.form.slug}
                     startSectionId={page.form.start_section_id ?? undefined}
                     recadToken={contactToken ?? tokenFromUrl}
                     eventSlug={slug}
-                    onEventConfirmed={(info) => {
-                      if (info.recadToken) setContactToken(info.recadToken);
-                      setConfirmedStop({ nextSectionId: info.nextSectionId });
-                      setContinueFrom(undefined);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
+                    eventRsvpStatus={formMode === "declined" ? "declined" : "confirmed"}
+                    onEventConfirmed={
+                      formMode === "declined"
+                        ? undefined
+                        : (info) => {
+                            if (info.recadToken) setContactToken(info.recadToken);
+                            setConfirmedStop({ nextSectionId: info.nextSectionId });
+                            setContinueFrom(undefined);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }
+                    }
                   />
-                  <div className="text-center space-y-3">
-                    {declineOpen && !(page.contact || contactToken || tokenFromUrl) && (
-                      <div className="bg-card border rounded-xl p-4 space-y-3 text-left">
-                        <p className="text-xs text-muted-foreground">
-                          Pra registrar que você não poderá ir, precisamos saber quem é você:
-                        </p>
-                        <div>
-                          <label className="text-xs font-medium">Nome</label>
-                          <input
-                            value={nome}
-                            onChange={(e) => setNome(e.target.value)}
-                            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium">WhatsApp</label>
-                          <input
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="(51) 99999-9999"
-                            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => submitRsvp("declined")}
-                          className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
-                        >
-                          {busy ? "Salvando…" : "Registrar que não poderei ir"}
-                        </button>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        if (page.contact || contactToken || tokenFromUrl) void submitRsvp("declined");
-                        else setDeclineOpen(true);
-                      }}
-                      className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
-                    >
-                      Não poderei ir
-                    </button>
-                  </div>
+                  {formMode !== "declined" && (
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void submitRsvp("declined")}
+                        className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+                      >
+                        Não poderei ir
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
+
 
               {err && <p className="text-sm text-destructive">{err}</p>}
             </section>
