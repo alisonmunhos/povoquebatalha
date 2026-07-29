@@ -29,10 +29,30 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+// Safety net: quando um modal fecha (ou desmonta) sem o Radix restaurar o
+// `pointer-events` do body, a tela inteira fica sem responder a cliques
+// (ex.: botão "Salvar" que "não funciona"). Aqui garantimos a limpeza.
+function useReleaseBodyPointerEvents() {
+  React.useEffect(() => {
+    return () => {
+      // Aguarda a animação de saída e o desmonte do portal.
+      window.setTimeout(() => {
+        const stillOpen = document.querySelector("[data-radix-dialog-content],[data-radix-alert-dialog-content]");
+        if (!stillOpen && document.body.style.pointerEvents === "none") {
+          document.body.style.removeProperty("pointer-events");
+        }
+      }, 300);
+    };
+  }, []);
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => {
+  useReleaseBodyPointerEvents();
+  return (
+
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
