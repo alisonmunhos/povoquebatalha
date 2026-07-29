@@ -20,8 +20,9 @@ const bodySchema = z.object({
   ref_token: z.string().trim().min(8).max(48).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
   current_section_id: z.string().uuid(),
-  /** Quando o formulário é aberto pela tela de um evento: confirma presença junto. */
+  /** Quando o formulário é aberto pela tela de um evento: registra presença junto. */
   event_slug: z.string().trim().min(1).max(120).optional().or(z.literal("")),
+  event_rsvp_status: z.enum(["confirmed", "declined"]).optional(),
   answers: z.record(
     z.string().uuid(),
     z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
