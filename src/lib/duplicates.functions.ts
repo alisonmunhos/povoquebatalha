@@ -55,15 +55,25 @@ export const listPendingDuplicates = createServerFn({ method: "GET" })
 
 export const resolveDuplicate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), action: z.enum(["ignorar", "separados"]) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        action: z.enum(["ignorar", "separados", "nao_duplicado", "postergar"]),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
+    // "postergar" só tira o par da fila do dia — continua pendente para revisão futura.
+    const status = data.action === "postergar" ? "ignorar" : data.action === "nao_duplicado" ? "separados" : data.action;
     const { error } = await context.supabase
       .from("contact_duplicates")
-      .update({ status: data.action, resolved_at: new Date().toISOString(), resolved_by: context.userId })
+      .update({ status, resolved_at: new Date().toISOString(), resolved_by: context.userId })
       .eq("id", data.id);
     if (error) throw error;
     return { ok: true as const };
   });
+
 
 // Detalhes de um par para mesclagem
 export const getDuplicatePair = createServerFn({ method: "POST" })
