@@ -111,6 +111,11 @@ export const upsertEvent = createServerFn({ method: "POST" })
       starts_at: data.starts_at,
       ends_at: data.ends_at ?? null,
       is_published: data.is_published ?? false,
+      cover_path: data.cover_path ?? null,
+      cover_mime: data.cover_mime ?? null,
+      post_rsvp_title: data.post_rsvp_title || null,
+      post_rsvp_button_text: data.post_rsvp_button_text || null,
+      post_rsvp_button_url: data.post_rsvp_button_url || null,
     };
 
     if (data.id) {
@@ -130,8 +135,87 @@ export const upsertEvent = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
+
+    // Aviso pra equipe — não bloqueia o salvamento se falhar.
+    try {
+      const { notifyEventCreated } = await import("@/lib/system-notifications.server");
+      await notifyEventCreated({
+        eventId: created.id,
+        eventTitle: created.title,
+        eventSlug: created.slug,
+        isPublished: created.is_published,
+        createdBy: context.userId,
+      });
+    } catch (e) {
+      console.error("[events] notifyEventCreated:", e);
+    }
+
     return { event: created };
   });
+
+// ===== Capa do evento (reaproveita o bucket de mídia) =====
+export const signEventCoverUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z
+      .object({
+        filename: z.string().trim().min(1).max(200),
+        contentType: z.string().trim().min(1).max(120),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!allowed.includes(data.contentType)) throw new Error("Tipo não permitido. Use PNG, JPG ou WEBP.");
+    const clean = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+    const path = `eventos/${Date.now()}_${clean}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUploadUrl(path);
+    if (error) throw new Error(error.message);
+    return { path, signedUrl: signed.signedUrl, contentType: data.contentType, filename: clean };
+  });
+
+export const getEventCoverUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ path: z.string().min(1).max(500) }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUrl(data.path, 60 * 60);
+    if (error) throw new Error(error.message);
+    return { url: signed.signedUrl };
+  });
+
+// ===== Lista de quem confirmou presença =====
+export const listEventRsvps = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z
+      .object({
+        event_id: z.string().uuid(),
+        status: z.enum(["confirmed", "declined", "all"]).default("confirmed"),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
+    let q = context.supabase
+      .from("event_rsvps")
+      .select(
+        "id,status,created_at,updated_at,contacts!event_rsvps_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw,email,cidade,bairro)",
+      )
+      .eq("event_id", data.event_id)
+      .order("updated_at", { ascending: false });
+    if (data.status !== "all") q = q.eq("status", data.status);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return { rsvps: rows ?? [] };
+  });
+
 
 export const deleteEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
