@@ -237,6 +237,9 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
     // Rastro de origem: registra que a pessoa veio por este evento.
     try {
       await supabaseAdmin.rpc("apply_contact_source", {
+        _source_user_id: null,
+        _source_form_type: null,
+        _source_link_id: null,
         _contact_id: contact.id,
         _source_module: "formulario_publico",
         _event_type: "inscricao_simples",
@@ -248,7 +251,7 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
           tracking_label: `Evento: ${event.title}`,
           capture_channel: "formulario_publico",
         },
-      });
+      } as never);
     } catch {
       /* rastro é complementar, não bloqueia a confirmação */
     }
