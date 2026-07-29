@@ -412,8 +412,24 @@ function EventoPublicPage() {
                 </div>
               )}
               {page.rsvp_status === "declined" && (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <XCircle className="h-5 w-5" /> Você informou que não poderá ir.
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground font-semibold">
+                    <XCircle className="h-5 w-5" />
+                    {page.event.post_decline_title?.trim() || "Você informou que não poderá ir."}
+                  </div>
+                  {page.event.post_decline_body?.trim() && (
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{page.event.post_decline_body}</p>
+                  )}
+                  {page.event.post_decline_button_url?.trim() && (
+                    <a
+                      href={page.event.post_decline_button_url}
+                      target={page.event.post_decline_button_url.startsWith("http") ? "_blank" : undefined}
+                      rel="noreferrer"
+                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
+                    >
+                      {page.event.post_decline_button_text?.trim() || "Continuar"}
+                    </a>
+                  )}
                 </div>
               )}
 
