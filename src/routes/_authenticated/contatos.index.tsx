@@ -427,6 +427,7 @@ function Contatos() {
           filters={filters}
           onChange={(f) => { setFilters(f); setPage(1); }}
           options={filterOptions}
+          facets={facetsQ.data}
         />
       )}
 
