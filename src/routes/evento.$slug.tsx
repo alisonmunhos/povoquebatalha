@@ -104,14 +104,20 @@ function EventoPublicPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, tokenFromUrl, contactToken]);
 
-  /** Fluxo simples: recusa, e confirmação de eventos sem formulário vinculado. */
+  /** Fluxo simples: recusa identificada, e confirmação de eventos sem formulário vinculado. */
   async function submitRsvp(status: "confirmed" | "declined") {
     if (page.status !== "ready") return;
     const identified = Boolean(page.contact || contactToken || tokenFromUrl);
     if (!identified) {
-      // Sem identificação não dá pra registrar nada: pedimos o mínimo.
+      // Sem identificação não dá pra registrar nada no banco.
       if (nome.trim().length < 2 || phone.trim().length < 8) {
-        setDeclineOpen(true);
+        if (status === "declined") {
+          // Recusar não deve exigir preenchimento: mostramos só a mensagem.
+          setDeclinedLocal(true);
+          setErr(null);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
         setErr("Informe seu nome e WhatsApp para registrar sua resposta.");
         return;
       }
