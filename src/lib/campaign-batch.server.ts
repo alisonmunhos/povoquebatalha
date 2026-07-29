@@ -134,7 +134,7 @@ export async function processCampaignBatchShared(
     const block = ct ? messageBlockReason(ct, { requireConsent: true }) : "sem_telefone";
     if (!ct || block) {
       await db.from("campaign_recipients").update({
-        status: "opted_out", failed_at: new Date().toISOString(), erro: BLOCK_LABELS[block],
+        status: "opted_out", failed_at: new Date().toISOString(), erro: BLOCK_LABELS[block ?? "sem_telefone"],
       }).eq("id", r.id);
       skipped++;
       continue;
