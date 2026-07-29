@@ -104,6 +104,15 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
         }
 
         const saved = result as Exclude<typeof result, { ok: false }>;
+
+        // Presença no evento é gravada na mesma operação do salvamento do contato.
+        let eventConfirmed = false;
+        if (d.event_slug) {
+          const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
+          const rsvp = await confirmEventRsvpForContact({ eventSlug: d.event_slug, contactId: saved.contactId });
+          eventConfirmed = rsvp.ok;
+        }
+
         return new Response(
           JSON.stringify({
             ok: true,
@@ -111,9 +120,11 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
             email: saved.email,
             nome: saved.nome,
             phone: saved.phone,
+            event_confirmed: eventConfirmed,
           }),
           { headers: cors },
         );
+
       },
     },
   },
