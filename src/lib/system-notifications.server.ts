@@ -211,6 +211,74 @@ export async function notifyEventRsvpConfirmed(input: {
   await sendPushToUsers(supabaseAdmin, targetUserIds, title, body, notifIdByUser);
 }
 
+/** Avisa a equipe quando um evento novo é criado. */
+export async function notifyEventCreated(input: {
+  eventId: string;
+  eventTitle: string;
+  eventSlug: string;
+  isPublished: boolean;
+  createdBy: string | null;
+}): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const { data: settings, error: settingsErr } = await supabaseAdmin
+    .from("system_notification_settings")
+    .select("recipient_roles, title_template, body_template")
+    .eq("key", "event_created")
+    .maybeSingle();
+  if (settingsErr) {
+    console.error("[notify] settings event_created:", settingsErr.message);
+    return;
+  }
+  if (!settings) return;
+
+  const recipientRoles = (settings.recipient_roles ?? ["admin"]) as string[];
+  const targetUserIds = await resolveUsersByRoles(supabaseAdmin, recipientRoles);
+  if (!targetUserIds.length) return;
+
+  const vars = {
+    event_title: input.eventTitle,
+    event_status: input.isPublished ? "publicado" : "em rascunho",
+  };
+  const title = renderNotificationTemplate(settings.title_template, vars);
+  const body = renderNotificationTemplate(settings.body_template, vars);
+
+  const { randomUUID } = await import("node:crypto");
+  const batchId = randomUUID();
+
+  const rows = targetUserIds.map((uid) => ({
+    user_id: uid,
+    title,
+    body,
+    kind: "event",
+    cta_kind: "link",
+    cta_label: "Ver eventos",
+    cta_payload: {
+      event_id: input.eventId,
+      event_title: input.eventTitle,
+      url: input.isPublished ? `/evento/${input.eventSlug}` : "/eventos",
+    },
+    batch_id: batchId,
+    created_by: input.createdBy,
+  }));
+
+  const { data: notifRows, error: insertErr } = await supabaseAdmin
+    .from("notifications")
+    .insert(rows)
+    .select("id, user_id");
+  if (insertErr) {
+    console.error("[notify] insert event_created:", insertErr.message);
+    return;
+  }
+
+  const notifIdByUser = new Map<string, string>();
+  for (const r of notifRows ?? []) {
+    if (!notifIdByUser.has(r.user_id)) notifIdByUser.set(r.user_id, r.id);
+  }
+  await sendPushToUsers(supabaseAdmin, targetUserIds, title, body, notifIdByUser);
+}
+
+
 export async function cancelNotificationsForPendingUser(
   pendingUserId: string,
   cancelledBy: string | null,
