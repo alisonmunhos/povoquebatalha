@@ -367,9 +367,23 @@ export function PublicFormRenderer({
 
     if (nextId) {
       const saved = await saveSectionProgress();
-      if (!saved) return;
+      if (!saved.ok) return;
+      // Presença confirmada dentro da página do evento: paramos aqui pra mostrar
+      // a mensagem configurada, em vez de emendar direto na próxima etapa.
+      if (saved.eventConfirmed && onEventConfirmed) {
+        onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: nextId });
+        return;
+      }
       setCurrentSectionId(nextId);
       return;
+    }
+    if (eventSlug && onEventConfirmed) {
+      const saved = await saveSectionProgress();
+      if (!saved.ok) return;
+      if (saved.eventConfirmed) {
+        onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: null });
+        return;
+      }
     }
     void submitFinal(currentSection.id);
   }
