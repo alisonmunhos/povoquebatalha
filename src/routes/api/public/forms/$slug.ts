@@ -718,6 +718,8 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             contact_id: savedId,
             contact_recad_token: contactRecadToken,
             linked_event: linkedEvent,
+            event_confirmed: eventConfirmed,
+
           }),
           { headers: cors },
         );
