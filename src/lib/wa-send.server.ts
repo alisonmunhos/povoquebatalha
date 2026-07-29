@@ -213,35 +213,22 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
   // Quando skipValidations=true, o chamador já checou opt-out/consentimento/whatsapp_status
   // e não queremos duplicar a decisão aqui — apenas checamos telefone (sem ele não há envio).
   if (input.origin !== "territory_wa_me") {
-    // Bloqueios de sistema: valem SEMPRE, mesmo com skipValidations. Se a pessoa
-    // está arquivada ou marcada como "não enviar", nenhuma origem pode disparar.
-    if (c.arquivado_at) {
-      return baseSkip(rendered, "arquivado");
-    }
-    if (c.lifecycle_status === "nao_enviar") {
-      return baseSkip(rendered, "marcado como não enviar");
+    // C2 — decisão única de elegibilidade (src/lib/contact-rules.ts).
+    // Bloqueios de sistema (arquivado / "não enviar") valem SEMPRE; os demais
+    // são pulados quando o chamador já decidiu (skipValidations).
+    const systemBlock = messageBlockReason(c, { requireConsent: false });
+    if (systemBlock === "arquivado" || systemBlock === "nao_enviar") {
+      return baseSkip(rendered, BLOCK_LABELS[systemBlock]);
     }
     if (!input.skipValidations) {
-
-      if (c.opt_out_at) {
-        return baseSkip(rendered, "opt-out");
-      }
-      if (input.origin === "campaign" && c.consentimento_whatsapp === false) {
-        return baseSkip(rendered, "sem consentimento");
-      }
-      if (
-        c.whatsapp_status === "invalido" ||
-        c.whatsapp_status === "erro_envio" ||
-        c.whatsapp_status === "opt_out"
-      ) {
-        return baseSkip(rendered, "whatsapp indisponível");
-      }
+      const block = messageBlockReason(c, { requireConsent: input.origin === "campaign" });
+      if (block) return baseSkip(rendered, BLOCK_LABELS[block]);
+    } else if (!sendablePhone(c)) {
+      return baseSkip(rendered, BLOCK_LABELS.sem_telefone);
     }
-    const phoneRaw = c.phone_whatsapp_candidate ?? c.phone_e164;
-    if (!phoneRaw) return baseSkip(rendered, "sem telefone");
   }
 
-  const phone = (c.phone_whatsapp_candidate ?? c.phone_e164 ?? "").replace(/\D+/g, "");
+  const phone = (sendablePhone(c) ?? "").replace(/\D+/g, "");
   const hasAttachment = Boolean(input.attachment);
   const plan = planEndpoint({
     hasAttachment,
