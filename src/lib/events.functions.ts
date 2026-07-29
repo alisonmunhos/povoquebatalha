@@ -25,7 +25,10 @@ const eventInputSchema = z.object({
   post_rsvp_title: z.string().trim().max(200).nullable().optional(),
   post_rsvp_button_text: z.string().trim().max(80).nullable().optional(),
   post_rsvp_button_url: z.string().trim().max(500).nullable().optional(),
+  linked_form_definition_id: z.string().uuid().nullable().optional(),
+  linked_form_start_section_id: z.string().uuid().nullable().optional(),
 });
+
 
 
 export const listEvents = createServerFn({ method: "GET" })
