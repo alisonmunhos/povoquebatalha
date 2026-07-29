@@ -202,6 +202,36 @@ export async function resolveContactIdsForTagFilter(
   return { ids: untagged, noMatch: false };
 }
 
+/**
+ * Acima deste tamanho, a lista de IDs não pode ser embutida na consulta:
+ * a URL gerada pelo PostgREST estoura e o request falha. Nesse caso o
+ * cruzamento é feito em memória (ver `paginateWithAllowedIds`).
+ */
+export const INLINE_ID_LIMIT = 400;
+
+/**
+ * Cruza um filtro grande de IDs (ex.: tags com milhares de vínculos) com os
+ * demais filtros, sem embutir os IDs na URL:
+ * 1. busca em blocos apenas os IDs que passam nos outros filtros (já ordenados);
+ * 2. mantém só os que estão no conjunto permitido;
+ * 3. devolve a página pedida e o total real.
+ */
+export async function paginateWithAllowedIds(opts: {
+  buildIdQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: Array<{ id: string }> | null; error: { message: string } | null }> };
+  allowed: Set<string>;
+  from: number;
+  pageSize: number;
+}): Promise<{ pageIds: string[]; total: number }> {
+  const all = await fetchAllPaged<{ id: string }>(opts.buildIdQuery, { hardCap: 100_000 });
+  const filtered = all.map((r) => r.id).filter((id) => opts.allowed.has(id));
+  return {
+    pageIds: filtered.slice(opts.from, opts.from + opts.pageSize),
+    total: filtered.length,
+  };
+}
+
+
+
 
 /** Remove caracteres que quebram o parser de `.or()` do PostgREST. */
 function safe(v: string): string {
