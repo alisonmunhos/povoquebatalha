@@ -413,7 +413,8 @@ export function PublicFormRenderer({
       const ok = await submitAccountSection();
       if (!ok) return;
       if (nextId) {
-        setCurrentSectionId(nextId);
+        goToSection(nextId);
+
         return;
       }
       void submitFinal(currentSection.id);
