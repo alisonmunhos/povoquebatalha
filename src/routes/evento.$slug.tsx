@@ -105,12 +105,21 @@ function EventoPublicPage() {
   /** Fluxo simples: recusa, e confirmação de eventos sem formulário vinculado. */
   async function submitRsvp(status: "confirmed" | "declined") {
     if (page.status !== "ready") return;
+    const identified = Boolean(page.contact || contactToken || tokenFromUrl);
+    if (!identified) {
+      // Sem identificação não dá pra registrar nada: pedimos o mínimo.
+      if (nome.trim().length < 2 || phone.trim().length < 8) {
+        setDeclineOpen(true);
+        setErr("Informe seu nome e WhatsApp para registrar sua resposta.");
+        return;
+      }
+    }
     setBusy(true);
     setErr(null);
     try {
       const body: Record<string, unknown> = { status, hp: "" };
       if (status === "confirmed") body.consentimento_whatsapp = consentWhatsapp;
-      if (page.contact || contactToken || tokenFromUrl) {
+      if (identified) {
         body.contact_token = contactToken ?? tokenFromUrl;
       } else {
         body.nome = nome.trim();
@@ -125,6 +134,9 @@ function EventoPublicPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Erro ao registrar resposta.");
       if (json.contact_token) setContactToken(json.contact_token);
       setShowForm(false);
+      setDeclineOpen(false);
+      setConfirmedStop(null);
+      setContinueFrom(undefined);
       setPage({
         status: "ready",
         event: page.event,
