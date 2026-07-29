@@ -23,8 +23,13 @@ const eventInputSchema = z.object({
   cover_path: z.string().max(500).nullable().optional(),
   cover_mime: z.string().max(120).nullable().optional(),
   post_rsvp_title: z.string().trim().max(200).nullable().optional(),
+  post_rsvp_body: z.string().trim().max(2000).nullable().optional(),
   post_rsvp_button_text: z.string().trim().max(80).nullable().optional(),
   post_rsvp_button_url: z.string().trim().max(500).nullable().optional(),
+  post_decline_title: z.string().trim().max(200).nullable().optional(),
+  post_decline_body: z.string().trim().max(2000).nullable().optional(),
+  post_decline_button_text: z.string().trim().max(80).nullable().optional(),
+  post_decline_button_url: z.string().trim().max(500).nullable().optional(),
   linked_form_definition_id: z.string().uuid().nullable().optional(),
   linked_form_start_section_id: z.string().uuid().nullable().optional(),
 });
