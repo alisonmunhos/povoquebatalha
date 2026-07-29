@@ -90,6 +90,7 @@ function Contatos() {
   const [pageSize, setPageSize] = useState(search.ps ?? 25);
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mergeIds, setMergeIds] = useState<string[]>([]);
   const [bulkTagId, setBulkTagId] = useState<string>("");
   const [creatingTag, setCreatingTag] = useState(false);
   const [newTagName, setNewTagName] = useState("");
