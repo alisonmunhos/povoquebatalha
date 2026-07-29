@@ -104,6 +104,8 @@ export function EditMissionModal({
             variables={COMPOSER_VARIABLES}
             bodyPlaceholder="Escreva a mensagem que os responsáveis vão enviar. Use as variáveis abaixo para personalizar."
           />
+
+          <MissionImageUpload value={media} onChange={setMedia} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
