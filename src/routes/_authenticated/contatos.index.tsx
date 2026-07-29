@@ -7,6 +7,7 @@ import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, b
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
+import { countPendingDuplicates } from "@/lib/duplicates.functions";
 import { checkWhatsappForContacts, contactsQuickCounts, contactsStatusFacets } from "@/lib/contacts-phone.functions";
 import { formatPhoneBR } from "@/lib/phone";
 import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/phone-labels";
