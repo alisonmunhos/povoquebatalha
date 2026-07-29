@@ -698,8 +698,12 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         if (d.event_slug) {
           try {
             const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
-            const rsvp = await confirmEventRsvpForContact({ eventSlug: d.event_slug, contactId: savedId });
-            eventConfirmed = rsvp.ok;
+            const rsvp = await confirmEventRsvpForContact({
+              eventSlug: d.event_slug,
+              contactId: savedId,
+              status: d.event_rsvp_status ?? "confirmed",
+            });
+            eventConfirmed = rsvp.ok && (d.event_rsvp_status ?? "confirmed") === "confirmed";
           } catch { /* non-blocking */ }
         }
 
