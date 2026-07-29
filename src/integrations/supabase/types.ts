@@ -200,6 +200,9 @@ export type Database = {
           id: string
           instructions: string | null
           is_open: boolean
+          media_filename: string | null
+          media_mime: string | null
+          media_path: string | null
           message_template: string
           open_notified_at: string | null
           opened_at: string | null
@@ -220,6 +223,9 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_open?: boolean
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
           message_template: string
           open_notified_at?: string | null
           opened_at?: string | null
@@ -240,6 +246,9 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_open?: boolean
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
           message_template?: string
           open_notified_at?: string | null
           opened_at?: string | null
