@@ -61,18 +61,19 @@ function EventoPublicPage() {
   const { t: tokenFromUrl } = useSearch({ from: "/evento/$slug" });
   const [page, setPage] = useState<PageState>({ status: "loading" });
   const [nome, setNome] = useState("");
-  const [phone, setPhone] = useState("");
   const [consentWhatsapp, setConsentWhatsapp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [contactToken, setContactToken] = useState<string | undefined>(tokenFromUrl);
   const [showForm, setShowForm] = useState(false);
+  /** Em que modo o formulário é exibido: confirmando presença ou só cadastro após recusa. */
+  const [formMode, setFormMode] = useState<"confirm" | "declined">("confirm");
   /** Tela de parada depois de confirmar presença pelo formulário vinculado. */
   const [confirmedStop, setConfirmedStop] = useState<{ nextSectionId: string | null } | null>(null);
   /** Continuar o cadastro (Seção 2 em diante) depois da tela de confirmação. */
   const [continueFrom, setContinueFrom] = useState<string | null | undefined>(undefined);
-  /** Recusa sem identificação prévia: pedimos nome + WhatsApp. */
-  const [declineOpen, setDeclineOpen] = useState(false);
+  /** Recusa de quem ainda não foi identificado: só mostramos a mensagem, sem pedir dados. */
+  const [declinedLocal, setDeclinedLocal] = useState(false);
 
   async function load() {
     setErr(null);
