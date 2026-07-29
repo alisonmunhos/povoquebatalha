@@ -7,6 +7,7 @@ import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, b
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
+import { countPendingDuplicates } from "@/lib/duplicates.functions";
 import { checkWhatsappForContacts, contactsQuickCounts, contactsStatusFacets } from "@/lib/contacts-phone.functions";
 import { formatPhoneBR } from "@/lib/phone";
 import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/phone-labels";
@@ -288,6 +289,12 @@ function Contatos() {
     queryFn: () => facetsFn(),
     staleTime: 30_000,
   });
+  const dupCountFn = useServerFn(countPendingDuplicates);
+  const dupCountQ = useQuery({
+    queryKey: ["pending-duplicates-count"],
+    queryFn: () => dupCountFn(),
+    staleTime: 60_000,
+  });
 
   function applyQuickFilter(patch: Partial<CrmFilters>) {
     setFilters((f) => ({ archived: "nao", ...patch }));
@@ -413,6 +420,12 @@ function Contatos() {
         <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
           <PhoneCall className="h-3.5 w-3.5 mr-1" /> Revisar telefones
         </Button>
+        {(dupCountQ.data?.pendentes ?? 0) > 0 && (
+          <Button size="sm" variant="outline" onClick={() => navigate({ to: "/duplicidades" })} title="Pares de contatos possivelmente repetidos, aguardando revisão">
+            <Copy className="h-3.5 w-3.5 mr-1" /> Duplicidades a revisar
+            <span className="ml-1.5 rounded-full bg-amber-100 text-amber-800 px-1.5 text-[11px] tabular-nums">{dupCountQ.data?.pendentes}</span>
+          </Button>
+        )}
       </div>
 
       {activeCount > 0 && (
@@ -427,6 +440,7 @@ function Contatos() {
           filters={filters}
           onChange={(f) => { setFilters(f); setPage(1); }}
           options={filterOptions}
+          facets={facetsQ.data}
         />
       )}
 
@@ -627,8 +641,8 @@ function Contatos() {
                     </div>
                   </td>
                   <td className="px-3 py-3 space-x-1">
-                    {c.arquivado_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Arquivado</span>}
-                    {c.opt_out_at && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Opt-out</span>}
+                    {c.arquivado_at && <span title="Contato arquivado: não entra em contagens nem em envios" className="text-[10px] uppercase px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">Fora da base</span>}
+                    {c.opt_out_at && <span title="A pessoa pediu para não receber mensagens" className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Pediu para não receber</span>}
                     {!c.opt_out_at && c.consentimento_whatsapp && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">Ativo</span>}
                     {c.phone_status && c.phone_status !== "valido" && <span className={"text-[10px] uppercase px-1.5 py-0.5 rounded " + (PHONE_STATUS_BADGE[c.phone_status] ?? "bg-amber-100 text-amber-700")}>{PHONE_STATUS_LABEL[c.phone_status] ?? c.phone_status}</span>}
                   </td>

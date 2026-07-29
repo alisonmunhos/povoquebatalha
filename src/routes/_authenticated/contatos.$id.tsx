@@ -282,8 +282,8 @@ function ContatoFicha() {
         {c.lifecycle_status && <Badge label={c.lifecycle_status} />}
         {c.phone_status && <Badge label={`Tel: ${c.phone_status}`} tone={c.phone_status === "valido" ? "ok" : "warn"} />}
         {c.whatsapp_status && <Badge label={`WA: ${c.whatsapp_status}`} />}
-        {c.opt_out_at && <Badge label="Opt-out" tone="err" />}
-        {c.arquivado_at && <Badge label="Arquivado" tone="warn" />}
+        {c.opt_out_at && <Badge label="Pediu para não receber" tone="err" />}
+        {c.arquivado_at && <Badge label="Fora da base (arquivado)" tone="warn" />}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">

@@ -23,6 +23,18 @@ export const listImportedContactsTokens = createServerFn({ method: "POST" })
     return { rows: rows ?? [] };
   });
 
+/** Quantidade de pares de duplicidade ainda pendentes de revisão. */
+export const countPendingDuplicates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { count, error } = await context.supabase
+      .from("contact_duplicates")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pendente");
+    if (error) throw error;
+    return { pendentes: count ?? 0 };
+  });
+
 export const listPendingDuplicates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

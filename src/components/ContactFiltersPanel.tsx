@@ -101,13 +101,32 @@ function mergeLabels(dynamic: MultiOption[] | undefined, labels: MultiOption[]):
   return list.length ? list : labels;
 }
 
+export type StatusFacets = {
+  lifecycle: Record<string, number>;
+  phone: Record<string, number>;
+  whatsapp: Record<string, number>;
+};
+
+/** Anexa a contagem real da base a uma lista fixa; opções com zero ficam desabilitadas. */
+function withCounts(list: MultiOption[], facet: Record<string, number> | undefined): MultiOption[] {
+  if (!facet) return list;
+  return list.map((o) => {
+    const count = facet[o.value] ?? 0;
+    return count > 0
+      ? { ...o, count }
+      : { ...o, count: 0, disabled: true, disabledReason: "nenhum contato" };
+  });
+}
+
 type Props = {
   filters: CrmFilters;
   onChange: (f: CrmFilters) => void;
   options: FilterOptionsBundle | undefined;
+  /** Contagens reais por status, vindas do banco. Sem elas, as listas ficam sem número. */
+  facets?: StatusFacets;
 };
 
-export function ContactFiltersPanel({ filters, onChange, options }: Props) {
+export function ContactFiltersPanel({ filters, onChange, options, facets }: Props) {
   const set = <K extends keyof CrmFilters>(k: K, v: CrmFilters[K]) => {
     const next = { ...filters, [k]: v } as CrmFilters;
     if (v === undefined || (Array.isArray(v) && v.length === 0) || v === "") {
@@ -162,14 +181,14 @@ export function ContactFiltersPanel({ filters, onChange, options }: Props) {
         <Field label="Tags">
           <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
         </Field>
-        <Field label="Cadastro (ciclo de vida)" hint="Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização.">
-          <MultiSelectFilter options={LIFECYCLE} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
+        <Field label="Cadastro (ciclo de vida)" hint="Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
+          <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
         </Field>
         <Field label="Status do número" hint="Qualidade técnica do telefone. 'Falta DDD' = precisa completar o código de área.">
-          <MultiSelectFilter options={PHONE_STATUS} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(PHONE_STATUS, facets?.phone)} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
         </Field>
         <Field label="Confirmado no WhatsApp?" hint="Preenchido só após você rodar 'Verificar no WhatsApp'.">
-          <MultiSelectFilter options={WPP_STATUS} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(WPP_STATUS, facets?.whatsapp)} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
         </Field>
       </Section>
 
