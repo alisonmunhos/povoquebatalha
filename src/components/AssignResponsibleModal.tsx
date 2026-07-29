@@ -115,7 +115,7 @@ export function AssignResponsibleModal({
     >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Atribuir Responsável</DialogTitle>
+          <DialogTitle>Gerar link para responsável</DialogTitle>
         </DialogHeader>
 
         {link ? (

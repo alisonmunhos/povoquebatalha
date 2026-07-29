@@ -162,8 +162,35 @@ export type Database = {
           },
         ]
       }
+      agitation_mission_eligible_users: {
+        Row: {
+          created_at: string
+          mission_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          mission_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          mission_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agitation_mission_eligible_users_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "agitation_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agitation_missions: {
         Row: {
+          archived_at: string | null
           batch_size: number
           cooldown_minutes: number
           coordinator_phone: string | null
@@ -174,6 +201,8 @@ export type Database = {
           instructions: string | null
           is_open: boolean
           message_template: string
+          open_notified_at: string | null
+          opened_at: string | null
           paused_at: string | null
           source_filters: Json | null
           starts_at: string | null
@@ -181,6 +210,7 @@ export type Database = {
           whatsapp_message_template: string | null
         }
         Insert: {
+          archived_at?: string | null
           batch_size?: number
           cooldown_minutes?: number
           coordinator_phone?: string | null
@@ -191,6 +221,8 @@ export type Database = {
           instructions?: string | null
           is_open?: boolean
           message_template: string
+          open_notified_at?: string | null
+          opened_at?: string | null
           paused_at?: string | null
           source_filters?: Json | null
           starts_at?: string | null
@@ -198,6 +230,7 @@ export type Database = {
           whatsapp_message_template?: string | null
         }
         Update: {
+          archived_at?: string | null
           batch_size?: number
           cooldown_minutes?: number
           coordinator_phone?: string | null
@@ -208,6 +241,8 @@ export type Database = {
           instructions?: string | null
           is_open?: boolean
           message_template?: string
+          open_notified_at?: string | null
+          opened_at?: string | null
           paused_at?: string | null
           source_filters?: Json | null
           starts_at?: string | null

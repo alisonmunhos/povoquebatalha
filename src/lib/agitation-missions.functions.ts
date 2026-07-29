@@ -7,6 +7,8 @@
 // auth.users — ver migration 20260717160000 pra correção histórica disso.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { crmFilterSchema, applyCrmFilters, type CrmFilters } from "@/lib/crm-filters";
 
@@ -17,24 +19,121 @@ const createMissionSchema = z.object({
   ids: z.array(z.string().uuid()).max(20000).optional(),
   filters: crmFilterSchema.partial().optional(),
   verify_whatsapp: z.boolean().optional(),
-  // Nova configuração unificada de missão:
-  mode: z.enum(["open", "direct"]).default("open"),
-  assignee_user_ids: z.array(z.string().uuid()).optional(),
-  batch_size: z.number().int().min(1).max(100).default(10),
-  cooldown_minutes: z.number().int().min(0).max(1440).default(60),
   instructions: z.string().max(4000).optional(),
-  coordinator_phone: z.string().max(40).optional(),
-  whatsapp_message_template: z.string().max(2000).optional(),
 });
+
+async function sendMissionNotifications(input: {
+  missionId: string;
+  missionTitle: string;
+  createdBy: string;
+  userIds: string[];
+  body: string;
+  separateBatchPerUser?: boolean;
+}) {
+  if (!input.userIds.length) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { randomUUID } = await import("node:crypto");
+  const insertedAll: Array<{ id: string; user_id: string }> = [];
+
+  if (input.separateBatchPerUser) {
+    for (const uid of input.userIds) {
+      const batchId = randomUUID();
+      const { data: inserted } = await supabaseAdmin
+        .from("notifications")
+        .insert({
+          user_id: uid,
+          title: `Nova missão: ${input.missionTitle}`,
+          body: input.body,
+          kind: "mission",
+          cta_label: "Abrir missão",
+          cta_kind: "mission",
+          cta_payload: { mission_id: input.missionId },
+          mission_id: input.missionId,
+          created_by: input.createdBy,
+          batch_id: batchId,
+        } as never)
+        .select("id, user_id");
+      insertedAll.push(...(inserted ?? []));
+    }
+  } else {
+    const batchId = randomUUID();
+    const rows = input.userIds.map((uid) => ({
+      user_id: uid,
+      title: `Nova missão: ${input.missionTitle}`,
+      body: input.body,
+      kind: "mission",
+      cta_label: "Abrir missão",
+      cta_kind: "mission",
+      cta_payload: { mission_id: input.missionId },
+      mission_id: input.missionId,
+      created_by: input.createdBy,
+      batch_id: batchId,
+    }));
+    const { data: inserted } = await supabaseAdmin
+      .from("notifications")
+      .insert(rows as never)
+      .select("id, user_id");
+    insertedAll.push(...(inserted ?? []));
+  }
+
+  const { data: subs } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("user_id, endpoint, p256dh, auth")
+    .in("user_id", input.userIds);
+  if (!subs?.length) return;
+
+  const { sendWebPush } = await import("@/lib/web-push.server");
+  const firstByUser = new Map<string, string>();
+  for (const r of insertedAll) if (!firstByUser.has(r.user_id)) firstByUser.set(r.user_id, r.id);
+
+  await Promise.allSettled(
+    subs
+      .filter((s): s is typeof s & { user_id: string } => s.user_id != null)
+      .map(async (s) => {
+        const notifId = firstByUser.get(s.user_id);
+        const r = await sendWebPush(
+          { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+          {
+            title: `Nova missão: ${input.missionTitle}`,
+            body: input.body,
+            url: "/minhas-missoes",
+            notificationId: notifId ?? null,
+            tag: `mission-${input.missionId}`,
+          },
+        );
+        if (r.gone) {
+          await supabaseAdmin.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+        }
+      }),
+  );
+}
+
+async function defaultAgitadorUserIds(): Promise<string[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: rows } = await supabaseAdmin
+    .from("user_roles")
+    .select("user_id")
+    .in("role", ["agitador", "admin", "operador"] as never);
+  return Array.from(new Set((rows ?? []).map((r) => r.user_id)));
+}
+
+async function assertMissionAssignable(
+  supabase: SupabaseClient<Database>,
+  missionId: string,
+) {
+  const { data: mission, error } = await supabase
+    .from("agitation_missions")
+    .select("archived_at")
+    .eq("id", missionId)
+    .single();
+  if (error || !mission) throw new Error("Missão não encontrada.");
+  if (mission.archived_at) throw new Error("Missão arquivada — novas atribuições bloqueadas.");
+}
 
 export const createAgitationMission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => createMissionSchema.parse(d))
   .handler(async ({ data, context }) => {
-    if (data.mode === "direct" && !data.assignee_user_ids?.length) {
-      throw new Error("Selecione ao menos uma pessoa responsável.");
-    }
-
     // Resolve audiência -> IDs (mesmo padrão de createCampaignFromSelection).
     let baseIds = data.ids ?? [];
     if (!baseIds.length && data.filters) {
@@ -120,12 +219,8 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         message_template: data.message_template,
         created_by: context.userId,
         source_filters: (!data.ids && data.filters ? data.filters : null) as never,
-        is_open: data.mode === "open",
-        batch_size: data.batch_size,
-        cooldown_minutes: data.cooldown_minutes,
+        is_open: false,
         instructions: data.instructions ?? null,
-        coordinator_phone: data.coordinator_phone ?? null,
-        whatsapp_message_template: data.whatsapp_message_template ?? null,
       } as never)
       .select("id")
       .single();
@@ -136,114 +231,6 @@ export const createAgitationMission = createServerFn({ method: "POST" })
       const chunk = rows.slice(i, i + 500);
       const { error: e2 } = await context.supabase.from("agitation_tasks").insert(chunk);
       if (e2) throw e2;
-    }
-
-    // Modo direto: atribui batch_size contatos por pessoa selecionada.
-    if (data.mode === "direct" && data.assignee_user_ids?.length) {
-      for (const userId of data.assignee_user_ids) {
-        await context.supabase.rpc("assign_mission_direct" as never, {
-          _mission_id: mission.id,
-          _user_id: userId,
-          _count: data.batch_size,
-        } as never);
-      }
-    }
-
-    // Cria notificações + web push. Modo aberto notifica todos os agitadores;
-    // modo direto notifica cada pessoa escolhida (1 envio por pessoa).
-    try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { randomUUID } = await import("node:crypto");
-      let targetUserIds: string[] = [];
-      if (data.mode === "direct" && data.assignee_user_ids?.length) {
-        targetUserIds = data.assignee_user_ids;
-      } else {
-        const { data: rows } = await supabaseAdmin
-          .from("user_roles")
-          .select("user_id")
-          .in("role", ["agitador", "admin", "operador"] as never);
-        targetUserIds = Array.from(new Set((rows ?? []).map((r) => r.user_id)));
-      }
-      if (targetUserIds.length) {
-        const openBody = `Missão aberta com ${elegiveis.length} contato(s). Pegue seu lote.`;
-        const directBody = `${data.batch_size} contato(s) atribuído(s) a você.`;
-        const insertedAll: Array<{ id: string; user_id: string }> = [];
-
-        if (data.mode === "direct") {
-          for (const uid of targetUserIds) {
-            const batchId = randomUUID();
-            const { data: inserted } = await supabaseAdmin
-              .from("notifications")
-              .insert({
-                user_id: uid,
-                title: `Nova missão: ${data.title}`,
-                body: directBody,
-                kind: "mission",
-                cta_label: "Abrir missão",
-                cta_kind: "mission",
-                cta_payload: { mission_id: mission.id },
-                mission_id: mission.id,
-                created_by: context.userId,
-                batch_id: batchId,
-              } as never)
-              .select("id, user_id");
-            insertedAll.push(...(inserted ?? []));
-          }
-        } else {
-          const batchId = randomUUID();
-          const rows = targetUserIds.map((uid) => ({
-            user_id: uid,
-            title: `Nova missão: ${data.title}`,
-            body: openBody,
-            kind: "mission",
-            cta_label: "Abrir missão",
-            cta_kind: "mission",
-            cta_payload: { mission_id: mission.id },
-            mission_id: mission.id,
-            created_by: context.userId,
-            batch_id: batchId,
-          }));
-          const { data: inserted } = await supabaseAdmin
-            .from("notifications")
-            .insert(rows as never)
-            .select("id, user_id");
-          insertedAll.push(...(inserted ?? []));
-        }
-
-        // Web push best-effort
-        const { data: subs } = await supabaseAdmin
-          .from("push_subscriptions")
-          .select("user_id, endpoint, p256dh, auth")
-          .in("user_id", targetUserIds);
-        if (subs && subs.length) {
-          const { sendWebPush } = await import("@/lib/web-push.server");
-          const firstByUser = new Map<string, string>();
-          for (const r of insertedAll) if (!firstByUser.has(r.user_id)) firstByUser.set(r.user_id, r.id);
-          const pushBody = data.mode === "direct" ? directBody : openBody;
-          await Promise.allSettled(
-            subs
-              .filter((s): s is typeof s & { user_id: string } => s.user_id != null)
-              .map(async (s) => {
-              const notifId = firstByUser.get(s.user_id);
-              const r = await sendWebPush(
-                { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-                {
-                  title: `Nova missão: ${data.title}`,
-                  body: pushBody,
-                  url: "/minhas-missoes",
-                  notificationId: notifId ?? null,
-                  tag: `mission-${mission.id}`,
-                },
-              );
-              if (r.gone) {
-                await supabaseAdmin.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
-              }
-            }),
-          );
-        }
-      }
-    } catch (e) {
-      console.error("[missão] falha ao notificar", e);
     }
 
     return {
@@ -281,26 +268,40 @@ export type MissionSummary = {
   id: string;
   title: string;
   created_at: string;
+  paused_at: string | null;
+  archived_at: string | null;
+  is_open: boolean;
   total: number;
   atribuidos: number;
   pendentes: number;
   concluidos: number;
 };
 
+const listMissionsSchema = z.object({
+  visibility: z.enum(["all", "active", "archived"]).default("active"),
+});
+
 export const listAgitationMissions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ missions: MissionSummary[] }> => {
-    const { data: missions, error } = await context.supabase
+  .inputValidator((d: unknown) => listMissionsSchema.parse(d ?? {}))
+  .handler(async ({ data, context }): Promise<{ missions: MissionSummary[] }> => {
+    let q = context.supabase
       .from("agitation_missions")
-      .select("id,title,created_at")
+      .select("id,title,created_at,paused_at,archived_at,is_open")
       .order("created_at", { ascending: false });
+    if (data.visibility === "active") {
+      q = q.is("archived_at", null);
+    } else if (data.visibility === "archived") {
+      q = q.not("archived_at", "is", null);
+    }
+    const { data: missions, error } = await q;
     if (error) throw error;
     if (!missions?.length) return { missions: [] };
 
     const ids = missions.map((m) => m.id);
     const { data: tasks } = await context.supabase
       .from("agitation_tasks")
-      .select("mission_id,status,assigned_contact_id")
+      .select("mission_id,status,assigned_contact_id,assigned_user_id")
       .in("mission_id", ids);
 
     const stats = new Map<
@@ -310,9 +311,10 @@ export const listAgitationMissions = createServerFn({ method: "GET" })
     for (const t of tasks ?? []) {
       const s = stats.get(t.mission_id) ?? { total: 0, atribuidos: 0, pendentes: 0, concluidos: 0 };
       s.total++;
-      if (t.assigned_contact_id) s.atribuidos++;
+      const hasAssignment = !!(t.assigned_contact_id || t.assigned_user_id);
+      if (hasAssignment) s.atribuidos++;
       if (t.status === "concluido") s.concluidos++;
-      else if (!t.assigned_contact_id) s.pendentes++;
+      else if (!hasAssignment) s.pendentes++;
       stats.set(t.mission_id, s);
     }
 
@@ -324,6 +326,18 @@ export const listAgitationMissions = createServerFn({ method: "GET" })
     };
   });
 
+export const listMissionTemplatesForReuse = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("agitation_missions")
+      .select("id,title,message_template,instructions,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    return { missions: data ?? [] };
+  });
+
 // ===== Detalhe de uma missão (tasks + contato + responsável) =====
 const missionIdSchema = z.object({ mission_id: z.string().uuid() });
 
@@ -333,7 +347,9 @@ export const getMissionDetail = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
-      .select("id,title,message_template,created_at,source_filters,paused_at")
+      .select(
+        "id,title,message_template,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at",
+      )
       .eq("id", data.mission_id)
       .single();
     if (error) throw error;
@@ -347,25 +363,37 @@ export const getMissionDetail = createServerFn({ method: "GET" })
       .order("created_at", { ascending: true });
     if (e2) throw e2;
 
-    const assignedIds = Array.from(
+    const assignedContactIds = Array.from(
       new Set((tasks ?? []).map((t) => t.assigned_contact_id).filter((v): v is string => !!v)),
     );
-    const nameById = new Map<string, string | null>();
-    if (assignedIds.length) {
+    const assignedUserIds = Array.from(
+      new Set((tasks ?? []).map((t) => t.assigned_user_id).filter((v): v is string => !!v)),
+    );
+    const nameByContactId = new Map<string, string | null>();
+    if (assignedContactIds.length) {
       const { data: assignedContacts } = await context.supabase
         .from("contacts")
         .select("id,nome")
-        .in("id", assignedIds);
-      (assignedContacts ?? []).forEach((c) => nameById.set(c.id, c.nome));
+        .in("id", assignedContactIds);
+      (assignedContacts ?? []).forEach((c) => nameByContactId.set(c.id, c.nome));
+    }
+    const nameByUserId = new Map<string, string | null>();
+    if (assignedUserIds.length) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: profs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", assignedUserIds);
+      (profs ?? []).forEach((p) => nameByUserId.set(p.id, p.full_name));
     }
 
     const pausedContactIds = new Set<string>();
-    if (assignedIds.length) {
+    if (assignedContactIds.length) {
       const { data: pauses } = await context.supabase
         .from("agitation_link_pauses")
         .select("contact_id")
         .eq("mission_id", data.mission_id)
-        .in("contact_id", assignedIds);
+        .in("contact_id", assignedContactIds);
       (pauses ?? []).forEach((p) => pausedContactIds.add(p.contact_id));
     }
 
@@ -386,7 +414,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
       if (!t.assigned_contact_id) continue;
       const s = linkStats.get(t.assigned_contact_id) ?? {
         contact_id: t.assigned_contact_id,
-        nome: nameById.get(t.assigned_contact_id) ?? null,
+        nome: nameByContactId.get(t.assigned_contact_id) ?? null,
         total: 0,
         concluidos: 0,
         nao_enviados: 0,
@@ -407,7 +435,10 @@ export const getMissionDetail = createServerFn({ method: "GET" })
         assigned_contact_id: t.assigned_contact_id,
         assigned_user_id: t.assigned_user_id,
         assigned_contact_name: t.assigned_contact_id
-          ? (nameById.get(t.assigned_contact_id) ?? null)
+          ? (nameByContactId.get(t.assigned_contact_id) ?? null)
+          : null,
+        assigned_user_name: t.assigned_user_id
+          ? (nameByUserId.get(t.assigned_user_id) ?? null)
           : null,
         assigned_at: t.assigned_at,
         contact: t.contacts,
@@ -463,6 +494,8 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => assignSchema.parse(d))
   .handler(async ({ data, context }) => {
+    await assertMissionAssignable(context.supabase, data.mission_id);
+
     const { data: updated, error } = await context.supabase
       .from("agitation_tasks")
       .update({
@@ -472,6 +505,7 @@ export const assignMissionTaskResponsible = createServerFn({ method: "POST" })
       .eq("mission_id", data.mission_id)
       .in("id", data.task_ids)
       .is("assigned_contact_id", null)
+      .is("assigned_user_id", null)
       .select("id");
     if (error) throw error;
 
@@ -574,6 +608,172 @@ export const resumeMission = createServerFn({ method: "POST" })
       .eq("id", data.mission_id);
     if (error) throw error;
     return { ok: true as const };
+  });
+
+export const archiveMission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_missions")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", data.mission_id);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+export const unarchiveMission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => missionIdSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("agitation_missions")
+      .update({ archived_at: null })
+      .eq("id", data.mission_id);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+const openMissionSchema = z.object({
+  mission_id: z.string().uuid(),
+  batch_size: z.number().int().min(1).max(100),
+  cooldown_minutes: z.number().int().min(0).max(1440),
+  eligible_user_ids: z.array(z.string().uuid()).optional(),
+  coordinator_phone: z.string().max(40).optional(),
+  whatsapp_message_template: z.string().max(2000).optional(),
+});
+
+export const openMissionForSelfAssign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => openMissionSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertMissionAssignable(context.supabase, data.mission_id);
+
+    const { data: mission, error: mErr } = await context.supabase
+      .from("agitation_missions")
+      .select("id,title,is_open,opened_at")
+      .eq("id", data.mission_id)
+      .single();
+    if (mErr || !mission) throw new Error("Missão não encontrada.");
+
+    const { count: available } = await context.supabase
+      .from("agitation_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("mission_id", data.mission_id)
+      .is("assigned_user_id", null)
+      .is("assigned_contact_id", null)
+      .eq("status", "pending");
+    if (!(available ?? 0)) throw new Error("Não há contatos disponíveis para auto-atribuição.");
+
+    let eligibleIds = data.eligible_user_ids?.length
+      ? data.eligible_user_ids
+      : await defaultAgitadorUserIds();
+    eligibleIds = Array.from(new Set(eligibleIds));
+    if (!eligibleIds.length) throw new Error("Nenhum agitador elegível encontrado.");
+
+    const now = new Date().toISOString();
+    const updateRow = {
+      is_open: true,
+      batch_size: data.batch_size,
+      cooldown_minutes: data.cooldown_minutes,
+      coordinator_phone: data.coordinator_phone ?? null,
+      whatsapp_message_template: data.whatsapp_message_template ?? null,
+      open_notified_at: now,
+      ...(mission.is_open ? {} : { opened_at: now }),
+    };
+    const { error: updErr } = await context.supabase
+      .from("agitation_missions")
+      .update(updateRow as never)
+      .eq("id", data.mission_id);
+    if (updErr) throw updErr;
+
+    await context.supabase
+      .from("agitation_mission_eligible_users")
+      .delete()
+      .eq("mission_id", data.mission_id);
+    await context.supabase.from("agitation_mission_eligible_users").insert(
+      eligibleIds.map((user_id) => ({ mission_id: data.mission_id, user_id })),
+    );
+
+    const openBody = `Missão aberta com ${available} contato(s) disponíveis. Pegue seu lote.`;
+    try {
+      await sendMissionNotifications({
+        missionId: data.mission_id,
+        missionTitle: mission.title,
+        createdBy: context.userId,
+        userIds: eligibleIds,
+        body: openBody,
+      });
+    } catch (e) {
+      console.error("[missão] falha ao notificar abertura", e);
+    }
+
+    return { ok: true as const, notified: eligibleIds.length, available: available ?? 0 };
+  });
+
+const assignUsersSchema = z.object({
+  mission_id: z.string().uuid(),
+  task_ids: z.array(z.string().uuid()).min(1).max(2000),
+  user_ids: z.array(z.string().uuid()).min(1).max(50),
+});
+
+export const assignMissionUsersFromDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => assignUsersSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertMissionAssignable(context.supabase, data.mission_id);
+
+    const { data: mission, error: mErr } = await context.supabase
+      .from("agitation_missions")
+      .select("title")
+      .eq("id", data.mission_id)
+      .single();
+    if (mErr || !mission) throw new Error("Missão não encontrada.");
+
+    const userIds = data.user_ids;
+    const chunks: string[][] = userIds.map(() => []);
+    data.task_ids.forEach((taskId, i) => {
+      chunks[i % userIds.length]!.push(taskId);
+    });
+
+    let totalAssigned = 0;
+    const assignedByUser = new Map<string, number>();
+
+    for (let i = 0; i < userIds.length; i++) {
+      const userId = userIds[i]!;
+      const taskIds = chunks[i]!;
+      if (!taskIds.length) continue;
+
+      const { data: rows, error } = await context.supabase.rpc(
+        "assign_mission_tasks_to_user" as never,
+        {
+          _mission_id: data.mission_id,
+          _user_id: userId,
+          _task_ids: taskIds,
+        } as never,
+      );
+      if (error) throw new Error(error.message);
+      const assigned = ((rows as { task_ids: string[] }[] | null)?.[0]?.task_ids ?? []).length;
+      totalAssigned += assigned;
+      if (assigned > 0) assignedByUser.set(userId, assigned);
+    }
+
+    for (const [userId, count] of assignedByUser) {
+      try {
+        await sendMissionNotifications({
+          missionId: data.mission_id,
+          missionTitle: mission.title,
+          createdBy: context.userId,
+          userIds: [userId],
+          body: `${count} contato(s) atribuído(s) a você.`,
+          separateBatchPerUser: true,
+        });
+      } catch (e) {
+        console.error("[missão] falha ao notificar atribuição direta", e);
+      }
+    }
+
+    return { ok: true as const, assigned: totalAssigned };
   });
 
 // ===== Pausar/retomar só o link de um responsável específico =====
@@ -717,6 +917,7 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .select("id", { count: "exact", head: true })
       .eq("mission_id", data.mission_id)
       .is("assigned_user_id", null)
+      .is("assigned_contact_id", null)
       .eq("status", "pending");
 
     const now = Date.now();
@@ -774,13 +975,14 @@ export const listMyMissions = createServerFn({ method: "GET" })
     const { data: missions } = await context.supabase
       .from("agitation_missions")
       .select(
-        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at",
+        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at, archived_at",
       )
       .in("id", missionIds);
-    // Filtra: mantém missões com tasks minhas OU missões abertas/não pausadas quando só tenho notificação.
     const missionIdsWithTasks = new Set((tasks ?? []).map((t) => t.mission_id));
     const missionsFiltered = (missions ?? []).filter(
-      (m) => missionIdsWithTasks.has(m.id) || (m.is_open && !m.paused_at),
+      (m) =>
+        missionIdsWithTasks.has(m.id) ||
+        (m.is_open && !m.paused_at && !m.archived_at),
     );
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
