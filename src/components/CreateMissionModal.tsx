@@ -21,6 +21,11 @@ import {
   COMPOSER_VARIABLES,
 } from "@/components/MessageComposer";
 import {
+  MissionImageUpload,
+  emptyMissionMedia,
+  type MissionMedia,
+} from "@/components/MissionImageUpload";
+import {
   createAgitationMission,
   listMissionTemplatesForReuse,
 } from "@/lib/agitation-missions.functions";
@@ -41,6 +46,7 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
   const [title, setTitle] = useState("");
   const [composer, setComposer] = useState(emptyComposerValue());
   const [instructions, setInstructions] = useState("");
+  const [media, setMedia] = useState<MissionMedia>(emptyMissionMedia);
   const [verifyWhatsapp, setVerifyWhatsapp] = useState(false);
   const [templateId, setTemplateId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -72,6 +78,9 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
           message_template: composer.body,
           verify_whatsapp: verifyWhatsapp,
           instructions: instructions.trim() || undefined,
+          media_path: media.media_path,
+          media_mime: media.media_mime,
+          media_filename: media.media_filename,
           ...("ids" in source ? { ids: source.ids } : { filters: source.filters }),
         },
       });
@@ -147,6 +156,8 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
               className="mt-1"
             />
           </div>
+
+          <MissionImageUpload value={media} onChange={setMedia} />
 
           <label className="flex items-center gap-2 text-xs cursor-pointer">
             <Checkbox

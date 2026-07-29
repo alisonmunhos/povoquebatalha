@@ -135,6 +135,30 @@ type TagFilterSupabase = {
   };
 };
 
+/**
+ * Busca TODAS as linhas de uma consulta, em blocos.
+ * O PostgREST devolve no máximo 1.000 linhas por chamada, independente do
+ * `.limit()` pedido — por isso é obrigatório paginar com `.range()`.
+ */
+export async function fetchAllPaged<T>(
+  buildQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+  opts?: { pageSize?: number; hardCap?: number },
+): Promise<T[]> {
+  const pageSize = opts?.pageSize ?? 1000;
+  const hardCap = opts?.hardCap ?? 200_000;
+  const out: T[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < pageSize || out.length >= hardCap) break;
+    offset += pageSize;
+  }
+  return out;
+}
+
 /** Resolve IDs de contatos para filtro de tags (OR entre tags + token de vazio). */
 export async function resolveContactIdsForTagFilter(
   supabase: TagFilterSupabase,
@@ -144,12 +168,10 @@ export async function resolveContactIdsForTagFilter(
 
   let matchedIds: string[] = [];
   if (tagIds.length) {
-    const { data: rels, error } = await (supabase as any)
-      .from("contact_tags")
-      .select("contact_id")
-      .in("tag_id", tagIds);
-    if (error) throw new Error(error.message);
-    matchedIds = Array.from(new Set((rels ?? []).map((r: { contact_id: string }) => r.contact_id)));
+    const rels = await fetchAllPaged<{ contact_id: string }>(() =>
+      (supabase as any).from("contact_tags").select("contact_id").in("tag_id", tagIds),
+    );
+    matchedIds = Array.from(new Set(rels.map((r) => r.contact_id)));
   }
 
   if (!includeEmpty) {
@@ -157,35 +179,59 @@ export async function resolveContactIdsForTagFilter(
     return { ids: matchedIds, noMatch: false };
   }
 
-  const { data: allTaggedRels, error: allTaggedErr } = await (supabase as any)
-    .from("contact_tags")
-    .select("contact_id")
-    .limit(50000);
-  if (allTaggedErr) throw new Error(allTaggedErr.message);
-  const taggedSet = new Set((allTaggedRels ?? []).map((r: { contact_id: string }) => r.contact_id));
+  const allTaggedRels = await fetchAllPaged<{ contact_id: string }>(() =>
+    (supabase as any).from("contact_tags").select("contact_id"),
+  );
+  const taggedSet = new Set(allTaggedRels.map((r) => r.contact_id));
 
-  const { data: activeContacts, error: cErr } = await (supabase as any)
-    .from("contacts")
-    .select("id")
-    .is("arquivado_at", null)
-    .limit(20000);
-  if (cErr) throw new Error(cErr.message);
+  const activeContacts = await fetchAllPaged<{ id: string }>(() =>
+    (supabase as any).from("contacts").select("id").is("arquivado_at", null),
+  );
 
   if (tagIds.length) {
     const combined = new Set(matchedIds);
-    for (const c of activeContacts ?? []) {
+    for (const c of activeContacts) {
       if (!taggedSet.has(c.id)) combined.add(c.id);
     }
     if (!combined.size) return { ids: [], noMatch: true };
     return { ids: Array.from(combined), noMatch: false };
   }
 
-  const untagged = (activeContacts ?? [])
-    .map((c: { id: string }) => c.id)
-    .filter((id: string) => !taggedSet.has(id));
+  const untagged = activeContacts.map((c) => c.id).filter((id) => !taggedSet.has(id));
   if (!untagged.length) return { ids: [], noMatch: true };
   return { ids: untagged, noMatch: false };
 }
+
+/**
+ * Acima deste tamanho, a lista de IDs não pode ser embutida na consulta:
+ * a URL gerada pelo PostgREST estoura e o request falha. Nesse caso o
+ * cruzamento é feito em memória (ver `paginateWithAllowedIds`).
+ */
+export const INLINE_ID_LIMIT = 400;
+
+/**
+ * Cruza um filtro grande de IDs (ex.: tags com milhares de vínculos) com os
+ * demais filtros, sem embutir os IDs na URL:
+ * 1. busca em blocos apenas os IDs que passam nos outros filtros (já ordenados);
+ * 2. mantém só os que estão no conjunto permitido;
+ * 3. devolve a página pedida e o total real.
+ */
+export async function paginateWithAllowedIds(opts: {
+  buildIdQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: Array<{ id: string }> | null; error: { message: string } | null }> };
+  allowed: Set<string>;
+  from: number;
+  pageSize: number;
+}): Promise<{ pageIds: string[]; total: number }> {
+  const all = await fetchAllPaged<{ id: string }>(opts.buildIdQuery, { hardCap: 100_000 });
+  const filtered = all.map((r) => r.id).filter((id) => opts.allowed.has(id));
+  return {
+    pageIds: filtered.slice(opts.from, opts.from + opts.pageSize),
+    total: filtered.length,
+  };
+}
+
+
+
 
 /** Remove caracteres que quebram o parser de `.or()` do PostgREST. */
 function safe(v: string): string {

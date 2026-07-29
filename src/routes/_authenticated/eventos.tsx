@@ -10,6 +10,9 @@ import {
   upsertEvent,
   deleteEvent,
   suggestEventSlug,
+  signEventCoverUpload,
+  getEventCoverUrl,
+  listEventRsvps,
 } from "@/lib/events.functions";
 import { slugifyEventTitle } from "@/lib/event-slug";
 
@@ -28,6 +31,15 @@ type EventRow = {
   location: string | null;
 };
 
+type RsvpContact = {
+  id: string;
+  nome: string | null;
+  nome_social: string | null;
+  phone_e164: string | null;
+  phone_raw: string | null;
+  cidade: string | null;
+};
+
 function toLocalDatetimeValue(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -41,6 +53,9 @@ function EventosPage() {
   const saveFn = useServerFn(upsertEvent);
   const removeFn = useServerFn(deleteEvent);
   const slugFn = useServerFn(suggestEventSlug);
+  const signCoverFn = useServerFn(signEventCoverUpload);
+  const coverUrlFn = useServerFn(getEventCoverUrl);
+  const rsvpsFn = useServerFn(listEventRsvps);
 
   const listQ = useQuery({ queryKey: ["events-admin"], queryFn: () => listFn() });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,6 +69,19 @@ function EventosPage() {
   const [isPublished, setIsPublished] = useState(false);
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<{ confirmed: number; declined: number } | null>(null);
+  const [coverPath, setCoverPath] = useState<string | null>(null);
+  const [coverMime, setCoverMime] = useState<string | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
+  const [postButtonText, setPostButtonText] = useState("");
+  const [postButtonUrl, setPostButtonUrl] = useState("");
+
+  const rsvpsQ = useQuery({
+    queryKey: ["event-rsvps", editingId],
+    queryFn: () => rsvpsFn({ data: { event_id: editingId as string, status: "confirmed" } }),
+    enabled: !!editingId,
+  });
 
   const events = (listQ.data?.events ?? []) as EventRow[];
 
@@ -76,6 +104,42 @@ function EventosPage() {
     setEndsAt("");
     setIsPublished(false);
     setStats(null);
+    setCoverPath(null);
+    setCoverMime(null);
+    setCoverPreview(null);
+    setPostTitle("");
+    setPostButtonText("");
+    setPostButtonUrl("");
+  }
+
+  async function uploadCover(file: File) {
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      toast.error("Formato não aceito. Envie PNG, JPG ou WEBP.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Imagem muito grande. O limite é 8 MB.");
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      const signed = await signCoverFn({ data: { filename: file.name, contentType: file.type } });
+      const res = await fetch(signed.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error("Falha ao enviar a imagem.");
+      setCoverPath(signed.path);
+      setCoverMime(file.type);
+      setCoverPreview(URL.createObjectURL(file));
+      toast.success("Capa enviada.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar a capa.");
+    } finally {
+      setUploadingCover(false);
+    }
   }
 
   async function openEdit(id: string) {
@@ -91,6 +155,24 @@ function EventosPage() {
     setEndsAt(toLocalDatetimeValue(e.ends_at));
     setIsPublished(Boolean(e.is_published));
     setStats(r.stats);
+    const extra = r.event as unknown as {
+      cover_path: string | null;
+      cover_mime: string | null;
+      post_rsvp_title: string | null;
+      post_rsvp_button_text: string | null;
+      post_rsvp_button_url: string | null;
+    };
+    setCoverPath(extra.cover_path ?? null);
+    setCoverMime(extra.cover_mime ?? null);
+    setCoverPreview(null);
+    if (extra.cover_path) {
+      coverUrlFn({ data: { path: extra.cover_path } })
+        .then((c) => setCoverPreview(c.url))
+        .catch(() => setCoverPreview(null));
+    }
+    setPostTitle(extra.post_rsvp_title ?? "");
+    setPostButtonText(extra.post_rsvp_button_text ?? "");
+    setPostButtonUrl(extra.post_rsvp_button_url ?? "");
   }
 
   async function save() {
@@ -110,6 +192,11 @@ function EventosPage() {
           starts_at: new Date(startsAt).toISOString(),
           ends_at: endsAt ? new Date(endsAt).toISOString() : null,
           is_published: isPublished,
+          cover_path: coverPath,
+          cover_mime: coverMime,
+          post_rsvp_title: postTitle.trim() || null,
+          post_rsvp_button_text: postButtonText.trim() || null,
+          post_rsvp_button_url: postButtonUrl.trim() || null,
         },
       });
       toast.success(editingId ? "Evento atualizado." : "Evento criado.");
@@ -212,6 +299,70 @@ function EventosPage() {
           </div>
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-2 border-t pt-4">
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Imagem de capa (opcional)</label>
+            <div className="mt-1 flex items-center gap-3 flex-wrap">
+              {coverPreview && (
+                <img src={coverPreview} alt="Capa do evento" className="h-16 w-28 rounded object-cover border" />
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={uploadingCover}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadCover(f);
+                }}
+                className="text-xs"
+              />
+              {coverPath && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCoverPath(null);
+                    setCoverMime(null);
+                    setCoverPreview(null);
+                  }}
+                  className="text-xs text-destructive hover:underline"
+                >
+                  Remover capa
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Mensagem exibida depois de confirmar presença
+            </label>
+            <input
+              value={postTitle}
+              onChange={(e) => setPostTitle(e.target.value)}
+              placeholder="Ex.: Presença confirmada! Chame mais gente."
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Texto do botão (opcional)</label>
+            <input
+              value={postButtonText}
+              onChange={(e) => setPostButtonText(e.target.value)}
+              placeholder="Ex.: Entrar no grupo"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Link do botão (opcional)</label>
+            <input
+              value={postButtonUrl}
+              onChange={(e) => setPostButtonUrl(e.target.value)}
+              placeholder="https://…"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
         {stats && (
           <p className="text-xs text-muted-foreground">
             RSVPs: {stats.confirmed} confirmado(s) · {stats.declined} recusou(ram)
@@ -245,6 +396,44 @@ function EventosPage() {
           )}
         </div>
       </section>
+
+      {editingId && (
+        <section className="border rounded-xl bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b font-semibold text-sm">
+            Quem confirmou presença ({rsvpsQ.data?.rsvps.length ?? 0})
+          </div>
+          {rsvpsQ.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
+          {!rsvpsQ.isLoading && !(rsvpsQ.data?.rsvps.length ?? 0) && (
+            <div className="p-4 text-sm text-muted-foreground">Ninguém confirmou presença ainda.</div>
+          )}
+          <ul className="divide-y">
+            {(rsvpsQ.data?.rsvps ?? []).map((r) => {
+              const c = (r as { contacts: RsvpContact | null }).contacts;
+              return (
+                <li key={r.id} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">
+                      {c?.nome_social?.trim() || c?.nome || "(sem nome)"}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[c?.phone_e164 ?? c?.phone_raw, c?.cidade].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  {c?.id && (
+                    <Link
+                      to="/contatos/$id"
+                      params={{ id: c.id }}
+                      className="text-xs text-primary hover:underline shrink-0"
+                    >
+                      Ver ficha
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="border rounded-xl bg-card overflow-hidden">
         <div className="px-4 py-3 border-b font-semibold text-sm">Eventos cadastrados</div>

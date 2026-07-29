@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
+import {
+  applyCrmFilters,
+  resolveContactIdsForTagFilter,
+  paginateWithAllowedIds,
+  INLINE_ID_LIMIT,
+  type CrmFilters,
+} from "@/lib/crm-filters";
 import { FORM_FIELD_CATALOG, getCatalogField } from "@/lib/form-field-catalog";
 import { parseSheetSort, resolveSortDbColumn } from "@/lib/column-sort-mapping";
 
@@ -106,44 +112,75 @@ export const listContactsSheet = createServerFn({ method: "POST" })
       throw new Error(`Filtros inválidos: ${(err as Error).message}`);
     }
 
-    let q = context.supabase.from("contacts").select(projection, { count: "exact" });
-
-    try {
-      q = applyCrmFilters(q as never, filters);
-    } catch (err: unknown) {
-      throw new Error(`Filtros inválidos: ${(err as Error).message}`);
-    }
-
+    let allowedIds: string[] | null = null;
     const tagIdsRaw = filters.tag_ids;
     if (tagIdsRaw?.length) {
       const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, tagIdsRaw);
       if (noMatch) {
         return { rows: [], total: 0, page, pageSize: data.pageSize };
       }
-      if (ids?.length) {
-        q = q.in("id", ids);
-      }
+      if (ids?.length) allowedIds = ids;
     }
 
-    if (data.sort) {
-      const { columnKey, direction } = parseSheetSort(data.sort);
-      const dbCol = resolveSortDbColumn(columnKey);
-      const ascending = direction === "asc";
-      if (dbCol) {
-        q = q.order(dbCol, { ascending, nullsFirst: false });
-        if (dbCol !== "created_at") q = q.order("created_at", { ascending: false });
+    function buildQuery(cols: string, withCount: boolean) {
+      let q = withCount
+        ? context.supabase.from("contacts").select(cols, { count: "exact" })
+        : context.supabase.from("contacts").select(cols);
+      try {
+        q = applyCrmFilters(q as never, filters);
+      } catch (err: unknown) {
+        throw new Error(`Filtros inválidos: ${(err as Error).message}`);
+      }
+      if (data.sort) {
+        const { columnKey, direction } = parseSheetSort(data.sort);
+        const dbCol = resolveSortDbColumn(columnKey);
+        const ascending = direction === "asc";
+        if (dbCol) {
+          q = q.order(dbCol, { ascending, nullsFirst: false });
+          if (dbCol !== "created_at") q = q.order("created_at", { ascending: false });
+        } else {
+          q = q.order("created_at", { ascending: false });
+        }
       } else {
         q = q.order("created_at", { ascending: false });
       }
-    } else {
-      q = q.order("created_at", { ascending: false });
+      return q;
     }
 
-    if (typeof to === "number") q = q.range(from, to);
+    let rows: Record<string, unknown>[] = [];
+    let count: number | null = null;
 
-    const { data: rowsRaw, count, error } = await q;
-    if (error) throw new Error(postgrestErrorMessage(error));
-    const rows = (rowsRaw ?? []) as unknown as Record<string, unknown>[];
+    if (allowedIds && allowedIds.length > INLINE_ID_LIMIT) {
+      // Conjunto grande demais pra caber na URL: cruza em memória.
+      const allowedSet = new Set(allowedIds);
+      const { pageIds, total } = await paginateWithAllowedIds({
+        buildIdQuery: () => buildQuery("id", false) as never,
+        allowed: allowedSet,
+        from,
+        pageSize: pageSize ?? 100_000,
+      });
+      count = total;
+      if (pageIds.length) {
+        const { data: pageRows, error } = await context.supabase
+          .from("contacts")
+          .select(projection)
+          .in("id", pageIds);
+        if (error) throw new Error(postgrestErrorMessage(error));
+        const byId = new Map(
+          ((pageRows ?? []) as unknown as Record<string, unknown>[]).map((r) => [r.id as string, r]),
+        );
+        rows = pageIds.map((id: string) => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+      }
+    } else {
+      let q = buildQuery(projection, true);
+      if (allowedIds?.length) q = q.in("id", allowedIds);
+      if (typeof to === "number") q = q.range(from, to);
+      const { data: rowsRaw, count: c, error } = await q;
+      if (error) throw new Error(postgrestErrorMessage(error));
+      rows = (rowsRaw ?? []) as unknown as Record<string, unknown>[];
+      count = c ?? 0;
+    }
+
 
     const ids = rows.map((r) => r.id).filter(Boolean) as string[];
     const tagMap = await loadContactTagsBatched(context.supabase, ids);

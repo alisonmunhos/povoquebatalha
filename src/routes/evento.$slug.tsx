@@ -22,6 +22,16 @@ type EventData = {
   location: string | null;
   starts_at: string;
   ends_at: string | null;
+  cover_url?: string | null;
+  post_rsvp_title?: string | null;
+  post_rsvp_button_text?: string | null;
+  post_rsvp_button_url?: string | null;
+};
+
+type PostRsvp = {
+  title: string | null;
+  button_text: string | null;
+  button_url: string | null;
 };
 
 type PageState =
@@ -52,6 +62,12 @@ function EventoPublicPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [contactToken, setContactToken] = useState<string | undefined>(tokenFromUrl);
+  const [consentWhatsapp, setConsentWhatsapp] = useState(false);
+  const [consentLgpd, setConsentLgpd] = useState(false);
+  const [consentSensiveis, setConsentSensiveis] = useState(false);
+  const [postRsvp, setPostRsvp] = useState<PostRsvp | null>(null);
+
+  const consentsOk = consentWhatsapp && consentLgpd && consentSensiveis;
 
   async function load() {
     setErr(null);
@@ -81,7 +97,16 @@ function EventoPublicPage() {
     setBusy(true);
     setErr(null);
     try {
-      const body: Record<string, unknown> = { status, hp: "" };
+      if (status === "confirmed" && !consentsOk) {
+        throw new Error("Marque os três consentimentos para confirmar sua presença.");
+      }
+      const body: Record<string, unknown> = {
+        status,
+        hp: "",
+        consentimento_whatsapp: consentWhatsapp,
+        consentimento_lgpd: consentLgpd,
+        consentimento_dados_sensiveis: consentSensiveis,
+      };
       if (page.contact || contactToken || tokenFromUrl) {
         body.contact_token = contactToken ?? tokenFromUrl;
       } else {
@@ -96,6 +121,8 @@ function EventoPublicPage() {
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Erro ao registrar resposta.");
       if (json.contact_token) setContactToken(json.contact_token);
+      if (status === "confirmed") setPostRsvp((json.post_rsvp as PostRsvp) ?? null);
+      else setPostRsvp(null);
       setPage({
         status: "ready",
         event: page.event,
@@ -129,6 +156,13 @@ function EventoPublicPage() {
 
       {page.status === "ready" && (
         <article className="space-y-5">
+          {page.event.cover_url && (
+            <img
+              src={page.event.cover_url}
+              alt={`Imagem do evento ${page.event.title}`}
+              className="w-full rounded-xl border object-cover max-h-72"
+            />
+          )}
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{page.event.title}</h1>
             {(() => {
@@ -168,8 +202,21 @@ function EventoPublicPage() {
             <h2 className="font-semibold">Sua presença</h2>
 
             {page.rsvp_status === "confirmed" && (
-              <div className="flex items-center gap-2 text-emerald-700 text-sm">
-                <CheckCircle2 className="h-5 w-5" /> Presença confirmada. Até lá!
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-emerald-700 text-sm">
+                  <CheckCircle2 className="h-5 w-5" />
+                  {postRsvp?.title ?? page.event.post_rsvp_title ?? "Presença confirmada. Até lá!"}
+                </div>
+                {(postRsvp?.button_url ?? page.event.post_rsvp_button_url) && (
+                  <a
+                    href={(postRsvp?.button_url ?? page.event.post_rsvp_button_url) as string}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
+                  >
+                    {postRsvp?.button_text ?? page.event.post_rsvp_button_text ?? "Saiba mais"}
+                  </a>
+                )}
               </div>
             )}
             {page.rsvp_status === "declined" && (
@@ -207,11 +254,50 @@ function EventoPublicPage() {
               </p>
             )}
 
+            {page.rsvp_status !== "confirmed" && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <p className="text-xs font-medium">
+                  Para confirmar presença, precisamos da sua autorização:
+                </p>
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentWhatsapp}
+                    onChange={(e) => setConsentWhatsapp(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Autorizo receber mensagens no WhatsApp sobre este evento e outras atividades.
+                </label>
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentLgpd}
+                    onChange={(e) => setConsentLgpd(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Concordo com o uso dos meus dados conforme a{" "}
+                  <Link to="/termos/$slug" params={{ slug: "privacidade" }} className="text-primary hover:underline">
+                    política de privacidade
+                  </Link>
+                  .
+                </label>
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentSensiveis}
+                    onChange={(e) => setConsentSensiveis(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Autorizo o tratamento de dados sensíveis (como opinião política) para fins de mobilização.
+                </label>
+              </div>
+            )}
+
             {page.rsvp_status == null && (
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || !consentsOk}
                   onClick={() => submitRsvp("confirmed")}
                   className="flex-1 rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
                 >
@@ -232,7 +318,7 @@ function EventoPublicPage() {
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || (page.rsvp_status !== "confirmed" && !consentsOk)}
                   onClick={() => submitRsvp(page.rsvp_status === "confirmed" ? "declined" : "confirmed")}
                   className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
                 >

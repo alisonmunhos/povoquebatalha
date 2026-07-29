@@ -200,6 +200,9 @@ export type Database = {
           id: string
           instructions: string | null
           is_open: boolean
+          media_filename: string | null
+          media_mime: string | null
+          media_path: string | null
           message_template: string
           open_notified_at: string | null
           opened_at: string | null
@@ -220,6 +223,9 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_open?: boolean
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
           message_template: string
           open_notified_at?: string | null
           opened_at?: string | null
@@ -240,6 +246,9 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_open?: boolean
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
           message_template?: string
           open_notified_at?: string | null
           opened_at?: string | null
@@ -1663,6 +1672,8 @@ export type Database = {
       }
       events: {
         Row: {
+          cover_mime: string | null
+          cover_path: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -1670,12 +1681,17 @@ export type Database = {
           id: string
           is_published: boolean
           location: string | null
+          post_rsvp_button_text: string | null
+          post_rsvp_button_url: string | null
+          post_rsvp_title: string | null
           slug: string
           starts_at: string
           title: string
           updated_at: string
         }
         Insert: {
+          cover_mime?: string | null
+          cover_path?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -1683,12 +1699,17 @@ export type Database = {
           id?: string
           is_published?: boolean
           location?: string | null
+          post_rsvp_button_text?: string | null
+          post_rsvp_button_url?: string | null
+          post_rsvp_title?: string | null
           slug: string
           starts_at: string
           title: string
           updated_at?: string
         }
         Update: {
+          cover_mime?: string | null
+          cover_path?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -1696,6 +1717,9 @@ export type Database = {
           id?: string
           is_published?: boolean
           location?: string | null
+          post_rsvp_button_text?: string | null
+          post_rsvp_button_url?: string | null
+          post_rsvp_title?: string | null
           slug?: string
           starts_at?: string
           title?: string

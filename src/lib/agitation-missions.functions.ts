@@ -20,7 +20,11 @@ const createMissionSchema = z.object({
   filters: crmFilterSchema.partial().optional(),
   verify_whatsapp: z.boolean().optional(),
   instructions: z.string().max(4000).optional(),
+  media_path: z.string().max(500).nullable().optional(),
+  media_mime: z.string().max(120).nullable().optional(),
+  media_filename: z.string().max(200).nullable().optional(),
 });
+
 
 async function sendMissionNotifications(input: {
   missionId: string;
@@ -221,6 +225,9 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         source_filters: (!data.ids && data.filters ? data.filters : null) as never,
         is_open: false,
         instructions: data.instructions ?? null,
+        media_path: data.media_path ?? null,
+        media_mime: data.media_mime ?? null,
+        media_filename: data.media_filename ?? null,
       } as never)
       .select("id")
       .single();
@@ -242,11 +249,51 @@ export const createAgitationMission = createServerFn({ method: "POST" })
     };
   });
 
+// ===== Anexo de imagem da missão (reaproveita o bucket de mídia de campanha) =====
+export const signMissionMediaUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        filename: z.string().trim().min(1).max(200),
+        contentType: z.string().trim().min(1).max(120),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!allowed.includes(data.contentType)) throw new Error("Tipo não permitido. Use PNG, JPG ou WEBP.");
+    const clean = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+    const path = `missoes/${context.userId}/${Date.now()}_${clean}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUploadUrl(path);
+    if (error) throw error;
+    return { path, token: signed.token, signedUrl: signed.signedUrl, contentType: data.contentType, filename: clean };
+  });
+
+/** Gera um link temporário para o agitador ver/baixar a imagem da missão. */
+export const getMissionMediaUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ path: z.string().min(1).max(500) }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUrl(data.path, 60 * 60);
+    if (error) throw error;
+    return { url: signed.signedUrl };
+  });
+
 // ===== Editar título/mensagem de uma missão já criada =====
 const updateMissionSchema = z.object({
   mission_id: z.string().uuid(),
   title: z.string().trim().min(2).max(160),
   message_template: z.string().min(1).max(4000),
+  media_path: z.string().max(500).nullable().optional(),
+  media_mime: z.string().max(120).nullable().optional(),
+  media_filename: z.string().max(200).nullable().optional(),
 });
 
 export const updateAgitationMission = createServerFn({ method: "POST" })
@@ -255,12 +302,22 @@ export const updateAgitationMission = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // A mensagem é sempre renderizada na hora (não congelada), então editar
     // aqui já reflete em todos os links ativos automaticamente.
+    const row: Record<string, unknown> = {
+      title: data.title,
+      message_template: data.message_template,
+    };
+    if (data.media_path !== undefined) {
+      row.media_path = data.media_path;
+      row.media_mime = data.media_mime ?? null;
+      row.media_filename = data.media_filename ?? null;
+    }
     const { error } = await context.supabase
       .from("agitation_missions")
-      .update({ title: data.title, message_template: data.message_template })
+      .update(row as never)
       .eq("id", data.mission_id);
     if (error) throw error;
     return { ok: true as const };
+
   });
 
 // ===== Listagem de missões (com contagens) =====
@@ -348,7 +405,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
       .select(
-        "id,title,message_template,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at",
+        "id,title,message_template,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at,media_path,media_mime,media_filename",
       )
       .eq("id", data.mission_id)
       .single();
@@ -999,7 +1056,7 @@ export const listMyMissions = createServerFn({ method: "GET" })
     const { data: missions } = await context.supabase
       .from("agitation_missions")
       .select(
-        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at, archived_at",
+        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at, archived_at, media_path, media_mime, media_filename",
       )
       .in("id", missionIds);
     const missionIdsWithTasks = new Set((tasks ?? []).map((t) => t.mission_id));
