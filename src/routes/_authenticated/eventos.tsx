@@ -117,8 +117,13 @@ function EventosPage() {
     setCoverMime(null);
     setCoverPreview(null);
     setPostTitle("");
+    setPostBody("");
     setPostButtonText("");
     setPostButtonUrl("");
+    setDeclineTitle("");
+    setDeclineBody("");
+    setDeclineButtonText("");
+    setDeclineButtonUrl("");
     setLinkedFormId("");
   }
 
