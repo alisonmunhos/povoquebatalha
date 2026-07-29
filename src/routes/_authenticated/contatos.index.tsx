@@ -413,6 +413,12 @@ function Contatos() {
         <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
           <PhoneCall className="h-3.5 w-3.5 mr-1" /> Revisar telefones
         </Button>
+        {(dupCountQ.data?.pendentes ?? 0) > 0 && (
+          <Button size="sm" variant="outline" onClick={() => navigate({ to: "/duplicidades" })} title="Pares de contatos possivelmente repetidos, aguardando revisão">
+            <Copy className="h-3.5 w-3.5 mr-1" /> Duplicidades a revisar
+            <span className="ml-1.5 rounded-full bg-amber-100 text-amber-800 px-1.5 text-[11px] tabular-nums">{dupCountQ.data?.pendentes}</span>
+          </Button>
+        )}
       </div>
 
       {activeCount > 0 && (
