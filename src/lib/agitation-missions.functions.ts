@@ -405,7 +405,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
       .select(
-        "id,title,message_template,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at",
+        "id,title,message_template,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at,media_path,media_mime,media_filename",
       )
       .eq("id", data.mission_id)
       .single();
@@ -1056,7 +1056,7 @@ export const listMyMissions = createServerFn({ method: "GET" })
     const { data: missions } = await context.supabase
       .from("agitation_missions")
       .select(
-        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at, archived_at",
+        "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at, archived_at, media_path, media_mime, media_filename",
       )
       .in("id", missionIds);
     const missionIdsWithTasks = new Set((tasks ?? []).map((t) => t.mission_id));
