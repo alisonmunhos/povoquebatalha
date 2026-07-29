@@ -430,7 +430,8 @@ export function PublicFormRenderer({
         onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: nextId });
         return;
       }
-      setCurrentSectionId(nextId);
+      goToSection(nextId);
+
       return;
     }
     if (eventSlug && onEventConfirmed) {
