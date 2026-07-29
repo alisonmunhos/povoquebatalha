@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, Pause, Play, Pencil, X, Repeat, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, Copy, Pause, Play, Pencil, X, Repeat, Tag as TagIcon, Archive, ArchiveRestore } from "lucide-react";
 import {
   getMissionDetail,
   unassignMissionTask,
@@ -12,10 +12,14 @@ import {
   pauseAssignmentLink,
   resumeAssignmentLink,
   getMissionRecipientsPanel,
+  archiveMission,
+  unarchiveMission,
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AssignResponsibleModal } from "@/components/AssignResponsibleModal";
+import { AssignMissionUsersModal } from "@/components/AssignMissionUsersModal";
+import { OpenMissionModal } from "@/components/OpenMissionModal";
 import { EditMissionModal } from "@/components/EditMissionModal";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { ApplyTagModal } from "@/components/ApplyTagModal";
@@ -34,6 +38,7 @@ type Task = {
   assigned_contact_id: string | null;
   assigned_user_id: string | null;
   assigned_contact_name: string | null;
+  assigned_user_name: string | null;
   assigned_at: string | null;
   contact: {
     id: string;
@@ -71,9 +76,13 @@ function MissionDetailsPanel() {
   const resumeMissionFn = useServerFn(resumeMission);
   const pauseLinkFn = useServerFn(pauseAssignmentLink);
   const resumeLinkFn = useServerFn(resumeAssignmentLink);
+  const archiveFn = useServerFn(archiveMission);
+  const unarchiveFn = useServerFn(unarchiveMission);
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignOpen, setAssignOpen] = useState(false);
+  const [assignUsersOpen, setAssignUsersOpen] = useState(false);
+  const [openMissionOpen, setOpenMissionOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [newMissionOpen, setNewMissionOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
@@ -95,23 +104,35 @@ function MissionDetailsPanel() {
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["agitation-mission-detail", missionId] });
     queryClient.invalidateQueries({ queryKey: ["agitation-missions"] });
+    queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
   }
 
   const tasks = (q.data?.tasks ?? []) as Task[];
   const links = (q.data?.links ?? []) as LinkRow[];
   const missionPaused = !!q.data?.mission.paused_at;
-  const assignedTaskIds = tasks
-    .filter((t) => t.assigned_contact_id || t.assigned_user_id)
-    .map((t) => t.id);
+  const missionArchived = !!q.data?.mission.archived_at;
+  const missionIsOpen = !!q.data?.mission.is_open;
+
+  function taskHasAssignment(t: Task) {
+    return !!(t.assigned_contact_id || t.assigned_user_id);
+  }
+
+  const availableForPool = tasks.filter(
+    (t) => !taskHasAssignment(t) && t.status === "pending",
+  ).length;
+
+  const assignedTaskIds = tasks.filter((t) => taskHasAssignment(t)).map((t) => t.id);
   const hasAnyAssignment = assignedTaskIds.length > 0;
+  const selectedIds = [...selected];
+  const canAssign = selectedIds.length > 0 && !missionArchived;
 
   const filteredTasks = tasks.filter((t) => {
-    if (statusFilter === "sem_atribuicao" && t.assigned_contact_id) return false;
-    if (statusFilter === "atribuido" && !(t.assigned_contact_id && t.status === "pending"))
-      return false;
+    const hasAssignment = taskHasAssignment(t);
+    if (statusFilter === "sem_atribuicao" && hasAssignment) return false;
+    if (statusFilter === "atribuido" && !(hasAssignment && t.status === "pending")) return false;
     if (statusFilter === "concluido" && t.status !== "concluido") return false;
     if (statusFilter === "nao_enviado" && t.status !== "nao_enviado") return false;
-    if (responsavelFilter === "sem_atribuicao" && t.assigned_contact_id) return false;
+    if (responsavelFilter === "sem_atribuicao" && hasAssignment) return false;
     if (
       responsavelFilter !== "todos" &&
       responsavelFilter !== "sem_atribuicao" &&
@@ -193,6 +214,17 @@ function MissionDetailsPanel() {
     }
   }
 
+  async function onToggleArchive() {
+    try {
+      if (missionArchived) await unarchiveFn({ data: { mission_id: missionId } });
+      else await archiveFn({ data: { mission_id: missionId } });
+      invalidate();
+      toast.success(missionArchived ? "Missão desarquivada." : "Missão arquivada.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao arquivar/desarquivar.");
+    }
+  }
+
   async function onToggleLinkPause(link: LinkRow) {
     try {
       if (link.paused)
@@ -231,6 +263,16 @@ function MissionDetailsPanel() {
               PAUSADA
             </span>
           )}
+          {missionArchived && (
+            <span className="text-xs rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 font-medium">
+              ARQUIVADA
+            </span>
+          )}
+          {missionIsOpen && !missionArchived && (
+            <span className="text-xs rounded-full bg-violet-100 text-violet-800 px-2 py-0.5 font-medium">
+              AUTO-ATRIBUIÇÃO ABERTA
+            </span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
           {q.data.mission.message_template}
@@ -239,7 +281,7 @@ function MissionDetailsPanel() {
           <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
             <Pencil className="h-3.5 w-3.5 mr-1" /> Editar mensagem
           </Button>
-          <Button size="sm" variant="outline" onClick={onToggleMissionPause}>
+          <Button size="sm" variant="outline" onClick={onToggleMissionPause} disabled={missionArchived}>
             {missionPaused ? (
               <Play className="h-3.5 w-3.5 mr-1" />
             ) : (
@@ -247,12 +289,51 @@ function MissionDetailsPanel() {
             )}
             {missionPaused ? "Retomar missão" : "Pausar missão"}
           </Button>
+          <Button size="sm" variant="outline" onClick={onToggleArchive}>
+            {missionArchived ? (
+              <ArchiveRestore className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Archive className="h-3.5 w-3.5 mr-1" />
+            )}
+            {missionArchived ? "Desarquivar" : "Arquivar missão"}
+          </Button>
           {q.data.mission.source_filters && (
             <Button size="sm" variant="outline" onClick={() => setNewMissionOpen(true)}>
               <Repeat className="h-3.5 w-3.5 mr-1" /> Nova missão com o mesmo filtro
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="rounded-xl border bg-card p-4 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold">Como distribuir esta missão</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Selecione contatos na lista abaixo e escolha uma ação — ou abra o pool para
+            auto-atribuição. As ações podem ser usadas em conjunto na mesma missão.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={!canAssign} onClick={() => setAssignOpen(true)}>
+            Gerar link para responsável ({selected.size})
+          </Button>
+          <Button size="sm" variant="secondary" disabled={!canAssign} onClick={() => setAssignUsersOpen(true)}>
+            Atribuir a agitador com conta ({selected.size})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={missionArchived || availableForPool <= 0 || missionPaused}
+            onClick={() => setOpenMissionOpen(true)}
+          >
+            Abrir para auto-atribuição ({availableForPool} disponíveis)
+          </Button>
+        </div>
+        {missionArchived && (
+          <p className="text-xs text-muted-foreground">
+            Missão arquivada: novas atribuições bloqueadas. Links já gerados continuam funcionando.
+          </p>
+        )}
       </div>
 
       {(recipientsQ.data?.recipients?.length ?? 0) > 0 && (
@@ -373,8 +454,11 @@ function MissionDetailsPanel() {
             Selecionar todos os filtrados ({filteredTasks.length})
           </label>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={selected.size === 0} onClick={() => setAssignOpen(true)}>
-              Atribuir Responsável ({selected.size})
+            <Button size="sm" variant="outline" disabled={!canAssign} onClick={() => setAssignOpen(true)}>
+              Gerar link ({selected.size})
+            </Button>
+            <Button size="sm" variant="outline" disabled={!canAssign} onClick={() => setAssignUsersOpen(true)}>
+              Agitador com conta ({selected.size})
             </Button>
             <Button
               size="sm"
@@ -413,12 +497,17 @@ function MissionDetailsPanel() {
                   {t.contact?.phone_e164 ?? "—"} · {t.contact?.cidade ?? "—"}
                 </div>
               </div>
-              {t.assigned_contact_id ? (
+              {taskHasAssignment(t) ? (
                 <>
                   <span
                     className={`text-xs rounded-full px-2 py-0.5 ${STATUS_BADGE[t.status] ?? "bg-muted text-muted-foreground"}`}
                   >
-                    {STATUS_LABEL[t.status] ?? "Atribuído"} · {t.assigned_contact_name ?? "—"}
+                    {STATUS_LABEL[t.status] ?? "Atribuído"} ·{" "}
+                    {t.assigned_contact_name
+                      ? `Link: ${t.assigned_contact_name}`
+                      : t.assigned_user_name
+                        ? `Conta: ${t.assigned_user_name}`
+                        : "—"}
                   </span>
                   <button
                     type="button"
@@ -441,8 +530,26 @@ function MissionDetailsPanel() {
         open={assignOpen}
         onOpenChange={setAssignOpen}
         missionId={missionId}
-        taskIds={[...selected]}
+        taskIds={selectedIds}
         onAssigned={onAssigned}
+      />
+
+      <AssignMissionUsersModal
+        open={assignUsersOpen}
+        onOpenChange={setAssignUsersOpen}
+        missionId={missionId}
+        taskIds={selectedIds}
+        onAssigned={onAssigned}
+      />
+
+      <OpenMissionModal
+        open={openMissionOpen}
+        onOpenChange={setOpenMissionOpen}
+        missionId={missionId}
+        availableCount={availableForPool}
+        defaultBatchSize={q.data.mission.batch_size ?? 10}
+        defaultCooldown={q.data.mission.cooldown_minutes ?? 60}
+        onOpened={onAssigned}
       />
 
       <EditMissionModal
