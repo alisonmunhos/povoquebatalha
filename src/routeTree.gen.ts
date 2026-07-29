@@ -28,6 +28,7 @@ import { Route as AuthenticatedComunicacaoRouteImport } from './routes/_authenti
 import { Route as AuthenticatedContatosBiRouteImport } from './routes/_authenticated/contatos-bi'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
+import { Route as AuthenticatedEventosRouteImport } from './routes/_authenticated/eventos'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
@@ -40,6 +41,7 @@ import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/t
 import { Route as AuthenticatedTerritorioRouteImport } from './routes/_authenticated/territorio'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
+import { Route as EventoSlugRouteImport } from './routes/evento.$slug'
 import { Route as FSlugRouteImport } from './routes/f.$slug'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
 import { Route as TermosSlugRouteImport } from './routes/termos.$slug'
@@ -57,6 +59,7 @@ import { Route as AuthenticatedMissoesAgitacaoMissionIdRouteImport } from './rou
 import { Route as AuthenticatedUsuariosPapeisRouteImport } from './routes/_authenticated/usuarios.papeis'
 import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public/bootstrap-admin'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
+import { Route as ApiPublicEventsSlugRouteImport } from './routes/api/public/events/$slug'
 import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/forms/$slug'
 import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
 import { Route as ApiPublicFormsCadastroUsuarioRouteImport } from './routes/api/public/forms/cadastro-usuario'
@@ -71,6 +74,8 @@ import { Route as ApiPublicPushVapidRouteImport } from './routes/api/public/push
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
 import { Route as MissaoMissionIdContatoContactIdRouteImport } from './routes/missao/$missionId/contato/$contactId'
 import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$contactId'
+import { Route as ApiPublicEventsSlugIcsRouteImport } from './routes/api/public/events/$slug/ics'
+import { Route as ApiPublicEventsSlugRsvpRouteImport } from './routes/api/public/events/$slug/rsvp'
 import { Route as ApiPublicFormsSlugAccountSectionRouteImport } from './routes/api/public/forms/$slug/account-section'
 import { Route as ApiPublicFormsSlugSectionProgressRouteImport } from './routes/api/public/forms/$slug/section-progress'
 
@@ -171,6 +176,11 @@ const AuthenticatedDuplicidadesRoute =
     path: '/duplicidades',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEventosRoute = AuthenticatedEventosRouteImport.update({
+  id: '/eventos',
+  path: '/eventos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedImportarRoute = AuthenticatedImportarRouteImport.update({
   id: '/importar',
   path: '/importar',
@@ -232,6 +242,11 @@ const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
   id: '/whatsapp',
   path: '/whatsapp',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const EventoSlugRoute = EventoSlugRouteImport.update({
+  id: '/evento/$slug',
+  path: '/evento/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const FSlugRoute = FSlugRouteImport.update({
   id: '/f/$slug',
@@ -329,6 +344,11 @@ const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   path: '/api/public/cep/$cep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicEventsSlugRoute = ApiPublicEventsSlugRouteImport.update({
+  id: '/api/public/events/$slug',
+  path: '/api/public/events/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicFormsSlugRoute = ApiPublicFormsSlugRouteImport.update({
   id: '/api/public/forms/$slug',
   path: '/api/public/forms/$slug',
@@ -406,6 +426,16 @@ const ApiPublicAgitationMissionsMissionIdContactIdRoute =
     path: '/api/public/agitation-missions/$missionId/$contactId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicEventsSlugIcsRoute = ApiPublicEventsSlugIcsRouteImport.update({
+  id: '/ics',
+  path: '/ics',
+  getParentRoute: () => ApiPublicEventsSlugRoute,
+} as any)
+const ApiPublicEventsSlugRsvpRoute = ApiPublicEventsSlugRsvpRouteImport.update({
+  id: '/rsvp',
+  path: '/rsvp',
+  getParentRoute: () => ApiPublicEventsSlugRoute,
+} as any)
 const ApiPublicFormsSlugAccountSectionRoute =
   ApiPublicFormsSlugAccountSectionRouteImport.update({
     id: '/account-section',
@@ -438,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
+  '/eventos': typeof AuthenticatedEventosRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
@@ -450,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/territorio': typeof AuthenticatedTerritorioRoute
   '/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/evento/$slug': typeof EventoSlugRoute
   '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
@@ -467,6 +499,7 @@ export interface FileRoutesByFullPath {
   '/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/events/$slug': typeof ApiPublicEventsSlugRouteWithChildren
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/cadastro-usuario': typeof ApiPublicFormsCadastroUsuarioRoute
@@ -481,6 +514,8 @@ export interface FileRoutesByFullPath {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/events/$slug/ics': typeof ApiPublicEventsSlugIcsRoute
+  '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
@@ -502,6 +537,7 @@ export interface FileRoutesByTo {
   '/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
+  '/eventos': typeof AuthenticatedEventosRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
@@ -514,6 +550,7 @@ export interface FileRoutesByTo {
   '/territorio': typeof AuthenticatedTerritorioRoute
   '/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/evento/$slug': typeof EventoSlugRoute
   '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
@@ -531,6 +568,7 @@ export interface FileRoutesByTo {
   '/entrada-dados': typeof AuthenticatedEntradaDadosIndexRoute
   '/missoes-agitacao': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/events/$slug': typeof ApiPublicEventsSlugRouteWithChildren
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/cadastro-usuario': typeof ApiPublicFormsCadastroUsuarioRoute
@@ -545,6 +583,8 @@ export interface FileRoutesByTo {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/events/$slug/ics': typeof ApiPublicEventsSlugIcsRoute
+  '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
@@ -569,6 +609,7 @@ export interface FileRoutesById {
   '/_authenticated/contatos-bi': typeof AuthenticatedContatosBiRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
+  '/_authenticated/eventos': typeof AuthenticatedEventosRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
@@ -581,6 +622,7 @@ export interface FileRoutesById {
   '/_authenticated/territorio': typeof AuthenticatedTerritorioRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRouteWithChildren
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/evento/$slug': typeof EventoSlugRoute
   '/f/$slug': typeof FSlugRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
@@ -598,6 +640,7 @@ export interface FileRoutesById {
   '/_authenticated/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/_authenticated/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/events/$slug': typeof ApiPublicEventsSlugRouteWithChildren
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
   '/api/public/forms/cadastro-usuario': typeof ApiPublicFormsCadastroUsuarioRoute
@@ -612,6 +655,8 @@ export interface FileRoutesById {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/events/$slug/ics': typeof ApiPublicEventsSlugIcsRoute
+  '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
@@ -636,6 +681,7 @@ export interface FileRouteTypes {
     | '/contatos-bi'
     | '/dashboard'
     | '/duplicidades'
+    | '/eventos'
     | '/importar'
     | '/inbox'
     | '/links'
@@ -648,6 +694,7 @@ export interface FileRouteTypes {
     | '/territorio'
     | '/usuarios'
     | '/whatsapp'
+    | '/evento/$slug'
     | '/f/$slug'
     | '/opt-out/$token'
     | '/termos/$slug'
@@ -665,6 +712,7 @@ export interface FileRouteTypes {
     | '/entrada-dados/'
     | '/missoes-agitacao/'
     | '/api/public/cep/$cep'
+    | '/api/public/events/$slug'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/cadastro-usuario'
@@ -679,6 +727,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/events/$slug/ics'
+    | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
     | '/api/public/forms/$slug/section-progress'
   fileRoutesByTo: FileRoutesByTo
@@ -700,6 +750,7 @@ export interface FileRouteTypes {
     | '/contatos-bi'
     | '/dashboard'
     | '/duplicidades'
+    | '/eventos'
     | '/importar'
     | '/inbox'
     | '/links'
@@ -712,6 +763,7 @@ export interface FileRouteTypes {
     | '/territorio'
     | '/usuarios'
     | '/whatsapp'
+    | '/evento/$slug'
     | '/f/$slug'
     | '/opt-out/$token'
     | '/termos/$slug'
@@ -729,6 +781,7 @@ export interface FileRouteTypes {
     | '/entrada-dados'
     | '/missoes-agitacao'
     | '/api/public/cep/$cep'
+    | '/api/public/events/$slug'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/cadastro-usuario'
@@ -743,6 +796,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/events/$slug/ics'
+    | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
     | '/api/public/forms/$slug/section-progress'
   id:
@@ -766,6 +821,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contatos-bi'
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
+    | '/_authenticated/eventos'
     | '/_authenticated/importar'
     | '/_authenticated/inbox'
     | '/_authenticated/links'
@@ -778,6 +834,7 @@ export interface FileRouteTypes {
     | '/_authenticated/territorio'
     | '/_authenticated/usuarios'
     | '/_authenticated/whatsapp'
+    | '/evento/$slug'
     | '/f/$slug'
     | '/opt-out/$token'
     | '/termos/$slug'
@@ -795,6 +852,7 @@ export interface FileRouteTypes {
     | '/_authenticated/entrada-dados/'
     | '/_authenticated/missoes-agitacao/'
     | '/api/public/cep/$cep'
+    | '/api/public/events/$slug'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
     | '/api/public/forms/cadastro-usuario'
@@ -809,6 +867,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/events/$slug/ics'
+    | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
     | '/api/public/forms/$slug/section-progress'
   fileRoutesById: FileRoutesById
@@ -826,11 +886,13 @@ export interface RootRouteChildren {
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  EventoSlugRoute: typeof EventoSlugRoute
   FSlugRoute: typeof FSlugRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   TermosSlugRoute: typeof TermosSlugRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
+  ApiPublicEventsSlugRoute: typeof ApiPublicEventsSlugRouteWithChildren
   ApiPublicFormsSlugRoute: typeof ApiPublicFormsSlugRouteWithChildren
   ApiPublicFormsCadastroAgitadorRoute: typeof ApiPublicFormsCadastroAgitadorRoute
   ApiPublicFormsCadastroUsuarioRoute: typeof ApiPublicFormsCadastroUsuarioRoute
@@ -982,6 +1044,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDuplicidadesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/eventos': {
+      id: '/_authenticated/eventos'
+      path: '/eventos'
+      fullPath: '/eventos'
+      preLoaderRoute: typeof AuthenticatedEventosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/importar': {
       id: '/_authenticated/importar'
       path: '/importar'
@@ -1065,6 +1134,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/whatsapp'
       preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/evento/$slug': {
+      id: '/evento/$slug'
+      path: '/evento/$slug'
+      fullPath: '/evento/$slug'
+      preLoaderRoute: typeof EventoSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/f/$slug': {
       id: '/f/$slug'
@@ -1185,6 +1261,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCepCepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/events/$slug': {
+      id: '/api/public/events/$slug'
+      path: '/api/public/events/$slug'
+      fullPath: '/api/public/events/$slug'
+      preLoaderRoute: typeof ApiPublicEventsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/forms/$slug': {
       id: '/api/public/forms/$slug'
       path: '/api/public/forms/$slug'
@@ -1283,6 +1366,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/events/$slug/ics': {
+      id: '/api/public/events/$slug/ics'
+      path: '/ics'
+      fullPath: '/api/public/events/$slug/ics'
+      preLoaderRoute: typeof ApiPublicEventsSlugIcsRouteImport
+      parentRoute: typeof ApiPublicEventsSlugRoute
+    }
+    '/api/public/events/$slug/rsvp': {
+      id: '/api/public/events/$slug/rsvp'
+      path: '/rsvp'
+      fullPath: '/api/public/events/$slug/rsvp'
+      preLoaderRoute: typeof ApiPublicEventsSlugRsvpRouteImport
+      parentRoute: typeof ApiPublicEventsSlugRoute
+    }
     '/api/public/forms/$slug/account-section': {
       id: '/api/public/forms/$slug/account-section'
       path: '/account-section'
@@ -1340,6 +1437,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedContatosBiRoute: typeof AuthenticatedContatosBiRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
+  AuthenticatedEventosRoute: typeof AuthenticatedEventosRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
@@ -1371,6 +1469,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedContatosBiRoute: AuthenticatedContatosBiRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
+  AuthenticatedEventosRoute: AuthenticatedEventosRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
@@ -1397,6 +1496,19 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
+interface ApiPublicEventsSlugRouteChildren {
+  ApiPublicEventsSlugIcsRoute: typeof ApiPublicEventsSlugIcsRoute
+  ApiPublicEventsSlugRsvpRoute: typeof ApiPublicEventsSlugRsvpRoute
+}
+
+const ApiPublicEventsSlugRouteChildren: ApiPublicEventsSlugRouteChildren = {
+  ApiPublicEventsSlugIcsRoute: ApiPublicEventsSlugIcsRoute,
+  ApiPublicEventsSlugRsvpRoute: ApiPublicEventsSlugRsvpRoute,
+}
+
+const ApiPublicEventsSlugRouteWithChildren =
+  ApiPublicEventsSlugRoute._addFileChildren(ApiPublicEventsSlugRouteChildren)
 
 interface ApiPublicFormsSlugRouteChildren {
   ApiPublicFormsSlugAccountSectionRoute: typeof ApiPublicFormsSlugAccountSectionRoute
@@ -1425,11 +1537,13 @@ const rootRouteChildren: RootRouteChildren = {
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  EventoSlugRoute: EventoSlugRoute,
   FSlugRoute: FSlugRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   TermosSlugRoute: TermosSlugRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
+  ApiPublicEventsSlugRoute: ApiPublicEventsSlugRouteWithChildren,
   ApiPublicFormsSlugRoute: ApiPublicFormsSlugRouteWithChildren,
   ApiPublicFormsCadastroAgitadorRoute: ApiPublicFormsCadastroAgitadorRoute,
   ApiPublicFormsCadastroUsuarioRoute: ApiPublicFormsCadastroUsuarioRoute,

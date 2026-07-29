@@ -24,6 +24,7 @@ export type SectionDraft = {
   whatsapp_button_phone?: string | null;
   success_screen_order?: SuccessScreenOrder | null;
   push_button_enabled?: boolean | null;
+  linked_event_id?: string | null;
 };
 
 export type BranchRuleDraft = {

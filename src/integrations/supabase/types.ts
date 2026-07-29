@@ -1584,6 +1584,90 @@ export type Database = {
           },
         ]
       }
+      event_rsvps: {
+        Row: {
+          contact_id: string
+          created_at: string
+          event_id: string
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          event_id: string
+          id?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvps_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          ends_at: string | null
+          id: string
+          is_published: boolean
+          location: string | null
+          slug: string
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          is_published?: boolean
+          location?: string | null
+          slug: string
+          starts_at: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          is_published?: boolean
+          location?: string | null
+          slug?: string
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       form_custom_answers: {
         Row: {
           answer_text: string | null
@@ -1825,6 +1909,7 @@ export type Database = {
           description: string | null
           form_definition_id: string
           id: string
+          linked_event_id: string | null
           order_index: number
           push_button_enabled: boolean | null
           section_type: string
@@ -1844,6 +1929,7 @@ export type Database = {
           description?: string | null
           form_definition_id: string
           id?: string
+          linked_event_id?: string | null
           order_index: number
           push_button_enabled?: boolean | null
           section_type?: string
@@ -1863,6 +1949,7 @@ export type Database = {
           description?: string | null
           form_definition_id?: string
           id?: string
+          linked_event_id?: string | null
           order_index?: number
           push_button_enabled?: boolean | null
           section_type?: string
@@ -1886,6 +1973,13 @@ export type Database = {
             columns: ["form_definition_id"]
             isOneToOne: false
             referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_sections_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]

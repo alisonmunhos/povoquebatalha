@@ -39,6 +39,7 @@ function toSectionDrafts(
     whatsapp_button_phone?: string | null;
     success_screen_order: string | null;
     push_button_enabled: boolean | null;
+    linked_event_id: string | null;
   }>,
 ): SectionDraft[] {
   const orderById = orderIndexBySectionId(sections);
@@ -57,6 +58,7 @@ function toSectionDrafts(
     whatsapp_button_phone: s.whatsapp_button_phone ?? null,
     success_screen_order: (s.success_screen_order as SuccessScreenOrder | null) ?? null,
     push_button_enabled: s.push_button_enabled,
+    linked_event_id: s.linked_event_id,
   }));
 }
 
@@ -77,6 +79,7 @@ function normalizeSectionDrafts(
     whatsapp_button_phone?: string | null;
     success_screen_order?: SuccessScreenOrder | null;
     push_button_enabled?: boolean | null;
+    linked_event_id?: string | null;
   }>,
 ): SectionDraft[] {
   return sections.map((s) => ({
@@ -93,6 +96,7 @@ function normalizeSectionDrafts(
     whatsapp_button_phone: s.whatsapp_button_phone ?? null,
     success_screen_order: s.success_screen_order ?? null,
     push_button_enabled: s.push_button_enabled ?? null,
+    linked_event_id: s.linked_event_id ?? null,
   }));
 }
 
@@ -163,6 +167,7 @@ const sectionSchema = z.object({
   whatsapp_button_phone: z.string().trim().max(20).nullable().optional(),
   success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).nullable().optional(),
   push_button_enabled: z.boolean().nullable().optional(),
+  linked_event_id: z.string().uuid().nullable().optional(),
 });
 
 const upsertSectionsSchema = z.object({
@@ -207,6 +212,7 @@ export const upsertFormSections = createServerFn({ method: "POST" })
         whatsapp_button_phone: s.whatsapp_button_phone ?? null,
         success_screen_order: s.success_screen_order ?? null,
         push_button_enabled: s.push_button_enabled ?? null,
+        linked_event_id: s.linked_event_id ?? null,
       };
       if (s.id) {
         const { error } = await context.supabase.from("form_sections").update(row).eq("id", s.id);

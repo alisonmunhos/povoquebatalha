@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   type FormCatalogField,
@@ -13,6 +14,7 @@ import {
   sectionLabel,
 } from "@/lib/form-builder-branching";
 import { upsertFormSections, upsertBranchRules } from "@/lib/form-sections.functions";
+import { listPublishedEventsForPicker } from "@/lib/events.functions";
 import { upsertFormQuestions, getFormDefinition } from "@/lib/form-definitions.functions";
 import { ensureCoreQuestionsInFirstSection, isCoreCatalogFieldKey } from "@/lib/form-section-core-questions";
 import {
@@ -163,6 +165,12 @@ export function SectionedQuestionsPanel({
   const upsertQuestionsFn = useServerFn(upsertFormQuestions);
   const upsertBranchRulesFn = useServerFn(upsertBranchRules);
   const getFn = useServerFn(getFormDefinition);
+  const publishedEventsFn = useServerFn(listPublishedEventsForPicker);
+  const publishedEventsQ = useQuery({
+    queryKey: ["published-events-picker"],
+    queryFn: () => publishedEventsFn(),
+  });
+  const publishedEvents = publishedEventsQ.data?.events ?? [];
 
   const [sections, setSections] = useState<LocalSection[]>(() => toLocalSections(initialSections));
   const [questions, setQuestions] = useState<QuestionDraft[]>(() => {
@@ -508,6 +516,7 @@ export function SectionedQuestionsPanel({
             whatsapp_button_phone: s.whatsapp_button_phone?.trim() || null,
             success_screen_order: s.success_screen_order ?? null,
             push_button_enabled: s.push_button_enabled ?? null,
+            linked_event_id: s.linked_event_id ?? null,
           })),
         },
       });
@@ -1057,6 +1066,44 @@ export function SectionedQuestionsPanel({
             {effectivePush && (
               <p className="text-[11px] text-muted-foreground">
                 O visitante poderá ativar alertas no celular sem criar conta — a inscrição fica vinculada ao contato salvo.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Evento na tela de sucesso desta etapa</label>
+            <select
+              value={activeSection.linked_event_id ?? ""}
+              onChange={(e) =>
+                updateSection(activeSection.clientKey, {
+                  linked_event_id: e.target.value || null,
+                })
+              }
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Nenhum — não mostrar bloco de evento</option>
+              {publishedEvents.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.title}
+                  {ev.starts_at
+                    ? ` (${new Date(ev.starts_at).toLocaleDateString("pt-BR")})`
+                    : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground">
+              Só aparece quando o fluxo termina nesta etapa. O visitante verá um link para confirmar presença no evento publicado.
+            </p>
+            {publishedEventsQ.isLoading && (
+              <p className="text-[11px] text-muted-foreground">Carregando eventos publicados…</p>
+            )}
+            {!publishedEventsQ.isLoading && publishedEvents.length === 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Nenhum evento publicado. Crie e publique em{" "}
+                <a href="/eventos" className="underline">
+                  Eventos
+                </a>
+                .
               </p>
             )}
           </div>
