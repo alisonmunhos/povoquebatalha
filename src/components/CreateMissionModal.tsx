@@ -21,6 +21,11 @@ import {
   COMPOSER_VARIABLES,
 } from "@/components/MessageComposer";
 import {
+  MissionImageUpload,
+  emptyMissionMedia,
+  type MissionMedia,
+} from "@/components/MissionImageUpload";
+import {
   createAgitationMission,
   listMissionTemplatesForReuse,
 } from "@/lib/agitation-missions.functions";
