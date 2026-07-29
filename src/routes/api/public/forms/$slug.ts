@@ -58,12 +58,15 @@ const submitSchema = z.object({
   recad_token: z.string().uuid().optional().or(z.literal("")),
   terminal_section_id: z.string().uuid().optional().or(z.literal("")),
   start_section_id: z.string().uuid().optional().or(z.literal("")),
+  /** Quando o formulário é aberto pela tela de um evento: confirma presença junto. */
+  event_slug: z.string().trim().min(1).max(120).optional().or(z.literal("")),
   answers: z.record(
     z.string().uuid(),
     z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
   ),
   ...honeypotSchema,
 });
+
 
 type QuestionRow = {
   id: string;
@@ -677,6 +680,19 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           contactRecadToken = cToken?.recad_token ?? null;
         } catch { /* ignore */ }
 
+        // Presença no evento gravada na mesma submissão, quando o formulário
+        // foi aberto a partir da tela pública de um evento.
+        let eventConfirmed = false;
+        if (d.event_slug) {
+          try {
+            const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
+            const rsvp = await confirmEventRsvpForContact({ eventSlug: d.event_slug, contactId: savedId });
+            eventConfirmed = rsvp.ok;
+          } catch { /* non-blocking */ }
+        }
+
+
+
         try {
           const origin = request.headers.get("origin") ||
             (request.headers.get("host") ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}` : null);
@@ -702,6 +718,8 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             contact_id: savedId,
             contact_recad_token: contactRecadToken,
             linked_event: linkedEvent,
+            event_confirmed: eventConfirmed,
+
           }),
           { headers: cors },
         );

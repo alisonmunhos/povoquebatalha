@@ -71,12 +71,14 @@ type SectionedFormDefinition = {
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 
 export function PublicFormRenderer({
-  slug, refToken, recadToken, startSectionId,
+  slug, refToken, recadToken, startSectionId, eventSlug,
 }: {
   slug: string;
   refToken?: string;
   recadToken?: string;
   startSectionId?: string;
+  /** Quando renderizado dentro da tela pública de um evento: confirma presença junto. */
+  eventSlug?: string;
 }) {
   useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
@@ -208,6 +210,7 @@ export function PublicFormRenderer({
           ref_token: refToken ?? "",
           recad_token: activeRecadToken || "",
           current_section_id: currentSection.id,
+          event_slug: eventSlug ?? "",
           answers: values,
           hp: "",
         }),
@@ -290,6 +293,7 @@ export function PublicFormRenderer({
           recad_token: activeRecadToken || recadToken || "",
           terminal_section_id: terminalSectionId,
           start_section_id: journeyStartSectionId ?? terminalSectionId,
+          event_slug: eventSlug ?? "",
           answers: values,
           hp: "",
         }),

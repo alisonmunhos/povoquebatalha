@@ -20,12 +20,15 @@ const bodySchema = z.object({
   ref_token: z.string().trim().min(8).max(48).optional().or(z.literal("")),
   recad_token: z.string().uuid().optional().or(z.literal("")),
   current_section_id: z.string().uuid(),
+  /** Quando o formulário é aberto pela tela de um evento: confirma presença junto. */
+  event_slug: z.string().trim().min(1).max(120).optional().or(z.literal("")),
   answers: z.record(
     z.string().uuid(),
     z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
   ),
   ...honeypotSchema,
 });
+
 
 export const Route = createFileRoute("/api/public/forms/$slug/section-progress")({
   server: {
@@ -101,6 +104,15 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
         }
 
         const saved = result as Exclude<typeof result, { ok: false }>;
+
+        // Presença no evento é gravada na mesma operação do salvamento do contato.
+        let eventConfirmed = false;
+        if (d.event_slug) {
+          const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
+          const rsvp = await confirmEventRsvpForContact({ eventSlug: d.event_slug, contactId: saved.contactId });
+          eventConfirmed = rsvp.ok;
+        }
+
         return new Response(
           JSON.stringify({
             ok: true,
@@ -108,9 +120,11 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
             email: saved.email,
             nome: saved.nome,
             phone: saved.phone,
+            event_confirmed: eventConfirmed,
           }),
           { headers: cors },
         );
+
       },
     },
   },
