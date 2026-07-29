@@ -558,6 +558,11 @@ function MissionDetailsPanel() {
         missionId={missionId}
         initialTitle={q.data.mission.title}
         initialMessage={q.data.mission.message_template}
+        initialMedia={{
+          media_path: q.data.mission.media_path ?? null,
+          media_mime: q.data.mission.media_mime ?? null,
+          media_filename: q.data.mission.media_filename ?? null,
+        }}
         onUpdated={invalidate}
       />
 
