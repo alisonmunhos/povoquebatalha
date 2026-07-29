@@ -75,15 +75,38 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (lbl) formLabelById.set(f.id as string, lbl);
     }
 
-    // Contatos ativos (arquivados fora)
-    const { data: contacts, error } = await sb
-      .from("contacts")
-      .select(
-        "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,consentimento_dados_sensiveis,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id",
-      )
-      .is("arquivado_at", null)
-      .limit(20000);
-    if (error) throw error;
+    // Contatos ativos (arquivados fora). Busca em blocos: uma única leitura de
+    // 20k linhas com dezenas de colunas estourava a conexão e derrubava a tela
+    // com "fetch failed" (resposta grande demais / tempo esgotado).
+    const CONTACT_COLUMNS =
+      "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,consentimento_dados_sensiveis,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id";
+    const CHUNK = 1000;
+    const MAX_ROWS = 20000;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type ContactRow = any;
+    const contacts: ContactRow[] = [];
+    for (let from = 0; from < MAX_ROWS; from += CHUNK) {
+      let page: ContactRow[] | null = null;
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < 3 && !page; attempt++) {
+        const res = await sb
+          .from("contacts")
+          .select(CONTACT_COLUMNS)
+          .is("arquivado_at", null)
+          .order("id", { ascending: true })
+          .range(from, from + CHUNK - 1);
+        if (res.error) {
+          lastErr = res.error;
+          await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+        } else {
+          page = (res.data ?? []) as unknown as ContactRow[];
+        }
+      }
+      if (!page) throw lastErr;
+      contacts.push(...page);
+      if (page.length < CHUNK) break;
+    }
+
 
     // Rótulos amigáveis das formas de ajuda; valores legados consolidados
     const FA_LABELS: Record<string, string> = {
