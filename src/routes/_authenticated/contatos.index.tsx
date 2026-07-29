@@ -289,6 +289,12 @@ function Contatos() {
     queryFn: () => facetsFn(),
     staleTime: 30_000,
   });
+  const dupCountFn = useServerFn(countPendingDuplicates);
+  const dupCountQ = useQuery({
+    queryKey: ["pending-duplicates-count"],
+    queryFn: () => dupCountFn(),
+    staleTime: 60_000,
+  });
 
   function applyQuickFilter(patch: Partial<CrmFilters>) {
     setFilters((f) => ({ archived: "nao", ...patch }));
