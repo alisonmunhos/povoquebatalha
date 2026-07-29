@@ -17,6 +17,11 @@ import {
   COMPOSER_VARIABLES,
   type ComposerValue,
 } from "@/components/MessageComposer";
+import {
+  MissionImageUpload,
+  emptyMissionMedia,
+  type MissionMedia,
+} from "@/components/MissionImageUpload";
 import { updateAgitationMission } from "@/lib/agitation-missions.functions";
 
 type Props = {
@@ -25,6 +30,7 @@ type Props = {
   missionId: string;
   initialTitle: string;
   initialMessage: string;
+  initialMedia?: MissionMedia;
   onUpdated: () => void;
 };
 
@@ -34,6 +40,7 @@ export function EditMissionModal({
   missionId,
   initialTitle,
   initialMessage,
+  initialMedia,
   onUpdated,
 }: Props) {
   const updateFn = useServerFn(updateAgitationMission);
@@ -42,14 +49,16 @@ export function EditMissionModal({
     ...emptyComposerValue(),
     body: initialMessage,
   });
+  const [media, setMedia] = useState<MissionMedia>(initialMedia ?? emptyMissionMedia);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setTitle(initialTitle);
       setComposer({ ...emptyComposerValue(), body: initialMessage });
+      setMedia(initialMedia ?? emptyMissionMedia);
     }
-  }, [open, initialTitle, initialMessage]);
+  }, [open, initialTitle, initialMessage, initialMedia]);
 
   async function onSubmit() {
     if (title.trim().length < 2) return toast.error("Informe um título para a missão.");
@@ -57,7 +66,14 @@ export function EditMissionModal({
     setSaving(true);
     try {
       await updateFn({
-        data: { mission_id: missionId, title: title.trim(), message_template: composer.body },
+        data: {
+          mission_id: missionId,
+          title: title.trim(),
+          message_template: composer.body,
+          media_path: media.media_path,
+          media_mime: media.media_mime,
+          media_filename: media.media_filename,
+        },
       });
       toast.success("Missão atualizada. O texto novo já vale pra todos os links ativos.");
       onOpenChange(false);
