@@ -15,6 +15,7 @@ import {
   listEventRsvps,
 } from "@/lib/events.functions";
 import { slugifyEventTitle } from "@/lib/event-slug";
+import { listFormDefinitions } from "@/lib/form-definitions.functions";
 
 export const Route = createFileRoute("/_authenticated/eventos")({
   head: () => ({ meta: [{ title: "Eventos — Campanha do Povo que Batalha" }] }),
@@ -56,6 +57,8 @@ function EventosPage() {
   const signCoverFn = useServerFn(signEventCoverUpload);
   const coverUrlFn = useServerFn(getEventCoverUrl);
   const rsvpsFn = useServerFn(listEventRsvps);
+  const formsFn = useServerFn(listFormDefinitions);
+  const formsQ = useQuery({ queryKey: ["form-definitions-picker"], queryFn: () => formsFn() });
 
   const listQ = useQuery({ queryKey: ["events-admin"], queryFn: () => listFn() });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -76,6 +79,7 @@ function EventosPage() {
   const [postTitle, setPostTitle] = useState("");
   const [postButtonText, setPostButtonText] = useState("");
   const [postButtonUrl, setPostButtonUrl] = useState("");
+  const [linkedFormId, setLinkedFormId] = useState("");
 
   const rsvpsQ = useQuery({
     queryKey: ["event-rsvps", editingId],
@@ -110,6 +114,7 @@ function EventosPage() {
     setPostTitle("");
     setPostButtonText("");
     setPostButtonUrl("");
+    setLinkedFormId("");
   }
 
   async function uploadCover(file: File) {
@@ -161,6 +166,7 @@ function EventosPage() {
       post_rsvp_title: string | null;
       post_rsvp_button_text: string | null;
       post_rsvp_button_url: string | null;
+      linked_form_definition_id: string | null;
     };
     setCoverPath(extra.cover_path ?? null);
     setCoverMime(extra.cover_mime ?? null);
@@ -173,6 +179,7 @@ function EventosPage() {
     setPostTitle(extra.post_rsvp_title ?? "");
     setPostButtonText(extra.post_rsvp_button_text ?? "");
     setPostButtonUrl(extra.post_rsvp_button_url ?? "");
+    setLinkedFormId(extra.linked_form_definition_id ?? "");
   }
 
   async function save() {
@@ -197,6 +204,7 @@ function EventosPage() {
           post_rsvp_title: postTitle.trim() || null,
           post_rsvp_button_text: postButtonText.trim() || null,
           post_rsvp_button_url: postButtonUrl.trim() || null,
+          linked_form_definition_id: linkedFormId || null,
         },
       });
       toast.success(editingId ? "Evento atualizado." : "Evento criado.");
@@ -330,6 +338,28 @@ function EventosPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Formulário usado na página do evento</label>
+            <select
+              value={linkedFormId}
+              onChange={(e) => setLinkedFormId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Sem formulário (só nome e WhatsApp)</option>
+              {(formsQ.data ?? [])
+                .filter((f) => f.layout_mode === "sectioned")
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.title}
+                  </option>
+                ))}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A pessoa preenche a primeira seção do formulário e a presença é confirmada na mesma ação. As seções
+              seguintes continuam depois, sem repetir nome e WhatsApp.
+            </p>
           </div>
 
           <div className="sm:col-span-2">
