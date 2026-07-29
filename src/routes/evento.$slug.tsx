@@ -318,9 +318,8 @@ function EventoPublicPage() {
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
-                  disabled={busy}
-                  onClick={() => submitRsvp(page.rsvp_status === "confirmed" ? "declined" : "confirmed")}
                   disabled={busy || (page.rsvp_status !== "confirmed" && !consentsOk)}
+                  onClick={() => submitRsvp(page.rsvp_status === "confirmed" ? "declined" : "confirmed")}
                   className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
                 >
                   {page.rsvp_status === "confirmed" ? "Mudar para: não vou" : "Mudar para: vou sim"}
