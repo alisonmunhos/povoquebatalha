@@ -117,7 +117,7 @@ export const listContactsRich = createServerFn({ method: "POST" })
     const useMemoryIntersection =
       (allowedIds && allowedIds.length > INLINE_ID_LIMIT) || excludeSet.size > INLINE_ID_LIMIT;
 
-    let rows: Array<Record<string, unknown> & { id: string }> = [];
+    let rows: ContactRichRow[] = [];
     let total = 0;
 
     if (useMemoryIntersection) {
@@ -137,17 +137,18 @@ export const listContactsRich = createServerFn({ method: "POST" })
           .select(CONTACT_LIST_COLS)
           .in("id", pageIds);
         if (error) throw error;
-        const byId = new Map((pageRows ?? []).map((r) => [r.id, r]));
-        rows = pageIds.map((id) => byId.get(id)).filter(Boolean) as typeof rows;
+        const byId = new Map(((pageRows ?? []) as unknown as ContactRichRow[]).map((r) => [r.id, r]));
+        rows = pageIds.map((id) => byId.get(id)).filter(Boolean) as ContactRichRow[];
       }
     } else {
       let q = buildQuery(CONTACT_LIST_COLS, true).range(from, to);
       if (allowedIds?.length) q = q.in("id", allowedIds);
       const { data: r, count, error } = await q;
       if (error) throw error;
-      rows = (r ?? []) as typeof rows;
+      rows = (r ?? []) as unknown as ContactRichRow[];
       total = count ?? 0;
     }
+
 
     // Tags por contato
     const ids = rows.map((r) => r.id);
