@@ -912,6 +912,15 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
 
+    const { data: openClaim } = await context.supabase
+      .from("agitation_mission_claims")
+      .select("id")
+      .eq("mission_id", data.mission_id)
+      .eq("user_id", context.userId)
+      .is("completed_at", null)
+      .limit(1)
+      .maybeSingle();
+
     const { count: available } = await context.supabase
       .from("agitation_tasks")
       .select("id", { count: "exact", head: true })
@@ -927,11 +936,24 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
         new Date(lastCompleted.completed_at).getTime() + mission.cooldown_minutes * 60_000,
       ).toISOString();
     }
+    const hasOpenClaim = !!openClaim;
+    const inCooldown = !!releasesAt && new Date(releasesAt).getTime() > now;
     const canClaim =
-      mission.is_open &&
+      !!mission.is_open &&
       !mission.paused_at &&
+      !hasOpenClaim &&
       (available ?? 0) > 0 &&
-      (!releasesAt || new Date(releasesAt).getTime() <= now);
+      !inCooldown;
+
+    const blockReason: "leva_aberta" | "cooldown" | "sem_contatos" | "indisponivel" | null = canClaim
+      ? null
+      : hasOpenClaim
+        ? "leva_aberta"
+        : inCooldown
+          ? "cooldown"
+          : (available ?? 0) === 0
+            ? "sem_contatos"
+            : "indisponivel";
 
     return {
       is_open: !!mission.is_open,
@@ -940,6 +962,8 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       cooldown_minutes: mission.cooldown_minutes,
       available_now: available ?? 0,
       releases_at: releasesAt,
+      has_open_claim: hasOpenClaim,
+      block_reason: blockReason,
       can_claim: canClaim,
     };
   });
