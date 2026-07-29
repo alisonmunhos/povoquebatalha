@@ -161,7 +161,7 @@ export async function createPendingUserFromSignup(input: CreatePendingUserInput)
     try {
       const { data: c } = await supabaseAdmin
         .from("contacts")
-        .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,bairro,uf,recad_token,consentimento_whatsapp,opt_out_at,whatsapp_status")
+        .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,bairro,uf,recad_token,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
         .eq("id", contactId)
         .single();
       if (c && input.request) {

@@ -200,7 +200,7 @@ export const retryAutomationDelivery = createServerFn({ method: "POST" })
     if (error || !del) throw new Error("Entrega não encontrada");
     const { data: contact, error: cErr } = await supabaseAdmin
       .from("contacts")
-      .select("id, nome, nome_social, phone_e164, cidade, bairro, recad_token, consentimento_whatsapp, opt_out_at, arquivado_at")
+      .select("id, nome, nome_social, phone_e164, cidade, bairro, recad_token, consentimento_whatsapp, opt_out_at, arquivado_at, lifecycle_status")
       .eq("id", del.contact_id).single();
     if (cErr || !contact) throw new Error("Contato não encontrado");
     // Zera o registro para permitir novo envio

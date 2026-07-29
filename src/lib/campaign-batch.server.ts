@@ -18,6 +18,8 @@ type RecipientContact = {
   phone_whatsapp_candidate: string | null;
   consentimento_whatsapp: boolean | null;
   opt_out_at: string | null;
+  arquivado_at: string | null;
+  lifecycle_status: string | null;
   whatsapp_status: string | null;
   recad_token: string | null;
 };
@@ -71,7 +73,7 @@ export async function processCampaignBatchShared(
   const { data: recs } = await db
     .from("campaign_recipients")
     .select(
-      "id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,whatsapp_status,recad_token)",
+      "id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status,recad_token)",
     )
     .eq("campaign_id", campaignId)
     .eq("status", "queued")
