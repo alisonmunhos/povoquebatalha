@@ -71,6 +71,7 @@ type Props = {
   formDefaultWhatsappEnabled?: boolean;
   formDefaultWhatsappPhone?: string | null;
   formDefaultWhatsappMessage?: string | null;
+  formDefaultPushEnabled?: boolean;
   onSaved: () => void;
 };
 
@@ -155,6 +156,7 @@ export function SectionedQuestionsPanel({
   formDefaultWhatsappEnabled = false,
   formDefaultWhatsappPhone,
   formDefaultWhatsappMessage,
+  formDefaultPushEnabled = false,
   onSaved,
 }: Props) {
   const upsertSectionsFn = useServerFn(upsertFormSections);
@@ -469,7 +471,7 @@ export function SectionedQuestionsPanel({
 
   function setSectionOverride(
     clientKey: string,
-    field: "confirmation_active" | "whatsapp_button_enabled",
+    field: "confirmation_active" | "whatsapp_button_enabled" | "push_button_enabled",
     choice: TriStateChoice,
   ) {
     const value = overrideFromTriState(choice);
@@ -505,6 +507,7 @@ export function SectionedQuestionsPanel({
             whatsapp_button_message: s.whatsapp_button_message ?? null,
             whatsapp_button_phone: s.whatsapp_button_phone?.trim() || null,
             success_screen_order: s.success_screen_order ?? null,
+            push_button_enabled: s.push_button_enabled ?? null,
           })),
         },
       });
@@ -648,6 +651,10 @@ export function SectionedQuestionsPanel({
   const effectiveWhatsapp = effectiveBoolean(
     activeSection?.whatsapp_button_enabled,
     formDefaultWhatsappEnabled,
+  );
+  const effectivePush = effectiveBoolean(
+    activeSection?.push_button_enabled,
+    formDefaultPushEnabled,
   );
 
   if (!activeSection) {
@@ -993,6 +1000,7 @@ export function SectionedQuestionsPanel({
             <p>· Botão de WhatsApp: <strong>{onOffLabel(effectiveWhatsapp)}</strong></p>
             <p className="text-muted-foreground">
               Padrão do formulário: confirmação {onOffLabel(formDefaultConfirmationActive)} · WhatsApp {onOffLabel(formDefaultWhatsappEnabled)}
+              {" · "}Push {onOffLabel(formDefaultPushEnabled)}
               {formDefaultWhatsappEnabled && formDefaultWhatsappPhone?.trim() ? <> (nº padrão {formDefaultWhatsappPhone.trim()})</> : null}
             </p>
           </div>
@@ -1029,6 +1037,28 @@ export function SectionedQuestionsPanel({
               <option value="on">Sim — mostrar botão ao terminar aqui</option>
               <option value="off">Não — não mostrar botão ao terminar aqui</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Botão &quot;Ativar notificações&quot; nesta etapa</label>
+            <select
+              value={triStateFromOverride(activeSection.push_button_enabled)}
+              onChange={(e) =>
+                setSectionOverride(activeSection.clientKey, "push_button_enabled", e.target.value as TriStateChoice)
+              }
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="default">
+                Seguir padrão do formulário ({onOffLabel(formDefaultPushEnabled)})
+              </option>
+              <option value="on">Sim — mostrar ao terminar aqui</option>
+              <option value="off">Não — não mostrar ao terminar aqui</option>
+            </select>
+            {effectivePush && (
+              <p className="text-[11px] text-muted-foreground">
+                O visitante poderá ativar alertas no celular sem criar conta — a inscrição fica vinculada ao contato salvo.
+              </p>
+            )}
           </div>
 
           {effectiveWhatsapp && (

@@ -1712,6 +1712,7 @@ export type Database = {
           is_fixed: boolean
           layout_mode: string
           prefill_from_token: boolean
+          push_button_enabled: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
           success_screen_order: string
@@ -1733,6 +1734,7 @@ export type Database = {
           is_fixed?: boolean
           layout_mode?: string
           prefill_from_token?: boolean
+          push_button_enabled?: boolean
           slug: string
           source_form_type: Database["public"]["Enums"]["source_form_type"]
           success_screen_order?: string
@@ -1754,6 +1756,7 @@ export type Database = {
           is_fixed?: boolean
           layout_mode?: string
           prefill_from_token?: boolean
+          push_button_enabled?: boolean
           slug?: string
           source_form_type?: Database["public"]["Enums"]["source_form_type"]
           success_screen_order?: string
@@ -1823,6 +1826,7 @@ export type Database = {
           form_definition_id: string
           id: string
           order_index: number
+          push_button_enabled: boolean | null
           section_type: string
           success_screen_order: string | null
           title: string | null
@@ -1841,6 +1845,7 @@ export type Database = {
           form_definition_id: string
           id?: string
           order_index: number
+          push_button_enabled?: boolean | null
           section_type?: string
           success_screen_order?: string | null
           title?: string | null
@@ -1859,6 +1864,7 @@ export type Database = {
           form_definition_id?: string
           id?: string
           order_index?: number
+          push_button_enabled?: boolean | null
           section_type?: string
           success_screen_order?: string | null
           title?: string | null

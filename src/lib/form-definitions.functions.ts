@@ -191,6 +191,7 @@ const updateSchema = z.object({
   whatsapp_button_enabled: z.boolean().optional(),
   whatsapp_button_message: z.string().trim().max(500).nullable().optional(),
   whatsapp_button_phone: z.string().trim().min(8).max(30).optional(),
+  push_button_enabled: z.boolean().optional(),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]).optional(),
   success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).optional(),
 });
@@ -541,12 +542,13 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
       whatsapp_button_enabled: boolean | null;
       whatsapp_button_message: string | null;
       success_screen_order: string | null;
+      push_button_enabled: boolean | null;
     }> = [];
     if (srcLayoutMode === "sectioned") {
       const { data: sections, error: secErr } = await context.supabase
         .from("form_sections")
         .select(
-          "id,order_index,title,section_type,account_creation_role,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order",
+          "id,order_index,title,section_type,account_creation_role,description,default_next_section_id,confirmation_active,whatsapp_button_enabled,whatsapp_button_message,success_screen_order,push_button_enabled",
         )
         .eq("form_definition_id", data.id)
         .order("order_index", { ascending: true });
@@ -583,6 +585,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
         whatsapp_button_message: src.whatsapp_button_message,
         whatsapp_button_phone: src.whatsapp_button_phone,
         success_screen_order: src.success_screen_order,
+        push_button_enabled: (src as { push_button_enabled?: boolean }).push_button_enabled ?? false,
       })
       .select()
       .single();
@@ -607,6 +610,7 @@ export const duplicateFormDefinition = createServerFn({ method: "POST" })
             whatsapp_button_enabled: s.whatsapp_button_enabled,
             whatsapp_button_message: s.whatsapp_button_message,
             success_screen_order: s.success_screen_order,
+            push_button_enabled: s.push_button_enabled,
           })
           .select("id")
           .single();
