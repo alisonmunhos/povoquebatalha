@@ -3,6 +3,7 @@
 //   (2) adicionar como filtro aqui e em src/components/ContactFiltersPanel.tsx
 //   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
+import { normalizeSearchTerm } from "./contact-rules";
 
 /** Sentinela para "célula vazia" dentro de filtros de array (tags, disponibilidade, etc.). */
 export const EMPTY_FILTER_TOKEN = "__EMPTY__";
@@ -294,8 +295,13 @@ export function applyCrmFilters<T extends {
 
   // Busca geral em vários campos
   if (f.search) {
+    // C5 — busca única e sem acento: o nome é comparado contra `nome_normalizado`
+    // (coluna já gravada em minúsculas e sem acento), os demais campos seguem ilike.
     const s = safe(f.search);
-    if (s) q = q.or(SEARCH_COLS.map((c) => `${c}.ilike.%${s}%`).join(","));
+    const norm = normalizeSearchTerm(f.search);
+    const clauses = SEARCH_COLS.filter((c) => s).map((c) => `${c}.ilike.%${s}%`);
+    if (norm) clauses.push(`nome_normalizado.ilike.%${norm}%`);
+    if (clauses.length) q = q.or(clauses.join(","));
   }
 
   // Localização (aceita único e múltiplos)

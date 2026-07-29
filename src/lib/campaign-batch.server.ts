@@ -2,6 +2,7 @@
 // pelo botão manual (campaigns.functions.ts) e pelo cron (campaigns.server.ts).
 // As duas chamadas divergiam em `useSendLink` e no critério de anexo — preservados
 // aqui como parâmetros explícitos em vez de assumidos iguais.
+import { BLOCK_LABELS, messageBlockReason } from "@/lib/contact-rules";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { sendMessage } from "@/lib/wa-send.server";
@@ -17,6 +18,7 @@ type RecipientContact = {
   phone_e164: string | null;
   phone_whatsapp_candidate: string | null;
   consentimento_whatsapp: boolean | null;
+  phone_raw: string | null;
   opt_out_at: string | null;
   arquivado_at: string | null;
   lifecycle_status: string | null;
@@ -73,7 +75,7 @@ export async function processCampaignBatchShared(
   const { data: recs } = await db
     .from("campaign_recipients")
     .select(
-      "id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status,recad_token)",
+      "id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_raw,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status,recad_token)",
     )
     .eq("campaign_id", campaignId)
     .eq("status", "queued")
@@ -128,17 +130,11 @@ export async function processCampaignBatchShared(
     const ct = (r as unknown as { contacts: RecipientContact | null }).contacts;
     // Pré-check de elegibilidade — mantém status "opted_out" com a mesma mensagem
     // usada antes da unificação, para não mudar comportamento visível ao usuário.
-    if (ct?.arquivado_at || ct?.lifecycle_status === "nao_enviar") {
+    // C2 — pré-check pela regra única; o motivo gravado vem do módulo central.
+    const block = ct ? messageBlockReason(ct, { requireConsent: true }) : "sem_telefone";
+    if (!ct || block) {
       await db.from("campaign_recipients").update({
-        status: "opted_out", failed_at: new Date().toISOString(),
-        erro: ct.arquivado_at ? "contato arquivado" : "marcado como não enviar",
-      }).eq("id", r.id);
-      skipped++;
-      continue;
-    }
-    if (!ct?.phone_e164 || !ct.consentimento_whatsapp || ct.opt_out_at) {
-      await db.from("campaign_recipients").update({
-        status: "opted_out", failed_at: new Date().toISOString(), erro: "sem consentimento ou opt-out",
+        status: "opted_out", failed_at: new Date().toISOString(), erro: BLOCK_LABELS[block ?? "sem_telefone"],
       }).eq("id", r.id);
       skipped++;
       continue;

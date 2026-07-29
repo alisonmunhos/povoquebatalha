@@ -3,28 +3,43 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // Overview KPIs
+// Escopo único (decisões da auditoria): arquivados NUNCA entram; usuários do
+// sistema não contam como apoiadores. "Sem resposta" conta PESSOAS que
+// receberam alguma mensagem e nunca responderam — nunca subtrai mensagens.
 export const getRelacionamentoOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const s = context.supabase;
     const cnt = async (fn: () => Promise<{ count: number | null }>) => (await fn()).count ?? 0;
 
-    const [aptos, enviados, respostas, erros, optouts, semResposta, ultimaCampanha] = await Promise.all([
-      cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
-        .eq("consentimento_whatsapp", true).is("opt_out_at", null).is("arquivado_at", null)
-        .not("phone_whatsapp_candidate", "is", null) as unknown as Promise<{ count: number | null }>),
-      cnt(async () => await s.from("campaign_recipients").select("id", { count: "exact", head: true })
-        .not("sent_at", "is", null) as unknown as Promise<{ count: number | null }>),
-      cnt(async () => await s.from("inbound_messages").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>),
-      cnt(async () => await s.from("campaign_recipients").select("id", { count: "exact", head: true })
-        .eq("status", "failed") as unknown as Promise<{ count: number | null }>),
-      cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
-        .not("opt_out_at", "is", null) as unknown as Promise<{ count: number | null }>),
-      cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
-        .eq("consentimento_whatsapp", true).is("opt_out_at", null) as unknown as Promise<{ count: number | null }>),
-      s.from("campaigns").select("id, nome, started_at, status").not("started_at", "is", null)
-        .order("started_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
+    const [aptos, enviados, respostas, erros, optouts, ultimaCampanha, enviadosRows, respRows, ativosRows] =
+      await Promise.all([
+        cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
+          .eq("consentimento_whatsapp", true).is("opt_out_at", null).is("arquivado_at", null)
+          .eq("is_system_user", false)
+          .not("phone_whatsapp_candidate", "is", null) as unknown as Promise<{ count: number | null }>),
+        cnt(async () => await s.from("campaign_recipients").select("id", { count: "exact", head: true })
+          .not("sent_at", "is", null) as unknown as Promise<{ count: number | null }>),
+        cnt(async () => await s.from("inbound_messages").select("id", { count: "exact", head: true }) as unknown as Promise<{ count: number | null }>),
+        cnt(async () => await s.from("campaign_recipients").select("id", { count: "exact", head: true })
+          .eq("status", "failed") as unknown as Promise<{ count: number | null }>),
+        cnt(async () => await s.from("contacts").select("id", { count: "exact", head: true })
+          .not("opt_out_at", "is", null).is("arquivado_at", null)
+          .eq("is_system_user", false) as unknown as Promise<{ count: number | null }>),
+        s.from("campaigns").select("id, nome, started_at, status").not("started_at", "is", null)
+          .order("started_at", { ascending: false }).limit(1).maybeSingle(),
+        s.from("campaign_recipients").select("contact_id").not("sent_at", "is", null).limit(50000),
+        s.from("inbound_messages").select("contact_id").not("contact_id", "is", null).limit(50000),
+        s.from("contacts").select("id").is("arquivado_at", null).eq("is_system_user", false).limit(50000),
+      ]);
+
+    const ativos = new Set((ativosRows.data ?? []).map((r) => r.id));
+    const responderam = new Set((respRows.data ?? []).map((r) => r.contact_id as string));
+    const receberam = new Set(
+      (enviadosRows.data ?? []).map((r) => r.contact_id as string).filter((id) => id && ativos.has(id)),
+    );
+    let semRespostaPessoas = 0;
+    for (const id of receberam) if (!responderam.has(id)) semRespostaPessoas++;
 
     return {
       aptos,
@@ -32,11 +47,15 @@ export const getRelacionamentoOverview = createServerFn({ method: "GET" })
       respostas,
       erros,
       optouts,
-      sem_resposta_aptos: Math.max(0, semResposta - respostas),
+      // pessoas ativas que receberam e nunca responderam
+      sem_resposta_aptos: semRespostaPessoas,
+      pessoas_alcancadas: receberam.size,
+      pessoas_responderam: Array.from(responderam).filter((id) => ativos.has(id)).length,
       recuperaveis: erros,
       ultima_campanha: ultimaCampanha.data,
     };
   });
+
 
 // List templates as filter options (only those that were used or currently active)
 export const listMessageFilterOptions = createServerFn({ method: "GET" })
