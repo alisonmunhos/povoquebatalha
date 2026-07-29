@@ -1,69 +1,78 @@
-## Objetivo
+## O que aconteceu com o Iago (verificado no banco)
 
-Executar de uma vez as Etapas 2, 3 e 4 do relatório final: cada regra de negócio passa a existir em **um único lugar**, os indicadores passam a bater entre si, e as telas param de oferecer opções que não significam nada.
+São 3 registros:
 
-Decisões já tomadas por você e que valem para tudo abaixo:
-- **Arquivado não entra no "Total da base".** Vira indicador próprio.
-- **Usuário do sistema não conta como apoiador.** Continua na base de contatos, com marcação.
+| Nome | WhatsApp | E-mail | Origem | Situação |
+|---|---|---|---|---|
+| Iago Gonçalves Cunha | (51) 98323-1707 | iagogc@gmail.com | inscrição | ativo (sobrevivente) |
+| Iago Gonçalves Cunha | (51) 98324-1707 | — | importação CSV | **já mesclado** em 08/07, arquivado |
+| Iago Cunha | — | iagocunha1751@gmail.com | usuário do sistema | ativo, nunca detectado |
 
----
+Três problemas distintos, todos confirmados:
 
-## Etapa 2 — Centralizar as regras
+1. **O terceiro nunca foi detectado.** A detecção automática só cruza: mesmo telefone (8 dígitos finais), mesmo e-mail, nome idêntico, ou nome com semelhança ≥ 0,60. "iago cunha" x "iago goncalves cunha" dá 0,52 — passa raspando por baixo do corte. Esse é exatamente o caso mais comum: nome completo x nome abreviado.
+2. **O registro já mesclado ainda aparece na lista.** Ele está arquivado e marcado como "duplicado_mesclado", mas a busca estava com o filtro "todos" (inclui arquivados), então parece que a mesclagem não funcionou.
+3. **Ele foi criado como usuário do sistema com outro e-mail e sem telefone.** A rotina que liga login → contato procura por e-mail e depois por telefone; como o e-mail do cadastro era diferente e não havia telefone, criou um contato novo.
 
-Um módulo único de regras (`src/lib/contact-rules.ts`) passa a ser a fonte da verdade. Nada de banco muda; nada de tela é redesenhado.
+Rodando a regra "um nome é subconjunto do outro, com mesmo primeiro e último sobrenome" na base inteira: **11 pares hoje invisíveis** na tela de Duplicidades (contra 978 se apenas baixássemos o corte de semelhança — ruído demais). Hoje há 166 pares pendentes.
 
-**C4 — Acesso por lista de IDs**
-Toda consulta que recebe uma lista grande de IDs passa a usar a busca em lotes que já existe (`fetchContactsBatched`). Hoje várias consultas mandam a lista inteira de uma vez e podem falhar em silêncio quando a lista é grande.
+## Diagnóstico da regra de identidade (hoje é inconsistente)
 
-**C3 — "Tem telefone"**
-Uma única regra de precedência: candidato de WhatsApp → número formatado → número bruto. É a regra que o motor de envio já usa corretamente; passa a valer também para exibição em lista, planilha, exportação e contagem.
+Cada porta de entrada usa uma ordem diferente:
 
-**C1 — "Contato ativo"**
-Um único filtro base, com `crm-filters.ts` como referência. Todas as telas passam a assumir o mesmo padrão (não arquivado), e quem quiser incluir arquivados precisa pedir explicitamente.
+- Formulário público: token do link → telefone → e-mail
+- Cadastro de usuário: e-mail → telefone
+- Importação CSV: telefone → e-mail → semelhança de nome
+- Detecção automática: telefone / e-mail / nome
 
-**C2 — "Apto a receber"**
-Uma única função, extraída do motor de envio, usada pela prévia de campanha, pelo painel de relacionamento, pelo lote de envio e pelas automações. Inclui os bloqueios já corrigidos na Etapa 1 (arquivado, "não enviar", opt-out, consentimento, telefone).
+Resultado: a mesma pessoa vira registros diferentes dependendo de por onde entra.
 
-**C6 — Contagem de público**
-Painel, prévia e envio passam a chamar a mesma contagem (`buildAudienceIds`). Deixa de existir número de prévia diferente do número enviado.
+**Regra master proposta (uma só, em cascata):**
+1. Token de recadastro (identidade explícita, confiança máxima)
+2. WhatsApp normalizado — chave primária de identidade
+3. E-mail exato (minúsculo, sem espaços)
+4. Nome + cidade/bairro → **nunca funde sozinho**, só gera par pendente na tela de Duplicidades
 
-**C5 — Busca textual**
-A busca por nome passa a usar a coluna já existente e já normalizada (`nome_normalizado`, sem acento e em minúsculas), com o termo digitado normalizado do mesmo jeito. Buscar "jose" passa a encontrar "José". Os demais campos (cidade, e-mail, telefone) continuam como estão.
+Telefone é a chave master porque é o canal do sistema; e-mail é secundário porque muda e pessoas compartilham; nome nunca decide sozinho.
 
----
+## Como a mesclagem funciona hoje e o que falta
 
-## Etapa 3 — Corrigir os indicadores
+A função de mesclagem preserva tags, observações, e-mail/telefone extras (viram secundários), auditoria, mensagens de campanha e caixa de entrada. Mas **não transfere** vínculos importantes: conversas, mensagens diretas, respostas de formulário, registros de território e agitação, tarefas de missão, presenças em eventos, inscrições de notificação, entregas de automação, linhas de importação e — crítico — **o vínculo `profiles.contact_id` do usuário do sistema**. Mesclar hoje o contato "Iago Cunha" (que é usuário) desligaria o login dele do contato.
 
-- **"Sem resposta"** passa a contar pessoas que não responderam, e não "aptos menos mensagens recebidas" (hoje mistura duas dimensões e mostra um número menor do que o real).
-- **Todo cartão declara seu escopo.** Cada indicador do painel passa a excluir arquivados por padrão, com "Arquivados" como cartão separado.
-- **Apoiadores** passa a excluir usuários do sistema; a base de contatos continua contando todo mundo.
-- **Prévia de campanha = envio.** Mesma função, mesmo número, e a prévia passa a discriminar quantos foram descartados e por qual motivo.
+## Plano de implementação
 
----
+### 1. Banco — mesclagem completa e segura
+Nova migração ajustando `merge_contacts`:
+- Transferir todos os vínculos restantes (conversas, mensagens diretas, logs de território/agitação, respostas de formulário, tarefas, eventos, notificações push, automações, linhas de importação, eventos de origem).
+- Se o registro absorvido for usuário do sistema: repassar `is_system_user`, papel e o vínculo do perfil para o sobrevivente, e impedir a perda do login.
+- Bloquear a mesclagem quando **os dois** lados forem usuários distintos do sistema (erro claro em português).
+- Escolha automática de campo: para cada campo em branco no sobrevivente, herdar o valor do outro; em conflito, manter o mais recente por padrão (operador ainda pode sobrescrever).
+- Suportar mesclagem em cadeia (A←B←C) sem quebrar histórico.
 
-## Etapa 4 — Limpar significado
+### 2. Detecção mais inteligente
+- Nova regra de nome-subconjunto (primeiro + último sobrenome iguais e um nome contido no outro) gerando par "provável".
+- Passar a considerar também contatos usuários do sistema.
+- Rotina única de re-varredura para recalcular a base atual (os 11 pares aparecem imediatamente).
+- Classificação de confiança revista: **Alta** (telefone ou e-mail igual + nome compatível), **Média** (nome exato ou subconjunto), **Baixa** (semelhança).
 
-- **Filtros vazios:** as opções de filtro que nunca retornam nada (por exemplo, os status de WhatsApp que não existem na base e os estados de ciclo de vida nunca gravados) passam a aparecer com contagem, e as de contagem zero ficam desabilitadas com explicação, em vez de sumirem sem aviso.
-- **Arquivado ≠ opt-out:** passam a ser dois selos visuais distintos na lista e na ficha, com texto claro ("Fora da base" x "Pediu para não receber").
-- **Fila de duplicidades:** os 166 pares pendentes ganham contador visível e acesso direto a partir da Gestão da Base.
+### 3. Mesclar direto na Gestão da Base
+- Selecionar 2 ou mais contatos → botão **"Mesclar contatos"** na barra de ações em massa.
+- Modal mostra os selecionados lado a lado, sugere o sobrevivente automaticamente (usuário do sistema > cadastro mais completo > mais recente), lista o que será preservado e alerta se algum for usuário do sistema.
+- Mescla em sequência sobre o mesmo sobrevivente; ao final, resumo do que aconteceu.
 
----
+### 4. Tela de Duplicidades mais intuitiva
+- Agrupar por **pessoa** (grupo com 3 registros aparece como um card só, não como 3 pares soltos).
+- Sobrevivente sugerido já marcado, com o motivo em texto ("tem WhatsApp confirmado e cadastro mais completo").
+- Diferenças destacadas primeiro; campos iguais colapsados.
+- Ação rápida **"Mesclar com a sugestão"** para casos de alta confiança, sem digitar a frase de confirmação (a digitação fica só para confiança baixa).
+- Filtros por confiança e por origem, e contador visível.
 
-## Detalhes técnicos
+### 5. Entradas públicas coerentes
+- Unificar a busca de contato existente numa única função com a cascata acima, usada por formulários públicos, cadastro de usuário e importação.
+- Quando o telefone bate mas o e-mail difere (ou vice-versa), atualizar o contato existente e registrar o dado divergente como secundário, em vez de criar registro novo.
+- Registrar par pendente sempre que houver dúvida, nunca fundir automaticamente por nome.
 
-Arquivos principais:
-- **Novo:** `src/lib/contact-rules.ts` — `isActiveContact`, `bestPhone`, `canReceiveMessage`, `normalizeSearchTerm`.
-- `src/lib/crm-filters.ts` — busca por `nome_normalizado`; filtro base único.
-- `src/lib/wa-send.server.ts`, `src/lib/campaign-batch.server.ts`, `src/lib/automations.server.ts` — passam a importar `canReceiveMessage`.
-- `src/lib/campaigns.functions.ts` — prévia, criação e preparo compartilhando `buildAudienceIds` + `canReceiveMessage`, com motivos de descarte.
-- `src/lib/crm-bulk.functions.ts`, `src/lib/contacts-sheet.functions.ts`, `src/lib/map.functions.ts`, `src/lib/agitation-missions.functions.ts`, `src/lib/segments.functions.ts` — consumo do módulo central e uso de `fetchContactsBatched`.
-- `src/lib/dashboard.functions.ts`, `src/lib/relacionamento.functions.ts` — indicadores recalculados.
-- `src/routes/_authenticated/contatos.index.tsx`, `src/components/ContactFiltersPanel.tsx`, `src/components/contacts-sheet/*` — selos, contagens nos filtros, atalho de duplicidades.
+### Detalhes técnicos
+Migração em `supabase/migrations/` (ajuste de `merge_contacts`, `detect_contact_duplicates_for`, função de re-varredura e de agrupamento). Frontend: `contatos.index.tsx` + `BulkActionBar`, novo `MergeContactsModal` reaproveitado nas duas telas, reescrita de `duplicidades.tsx`, e nova camada única de identificação em `src/lib/contact-identity.server.ts` consumida por `public-form-contact.server.ts`, `public-user-signup.server.ts`, `imports.functions.ts` e `link_or_create_user_contact`.
 
-Sem migration. Sem alteração de modelo de dados. Typecheck do projeto inteiro ao final.
-
-## Riscos e cuidados
-
-- É uma refatoração transversal: o comportamento visível deve mudar **apenas** onde o relatório apontou erro. Vou manter os nomes e a aparência das telas.
-- Números do painel vão mudar (ficam corretos). Vou listar no final o antes/depois de cada indicador afetado para você conferir.
-- Nenhum dado é apagado ou reescrito no banco.
+Nada é apagado: o registro absorvido continua arquivado com histórico completo e é possível auditar a mesclagem.
