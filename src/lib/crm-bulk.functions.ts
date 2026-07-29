@@ -1,7 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { crmFilterSchema, applyCrmFilters, resolveContactIdsForTagFilter, type CrmFilters } from "@/lib/crm-filters";
+import {
+  crmFilterSchema,
+  applyCrmFilters,
+  resolveContactIdsForTagFilter,
+  fetchAllPaged,
+  paginateWithAllowedIds,
+  INLINE_ID_LIMIT,
+  type CrmFilters,
+} from "@/lib/crm-filters";
+import type { Database } from "@/integrations/supabase/types";
+
+type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
+type ContactRichRow = Pick<
+  ContactRow,
+  | "id" | "nome" | "phone_raw" | "phone_e164" | "phone_status" | "whatsapp_status" | "cidade" | "bairro" | "uf"
+  | "origem" | "origem_detalhe" | "consentimento_whatsapp" | "opt_out_at" | "arquivado_at" | "lifecycle_status"
+  | "tipo_contato" | "coletivo_alicerce" | "profissao" | "email" | "created_at"
+>;
 
 // ===== Listagem rica do CRM (substitui partes da listContacts) =====
 const listSchema = z.object({
