@@ -228,9 +228,8 @@ const rsvpBodySchema = z.object({
   contact_token: z.string().trim().min(8).max(48).optional(),
   nome: z.string().trim().min(2).max(120).optional(),
   phone: z.string().trim().min(8).max(40).optional(),
+  /** Só usado no fluxo simples (evento sem formulário vinculado). */
   consentimento_whatsapp: z.boolean().optional(),
-  consentimento_lgpd: z.boolean().optional(),
-  consentimento_dados_sensiveis: z.boolean().optional(),
   ...honeypotSchema,
 });
 
@@ -273,19 +272,6 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
     return new Response(JSON.stringify({ ok: false, error: "Evento não encontrado." }), { status: 404, headers: cors });
   }
 
-  if (
-    d.status === "confirmed" &&
-    !(d.consentimento_whatsapp && d.consentimento_lgpd && d.consentimento_dados_sensiveis)
-  ) {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: "Para confirmar presença é preciso aceitar os três consentimentos.",
-      }),
-      { status: 400, headers: cors },
-    );
-  }
-
   const contact = await resolvePublicContact({
     token: d.contact_token,
     nome: d.nome,
@@ -298,74 +284,27 @@ export async function handlePublicEventRsvp(request: Request, slug: string): Pro
     );
   }
 
-  const { data: prev } = await supabaseAdmin
-    .from("event_rsvps")
-    .select("status")
-    .eq("event_id", event.id)
-    .eq("contact_id", contact.id)
-    .maybeSingle();
-
-  const { error: upsertErr } = await supabaseAdmin.from("event_rsvps").upsert(
-    {
-      event_id: event.id,
-      contact_id: contact.id,
-      status: d.status,
-    },
-    { onConflict: "event_id,contact_id" },
-  );
-  if (upsertErr) {
-    return new Response(JSON.stringify({ ok: false, error: upsertErr.message }), { status: 400, headers: cors });
-  }
-
-  if (d.status === "confirmed") {
-    const nowIso = new Date().toISOString();
-    await supabaseAdmin
-      .from("contacts")
-      .update({
-        consentimento_whatsapp: true,
-        consentimento_at: nowIso,
-        consentimento_lgpd: true,
-        consentimento_lgpd_at: nowIso,
-        consentimento_dados_sensiveis: true,
-        consentimento_dados_sensiveis_at: nowIso,
-      })
-      .eq("id", contact.id);
-
-    // Rastro de origem: registra que a pessoa veio por este evento.
-    try {
-      await supabaseAdmin.rpc("apply_contact_source", {
-        _source_user_id: null,
-        _source_form_type: null,
-        _source_link_id: null,
-        _contact_id: contact.id,
-        _source_module: "formulario_publico",
-        _event_type: "inscricao_simples",
-        _metadata: {
-          via: "evento_rsvp",
-          event_id: event.id,
-          event_slug: event.slug,
-          event_title: event.title,
-          tracking_label: `Evento: ${event.title}`,
-          capture_channel: "formulario_publico",
-        },
-      } as never);
-    } catch {
-      /* rastro é complementar, não bloqueia a confirmação */
+  if (d.status === "declined") {
+    const { error: upsertErr } = await supabaseAdmin
+      .from("event_rsvps")
+      .upsert({ event_id: event.id, contact_id: contact.id, status: "declined" }, { onConflict: "event_id,contact_id" });
+    if (upsertErr) {
+      return new Response(JSON.stringify({ ok: false, error: upsertErr.message }), { status: 400, headers: cors });
+    }
+  } else {
+    if (d.consentimento_whatsapp) {
+      const nowIso = new Date().toISOString();
+      await supabaseAdmin
+        .from("contacts")
+        .update({ consentimento_whatsapp: true, consentimento_at: nowIso })
+        .eq("id", contact.id);
+    }
+    const result = await confirmEventRsvpForContact({ eventSlug: slug, contactId: contact.id });
+    if (!result.ok) {
+      return new Response(JSON.stringify({ ok: false, error: result.error }), { status: 400, headers: cors });
     }
   }
 
-  if (d.status === "confirmed" && prev?.status !== "confirmed") {
-    try {
-      await notifyEventRsvpConfirmed({
-        eventId: event.id,
-        eventTitle: event.title,
-        contactId: contact.id,
-        contactName: contact.nome,
-      });
-    } catch {
-      /* non-blocking */
-    }
-  }
 
   return new Response(
     JSON.stringify({
