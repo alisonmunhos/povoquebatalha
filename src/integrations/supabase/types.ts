@@ -1680,6 +1680,8 @@ export type Database = {
           ends_at: string | null
           id: string
           is_published: boolean
+          linked_form_definition_id: string | null
+          linked_form_start_section_id: string | null
           location: string | null
           post_rsvp_button_text: string | null
           post_rsvp_button_url: string | null
@@ -1698,6 +1700,8 @@ export type Database = {
           ends_at?: string | null
           id?: string
           is_published?: boolean
+          linked_form_definition_id?: string | null
+          linked_form_start_section_id?: string | null
           location?: string | null
           post_rsvp_button_text?: string | null
           post_rsvp_button_url?: string | null
@@ -1716,6 +1720,8 @@ export type Database = {
           ends_at?: string | null
           id?: string
           is_published?: boolean
+          linked_form_definition_id?: string | null
+          linked_form_start_section_id?: string | null
           location?: string | null
           post_rsvp_button_text?: string | null
           post_rsvp_button_url?: string | null
@@ -1725,7 +1731,22 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_linked_form_definition_id_fkey"
+            columns: ["linked_form_definition_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_linked_form_start_section_id_fkey"
+            columns: ["linked_form_start_section_id"]
+            isOneToOne: false
+            referencedRelation: "form_sections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       form_custom_answers: {
         Row: {
