@@ -454,18 +454,26 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
 
         // Resolução de contato, mesma prioridade de /recadastro: recad_token → telefone → e-mail.
-        let target: { id: string; phone_e164: string | null } | null = null;
+        type TargetRow = {
+          id: string;
+          phone_e164: string | null;
+          opt_out_at: string | null;
+          arquivado_at: string | null;
+          lifecycle_status: string | null;
+        };
+        const TARGET_COLS = "id,phone_e164,opt_out_at,arquivado_at,lifecycle_status";
+        let target: TargetRow | null = null;
         if (d.recad_token) {
-          const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("recad_token", d.recad_token).maybeSingle();
-          if (data) target = data;
+          const { data } = await supabaseAdmin.from("contacts").select(TARGET_COLS).eq("recad_token", d.recad_token).maybeSingle();
+          if (data) target = data as TargetRow;
         }
         if (!target && phoneE164) {
-          const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("phone_e164", phoneE164).maybeSingle();
-          if (data) target = data;
+          const { data } = await supabaseAdmin.from("contacts").select(TARGET_COLS).eq("phone_e164", phoneE164).maybeSingle();
+          if (data) target = data as TargetRow;
         }
         if (!target && email) {
-          const { data } = await supabaseAdmin.from("contacts").select("id,phone_e164").eq("email", email).maybeSingle();
-          if (data) target = data;
+          const { data } = await supabaseAdmin.from("contacts").select(TARGET_COLS).eq("email", email).maybeSingle();
+          if (data) target = data as TargetRow;
         }
 
         // contacts.origem é enum (recadastro|inscricao|import|manual) — reaproveita os
@@ -485,13 +493,26 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           origem: origemValue,
           origem_detalhe: form.title,
           lifecycle_status: "recadastro_concluido" as const,
-          opt_out_at: null,
         };
         // INSERT precisa satisfazer contacts.nome NOT NULL — usa fallback só aqui.
         const insertPayload = { ...basePayload, nome: hasNome ? (nome as string) : "Participante" };
+        // Estados de bloqueio pertencem ao sistema, não ao formulário público:
+        //  - opt-out só é revertido com consentimento explícito nesta submissão;
+        //  - arquivado / "não enviar" NÃO são desfeitos aqui — o contato vai para
+        //    revisão manual, mas todos os dados enviados continuam sendo gravados.
+        const blocked = !!(target?.arquivado_at || target?.lifecycle_status === "nao_enviar");
+        const stateOverrides = {
+          ...(target?.opt_out_at && consentimento ? { opt_out_at: null } : {}),
+          ...(blocked ? { lifecycle_status: "precisa_revisao" as const } : {}),
+        };
         // UPDATE só grava `nome` se a seção atual perguntou de fato — caso contrário
         // preserva o valor já salvo (não sobrescreve "Maria Silva" com "Participante").
-        const updatePayload = hasNome ? { ...basePayload, nome: nome as string } : basePayload;
+        const updatePayload = {
+          ...basePayload,
+          ...(hasNome ? { nome: nome as string } : {}),
+          ...stateOverrides,
+        };
+
         let savedId: string | null = null;
         if (target) {
           if (target.phone_e164 && target.phone_e164 !== phoneE164) {
