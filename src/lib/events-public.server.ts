@@ -78,7 +78,10 @@ async function resolvePublicContact(input: {
 export async function confirmEventRsvpForContact(input: {
   eventSlug: string;
   contactId: string;
+  /** `declined` = registrou que não poderá ir; padrão é confirmação. */
+  status?: "confirmed" | "declined";
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const status = input.status ?? "confirmed";
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: event } = await supabaseAdmin
     .from("events")
