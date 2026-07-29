@@ -169,7 +169,7 @@ export const listContactsSheet = createServerFn({ method: "POST" })
         const byId = new Map(
           ((pageRows ?? []) as unknown as Record<string, unknown>[]).map((r) => [r.id as string, r]),
         );
-        rows = pageIds.map((id) => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+        rows = pageIds.map((id: string) => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
       }
     } else {
       let q = buildQuery(projection, true);
