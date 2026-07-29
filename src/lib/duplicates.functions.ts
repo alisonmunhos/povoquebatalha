@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "@/lib/authz";
+import type { Database } from "@/integrations/supabase/types";
+
+type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
 
 
 export const listImportedContactsTokens = createServerFn({ method: "POST" })
@@ -55,15 +58,25 @@ export const listPendingDuplicates = createServerFn({ method: "GET" })
 
 export const resolveDuplicate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), action: z.enum(["ignorar", "separados"]) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        action: z.enum(["ignorar", "separados", "nao_duplicado", "postergar"]),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
+    // "postergar" só tira o par da fila do dia — continua pendente para revisão futura.
+    const status = data.action === "postergar" ? "ignorar" : data.action === "nao_duplicado" ? "separados" : data.action;
     const { error } = await context.supabase
       .from("contact_duplicates")
-      .update({ status: data.action, resolved_at: new Date().toISOString(), resolved_by: context.userId })
+      .update({ status, resolved_at: new Date().toISOString(), resolved_by: context.userId })
       .eq("id", data.id);
     if (error) throw error;
     return { ok: true as const };
   });
+
 
 // Detalhes de um par para mesclagem
 export const getDuplicatePair = createServerFn({ method: "POST" })
@@ -125,4 +138,183 @@ export const mergeContacts = createServerFn({ method: "POST" })
         .eq("id", data.duplicate_id);
     }
     return { ok: true as const, merge_id: res as string };
+  });
+
+// ---------------------------------------------------------------------------
+// Mesclagem a partir de uma seleção (Gestão da Base) e agrupamento por pessoa
+// ---------------------------------------------------------------------------
+
+/** Carrega os contatos selecionados com todos os campos, para o modal de mesclagem. */
+export const getMergeCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).min(2).max(10) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase.from("contacts").select("*").in("id", data.ids);
+    if (error) throw error;
+    const { data: profs } = await context.supabase
+      .from("profiles")
+      .select("id,contact_id,full_name")
+      .in("contact_id", data.ids);
+    return { rows: rows ?? [], profiles: profs ?? [] };
+  });
+
+/** Mescla vários contatos num sobrevivente só, em sequência. */
+export const mergeContactsBulk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        survivor_id: z.string().uuid(),
+        merged_ids: z.array(z.string().uuid()).min(1).max(9),
+        field_overrides: z.record(z.string(), z.union([z.string(), z.boolean(), z.null()])).default({}),
+        motivo: z.string().max(240).optional(),
+        confianca: z.enum(["forte", "provavel", "possivel"]).default("provavel"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem mesclar contatos.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const overridesNorm: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(data.field_overrides)) {
+      if (v === null || v === undefined) continue;
+      overridesNorm[k] = typeof v === "boolean" ? (v ? "true" : "false") : v;
+    }
+
+    const merged: string[] = [];
+    const falhas: Array<{ id: string; erro: string }> = [];
+    let first = true;
+    for (const id of data.merged_ids) {
+      if (id === data.survivor_id) continue;
+      const { error } = await supabaseAdmin.rpc("merge_contacts", {
+        p_survivor: data.survivor_id,
+        p_merged: id,
+        // Overrides de campo valem só para a primeira mesclagem (foi ali que o
+        // operador comparou os valores); as demais herdam campos vazios sozinhas.
+        p_field_overrides: (first ? overridesNorm : {}) as never,
+        p_motivo: data.motivo ?? undefined,
+        p_confianca: data.confianca,
+      });
+      first = false;
+      if (error) falhas.push({ id, erro: error.message });
+      else merged.push(id);
+    }
+    return { ok: falhas.length === 0, merged, falhas };
+  });
+
+type DupPairRow = {
+  id: string;
+  contact_a: string;
+  contact_b: string;
+  match_type: string;
+  reason: string | null;
+  score: number | null;
+  created_at: string;
+};
+
+/** Duplicidades pendentes agrupadas por pessoa (componentes conectados). */
+export const listDuplicateGroups = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: pairs, error } = await context.supabase
+      .from("contact_duplicates")
+      .select("id,contact_a,contact_b,match_type,reason,score,created_at")
+      .eq("status", "pendente")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    const rows = (pairs ?? []) as DupPairRow[];
+
+    // União-busca simples para juntar A-B, B-C num grupo só
+    const parent = new Map<string, string>();
+    const find = (x: string): string => {
+      let r = x;
+      while (parent.get(r) && parent.get(r) !== r) r = parent.get(r)!;
+      parent.set(x, r);
+      return r;
+    };
+    const union = (a: string, b: string) => {
+      parent.set(find(a), find(b));
+    };
+    for (const p of rows) {
+      if (!parent.has(p.contact_a)) parent.set(p.contact_a, p.contact_a);
+      if (!parent.has(p.contact_b)) parent.set(p.contact_b, p.contact_b);
+      union(p.contact_a, p.contact_b);
+    }
+
+    const ids = [...parent.keys()];
+    const { data: contacts } = ids.length
+      ? await context.supabase.from("contacts").select("*").in("id", ids)
+      : { data: [] as ContactRow[] };
+    const byId = new Map((contacts ?? []).map((c) => [c.id, c] as const));
+
+    const groups = new Map<
+      string,
+      { key: string; contacts: ContactRow[]; pairs: DupPairRow[]; match_type: string }
+    >();
+    for (const p of rows) {
+      const key = find(p.contact_a);
+      const g = groups.get(key) ?? { key, contacts: [], pairs: [], match_type: "possivel" };
+      for (const cid of [p.contact_a, p.contact_b]) {
+        const c = byId.get(cid);
+        if (c && !g.contacts.some((x) => x.id === cid)) g.contacts.push(c);
+      }
+      g.pairs.push(p);
+      const rank: Record<string, number> = { possivel: 0, provavel: 1, forte: 2 };
+      if ((rank[p.match_type] ?? 0) > (rank[g.match_type] ?? 0)) g.match_type = p.match_type;
+      groups.set(key, g);
+    }
+
+    return {
+      groups: [...groups.values()]
+        .filter((g) => g.contacts.length >= 2)
+        .sort((a, b) => {
+          const rank: Record<string, number> = { possivel: 0, provavel: 1, forte: 2 };
+          return (rank[b.match_type] ?? 0) - (rank[a.match_type] ?? 0);
+        }),
+    };
+  });
+
+/** Marca todos os pares pendentes de um grupo como resolvidos. */
+export const resolveDuplicateGroup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ pair_ids: z.array(z.string().uuid()).min(1), action: z.enum(["separados", "ignorar"]) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("contact_duplicates")
+      .update({ status: data.action, resolved_at: new Date().toISOString(), resolved_by: context.userId })
+      .in("id", data.pair_ids);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+/** Revarre a base procurando duplicidades ainda não registradas (em blocos). */
+export const rescanDuplicates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(400).default(300) }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem revarrer a base.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ids, error } = await supabaseAdmin
+      .from("contacts")
+      .select("id")
+      .is("arquivado_at", null)
+      .order("id")
+      .range(data.offset, data.offset + data.limit - 1);
+    if (error) throw error;
+    const list = (ids ?? []).map((r) => r.id as string);
+    let novos = 0;
+    for (let i = 0; i < list.length; i += 20) {
+      const slice = list.slice(i, i + 20);
+      const results = await Promise.all(
+        slice.map((id) => supabaseAdmin.rpc("detect_contact_duplicates_for", { _id: id })),
+      );
+      for (const r of results) novos += (r.data as number | null) ?? 0;
+    }
+    return { novos, processados: list.length, done: list.length < data.limit };
   });

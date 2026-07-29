@@ -14,6 +14,7 @@ import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/p
 import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2, PhoneCall, CheckCircle2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
+import { MergeContactsModal } from "@/components/MergeContactsModal";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,7 @@ function Contatos() {
   const [pageSize, setPageSize] = useState(search.ps ?? 25);
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mergeIds, setMergeIds] = useState<string[]>([]);
   const [bulkTagId, setBulkTagId] = useState<string>("");
   const [creatingTag, setCreatingTag] = useState(false);
   const [newTagName, setNewTagName] = useState("");
@@ -459,7 +461,23 @@ function Contatos() {
               <TooltipContent className="max-w-xs">Isso selecionará todos os contatos que correspondem aos filtros atuais, não apenas os visíveis nesta página.</TooltipContent>
             </Tooltip>
             <button onClick={clearSel} className="text-xs underline">Limpar seleção</button>
+            {selected.size >= 2 && selected.size <= 10 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setMergeIds([...selected])}
+                    className="text-xs font-medium rounded-md bg-primary-foreground text-primary px-2.5 py-1"
+                  >
+                    Unificar {selected.size} cadastros
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Junta os cadastros selecionados em um só, preservando histórico, tags e acesso ao sistema.
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
+
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-primary-foreground/20 pt-2">
             {/* Tags */}
@@ -764,6 +782,13 @@ function Contatos() {
           }
         }}
       />
+      {mergeIds.length >= 2 && (
+        <MergeContactsModal
+          ids={mergeIds}
+          onClose={() => setMergeIds([])}
+          onMerged={() => { setSelected(new Set()); q.refetch(); dupCountQ.refetch(); }}
+        />
+      )}
       <PhoneReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} onDone={() => { q.refetch(); countsQ.refetch(); }} />
     </div>
     </TooltipProvider>
