@@ -205,9 +205,18 @@ function ContatosBI() {
 
   async function selectAllByFilter() {
     const r = await idsByFilterFn({ data: { filters: currentFilters, max: SHEET_SELECT_ALL_MAX } });
-    const ids = (r as { ids: string[] }).ids;
+    const { ids, total, truncated } = r as { ids: string[]; total: number; truncated: boolean };
     setSelection(new Set(ids));
-    toast.success(`${ids.length} contato(s) selecionado(s)`);
+    if (truncated) {
+      toast.warning(
+        `Selecionamos ${ids.length} de ${total} contatos do filtro. ` +
+        `As ações em massa vão afetar apenas esses ${ids.length}. ` +
+        `Refine o filtro para tratar o restante.`,
+        { duration: 10000 },
+      );
+    } else {
+      toast.success(`${ids.length} contato(s) selecionado(s)`);
+    }
   }
 
   async function onEditCell(contactId: string, fieldKey: string, newValue: unknown) {

@@ -56,7 +56,16 @@ export function PhoneReviewDialog({ open, onOpenChange, onDone }: Props) {
   async function selectAllFiltered() {
     const r = await idsFn({ data: { filters, max: 5000 } });
     setSelected(new Set(r.ids));
-    toast.success(`${r.ids.length} contato(s) selecionados`);
+    if (r.truncated) {
+      toast.warning(
+        `Selecionamos ${r.ids.length} de ${r.total} contatos do filtro. ` +
+        `As ações em massa vão afetar apenas esses ${r.ids.length}. ` +
+        `Refine o filtro para tratar o restante.`,
+        { duration: 10000 },
+      );
+    } else {
+      toast.success(`${r.ids.length} contato(s) selecionados`);
+    }
   }
 
   async function apply() {
