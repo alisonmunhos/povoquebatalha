@@ -58,8 +58,9 @@ const submitSchema = z.object({
   recad_token: z.string().uuid().optional().or(z.literal("")),
   terminal_section_id: z.string().uuid().optional().or(z.literal("")),
   start_section_id: z.string().uuid().optional().or(z.literal("")),
-  /** Quando o formulário é aberto pela tela de um evento: confirma presença junto. */
+  /** Quando o formulário é aberto pela tela de um evento: registra presença junto. */
   event_slug: z.string().trim().min(1).max(120).optional().or(z.literal("")),
+  event_rsvp_status: z.enum(["confirmed", "declined"]).optional(),
   answers: z.record(
     z.string().uuid(),
     z.union([z.string(), z.array(z.string()), z.boolean(), z.null(), addressBlockSchema]),
