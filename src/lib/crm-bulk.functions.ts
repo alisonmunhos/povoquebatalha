@@ -14,75 +14,126 @@ const listSchema = z.object({
   sort: z.enum(["recent", "name", "name-desc"]).default("recent"),
 });
 
+const CONTACT_LIST_COLS =
+  "id,nome,phone_raw,phone_e164,phone_status,whatsapp_status,cidade,bairro,uf,origem,origem_detalhe,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,tipo_contato,coletivo_alicerce,profissao,email,created_at";
+
 export const listContactsRich = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => listSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
-    let q = context.supabase
-      .from("contacts")
-      .select(
-        "id,nome,phone_raw,phone_e164,phone_status,whatsapp_status,cidade,bairro,uf,origem,origem_detalhe,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,tipo_contato,coletivo_alicerce,profissao,email,created_at",
-        { count: "exact" },
-      )
-      .range(from, to);
-    if (data.sort === "name") q = q.order("nome", { ascending: true });
-    else if (data.sort === "name-desc") q = q.order("nome", { ascending: false });
-    else q = q.order("created_at", { ascending: false });
-    q = applyCrmFilters(q as never, data.filters as CrmFilters);
+    const empty = { rows: [] as never[], total: 0, page: data.page, pageSize: data.pageSize };
 
+    // --- Restrições que dependem de consultas auxiliares (resolvidas antes) ---
+    let allowedIds: string[] | null = null;
     if (data.filters.tag_ids?.length) {
       const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, data.filters.tag_ids);
-      if (noMatch) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
-      if (ids?.length) q = q.in("id", ids);
+      if (noMatch) return empty;
+      if (ids?.length) allowedIds = ids;
     }
-    // Histórico por campanha
+
     async function idsForCampaign(campaignId: string, statuses?: string[]) {
-      let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
-      if (statuses?.length) qr = qr.in("status", statuses as never[]);
-      const { data: r } = await qr.limit(20000);
-      return Array.from(new Set((r ?? []).map((x) => x.contact_id)));
+      const rows = await fetchAllPaged<{ contact_id: string }>(() => {
+        let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
+        if (statuses?.length) qr = qr.in("status", statuses as never[]);
+        return qr as never;
+      });
+      return Array.from(new Set(rows.map((x) => x.contact_id)));
     }
+    async function idsForTemplate(templateId: string) {
+      const rows = await fetchAllPaged<{ contact_id: string }>(() =>
+        context.supabase
+          .from("automation_deliveries")
+          .select("contact_id")
+          .eq("template_id", templateId)
+          .eq("status", "sent") as never,
+      );
+      return Array.from(new Set(rows.map((x) => x.contact_id)));
+    }
+
+    const excludeIds: string[] = [];
+    function intersectAllowed(ids: string[]) {
+      allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
+    }
+
     if (data.filters.recebeu_campanha_id) {
-      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent","delivered","read"]);
-      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
-      q = q.in("id", ids);
+      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent", "delivered", "read"]);
+      if (!ids.length) return empty;
+      intersectAllowed(ids);
     }
     if (data.filters.nao_recebeu_campanha_id) {
-      const ids = await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent","delivered","read"]);
-      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+      excludeIds.push(...(await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent", "delivered", "read"])));
     }
     if (data.filters.erro_campanha_id) {
       const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
-      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
-      q = q.in("id", ids);
-    }
-    // Histórico por mensagem salva (automation_deliveries)
-    async function idsForTemplate(templateId: string) {
-      const { data: r } = await context.supabase
-        .from("automation_deliveries")
-        .select("contact_id")
-        .eq("template_id", templateId)
-        .eq("status", "sent")
-        .limit(20000);
-      return Array.from(new Set((r ?? []).map((x) => x.contact_id as string)));
+      if (!ids.length) return empty;
+      intersectAllowed(ids);
     }
     if (data.filters.recebeu_template_id) {
       const ids = await idsForTemplate(data.filters.recebeu_template_id);
-      if (!ids.length) return { rows: [], total: 0, page: data.page, pageSize: data.pageSize };
-      q = q.in("id", ids);
+      if (!ids.length) return empty;
+      intersectAllowed(ids);
     }
     if (data.filters.nao_recebeu_template_id) {
-      const ids = await idsForTemplate(data.filters.nao_recebeu_template_id);
-      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+      excludeIds.push(...(await idsForTemplate(data.filters.nao_recebeu_template_id)));
+    }
+    if (allowedIds && !allowedIds.length) return empty;
+
+    const excludeSet = new Set(excludeIds);
+
+    function buildQuery(cols: string, withCount: boolean) {
+      let q = withCount
+        ? context.supabase.from("contacts").select(cols, { count: "exact" })
+        : context.supabase.from("contacts").select(cols);
+      if (data.sort === "name") q = q.order("nome", { ascending: true });
+      else if (data.sort === "name-desc") q = q.order("nome", { ascending: false });
+      else q = q.order("created_at", { ascending: false });
+      q = applyCrmFilters(q as never, data.filters as CrmFilters);
+      if (excludeSet.size && excludeSet.size <= INLINE_ID_LIMIT) {
+        q = q.not("id", "in", `(${Array.from(excludeSet).map((v) => `"${v}"`).join(",")})`);
+      }
+      return q;
     }
 
-    const { data: rows, count, error } = await q;
-    if (error) throw error;
+    // Conjunto de IDs grande demais pra caber na URL: cruza em memória.
+    const useMemoryIntersection =
+      (allowedIds && allowedIds.length > INLINE_ID_LIMIT) || excludeSet.size > INLINE_ID_LIMIT;
+
+    let rows: Array<Record<string, unknown> & { id: string }> = [];
+    let total = 0;
+
+    if (useMemoryIntersection) {
+      const allowedSet = allowedIds ? new Set(allowedIds) : null;
+      const { pageIds, total: t } = await paginateWithAllowedIds({
+        buildIdQuery: () => buildQuery("id", false) as never,
+        allowed: {
+          has: (id: string) => (allowedSet ? allowedSet.has(id) : true) && !excludeSet.has(id),
+        } as Set<string>,
+        from,
+        pageSize: data.pageSize,
+      });
+      total = t;
+      if (pageIds.length) {
+        const { data: pageRows, error } = await context.supabase
+          .from("contacts")
+          .select(CONTACT_LIST_COLS)
+          .in("id", pageIds);
+        if (error) throw error;
+        const byId = new Map((pageRows ?? []).map((r) => [r.id, r]));
+        rows = pageIds.map((id) => byId.get(id)).filter(Boolean) as typeof rows;
+      }
+    } else {
+      let q = buildQuery(CONTACT_LIST_COLS, true).range(from, to);
+      if (allowedIds?.length) q = q.in("id", allowedIds);
+      const { data: r, count, error } = await q;
+      if (error) throw error;
+      rows = (r ?? []) as typeof rows;
+      total = count ?? 0;
+    }
 
     // Tags por contato
-    const ids = (rows ?? []).map((r) => r.id);
+    const ids = rows.map((r) => r.id);
     let tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
     if (ids.length) {
       const { data: rels } = await context.supabase
@@ -98,12 +149,13 @@ export const listContactsRich = createServerFn({ method: "POST" })
     }
 
     return {
-      rows: (rows ?? []).map((r) => ({ ...r, tags: tagMap[r.id] ?? [] })),
-      total: count ?? 0,
+      rows: rows.map((r) => ({ ...r, tags: tagMap[r.id] ?? [] })),
+      total,
       page: data.page,
       pageSize: data.pageSize,
     };
   });
+
 
 // ===== IDs por filtro (selecionar tudo do filtro / export) =====
 export const idsByFilter = createServerFn({ method: "POST" })
