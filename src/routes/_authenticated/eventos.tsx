@@ -77,8 +77,13 @@ function EventosPage() {
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [postTitle, setPostTitle] = useState("");
+  const [postBody, setPostBody] = useState("");
   const [postButtonText, setPostButtonText] = useState("");
   const [postButtonUrl, setPostButtonUrl] = useState("");
+  const [declineTitle, setDeclineTitle] = useState("");
+  const [declineBody, setDeclineBody] = useState("");
+  const [declineButtonText, setDeclineButtonText] = useState("");
+  const [declineButtonUrl, setDeclineButtonUrl] = useState("");
   const [linkedFormId, setLinkedFormId] = useState("");
 
   const rsvpsQ = useQuery({
