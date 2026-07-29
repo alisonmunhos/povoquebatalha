@@ -185,59 +185,93 @@ export const idsByFilter = createServerFn({ method: "POST" })
     }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    let q = context.supabase.from("contacts").select("id", { count: "exact" }).limit(data.max);
-    q = applyCrmFilters(q as never, data.filters as CrmFilters);
+    const emptyResult = { ids: [] as string[], total: 0, truncated: false };
+
+    let allowedIds: string[] | null = null;
     if (data.filters.tag_ids?.length) {
       const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, data.filters.tag_ids);
-      if (noMatch) return { ids: [] as string[], total: 0, truncated: false };
-      if (ids?.length) q = q.in("id", ids);
+      if (noMatch) return emptyResult;
+      if (ids?.length) allowedIds = ids;
     }
+
     async function idsForCampaign(campaignId: string, statuses?: string[]) {
-      let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
-      if (statuses?.length) qr = qr.in("status", statuses as never[]);
-      const { data: r } = await qr.limit(20000);
-      return Array.from(new Set((r ?? []).map((x) => x.contact_id)));
+      const rows = await fetchAllPaged<{ contact_id: string }>(() => {
+        let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
+        if (statuses?.length) qr = qr.in("status", statuses as never[]);
+        return qr as never;
+      });
+      return Array.from(new Set(rows.map((x) => x.contact_id)));
     }
+    async function idsForTemplate(templateId: string) {
+      const rows = await fetchAllPaged<{ contact_id: string }>(() =>
+        context.supabase
+          .from("automation_deliveries")
+          .select("contact_id")
+          .eq("template_id", templateId)
+          .eq("status", "sent") as never,
+      );
+      return Array.from(new Set(rows.map((x) => x.contact_id)));
+    }
+
+    function intersectAllowed(ids: string[]) {
+      const set = new Set(ids);
+      allowedIds = allowedIds ? allowedIds.filter((id) => set.has(id)) : ids;
+    }
+    const excludeSet = new Set<string>();
+
     if (data.filters.recebeu_campanha_id) {
-      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent","delivered","read"]);
-      if (!ids.length) return { ids: [] as string[], total: 0, truncated: false };
-      q = q.in("id", ids);
+      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent", "delivered", "read"]);
+      if (!ids.length) return emptyResult;
+      intersectAllowed(ids);
     }
     if (data.filters.nao_recebeu_campanha_id) {
-      const ids = await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent","delivered","read"]);
-      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+      for (const id of await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent", "delivered", "read"])) {
+        excludeSet.add(id);
+      }
     }
     if (data.filters.erro_campanha_id) {
       const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
-      if (!ids.length) return { ids: [] as string[], total: 0, truncated: false };
-      q = q.in("id", ids);
-    }
-    async function idsForTemplate(templateId: string) {
-      const { data: r } = await context.supabase
-        .from("automation_deliveries")
-        .select("contact_id")
-        .eq("template_id", templateId)
-        .eq("status", "sent")
-        .limit(20000);
-      return Array.from(new Set((r ?? []).map((x) => x.contact_id as string)));
+      if (!ids.length) return emptyResult;
+      intersectAllowed(ids);
     }
     if (data.filters.recebeu_template_id) {
       const ids = await idsForTemplate(data.filters.recebeu_template_id);
-      if (!ids.length) return { ids: [] as string[], total: 0, truncated: false };
-      q = q.in("id", ids);
+      if (!ids.length) return emptyResult;
+      intersectAllowed(ids);
     }
     if (data.filters.nao_recebeu_template_id) {
-      const ids = await idsForTemplate(data.filters.nao_recebeu_template_id);
-      if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
+      for (const id of await idsForTemplate(data.filters.nao_recebeu_template_id)) excludeSet.add(id);
     }
-    const { data: rows, error, count } = await q;
-    if (error) throw error;
-    const ids = (rows ?? []).map((r) => r.id);
+    if (allowedIds && !allowedIds.length) return emptyResult;
+
+    const allowedSet = allowedIds ? new Set(allowedIds) : null;
+    const inlineAllowed = allowedIds && allowedIds.length <= INLINE_ID_LIMIT ? allowedIds : null;
+
+    // Busca paginada de verdade: o PostgREST devolve no máximo 1.000 linhas por
+    // chamada, então percorremos em blocos até atingir `max` ou esgotar.
+    const rows = await fetchAllPaged<{ id: string }>(
+      () => {
+        let q = context.supabase.from("contacts").select("id").order("created_at", { ascending: false });
+        q = applyCrmFilters(q as never, data.filters as CrmFilters);
+        if (inlineAllowed) q = q.in("id", inlineAllowed);
+        if (excludeSet.size && excludeSet.size <= INLINE_ID_LIMIT) {
+          q = q.not("id", "in", `(${Array.from(excludeSet).map((v) => `"${v}"`).join(",")})`);
+        }
+        return q as never;
+      },
+      { hardCap: 100_000 },
+    );
+
+    const all = rows
+      .map((r) => r.id)
+      .filter((id) => (allowedSet ? allowedSet.has(id) : true) && !excludeSet.has(id));
+
+    const ids = all.slice(0, data.max);
     // `total` é a contagem real do filtro; `truncated` avisa a interface que a
     // seleção não cobre todos os contatos filtrados (limite de segurança `max`).
-    const total = count ?? ids.length;
-    return { ids, total, truncated: total > ids.length };
+    return { ids, total: all.length, truncated: all.length > ids.length };
   });
+
 
 // ===== Ações em massa =====
 const idsInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(5000) });
