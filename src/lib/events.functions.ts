@@ -20,7 +20,13 @@ const eventInputSchema = z.object({
   starts_at: z.string().datetime(),
   ends_at: z.string().datetime().nullable().optional(),
   is_published: z.boolean().optional(),
+  cover_path: z.string().max(500).nullable().optional(),
+  cover_mime: z.string().max(120).nullable().optional(),
+  post_rsvp_title: z.string().trim().max(200).nullable().optional(),
+  post_rsvp_button_text: z.string().trim().max(80).nullable().optional(),
+  post_rsvp_button_url: z.string().trim().max(500).nullable().optional(),
 });
+
 
 export const listEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
