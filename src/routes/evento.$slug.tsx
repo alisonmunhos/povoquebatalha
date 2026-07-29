@@ -67,6 +67,12 @@ function EventoPublicPage() {
   const [err, setErr] = useState<string | null>(null);
   const [contactToken, setContactToken] = useState<string | undefined>(tokenFromUrl);
   const [showForm, setShowForm] = useState(false);
+  /** Tela de parada depois de confirmar presença pelo formulário vinculado. */
+  const [confirmedStop, setConfirmedStop] = useState<{ nextSectionId: string | null } | null>(null);
+  /** Continuar o cadastro (Seção 2 em diante) depois da tela de confirmação. */
+  const [continueFrom, setContinueFrom] = useState<string | null | undefined>(undefined);
+  /** Recusa sem identificação prévia: pedimos nome + WhatsApp. */
+  const [declineOpen, setDeclineOpen] = useState(false);
 
   async function load() {
     setErr(null);
