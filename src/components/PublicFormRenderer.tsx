@@ -207,8 +207,10 @@ export function PublicFormRenderer({
     return null;
   }
 
-  async function saveSectionProgress(): Promise<boolean> {
-    if (!sectionedForm || !currentSection || isAccountSection) return true;
+  async function saveSectionProgress(): Promise<{ ok: boolean; recadToken: string | null; eventConfirmed: boolean }> {
+    if (!sectionedForm || !currentSection || isAccountSection) {
+      return { ok: true, recadToken: activeRecadToken || null, eventConfirmed: false };
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -227,18 +229,24 @@ export function PublicFormRenderer({
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
       if (json.recad_token) setActiveRecadToken(json.recad_token);
+      if (json.has_account) setEmailAlreadyRegistered(true);
       if (json.email != null || json.nome != null || json.phone != null) {
         setContactContext((prev) => ({
           email: json.email ?? prev?.email ?? null,
           nome: json.nome ?? prev?.nome ?? null,
           phone: json.phone ?? prev?.phone ?? null,
           email_already_registered: prev?.email_already_registered ?? false,
+          has_account: Boolean(json.has_account) || prev?.has_account,
         }));
       }
-      return true;
+      return {
+        ok: true,
+        recadToken: (json.recad_token as string | null) ?? activeRecadToken ?? null,
+        eventConfirmed: Boolean(json.event_confirmed),
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar progresso");
-      return false;
+      return { ok: false, recadToken: activeRecadToken || null, eventConfirmed: false };
     } finally {
       setSubmitting(false);
     }
