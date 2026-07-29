@@ -246,21 +246,56 @@ export async function notifyEventCreated(input: {
   const { randomUUID } = await import("node:crypto");
   const batchId = randomUUID();
 
-  const rows = targetUserIds.map((uid) => ({
-    user_id: uid,
-    title,
-    body,
-    kind: "event",
-    cta_kind: "link",
-    cta_label: "Ver eventos",
-    cta_payload: {
-      event_id: input.eventId,
-      event_title: input.eventTitle,
-      url: input.isPublished ? `/evento/${input.eventSlug}` : "/eventos",
-    },
-    batch_id: batchId,
-    created_by: input.createdBy,
-  }));
+  // Cada pessoa recebe o link já com o token dela: ao clicar, é reconhecida
+  // automaticamente e pode confirmar presença sem digitar nada de novo.
+  const tokenByUser = new Map<string, string>();
+  try {
+    const { data: profs } = await supabaseAdmin
+      .from("profiles")
+      .select("id, contact_id")
+      .in("id", targetUserIds);
+    const contactIds = (profs ?? [])
+      .map((p: { contact_id: string | null }) => p.contact_id)
+      .filter((v: string | null): v is string => Boolean(v));
+    if (contactIds.length) {
+      const { data: contactRows } = await supabaseAdmin
+        .from("contacts")
+        .select("id, recad_token")
+        .in("id", contactIds);
+      const tokenByContact = new Map<string, string>();
+      for (const c of contactRows ?? []) {
+        if (c.recad_token) tokenByContact.set(c.id, c.recad_token);
+      }
+      for (const p of profs ?? []) {
+        const tk = p.contact_id ? tokenByContact.get(p.contact_id) : undefined;
+        if (tk) tokenByUser.set(p.id, tk);
+      }
+    }
+  } catch (e) {
+    console.error("[notify] event token lookup:", e);
+  }
+
+  const rows = targetUserIds.map((uid) => {
+    const tk = tokenByUser.get(uid);
+    const url = input.isPublished
+      ? `/evento/${input.eventSlug}${tk ? `?t=${encodeURIComponent(tk)}` : ""}`
+      : "/eventos";
+    return {
+      user_id: uid,
+      title,
+      body,
+      kind: "event",
+      cta_kind: "link",
+      cta_label: "Ver eventos",
+      cta_payload: {
+        event_id: input.eventId,
+        event_title: input.eventTitle,
+        url,
+      },
+      batch_id: batchId,
+      created_by: input.createdBy,
+    };
+  });
 
   const { data: notifRows, error: insertErr } = await supabaseAdmin
     .from("notifications")

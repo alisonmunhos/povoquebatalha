@@ -113,6 +113,25 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
           eventConfirmed = rsvp.ok;
         }
 
+        // A pessoa já tem conta no sistema? (evita pedir criação de senha de novo)
+        let hasAccount = false;
+        {
+          const { data: c } = await supabaseAdmin
+            .from("contacts")
+            .select("is_system_user")
+            .eq("id", saved.contactId)
+            .maybeSingle();
+          hasAccount = Boolean(c?.is_system_user);
+          if (!hasAccount) {
+            const { data: prof } = await supabaseAdmin
+              .from("profiles")
+              .select("id")
+              .eq("contact_id", saved.contactId)
+              .maybeSingle();
+            hasAccount = Boolean(prof);
+          }
+        }
+
         return new Response(
           JSON.stringify({
             ok: true,
@@ -120,6 +139,7 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
             email: saved.email,
             nome: saved.nome,
             phone: saved.phone,
+            has_account: hasAccount,
             event_confirmed: eventConfirmed,
           }),
           { headers: cors },

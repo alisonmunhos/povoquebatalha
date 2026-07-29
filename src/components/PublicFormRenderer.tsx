@@ -52,6 +52,7 @@ type ContactContext = {
   nome: string | null;
   phone: string | null;
   email_already_registered: boolean;
+  has_account?: boolean;
 };
 type BranchRule = {
   question_id: string;
@@ -71,7 +72,7 @@ type SectionedFormDefinition = {
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 
 export function PublicFormRenderer({
-  slug, refToken, recadToken, startSectionId, eventSlug,
+  slug, refToken, recadToken, startSectionId, eventSlug, onEventConfirmed,
 }: {
   slug: string;
   refToken?: string;
@@ -79,6 +80,11 @@ export function PublicFormRenderer({
   startSectionId?: string;
   /** Quando renderizado dentro da tela pública de um evento: confirma presença junto. */
   eventSlug?: string;
+  /**
+   * Chamado quando a seção enviada confirmou presença no evento. Quando definido,
+   * o motor PARA aqui (não avança sozinho) e quem chama mostra a tela de confirmação.
+   */
+  onEventConfirmed?: (info: { recadToken: string | null; nextSectionId: string | null }) => void;
 }) {
   useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
@@ -136,7 +142,10 @@ export function PublicFormRenderer({
           setCurrentSectionId(startId);
           if (json.form.contact_context) {
             setContactContext(json.form.contact_context);
-            setEmailAlreadyRegistered(Boolean(json.form.contact_context.email_already_registered));
+            setEmailAlreadyRegistered(
+              Boolean(json.form.contact_context.email_already_registered) ||
+                Boolean(json.form.contact_context.has_account),
+            );
           }
           return;
         }
@@ -158,6 +167,25 @@ export function PublicFormRenderer({
     () => (sectionedForm?.questions ?? []).filter((q) => q.section_id === currentSection?.id),
     [sectionedForm, currentSection?.id],
   );
+
+  // Quem já tem conta no sistema não precisa criar login/senha de novo:
+  // pulamos a seção de criação de conta automaticamente.
+  const alreadyHasAccount = Boolean(contactContext?.has_account);
+  useEffect(() => {
+    if (!sectionedForm || !currentSection || !isAccountSection || !alreadyHasAccount) return;
+    const nextId = resolveNextSectionId(
+      currentSection.id,
+      sections,
+      sectionedForm.questions,
+      sectionedForm.branch_rules ?? [],
+      values,
+    );
+    if (nextId) setCurrentSectionId(nextId);
+    else void submitFinal(currentSection.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alreadyHasAccount, isAccountSection, currentSection?.id, sectionedForm]);
+
+
 
   const set = (questionId: string, v: AnswerValue) => setValues((p) => ({ ...p, [questionId]: v }));
   const toggleMulti = (questionId: string, option: string) => {
@@ -198,8 +226,10 @@ export function PublicFormRenderer({
     return null;
   }
 
-  async function saveSectionProgress(): Promise<boolean> {
-    if (!sectionedForm || !currentSection || isAccountSection) return true;
+  async function saveSectionProgress(): Promise<{ ok: boolean; recadToken: string | null; eventConfirmed: boolean }> {
+    if (!sectionedForm || !currentSection || isAccountSection) {
+      return { ok: true, recadToken: activeRecadToken || null, eventConfirmed: false };
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -218,18 +248,24 @@ export function PublicFormRenderer({
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
       if (json.recad_token) setActiveRecadToken(json.recad_token);
+      if (json.has_account) setEmailAlreadyRegistered(true);
       if (json.email != null || json.nome != null || json.phone != null) {
         setContactContext((prev) => ({
           email: json.email ?? prev?.email ?? null,
           nome: json.nome ?? prev?.nome ?? null,
           phone: json.phone ?? prev?.phone ?? null,
           email_already_registered: prev?.email_already_registered ?? false,
+          has_account: Boolean(json.has_account) || prev?.has_account,
         }));
       }
-      return true;
+      return {
+        ok: true,
+        recadToken: (json.recad_token as string | null) ?? activeRecadToken ?? null,
+        eventConfirmed: Boolean(json.event_confirmed),
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar progresso");
-      return false;
+      return { ok: false, recadToken: activeRecadToken || null, eventConfirmed: false };
     } finally {
       setSubmitting(false);
     }
@@ -350,9 +386,23 @@ export function PublicFormRenderer({
 
     if (nextId) {
       const saved = await saveSectionProgress();
-      if (!saved) return;
+      if (!saved.ok) return;
+      // Presença confirmada dentro da página do evento: paramos aqui pra mostrar
+      // a mensagem configurada, em vez de emendar direto na próxima etapa.
+      if (saved.eventConfirmed && onEventConfirmed) {
+        onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: nextId });
+        return;
+      }
       setCurrentSectionId(nextId);
       return;
+    }
+    if (eventSlug && onEventConfirmed) {
+      const saved = await saveSectionProgress();
+      if (!saved.ok) return;
+      if (saved.eventConfirmed) {
+        onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: null });
+        return;
+      }
     }
     void submitFinal(currentSection.id);
   }

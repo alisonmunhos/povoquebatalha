@@ -149,7 +149,7 @@ export async function handlePublicGetEvent(request: Request, slug: string): Prom
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: event, error } = await supabaseAdmin
     .from("events")
-    .select("id,title,slug,description,location,starts_at,ends_at,is_published,cover_path,post_rsvp_title,post_rsvp_button_text,post_rsvp_button_url,linked_form_definition_id,linked_form_start_section_id")
+    .select("id,title,slug,description,location,starts_at,ends_at,is_published,cover_path,post_rsvp_title,post_rsvp_body,post_rsvp_button_text,post_rsvp_button_url,post_decline_title,post_decline_body,post_decline_button_text,post_decline_button_url,linked_form_definition_id,linked_form_start_section_id")
     .eq("slug", slug)
     .maybeSingle();
   if (error) {

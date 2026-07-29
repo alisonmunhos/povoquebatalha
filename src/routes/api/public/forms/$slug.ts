@@ -184,7 +184,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         }
 
         let initialValues: Record<string, unknown> | undefined;
-        let contactContext: { email: string | null; nome: string | null; phone: string | null; email_already_registered: boolean } | null = null;
+        let contactContext: { email: string | null; nome: string | null; phone: string | null; email_already_registered: boolean; has_account: boolean } | null = null;
         const url = new URL(request.url);
         const token = url.searchParams.get("t");
         if (token) {
@@ -206,11 +206,22 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             }
             const { isEmailAlreadyRegistered } = await import("@/lib/public-form-contact.server");
             const email = (contact.email as string | null)?.trim().toLowerCase() || null;
+            // Já é usuário do sistema? Então não pedimos pra criar conta de novo.
+            let hasAccount = Boolean((contact as { is_system_user?: boolean }).is_system_user);
+            if (!hasAccount) {
+              const { data: prof } = await supabaseAdmin
+                .from("profiles")
+                .select("id")
+                .eq("contact_id", contact.id as string)
+                .maybeSingle();
+              hasAccount = Boolean(prof);
+            }
             contactContext = {
               email,
               nome: (contact.nome as string | null) ?? null,
               phone: (contact.phone_raw as string | null) ?? (contact.phone_e164 as string | null) ?? null,
               email_already_registered: email ? await isEmailAlreadyRegistered(email) : false,
+              has_account: hasAccount,
             };
           }
         }
