@@ -112,6 +112,8 @@ export function isShadowbanError(message: string): boolean {
 }
 
 import { renderMessageVars, type MessageVarOptions } from "@/lib/message-vars";
+import { BLOCK_LABELS, messageBlockReason, sendablePhone } from "@/lib/contact-rules";
+
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"]+/i;
 
