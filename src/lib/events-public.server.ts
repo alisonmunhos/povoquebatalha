@@ -71,6 +71,77 @@ async function resolvePublicContact(input: {
   return { id: created.id, nome: created.nome, recad_token: created.recad_token };
 }
 
+/**
+ * Confirma presença de um contato já salvo. Fonte única usada tanto pelo
+ * envio de seção do formulário vinculado quanto pelo endpoint de RSVP.
+ */
+export async function confirmEventRsvpForContact(input: {
+  eventSlug: string;
+  contactId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: event } = await supabaseAdmin
+    .from("events")
+    .select("id,title,slug,is_published")
+    .eq("slug", input.eventSlug)
+    .maybeSingle();
+  if (!event || !event.is_published) return { ok: false, error: "Evento não encontrado." };
+
+  const { data: prev } = await supabaseAdmin
+    .from("event_rsvps")
+    .select("status")
+    .eq("event_id", event.id)
+    .eq("contact_id", input.contactId)
+    .maybeSingle();
+
+  const { error: upsertErr } = await supabaseAdmin
+    .from("event_rsvps")
+    .upsert({ event_id: event.id, contact_id: input.contactId, status: "confirmed" }, { onConflict: "event_id,contact_id" });
+  if (upsertErr) return { ok: false, error: upsertErr.message };
+
+  // Rastro de origem: registra que a pessoa veio por este evento.
+  try {
+    await supabaseAdmin.rpc("apply_contact_source", {
+      _source_user_id: null,
+      _source_form_type: null,
+      _source_link_id: null,
+      _contact_id: input.contactId,
+      _source_module: "formulario_publico",
+      _event_type: "inscricao_simples",
+      _metadata: {
+        via: "evento_rsvp",
+        event_id: event.id,
+        event_slug: event.slug,
+        event_title: event.title,
+        tracking_label: `Evento: ${event.title}`,
+        capture_channel: "formulario_publico",
+      },
+    } as never);
+  } catch {
+    /* rastro é complementar, não bloqueia a confirmação */
+  }
+
+  if (prev?.status !== "confirmed") {
+    try {
+      const { data: contact } = await supabaseAdmin
+        .from("contacts")
+        .select("nome")
+        .eq("id", input.contactId)
+        .maybeSingle();
+      await notifyEventRsvpConfirmed({
+        eventId: event.id,
+        eventTitle: event.title,
+        contactId: input.contactId,
+        contactName: contact?.nome ?? "Contato",
+      });
+    } catch {
+      /* non-blocking */
+    }
+  }
+
+  return { ok: true };
+}
+
 export async function handlePublicGetEvent(request: Request, slug: string): Promise<Response> {
   const url = new URL(request.url);
   const token = url.searchParams.get("t")?.trim() || undefined;
@@ -78,7 +149,7 @@ export async function handlePublicGetEvent(request: Request, slug: string): Prom
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: event, error } = await supabaseAdmin
     .from("events")
-    .select("id,title,slug,description,location,starts_at,ends_at,is_published,cover_path,post_rsvp_title,post_rsvp_button_text,post_rsvp_button_url")
+    .select("id,title,slug,description,location,starts_at,ends_at,is_published,cover_path,post_rsvp_title,post_rsvp_button_text,post_rsvp_button_url,linked_form_definition_id,linked_form_start_section_id")
     .eq("slug", slug)
     .maybeSingle();
   if (error) {
@@ -115,16 +186,42 @@ export async function handlePublicGetEvent(request: Request, slug: string): Prom
     cover_url = signed?.signedUrl ?? null;
   }
 
+  // Formulário vinculado (referência viva — nada é copiado)
+  let form: { slug: string; start_section_id: string | null } | null = null;
+  if (event.linked_form_definition_id) {
+    const { data: def } = await supabaseAdmin
+      .from("form_definitions")
+      .select("id,slug,is_active,layout_mode")
+      .eq("id", event.linked_form_definition_id)
+      .maybeSingle();
+    if (def?.is_active && def.layout_mode === "sectioned") {
+      let startSectionId = event.linked_form_start_section_id ?? null;
+      if (!startSectionId) {
+        const { data: first } = await supabaseAdmin
+          .from("form_sections")
+          .select("id")
+          .eq("form_definition_id", def.id)
+          .order("order_index", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        startSectionId = first?.id ?? null;
+      }
+      form = { slug: def.slug, start_section_id: startSectionId };
+    }
+  }
+
   return new Response(
     JSON.stringify({
       ok: true,
       event: { ...event, cover_url },
+      form,
       contact,
       rsvp_status,
     }),
     { headers: { ...cors, "Cache-Control": "no-store" } },
   );
 }
+
 
 const rsvpBodySchema = z.object({
   status: z.enum(["confirmed", "declined"]),
