@@ -73,6 +73,7 @@ type WhatsappButtonInfo = { phone: string | null; message: string | null } | nul
 
 export function PublicFormRenderer({
   slug, refToken, recadToken, startSectionId, eventSlug, eventRsvpStatus, onEventConfirmed,
+  presentation = "inline", primaryActionLabel, onExit,
 }: {
   slug: string;
   refToken?: string;
@@ -82,12 +83,19 @@ export function PublicFormRenderer({
   eventSlug?: string;
   /** `declined` quando a pessoa já avisou que não poderá ir e só quer se cadastrar. */
   eventRsvpStatus?: "confirmed" | "declined";
+  /** `overlay`: cada etapa aparece por cima da tela anterior (padrão no fluxo de evento). */
+  presentation?: "inline" | "overlay";
+  /** Texto do botão principal na primeira etapa (ex.: "Confirmar presença"). */
+  primaryActionLabel?: string;
+  /** Chamado quando o usuário volta a partir da primeira etapa (fecha o painel). */
+  onExit?: () => void;
   /**
    * Chamado quando a seção enviada confirmou presença no evento. Quando definido,
    * o motor PARA aqui (não avança sozinho) e quem chama mostra a tela de confirmação.
    */
   onEventConfirmed?: (info: { recadToken: string | null; nextSectionId: string | null }) => void;
 }) {
+
   useDeployRefresh();
   const [form, setForm] = useState<FormDefinition | null | undefined>(undefined);
   const [sectionedForm, setSectionedForm] = useState<SectionedFormDefinition | null>(null);
