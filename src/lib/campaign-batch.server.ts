@@ -18,6 +18,8 @@ type RecipientContact = {
   phone_whatsapp_candidate: string | null;
   consentimento_whatsapp: boolean | null;
   opt_out_at: string | null;
+  arquivado_at: string | null;
+  lifecycle_status: string | null;
   whatsapp_status: string | null;
   recad_token: string | null;
 };
@@ -71,7 +73,7 @@ export async function processCampaignBatchShared(
   const { data: recs } = await db
     .from("campaign_recipients")
     .select(
-      "id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,whatsapp_status,recad_token)",
+      "id,contact_id,rendered_message,contacts(id,nome,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status,recad_token)",
     )
     .eq("campaign_id", campaignId)
     .eq("status", "queued")
@@ -126,6 +128,14 @@ export async function processCampaignBatchShared(
     const ct = (r as unknown as { contacts: RecipientContact | null }).contacts;
     // Pré-check de elegibilidade — mantém status "opted_out" com a mesma mensagem
     // usada antes da unificação, para não mudar comportamento visível ao usuário.
+    if (ct?.arquivado_at || ct?.lifecycle_status === "nao_enviar") {
+      await db.from("campaign_recipients").update({
+        status: "opted_out", failed_at: new Date().toISOString(),
+        erro: ct.arquivado_at ? "contato arquivado" : "marcado como não enviar",
+      }).eq("id", r.id);
+      skipped++;
+      continue;
+    }
     if (!ct?.phone_e164 || !ct.consentimento_whatsapp || ct.opt_out_at) {
       await db.from("campaign_recipients").update({
         status: "opted_out", failed_at: new Date().toISOString(), erro: "sem consentimento ou opt-out",

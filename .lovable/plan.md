@@ -1,78 +1,65 @@
-**Confirmação de acesso:** os 7 repositórios respondem como públicos (corteza, metabase, twenty, superset, civicrm-core, espocrm, appsmith). Serão usados apenas como referência conceitual, sem leitura profunda de código, conforme sua escolha.
+## Etapa 1 — Parar o sangramento
 
-**Regras desta auditoria:** nenhum código de aplicação será alterado, nenhuma migration será criada, nenhuma funcionalidade implementada. O único material produzido são documentos `.md` dentro de `docs/auditoria/`.
+Três correções pontuais, sem migration, sem redesenho de tela e sem mudança no modelo de dados. Cada uma fecha um caminho por onde o sistema hoje faz algo diferente do que promete na interface.
 
-## Entrega por fases, com checkpoint
+---
 
-### Entrega 1 — Diagnóstico da Gestão da Base (prioridade que você definiu)
+### Correção 1 — O envio passa a respeitar arquivado e "não enviar"
 
-Documentos:
-- `docs/auditoria/01-mapa-do-sistema.md` — entidades, módulos, telas, fluxo dos dados.
-- `docs/auditoria/02-gestao-da-base.md` — o diagnóstico central.
-- `docs/auditoria/03-glossario-e-definicoes.md` — **novo**: dicionário de conceitos.
+**Hoje:** o motor de envio (`src/lib/wa-send.server.ts`) bloqueia opt-out, falta de consentimento, status de WhatsApp inválido e ausência de telefone — mas **não** checa `arquivado_at` nem `lifecycle_status = 'nao_enviar'`. Confirmado na base: 3 contatos arquivados receberiam campanha hoje.
 
-O que será investigado, com evidência de arquivo e linha em cada afirmação:
+**O que muda:**
+- Acrescentar as duas checagens no mesmo bloco de validações comuns, devolvendo motivos legíveis ("arquivado" e "marcado como não enviar"), no mesmo formato dos motivos já existentes.
+- Garantir que os campos necessários venham nas consultas que alimentam o envio (campanhas e envio direto), para que a checagem não seja silenciosamente ignorada por campo ausente.
+- A prévia de audiência de campanha passa a aplicar os mesmos dois bloqueios, para prévia e disparo darem o mesmo número.
 
-1. **Anatomia dos filtros** — leitura completa de `crm-filters.ts` (577 linhas, onde parece concentrar a tradução de filtro→consulta), `column-filter-mapping.ts`, `column-sort-mapping.ts`, `sheet-filter-chips.ts`, `filters-encoding.ts`, `ContactFiltersPanel.tsx`, `ColumnFilterHeader.tsx` e os painéis em `components/contacts-sheet/`.
-2. **Comparação de caminhos de consulta** — as consultas de contatos aparecem em pelo menos 6 lugares distintos: `contacts.functions.ts`, `contacts-sheet.functions.ts`, `crm-bulk.functions.ts` (`idsByFilter`, export CSV, cópia formatada), `map.functions.ts`, `territory.functions.ts`, `segments.functions.ts`. Matriz mostrando, para cada uma: quais filtros aplica, se respeita `arquivado_at`, `opt_out_at`, `is_system_user`, escopo territorial, e se o resultado bate com a tela principal.
-3. **Registros que podem "sumir"** — filtros sobre coluna derivada (ex.: `phone_e164` nulo enquanto `phone_raw` tem valor), `.eq()` onde deveria considerar NULL, combinação de filtros que vira AND implícito, `.or()` mal parentizado, tetos de linhas em seleção em massa/exportação, e o default `archived: "nao"` aplicado em uma tela mas não em outra.
-4. **Pesquisa geral × filtros equivalentes** — campos cobertos, acento, telefone, e-mail; verificar se "buscar João" retorna o mesmo conjunto que filtrar nome contém "João".
-5. **Saved views** — hoje em `localStorage`: não compartilháveis, não versionadas, e podem carregar um estado de filtro cujo significado mudou desde que foi salvo.
-6. **Ações em massa** — se "selecionar tudo pelo filtro" usa exatamente a mesma consulta da listagem.
-7. **Validação contra o banco** — para cada divergência suspeita, consultas SQL de leitura reproduzindo as duas versões da lógica, com os números lado a lado. Nenhuma conclusão sem número.
+**Efeito visível:** o número da prévia passa a bater com o que é realmente enviado, e contatos arquivados/bloqueados deixam de receber mensagem.
 
-**8. Consistência das definições de negócio (acréscimo)** — para cada conceito abaixo, levantar todas as definições operacionais em uso no código e no banco, e apontar onde divergem:
+---
 
-| Conceito | O que será verificado |
-|---|---|
-| Contato | inclui `is_system_user`? inclui arquivado? inclui duplicado mesclado? |
-| Apoiador | existe distinção real de "contato" ou é o mesmo registro? |
-| Usuário | `profiles` × `user_roles` × `contacts.is_system_user` × `contact_id` — quem é a autoridade |
-| Arquivado | `arquivado_at` é o único marcador? interage com `lifecycle_status = duplicado_mesclado`? |
-| Opt-out | `opt_out_at` × `consentimento_whatsapp` × `whatsapp_status` — qual regra bloqueia envio, e se é a mesma em campanha, disparo direto, automação e missão |
-| Missão | elegibilidade, "aberta", "disponível", "concluída" — definição em SQL × definição na tela |
-| Campanha | o que conta como "enviada", "entregue", "falha" |
-| Segmento | dinâmico × estático; o filtro salvo usa a mesma engine dos filtros da tela? |
-| Território | escopo por `user_territory_scopes` × filtro de cidade/bairro na Gestão da Base |
-| Telefone válido | `phone_status` × `phone_e164` × `phone_whatsapp_candidate` |
+### Correção 2 — O formulário público deixa de reativar quem pediu descadastro
 
-O resultado vira o glossário `03-glossario-e-definicoes.md`, com uma linha por conceito: definição encontrada, variações por módulo, e risco de interpretação errada.
+**Hoje:** o fluxo de recadastro em `src/routes/api/public/forms/$slug.ts` grava `opt_out_at: null` ao concluir, ou seja, um preenchimento anula um pedido de descadastro anterior. Também não trata o caso de quem está arquivado.
 
-**9. Ciclo de vida de cada informação importante (acréscimo)** — ficha padronizada para cada campo/indicador crítico:
+**O que muda:**
+- Deixar de limpar `opt_out_at` automaticamente. O descadastro só é revertido por consentimento explícito na própria submissão (quando o formulário tiver o campo de consentimento marcado) — caso contrário permanece.
+- Quando a pessoa está arquivada e se recadastra, registrar o recadastro sem desarquivar por conta própria: o contato fica visível para revisão em vez de voltar sozinho ao fluxo de comunicação.
+- Preservar todos os dados enviados (nome, telefone, respostas) em qualquer um dos casos — nada é descartado.
 
-```text
-Campo: contacts.opt_out_at
-Nasce em .......: rota pública /opt-out, merge_contacts, edição manual
-Alterado por ...: <lista de funções e triggers>
-Consumido por ..: envio de campanha, disparo direto, automações
-Exibido em .....: ficha, tabela, BI, dashboard
-Exportado em ...: CSV, cópia formatada
-Depende dele ...: contagem "Opt-out" do dashboard, filtros de audiência
-Fonte da verdade: sim / não — se não, onde diverge
-```
+**Efeito visível:** descadastro passa a ser respeitado; nenhum dado deixa de ser gravado.
 
-Serão fichadas no mínimo: identidade do contato, telefone, consentimento/opt-out, arquivamento, `lifecycle_status`, origem/captação, geolocalização, tags, papéis de usuário e status de missão.
+---
 
-Ao final da Entrega 1 eu paro e trago a lista de **perguntas de regra de negócio** que o código não permite inferir. Só sigo depois das suas respostas.
+### Correção 3 — Seleção em massa avisa em vez de truncar em silêncio
 
-### Entrega 2 — Indicadores, fonte única da verdade e dependências entre módulos
+**Hoje:** "Selecionar todos do filtro" pede no máximo 5.000 IDs (`selectAllFiltered` em `src/routes/_authenticated/contatos.index.tsx`), e as funções de lote aceitam no máximo 5.000. Se o filtro tiver mais que isso, a seleção é cortada sem aviso e a ação em massa afeta menos contatos do que o usuário acredita.
 
-- `04-indicadores.md` — cada indicador (dashboard, KPIs de agitação, contadores de campanha, mapa, território) com pergunta que responde, fórmula exata, origem, onde mais o mesmo número é calculado, e classificação Alta / Média / Baixa confiança. Já há sinal de risco: `dashboard.functions.ts` conta contatos com regras próprias (`arquivado_at`, `latitude`) que podem não coincidir com as da Gestão da Base.
-- `05-fonte-unica-da-verdade.md` — **acréscimo formalizado**: para toda informação usada em mais de um lugar, dizer explicitamente se existe implementação única ou duplicada, listando cada implementação concorrente e a diferença entre elas.
-- `06-mapa-de-dependencias.md` — **novo**: mapa de impacto entre módulos. Para cada peça de lógica compartilhada (a engine de filtros, a normalização de telefone, a regra de arquivado, a regra de opt-out, o escopo territorial), listar todas as telas, dashboards, exportações, segmentos, missões e relatórios que quebrariam ou mudariam de número se ela fosse alterada. Inclui um diagrama Mermaid de dependências e uma tabela "se eu mexer em X, tenho que reconferir Y, Z, W".
+**O que muda:**
+- A função que devolve os IDs passa a informar também o total real do filtro.
+- Quando o total for maior que o limite, mostrar um aviso claro: "Seu filtro tem X contatos; foram selecionados os primeiros Y. Refine o filtro para agir sobre todos."
+- Nas confirmações de ação em massa, exibir sempre a quantidade exata que será afetada.
 
-### Entrega 3 — Referências externas, UX e relatório final
+**Efeito visível:** nunca mais uma ação em massa afeta menos do que a tela diz.
 
-- `00-referencias-open-source.md` — tabela comparativa dos 7 projetos (organização de dados, filtros, saved views, governança, fonte única da verdade), somente conceitos aplicáveis sem mexer na sua arquitetura.
-- `07-experiencia-uso.md` — previsibilidade, modelo mental, clareza; sem redesign.
-- `08-relatorio-final.md` — os 15 itens que você listou, com as sugestões separadas em correções críticas / consistência / usabilidade / evoluções futuras. Cada sugestão com custo estimado e risco de regressão, nenhuma implementada.
+---
 
-## Detalhes técnicos
+### O que **não** entra nesta etapa
 
-- Leitura apenas: `code--view`, `rg`, e `supabase--read_query` para conferir dados reais. Nenhuma escrita no banco.
-- Toda afirmação de estado atual virá com referência `arquivo:linha` ou com o resultado da consulta que a comprova. Onde eu não conseguir confirmar, o texto dirá explicitamente **hipótese** ou **dúvida**, nunca fato.
-- Os documentos ficam versionados no projeto, servindo de base para as próximas conversas sem reprocessar tudo.
+Centralização das 8 regras (C1–C6), correção dos indicadores, busca com acentos, fila de duplicidades e distinção visual entre arquivado e opt-out. São as etapas 2 a 5 do `08-relatorio-final.md`.
 
-## O que fica de fora
+### Duas decisões ainda abertas
 
-Não haverá alteração de código, migration, refatoração ou proposta de redesenho nesta auditoria. Melhorias só serão descritas, priorizadas e estimadas — a decisão de executar qualquer uma delas é sua, em uma conversa separada.
+Elas não bloqueiam a Etapa 1, mas travam a Etapa 3 (indicadores):
+1. Arquivado entra no "Total da base"? (recomendação: não)
+2. Usuário do sistema conta como apoiador? (recomendação: não)
+
+---
+
+### Detalhes técnicos
+
+- `src/lib/wa-send.server.ts`: novas checagens no bloco `if (!input.skipValidations)`, com `baseSkip`; ampliar o tipo do contato de entrada com `arquivado_at` e `lifecycle_status`.
+- `src/lib/campaigns.functions.ts`: aplicar os mesmos filtros em `buildAudienceIds` e na contagem da prévia; incluir os campos no `select` dos destinatários.
+- `src/routes/api/public/forms/$slug.ts`: remover `opt_out_at: null` incondicional (linha ~488) e condicionar ao consentimento explícito; tratar `arquivado_at` sem desarquivar automaticamente.
+- `src/lib/crm-bulk.functions.ts`: a função de IDs por filtro passa a retornar `{ ids, total, truncated }` usando `count: "exact"`.
+- `src/routes/_authenticated/contatos.index.tsx`: `selectAllFiltered` mostra aviso quando `truncated`; confirmações de ação em massa exibem a contagem.
+- Ao final: typecheck do projeto inteiro.

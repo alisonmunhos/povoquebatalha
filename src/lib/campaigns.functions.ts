@@ -145,12 +145,12 @@ export const getAudienceStats = createServerFn({ method: "POST" })
     }
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status")
       .in("id", ids);
     let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
     const aptos: typeof contatos = [];
     for (const c of contatos ?? []) {
-      if (c.arquivado_at) { arquivados++; continue; }
+      if (c.arquivado_at || c.lifecycle_status === "nao_enviar") { arquivados++; continue; }
       if (c.opt_out_at) { optOut++; continue; }
       if (!c.consentimento_whatsapp) { semConsent++; continue; }
       if (!c.phone_e164) { semTelefone++; continue; }
@@ -227,9 +227,9 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
     // 2) Filter eligibility
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status")
       .in("id", baseIds);
-    const elegiveis = (contatos ?? []).filter((c) => c.consentimento_whatsapp && !c.opt_out_at && !c.arquivado_at && c.phone_e164);
+    const elegiveis = (contatos ?? []).filter((c) => c.consentimento_whatsapp && !c.opt_out_at && !c.arquivado_at && c.lifecycle_status !== "nao_enviar" && c.phone_e164);
     if (!elegiveis.length) throw new Error("Nenhum contato apto (com consentimento, telefone e sem opt-out/arquivado).");
 
     // 3) Optionally save as reusable template
@@ -316,7 +316,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
     let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
     const elegiveis: NonNullable<typeof all> = [];
     for (const r of all ?? []) {
-      if (r.arquivado_at) { arquivados++; continue; }
+      if (r.arquivado_at || r.lifecycle_status === "nao_enviar") { arquivados++; continue; }
       if (r.opt_out_at) { optOut++; continue; }
       if (!r.consentimento_whatsapp) { semConsent++; continue; }
       if (!r.phone_e164) { semTelefone++; continue; }
@@ -377,11 +377,11 @@ export const prepareCampaign = createServerFn({ method: "POST" })
 
     const { data: contatos } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at")
+      .select("id,nome,nome_social,phone_e164,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status")
       .in("id", audience.slice(0, 20000));
 
     const elegiveis = (contatos ?? []).filter((c2) =>
-      c2.consentimento_whatsapp === true && !c2.opt_out_at && !c2.arquivado_at && c2.phone_e164,
+      c2.consentimento_whatsapp === true && !c2.opt_out_at && !c2.arquivado_at && c2.lifecycle_status !== "nao_enviar" && c2.phone_e164,
     );
 
     await context.supabase.from("campaign_recipients").delete().eq("campaign_id", data.id);

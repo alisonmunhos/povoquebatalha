@@ -93,7 +93,7 @@ export const getInboxConversation = createServerFn({ method: "GET" })
     if (data.contact_id) {
       const { data: c } = await context.supabase
         .from("contacts")
-        .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status")
+        .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,arquivado_at,lifecycle_status,consentimento_whatsapp,whatsapp_status")
         .eq("id", data.contact_id).maybeSingle();
       contact = c;
     }
@@ -193,7 +193,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     const { data: c, error } = await context.supabase
       .from("contacts")
-      .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,consentimento_whatsapp,whatsapp_status")
+      .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,arquivado_at,lifecycle_status,consentimento_whatsapp,whatsapp_status")
       .eq("id", data.contact_id).single();
     if (error || !c) throw new Error("Contato não encontrado.");
 

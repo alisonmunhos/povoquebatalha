@@ -21,10 +21,13 @@ type ContactCtx = {
   phone_e164?: string | null;
   phone_whatsapp_candidate?: string | null;
   opt_out_at?: string | null;
+  arquivado_at?: string | null;
+  lifecycle_status?: string | null;
   consentimento_whatsapp?: boolean | null;
   whatsapp_status?: string | null;
   recad_token?: string | null;
 };
+
 
 export type SendOrigin =
   | "campaign"
@@ -210,7 +213,16 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
   // Quando skipValidations=true, o chamador já checou opt-out/consentimento/whatsapp_status
   // e não queremos duplicar a decisão aqui — apenas checamos telefone (sem ele não há envio).
   if (input.origin !== "territory_wa_me") {
+    // Bloqueios de sistema: valem SEMPRE, mesmo com skipValidations. Se a pessoa
+    // está arquivada ou marcada como "não enviar", nenhuma origem pode disparar.
+    if (c.arquivado_at) {
+      return baseSkip(rendered, "arquivado");
+    }
+    if (c.lifecycle_status === "nao_enviar") {
+      return baseSkip(rendered, "marcado como não enviar");
+    }
     if (!input.skipValidations) {
+
       if (c.opt_out_at) {
         return baseSkip(rendered, "opt-out");
       }

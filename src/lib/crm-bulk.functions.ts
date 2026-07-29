@@ -115,11 +115,11 @@ export const idsByFilter = createServerFn({ method: "POST" })
     }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    let q = context.supabase.from("contacts").select("id").limit(data.max);
+    let q = context.supabase.from("contacts").select("id", { count: "exact" }).limit(data.max);
     q = applyCrmFilters(q as never, data.filters as CrmFilters);
     if (data.filters.tag_ids?.length) {
       const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, data.filters.tag_ids);
-      if (noMatch) return { ids: [] as string[] };
+      if (noMatch) return { ids: [] as string[], total: 0, truncated: false };
       if (ids?.length) q = q.in("id", ids);
     }
     async function idsForCampaign(campaignId: string, statuses?: string[]) {
@@ -130,7 +130,7 @@ export const idsByFilter = createServerFn({ method: "POST" })
     }
     if (data.filters.recebeu_campanha_id) {
       const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent","delivered","read"]);
-      if (!ids.length) return { ids: [] as string[] };
+      if (!ids.length) return { ids: [] as string[], total: 0, truncated: false };
       q = q.in("id", ids);
     }
     if (data.filters.nao_recebeu_campanha_id) {
@@ -139,7 +139,7 @@ export const idsByFilter = createServerFn({ method: "POST" })
     }
     if (data.filters.erro_campanha_id) {
       const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
-      if (!ids.length) return { ids: [] as string[] };
+      if (!ids.length) return { ids: [] as string[], total: 0, truncated: false };
       q = q.in("id", ids);
     }
     async function idsForTemplate(templateId: string) {
@@ -153,16 +153,20 @@ export const idsByFilter = createServerFn({ method: "POST" })
     }
     if (data.filters.recebeu_template_id) {
       const ids = await idsForTemplate(data.filters.recebeu_template_id);
-      if (!ids.length) return { ids: [] as string[] };
+      if (!ids.length) return { ids: [] as string[], total: 0, truncated: false };
       q = q.in("id", ids);
     }
     if (data.filters.nao_recebeu_template_id) {
       const ids = await idsForTemplate(data.filters.nao_recebeu_template_id);
       if (ids.length) q = q.not("id", "in", `(${ids.map((v) => `"${v}"`).join(",")})`);
     }
-    const { data: rows, error } = await q;
+    const { data: rows, error, count } = await q;
     if (error) throw error;
-    return { ids: (rows ?? []).map((r) => r.id) };
+    const ids = (rows ?? []).map((r) => r.id);
+    // `total` é a contagem real do filtro; `truncated` avisa a interface que a
+    // seleção não cobre todos os contatos filtrados (limite de segurança `max`).
+    const total = count ?? ids.length;
+    return { ids, total, truncated: total > ids.length };
   });
 
 // ===== Ações em massa =====
