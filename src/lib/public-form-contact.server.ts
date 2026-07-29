@@ -175,31 +175,13 @@ export async function saveFormContactFromAnswers(
     return { ok: false, status: 400, error: "Telefone inválido" };
   }
 
-  let target: { id: string; phone_e164: string | null; recad_token: string | null } | null = null;
-  if (recad_token) {
-    const { data } = await supabaseAdmin
-      .from("contacts")
-      .select("id,phone_e164,recad_token")
-      .eq("recad_token", recad_token)
-      .maybeSingle();
-    if (data) target = data;
-  }
-  if (!target && phoneE164) {
-    const { data } = await supabaseAdmin
-      .from("contacts")
-      .select("id,phone_e164,recad_token")
-      .eq("phone_e164", phoneE164)
-      .maybeSingle();
-    if (data) target = data;
-  }
-  if (!target && email) {
-    const { data } = await supabaseAdmin
-      .from("contacts")
-      .select("id,phone_e164,recad_token")
-      .eq("email", email)
-      .maybeSingle();
-    if (data) target = data;
-  }
+  // Regra master única de identidade (token → WhatsApp → e-mail)
+  const target = await resolveExistingContact(supabaseAdmin, {
+    recad_token,
+    phone_e164: phoneE164,
+    phone_raw: phoneRaw,
+    email,
+  });
 
   const origemValue = form.source_form_type === "cadastro_completo" ? ("recadastro" as const) : ("inscricao" as const);
   const hasNome = !!(nome && nome.length >= 2);
@@ -223,26 +205,30 @@ export async function saveFormContactFromAnswers(
 
   let savedId: string | null = null;
   if (target) {
-    if (target.phone_e164 && phoneE164 && target.phone_e164 !== phoneE164) {
-      const { data: newRow } = await supabaseAdmin.from("contacts").insert(insertPayload).select("id").single();
-      if (newRow) {
-        savedId = newRow.id;
-        await supabaseAdmin.from("contact_duplicates").insert({
-          contact_a: newRow.id,
-          contact_b: target.id,
-          match_type: "provavel",
-          reason: "Atualização com telefone diferente do registrado",
-        });
-        await supabaseAdmin.from("contacts").update({ lifecycle_status: "precisa_revisao" }).eq("id", newRow.id);
-      }
-    } else {
-      await supabaseAdmin.from("contacts").update(updatePayload).eq("id", target.id);
-      savedId = target.id;
+    // Telefone divergente não cria contato novo: atualizamos o existente,
+    // guardamos o número anterior como secundário e sinalizamos para revisão.
+    const phoneDivergente = !!(target.phone_e164 && phoneE164 && target.phone_e164 !== phoneE164);
+    await supabaseAdmin
+      .from("contacts")
+      .update(
+        phoneDivergente
+          ? { ...updatePayload, phone_secundario_raw: target.phone_e164 }
+          : updatePayload,
+      )
+      .eq("id", target.id);
+    savedId = target.id;
+    if (phoneDivergente) {
+      await supabaseAdmin.from("contact_audit_log").insert({
+        contact_id: target.id,
+        action: "phone_changed_by_form",
+        changes: { anterior: target.phone_e164, novo: phoneE164, formulario: form.title },
+      });
     }
   } else {
     const { data: ins } = await supabaseAdmin.from("contacts").insert(insertPayload).select("id").single();
     savedId = ins?.id ?? null;
   }
+
 
   if (!savedId) {
     return { ok: false, status: 500, error: "Falha ao salvar contato." };
