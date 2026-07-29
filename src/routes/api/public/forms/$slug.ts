@@ -334,11 +334,12 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           whatsapp_button_phone: string | null;
           success_screen_order: string | null;
           push_button_enabled: boolean | null;
+          linked_event_id: string | null;
         } | null = null;
         if (isSectioned && d.terminal_section_id) {
           const { data: sec } = await supabaseAdmin
             .from("form_sections")
-            .select("confirmation_active,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order,push_button_enabled")
+            .select("confirmation_active,whatsapp_button_enabled,whatsapp_button_message,whatsapp_button_phone,success_screen_order,push_button_enabled,linked_event_id")
             .eq("id", d.terminal_section_id)
             .eq("form_definition_id", form.id)
             .maybeSingle();
@@ -633,6 +634,28 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           ? Boolean(terminalSection.push_button_enabled)
           : Boolean((form as { push_button_enabled?: boolean }).push_button_enabled);
 
+        let linkedEvent: { slug: string; title: string } | null = null;
+        if (terminalSection?.linked_event_id) {
+          const { data: ev } = await supabaseAdmin
+            .from("events")
+            .select("slug,title,is_published")
+            .eq("id", terminalSection.linked_event_id)
+            .maybeSingle();
+          if (ev?.is_published) {
+            linkedEvent = { slug: ev.slug, title: ev.title };
+          }
+        }
+
+        let contactRecadToken: string | null = null;
+        try {
+          const { data: cToken } = await supabaseAdmin
+            .from("contacts")
+            .select("recad_token")
+            .eq("id", savedId)
+            .maybeSingle();
+          contactRecadToken = cToken?.recad_token ?? null;
+        } catch { /* ignore */ }
+
         try {
           const origin = request.headers.get("origin") ||
             (request.headers.get("host") ? `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.headers.get("host")}` : null);
@@ -656,6 +679,8 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
             success_screen_order: successOrder,
             push_button_enabled: pushEnabled,
             contact_id: savedId,
+            contact_recad_token: contactRecadToken,
+            linked_event: linkedEvent,
           }),
           { headers: cors },
         );

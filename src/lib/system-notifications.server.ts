@@ -144,6 +144,73 @@ export async function notifyUserApprovalPending(input: {
   await sendPushToUsers(supabaseAdmin, targetUserIds, title, body, notifIdByUser);
 }
 
+export async function notifyEventRsvpConfirmed(input: {
+  eventId: string;
+  eventTitle: string;
+  contactId: string;
+  contactName: string;
+}): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const { data: settings, error: settingsErr } = await supabaseAdmin
+    .from("system_notification_settings")
+    .select("recipient_roles, title_template, body_template")
+    .eq("key", "event")
+    .maybeSingle();
+  if (settingsErr) {
+    console.error("[notify] settings event:", settingsErr.message);
+    return;
+  }
+  if (!settings) return;
+
+  const recipientRoles = (settings.recipient_roles ?? ["admin"]) as string[];
+  const targetUserIds = await resolveUsersByRoles(supabaseAdmin, recipientRoles);
+  if (!targetUserIds.length) return;
+
+  const vars = {
+    contact_name: input.contactName,
+    event_title: input.eventTitle,
+  };
+  const title = renderNotificationTemplate(settings.title_template, vars);
+  const body = renderNotificationTemplate(settings.body_template, vars);
+
+  const { randomUUID } = await import("node:crypto");
+  const batchId = randomUUID();
+  const ctaPayload = {
+    event_id: input.eventId,
+    event_title: input.eventTitle,
+    contact_id: input.contactId,
+    contact_name: input.contactName,
+  };
+
+  const rows = targetUserIds.map((uid) => ({
+    user_id: uid,
+    title,
+    body,
+    kind: "event",
+    cta_kind: "link",
+    cta_label: "Ver eventos",
+    cta_payload: { ...ctaPayload, url: "/eventos" },
+    batch_id: batchId,
+    created_by: null,
+  }));
+
+  const { data: notifRows, error: insertErr } = await supabaseAdmin
+    .from("notifications")
+    .insert(rows)
+    .select("id, user_id");
+  if (insertErr) {
+    console.error("[notify] insert event:", insertErr.message);
+    return;
+  }
+
+  const notifIdByUser = new Map<string, string>();
+  for (const r of notifRows ?? []) {
+    if (!notifIdByUser.has(r.user_id)) notifIdByUser.set(r.user_id, r.id);
+  }
+  await sendPushToUsers(supabaseAdmin, targetUserIds, title, body, notifIdByUser);
+}
+
 export async function cancelNotificationsForPendingUser(
   pendingUserId: string,
   cancelledBy: string | null,

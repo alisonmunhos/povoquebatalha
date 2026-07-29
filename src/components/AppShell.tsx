@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
-  MessageCircle, Menu, X, Zap, ClipboardList,
+  MessageCircle, Menu, X, Zap, ClipboardList, Calendar,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +55,12 @@ const groups: NavGroup[] = [
     label: "Comunicação",
     items: [
       { to: "/comunicacao/inbox", label: "Módulo Comunicação", icon: MessageCircle, hint: "Inbox, campanhas, mensagens, contatos.", roles: ["admin", "vrm", "comunicacao"] },
+    ],
+  },
+  {
+    label: "Eventos",
+    items: [
+      { to: "/eventos", label: "Eventos", icon: Calendar, hint: "Crie eventos com página pública e RSVP.", roles: ["admin", "operador", "comunicacao"] },
     ],
   },
   {

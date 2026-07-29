@@ -3,7 +3,7 @@
 // seu próprio slug fixo + parâmetros de busca (ref/recad_token) como props.
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight, Eye, EyeOff, Calendar } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
 import { resolveNextSectionId, sortSections, findFirstRequiredEmpty } from "@/lib/form-sections-routing";
@@ -100,6 +100,8 @@ export function PublicFormRenderer({
     success_screen_order: SuccessScreenOrder;
     push_button_enabled: boolean;
     contact_id: string | null;
+    contact_recad_token: string | null;
+    linked_event: { slug: string; title: string } | null;
   } | null>(null);
 
   useEffect(() => {
@@ -301,6 +303,10 @@ export function PublicFormRenderer({
         success_screen_order: json.success_screen_order === "confirmation_first" ? "confirmation_first" : "whatsapp_first",
         push_button_enabled: Boolean(json.push_button_enabled),
         contact_id: typeof json.contact_id === "string" ? json.contact_id : null,
+        contact_recad_token: typeof json.contact_recad_token === "string" ? json.contact_recad_token : null,
+        linked_event: json.linked_event && typeof json.linked_event.slug === "string"
+          ? { slug: json.linked_event.slug, title: String(json.linked_event.title ?? "Evento") }
+          : null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar");
@@ -373,6 +379,10 @@ export function PublicFormRenderer({
         success_screen_order: json.success_screen_order === "confirmation_first" ? "confirmation_first" : "whatsapp_first",
         push_button_enabled: Boolean(json.push_button_enabled),
         contact_id: typeof json.contact_id === "string" ? json.contact_id : null,
+        contact_recad_token: typeof json.contact_recad_token === "string" ? json.contact_recad_token : null,
+        linked_event: json.linked_event && typeof json.linked_event.slug === "string"
+          ? { slug: json.linked_event.slug, title: String(json.linked_event.title ?? "Evento") }
+          : null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar");
@@ -420,6 +430,8 @@ export function PublicFormRenderer({
             order={success.success_screen_order}
             pushEnabled={success.push_button_enabled}
             contactId={success.contact_id}
+            contactToken={success.contact_recad_token}
+            linkedEvent={success.linked_event}
           />
         ) : layoutMode === "sectioned" && sectionedForm && currentSection ? (
           <>
@@ -865,7 +877,7 @@ function AccountCreationFields({
 }
 
 export function SuccessScreen({
-  nome, whatsappButton, confirmationEnabled, order, pushEnabled, contactId,
+  nome, whatsappButton, confirmationEnabled, order, pushEnabled, contactId, contactToken, linkedEvent,
 }: {
   nome: string;
   whatsappButton: WhatsappButtonInfo;
@@ -873,6 +885,8 @@ export function SuccessScreen({
   order: SuccessScreenOrder;
   pushEnabled: boolean;
   contactId: string | null;
+  contactToken?: string | null;
+  linkedEvent?: { slug: string; title: string } | null;
 }) {
   const numeroDigits = (whatsappButton?.phone ?? "").replace(/\D+/g, "");
   const waMsg = encodeURIComponent(whatsappButton?.message || "Olá! Acabei de preencher o formulário da Campanha do Povo que Batalha.");
@@ -883,6 +897,8 @@ export function SuccessScreen({
     confirmationEnabled,
     pushEnabled,
     contactId,
+    linkedEvent: linkedEvent ?? null,
+    contactToken,
     order,
   });
 
@@ -917,6 +933,22 @@ export function SuccessScreen({
       return (
         <div key={`conf-${index}`} className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-sm text-emerald-800">Você já vai receber uma confirmação automática pelo WhatsApp.</p>
+        </div>
+      );
+    }
+    if (block.type === "event") {
+      return (
+        <div key={`event-${block.slug}`} className="rounded-md border border-primary/20 bg-primary/5 p-4 space-y-2">
+          <p className="text-sm font-medium">{block.title}</p>
+          <p className="text-xs text-muted-foreground">Confirme sua presença neste evento:</p>
+          <Link
+            to="/evento/$slug"
+            params={{ slug: block.slug }}
+            search={{ t: block.contactToken ?? undefined }}
+            className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
+          >
+            <Calendar className="h-4 w-4" /> Confirmar presença
+          </Link>
         </div>
       );
     }
