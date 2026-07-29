@@ -21,10 +21,13 @@ type ContactCtx = {
   phone_e164?: string | null;
   phone_whatsapp_candidate?: string | null;
   opt_out_at?: string | null;
+  arquivado_at?: string | null;
+  lifecycle_status?: string | null;
   consentimento_whatsapp?: boolean | null;
   whatsapp_status?: string | null;
   recad_token?: string | null;
 };
+
 
 export type SendOrigin =
   | "campaign"
