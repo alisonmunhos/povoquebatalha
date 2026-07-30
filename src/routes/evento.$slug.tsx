@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Calendar, CheckCircle2, Loader2, MapPin, XCircle } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 import { PublicFormRenderer } from "@/components/PublicFormRenderer";
+import { StepOverlay } from "@/components/StepOverlay";
+
 
 export const Route = createFileRoute("/evento/$slug")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -221,35 +223,70 @@ function EventoPublicPage() {
           {/* ===== Com formulário vinculado: o motor de seções cuida de tudo ===== */}
           {page.form ? (
             <section className="space-y-4">
+              {/* Chamada principal da página: as etapas seguintes abrem por cima */}
+              {!confirmedStop && !showForm && page.rsvp_status == null && !declinedLocal && (
+                <div className="bg-card border rounded-xl p-5 space-y-3">
+                  <h2 className="font-semibold">Sua presença</h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormMode("confirm");
+                      setShowForm(true);
+                    }}
+                    className="w-full rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
+                  >
+                    Confirmar presença
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void submitRsvp("declined")}
+                    className="w-full rounded-md border px-4 py-2.5 text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    Não poderei ir
+                  </button>
+                </div>
+              )}
+
               {/* Parada obrigatória logo depois de confirmar presença */}
               {confirmedStop && continueFrom === undefined && (
-                <div className="bg-card border rounded-xl p-5 space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-700 font-semibold">
-                    <CheckCircle2 className="h-5 w-5" />
-                    {page.event.post_rsvp_title?.trim() || "Presença confirmada! 🎉"}
+                <StepOverlay
+                  title={page.event.post_rsvp_title?.trim() || "Presença confirmada! 🎉"}
+                  onClose={() => {
+                    setConfirmedStop(null);
+                    setShowForm(false);
+                  }}
+                  footer={
+                    page.event.post_rsvp_button_url?.trim()?.startsWith("http") ? (
+                      <a
+                        href={page.event.post_rsvp_button_url as string}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex w-full items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
+                      >
+                        {page.event.post_rsvp_button_text?.trim() || "Continuar"}
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setContinueFrom(confirmedStop.nextSectionId)}
+                        className="w-full rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
+                      >
+                        {page.event.post_rsvp_button_text?.trim() || "Completar meu cadastro"}
+                      </button>
+                    )
+                  }
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-700 font-semibold">
+                      <CheckCircle2 className="h-5 w-5" />
+                      {page.event.post_rsvp_title?.trim() || "Presença confirmada! 🎉"}
+                    </div>
+                    {page.event.post_rsvp_body?.trim() && (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{page.event.post_rsvp_body}</p>
+                    )}
                   </div>
-                  {page.event.post_rsvp_body?.trim() && (
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{page.event.post_rsvp_body}</p>
-                  )}
-                  {page.event.post_rsvp_button_url?.trim()?.startsWith("http") ? (
-                    <a
-                      href={page.event.post_rsvp_button_url as string}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
-                    >
-                      {page.event.post_rsvp_button_text?.trim() || "Continuar"}
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setContinueFrom(confirmedStop.nextSectionId)}
-                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
-                    >
-                      {page.event.post_rsvp_button_text?.trim() || "Completar meu cadastro"}
-                    </button>
-                  )}
-                </div>
+                </StepOverlay>
               )}
 
               {/* Continuação do cadastro a partir da próxima seção */}
@@ -258,6 +295,8 @@ function EventoPublicPage() {
                   slug={page.form.slug}
                   startSectionId={continueFrom ?? undefined}
                   recadToken={contactToken ?? tokenFromUrl}
+                  presentation="overlay"
+                  onExit={() => setContinueFrom(undefined)}
                 />
               )}
 
@@ -294,36 +333,41 @@ function EventoPublicPage() {
               )}
 
               {!confirmedStop && (page.rsvp_status === "declined" || declinedLocal) && !showForm && (
-                <div className="bg-card border rounded-xl p-5 space-y-3">
-                  <div className="flex items-center gap-2 text-muted-foreground font-semibold">
-                    <XCircle className="h-5 w-5" />
-                    {page.event.post_decline_title?.trim() || "Tudo bem, obrigado por avisar!"}
-                  </div>
-                  {page.event.post_decline_body?.trim() && (
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{page.event.post_decline_body}</p>
-                  )}
-                  {page.event.post_decline_button_url?.trim()?.startsWith("http") ? (
-                    <a
-                      href={page.event.post_decline_button_url as string}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
-                    >
-                      {page.event.post_decline_button_text?.trim() || "Continuar"}
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormMode("declined");
-                        setShowForm(true);
-                      }}
-                      className="inline-flex rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90"
-                    >
-                      {page.event.post_decline_button_text?.trim() || "Quero continuar com vocês"}
-                    </button>
-                  )}
-                  <div>
+                <StepOverlay
+                  title={page.event.post_decline_title?.trim() || "Tudo bem, obrigado por avisar!"}
+                  onClose={() => setDeclinedLocal(false)}
+                  footer={
+                    page.event.post_decline_button_url?.trim()?.startsWith("http") ? (
+                      <a
+                        href={page.event.post_decline_button_url as string}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex w-full items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
+                      >
+                        {page.event.post_decline_button_text?.trim() || "Continuar"}
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormMode("declined");
+                          setShowForm(true);
+                        }}
+                        className="w-full rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
+                      >
+                        {page.event.post_decline_button_text?.trim() || "Quero continuar com vocês"}
+                      </button>
+                    )
+                  }
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-muted-foreground font-semibold">
+                      <XCircle className="h-5 w-5" />
+                      {page.event.post_decline_title?.trim() || "Tudo bem, obrigado por avisar!"}
+                    </div>
+                    {page.event.post_decline_body?.trim() && (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{page.event.post_decline_body}</p>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -336,46 +380,35 @@ function EventoPublicPage() {
                       Mudar para: vou sim
                     </button>
                   </div>
-                </div>
+                </StepOverlay>
               )}
 
-              {!confirmedStop && ((page.rsvp_status == null && !declinedLocal) || showForm) && (
-                <>
-                  <PublicFormRenderer
-                    slug={page.form.slug}
-                    startSectionId={page.form.start_section_id ?? undefined}
-                    recadToken={contactToken ?? tokenFromUrl}
-                    eventSlug={slug}
-                    eventRsvpStatus={formMode === "declined" ? "declined" : "confirmed"}
-                    onEventConfirmed={
-                      formMode === "declined"
-                        ? undefined
-                        : (info) => {
-                            if (info.recadToken) setContactToken(info.recadToken);
-                            setConfirmedStop({ nextSectionId: info.nextSectionId });
-                            setContinueFrom(undefined);
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }
-                    }
-                  />
-                  {formMode !== "declined" && (
-                    <div className="text-center">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void submitRsvp("declined")}
-                        className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
-                      >
-                        Não poderei ir
-                      </button>
-                    </div>
-                  )}
-                </>
+              {!confirmedStop && showForm && (
+                <PublicFormRenderer
+                  slug={page.form.slug}
+                  startSectionId={page.form.start_section_id ?? undefined}
+                  recadToken={contactToken ?? tokenFromUrl}
+                  eventSlug={slug}
+                  eventRsvpStatus={formMode === "declined" ? "declined" : "confirmed"}
+                  presentation="overlay"
+                  primaryActionLabel={formMode === "declined" ? "Enviar meus dados" : "Confirmar presença"}
+                  onExit={() => setShowForm(false)}
+                  onEventConfirmed={
+                    formMode === "declined"
+                      ? undefined
+                      : (info) => {
+                          if (info.recadToken) setContactToken(info.recadToken);
+                          setConfirmedStop({ nextSectionId: info.nextSectionId });
+                          setContinueFrom(undefined);
+                          setShowForm(false);
+                        }
+                  }
+                />
               )}
-
 
               {err && <p className="text-sm text-destructive">{err}</p>}
             </section>
+
           ) : (
             /* ===== Sem formulário vinculado: fluxo simples de sempre ===== */
             <section className="bg-card border rounded-xl p-5 space-y-4">
