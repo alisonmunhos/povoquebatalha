@@ -1128,7 +1128,7 @@ export const listMyMissions = createServerFn({ method: "GET" })
     const { data: tasks } = await context.supabase
       .from("agitation_tasks")
       .select(
-        "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw)",
+        "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw,opt_out_at,arquivado_at)",
       )
       .eq("assigned_user_id", context.userId);
 
