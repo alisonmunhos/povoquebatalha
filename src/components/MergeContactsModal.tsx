@@ -233,62 +233,67 @@ export function MergeContactsModal({
               <div>
                 <Label className="text-base font-semibold">2. Confira as informações</Label>
                 <p className="text-xs text-muted-foreground mt-1 mb-3">
-                  Campos vazios no cadastro que fica são preenchidos automaticamente. Onde houver divergência, escolha
-                  qual valor manter.
+                  Aqui aparecem apenas as informações que estão diferentes entre os cadastros. Escolha qual valor manter.
                 </p>
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-[130px_1fr_1fr] text-xs font-semibold bg-muted/50 px-3 py-2 border-b">
-                    <div>Campo</div>
-                    <div className="truncate">Fica: {survivor.nome}</div>
-                    <div className="truncate">Outros cadastros</div>
+
+                {conflitos.length === 0 ? (
+                  <div className="border rounded-lg px-3 py-4 text-xs text-muted-foreground bg-muted/30">
+                    Nenhuma divergência entre os cadastros — não há nada para decidir.
                   </div>
-                  <div className="divide-y max-h-80 overflow-y-auto">
-                    {[...TEXT_FIELDS, ...BOOL_FIELDS].map((f) => {
-                      const sv = val(survivor, f.key);
-                      const alt = others
-                        .map((o) => val(o, f.key))
-                        .filter((v) => v !== "—" && v !== sv);
-                      const uniqueAlt = [...new Set(alt)];
-                      if (sv === "—" && uniqueAlt.length === 0) return null;
-                      const chosen = overrides[f.key];
-                      return (
-                        <div key={f.key} className="grid grid-cols-[130px_1fr_1fr] text-xs px-3 py-2 items-center">
-                          <div className="text-muted-foreground font-medium">{f.label}</div>
-                          <div className={`truncate ${chosen ? "line-through opacity-50" : ""}`}>{sv}</div>
-                          <div className="flex flex-wrap items-center gap-1">
-                            {uniqueAlt.length === 0 && <span className="text-muted-foreground">—</span>}
-                            {uniqueAlt.map((v) => {
-                              const norm = v === "Sim" ? "true" : v === "Não" ? "false" : v;
-                              const active = chosen === norm;
-                              return (
-                                <button
-                                  key={v}
-                                  type="button"
-                                  onClick={() =>
-                                    setOverrides((o) =>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="grid grid-cols-[130px_1fr_1fr] text-xs font-semibold bg-muted/50 px-3 py-2 border-b">
+                      <div>Campo</div>
+                      <div className="truncate">Fica: {survivor.nome}</div>
+                      <div className="truncate">Outros cadastros</div>
+                    </div>
+                    <div className="divide-y max-h-80 overflow-y-auto">
+                      {conflitos.map((f) => {
+                        const chosen = overrides[f.key];
+                        return (
+                          <div key={f.key} className="grid grid-cols-[130px_1fr_1fr] text-xs px-3 py-2 items-center">
+                            <div className="text-muted-foreground font-medium">{f.label}</div>
+                            <div className={`truncate ${chosen ? "line-through opacity-50" : ""}`}>{f.sv}</div>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {f.alt.map((v) => {
+                                const norm = v === "Sim" ? "true" : v === "Não" ? "false" : v;
+                                const active = chosen === norm;
+                                return (
+                                  <button
+                                    key={v}
+                                    type="button"
+                                    onClick={() =>
+                                      setOverrides((o) =>
+                                        active
+                                          ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== f.key))
+                                          : { ...o, [f.key]: norm },
+                                      )
+                                    }
+                                    className={`px-2 py-1 rounded text-[11px] max-w-full truncate transition ${
                                       active
-                                        ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== f.key))
-                                        : { ...o, [f.key]: norm },
-                                    )
-                                  }
-                                  className={`px-2 py-1 rounded text-[11px] max-w-full truncate transition ${
-                                    active
-                                      ? "bg-primary text-primary-foreground"
-                                      : "border border-input bg-background hover:bg-muted"
-                                  }`}
-                                  title={v}
-                                >
-                                  {active ? "✓ " : ""}
-                                  {v}
-                                </button>
-                              );
-                            })}
+                                        ? "bg-primary text-primary-foreground"
+                                        : "border border-input bg-background hover:bg-muted"
+                                    }`}
+                                    title={v}
+                                  >
+                                    {active ? "✓ " : ""}
+                                    {v}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {herdados.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Preenchidos automaticamente no cadastro que fica: {herdados.join(", ")}.
+                  </p>
+                )}
               </div>
             )}
 
@@ -302,17 +307,9 @@ export function MergeContactsModal({
               />
             </div>
 
-            {needsTyped && (
-              <div>
-                <Label>
-                  Confiança baixa: digite <code className="bg-muted px-1.5 py-0.5 rounded">MESCLAR</code> para confirmar
-                </Label>
-                <Input
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="MESCLAR"
-                  className="mt-1"
-                />
+            {erro && (
+              <div className="text-xs rounded-md border border-destructive/40 bg-destructive/10 text-destructive px-3 py-2">
+                <strong>Não foi possível unificar.</strong> {erro}
               </div>
             )}
           </div>

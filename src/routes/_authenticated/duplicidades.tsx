@@ -158,8 +158,13 @@ function DupPage() {
                 <Button size="sm" variant="outline" onClick={() => act(pairIds, "separados")}>
                   São pessoas diferentes
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => act(pairIds, "ignorar")}>
-                  Decidir depois
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => act(pairIds, "ignorar")}
+                  title="Some da fila agora. Volta a aparecer se você clicar em “Verificar a base agora” e os cadastros ainda estiverem parecidos."
+                >
+                  Ignorar por enquanto
                 </Button>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {g.pairs[0]?.reason ?? "Detecção automática"}
