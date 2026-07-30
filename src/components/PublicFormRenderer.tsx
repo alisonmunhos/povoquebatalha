@@ -420,11 +420,15 @@ export function PublicFormRenderer({
     }
   }
 
-  async function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!sectionedForm || !currentSection) return;
+  /**
+   * Avança a etapa atual. `override` é usado no avanço automático, porque o
+   * estado do React ainda não refletiu a opção recém-clicada.
+   */
+  async function continueFlow(override?: Record<string, AnswerValue>) {
+    if (!sectionedForm || !currentSection || submitting) return;
+    const effective = override ?? values;
     setError(null);
-    const validationError = validateCurrentSection() ?? validateAccountSection();
+    const validationError = validateCurrentSection(effective) ?? validateAccountSection();
     if (validationError) {
       setError(validationError);
       return;
@@ -435,7 +439,7 @@ export function PublicFormRenderer({
       sections,
       sectionedForm.questions,
       sectionedForm.branch_rules ?? [],
-      values,
+      effective,
     );
 
     if (isAccountSection) {
@@ -443,15 +447,14 @@ export function PublicFormRenderer({
       if (!ok) return;
       if (nextId) {
         goToSection(nextId);
-
         return;
       }
-      void submitFinal(currentSection.id);
+      void submitFinal(currentSection.id, effective);
       return;
     }
 
     if (nextId) {
-      const saved = await saveSectionProgress();
+      const saved = await saveSectionProgress(effective);
       if (!saved.ok) return;
       // Presença confirmada dentro da página do evento: paramos aqui pra mostrar
       // a mensagem configurada, em vez de emendar direto na próxima etapa.
@@ -460,18 +463,22 @@ export function PublicFormRenderer({
         return;
       }
       goToSection(nextId);
-
       return;
     }
     if (eventSlug && onEventConfirmed) {
-      const saved = await saveSectionProgress();
+      const saved = await saveSectionProgress(effective);
       if (!saved.ok) return;
       if (saved.eventConfirmed) {
         onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: null });
         return;
       }
     }
-    void submitFinal(currentSection.id);
+    void submitFinal(currentSection.id, effective);
+  }
+
+  async function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await continueFlow();
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
