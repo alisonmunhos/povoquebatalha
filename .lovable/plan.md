@@ -1,48 +1,39 @@
-## Bug 1 — causa real (confirmada, não suposta)
+## O que está errado hoje (confirmado no banco)
 
-Rodei a mesclagem real do par `a0d31249…` ("Guilherme Gil" x "Guilherme Gil") direto no banco, dentro de uma transação desfeita ao final. O resultado:
+1. **"Ignorar por enquanto" nunca funciona.** O banco só aceita os valores `pendente`, `mesclado`, `separados` e `ignorado` para a situação de um par. O código grava `ignorar` — valor que não existe — então a gravação é recusada e nada muda. Conferido: existem 166 pares pendentes, 23 unificados, 57 marcados como pessoas diferentes e **zero** ignorados.
+2. **Ignorar seria definitivo.** Mesmo que gravasse, a verificação automática não recria pares já registrados — o par sumiria para sempre, sem data de volta. Não existe hoje um "me lembre depois".
+3. **Sem volta atrás.** Marcou "são pessoas diferentes" por engano? Não há como reverter pela tela.
+4. **Sem visão do que já foi decidido.** A tela só mostra pendências; não dá para auditar decisões anteriores.
 
-```text
-ERROR: duplicate key value violates unique constraint
-       "campaign_recipients_campaign_id_contact_id_key"
-DETAIL: Key (campaign_id, contact_id)=(6954283c…, 4a1c0383…) already exists.
-CONTEXT: UPDATE public.campaign_recipients SET contact_id = p_survivor
-         WHERE contact_id = p_merged   (merge_contacts, linha 145)
-```
+## O que será feito
 
-Ou seja: **os dois cadastros receberam a mesma campanha**. A função `merge_contacts` transfere os destinatários de campanha com um `UPDATE` cego, e a tabela tem regra de "um destinatário por campanha". A transação inteira é abortada — por isso o par continua `pendente` e não existe **nenhum** registro em `contact_merges` para esses dois contatos.
+### 1. Correção imediata
+Gravar a situação com o valor correto aceito pelo banco, e mostrar erro na tela quando a gravação falhar (hoje falha em silêncio). Isso já faz o botão funcionar.
 
-Não é o campo "MESCLAR": esse par é de confiança **provável**, e nessa confiança a digitação nem é exigida. O botão estava habilitado.
+### 2. "Ignorar por enquanto" vira adiamento de verdade
+- Nova coluna de data de reaparecimento no registro de duplicidades (migration).
+- O botão passa a oferecer prazos: **7 dias**, **30 dias** ou **arquivar de vez**.
+- Pares adiados somem da fila e voltam sozinhos quando a data chega, sem depender de rodar a verificação.
+- Contador no topo: "3 adiados voltam em breve", com atalho para ver a lista.
 
-O erro fica invisível porque `mergeContactsBulk` captura a falha por item, devolve `{ ok: false, falhas: [...] }`, e o modal só mostra um aviso genérico ("0 unificado(s), 1 com erro") e **fecha mesmo assim**, parecendo sucesso.
+### 3. Poder desfazer
+- Cada decisão (pessoas diferentes / adiado / arquivado) pode ser revertida para pendente.
+- Aviso curto após a ação com botão **Desfazer**.
 
-A função tem o mesmo tratamento cego em `automation_deliveries` (também única por automação+contato). `event_rsvps`, `agitation_tasks`, `agitation_link_pauses`, `contact_tags` e `conversations` já são tratadas corretamente.
+### 4. Fila organizada e navegável
+- Abas: **Para revisar** · **Adiados** · **Já decididos**.
+- Ordenação por confiança (forte → possível) e filtro por tipo de coincidência (telefone, e-mail, nome).
+- Barra de progresso: "X de Y revisados hoje".
+- Ações em massa na aba de revisão: unificar automaticamente todos os blocos de confiança **forte** cujo sobrevivente é óbvio (com resumo de quantos serão afetados e confirmação antes).
 
-## Correção 1 — o que fazer
+### 5. Transparência do que aconteceu
+- Depois de unificar, mostrar um resumo curto: o que foi transferido (mensagens, tags, histórico, acesso) e qual cadastro foi arquivado.
+- Se a unificação falhar, o motivo aparece na própria tela em linguagem simples, sem fechar o bloco.
 
-1. **Migration** ajustando `merge_contacts`: antes de mover, apagar do absorvido o registro conflitante (mesmo padrão já usado em `event_rsvps`), para `campaign_recipients` e `automation_deliveries`. Nada é perdido de fato: o sobrevivente já tem o registro daquela campanha/automação.
-2. **Mensagem de erro visível**: o modal deixa de fechar quando há falha — mostra a mensagem real do banco dentro do modal e mantém a tela aberta.
+## Detalhes técnicos
 
-## Correção 2 — remover a digitação "MESCLAR"
-Retirar `confirmText`/`needsTyped` do `MergeContactsModal.tsx` e a função `requiresTypedConfirmation` de `merge-suggestion.ts` (sem outros usos). O botão passa a ser a única confirmação.
-
-## Correção 3 — "Decidir depois": duas opções
-
-**(a) Renomear (recomendado).** Trocar o rótulo para **"Ignorar por enquanto"** e explicar na tela que o par sai da fila e só volta se a verificação da base for rodada de novo. Zero mudança de banco, e já é verdade hoje: o `rescanDuplicates` recria pares que voltarem a bater.
-
-**(b) Implementar o adiamento de verdade.** Nova coluna `postergado_ate` em `contact_duplicates`, o par continua `pendente` mas some da lista até a data; a fila ordena por ela. Exige migration, ajuste em `listDuplicateGroups`, `countPendingDuplicates` e um seletor de prazo na interface.
-
-**Recomendação: (a)**, com o rótulo honesto. É a opção tecnicamente mais simples e o comportamento (a) já tem uma válvula de escape — o botão "Verificar a base agora" traz de volta o que ainda for duplicado. Se você preferir (b), implemento na sequência.
-
-## Correção 4 — menos ruído na comparação
-Na tabela de comparação, só entram os campos em **conflito real** (os dois lados preenchidos e diferentes). Os campos que só existem num dos cadastros passam para um bloco menor abaixo: "Estes campos serão preenchidos automaticamente: Bairro, Profissão, E-mail…", sem botão nenhum. Se não houver conflito algum, a tabela é substituída por "Nenhuma divergência — nada a decidir".
-
-## Arquivos tocados
-- `supabase/migrations/…_merge_contacts_unique_fix.sql` (nova versão de `merge_contacts`)
-- `src/components/MergeContactsModal.tsx` (digitação removida, erro visível, comparação enxuta)
-- `src/lib/merge-suggestion.ts` (remover `requiresTypedConfirmation`)
-- `src/routes/_authenticated/duplicidades.tsx` (rótulo do botão de adiar)
-
-## Cuidados
-- A migration só altera a função; não apaga contatos nem históricos.
-- Após aplicar, testo de novo o par do Guilherme na transação com rollback antes de considerar resolvido.
+- Migration: `snoozed_until timestamptz` em `contact_duplicates` + índice parcial para a fila; nenhum dado apagado.
+- `listDuplicateGroups`: passa a filtrar `status='pendente' AND (snoozed_until IS NULL OR snoozed_until <= now())`, com variantes para as abas de adiados e decididos.
+- `resolveDuplicateGroup`: aceita `separados | arquivar | adiar(dias) | reabrir`, sempre gravando valores válidos pelo CHECK, e retorna a contagem de linhas afetadas para o frontend detectar no-op por permissão.
+- Permissão: alterar duplicidades exige papel de administrador (RLS). A tela passa a esconder/desabilitar as ações para quem não é admin, em vez de deixar o clique falhar sem aviso.
+- Frontend concentrado em `src/routes/_authenticated/duplicidades.tsx` + `src/lib/duplicates.functions.ts`; `MergeContactsModal` só ganha o resumo pós-unificação.
