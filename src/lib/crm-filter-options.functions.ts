@@ -364,16 +364,10 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       label: e.title as string,
     }));
 
-    // Formulários publicados (rastreio fino por formulário)
-    const { data: formDefs } = await sb
-      .from("form_definitions")
-      .select("id,title,slug")
-      .order("title", { ascending: true })
-      .limit(200);
-    const formsOpts = (formDefs ?? []).map((f) => ({
-      value: f.id as string,
-      label: (f.title as string) ?? (f.slug as string),
-    }));
+    // Formulários (rastreio fino por formulário) — reaproveita a leitura do topo
+    const formsOpts = [...formLabelById.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
     // Lotes de importação
     const { data: imports } = await sb
