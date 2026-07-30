@@ -544,6 +544,27 @@ export function PublicFormRenderer({
         ? "Continuar"
         : "Enviar";
 
+  // Seção de escolha única (uma só pergunta obrigatória): tocar na opção já avança,
+  // sem exigir um segundo toque em "Continuar".
+  const visibleSectionQuestions = sectionQuestions.filter(
+    (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
+  );
+  const autoAdvanceQuestionId =
+    !isAccountSection &&
+    visibleSectionQuestions.length === 1 &&
+    visibleSectionQuestions[0].required &&
+    visibleSectionQuestions[0].response_type === "multiple_choice" &&
+    visibleSectionQuestions[0].filter_kind !== "multiselect"
+      ? visibleSectionQuestions[0].id
+      : null;
+
+  const handleAnswerChange = (questionId: string, v: AnswerValue) => {
+    set(questionId, v);
+    if (questionId === autoAdvanceQuestionId && !submitting) {
+      void continueFlow({ ...values, [questionId]: v });
+    }
+  };
+
   const sectionFields = sectionedForm && currentSection ? (
     <>
       {currentSection.description?.trim() && (
@@ -564,11 +585,21 @@ export function PublicFormRenderer({
           onToggleShowPassword={() => setShowPassword((p) => !p)}
         />
       )}
-      {sectionQuestions
-        .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
-        .map((q) => (
-          <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
-        ))}
+      {visibleSectionQuestions.map((q) => (
+        <QuestionField
+          key={q.id}
+          q={q}
+          value={values[q.id]}
+          disabled={submitting}
+          onChange={(v) => handleAnswerChange(q.id, v)}
+          onToggleMulti={(opt) => toggleMulti(q.id, opt)}
+        />
+      ))}
+      {submitting && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Salvando suas respostas…
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </>
   ) : null;
@@ -579,7 +610,13 @@ export function PublicFormRenderer({
       disabled={submitting}
       className="w-full rounded-md bg-primary text-primary-foreground py-3 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
     >
-      {isFirstStep && primaryActionLabel ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      {submitting ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isFirstStep && primaryActionLabel ? (
+        <CheckCircle2 className="h-4 w-4" />
+      ) : (
+        <ChevronRight className="h-4 w-4" />
+      )}
       {sectionSubmitLabel}
     </button>
   );
