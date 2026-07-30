@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { PublicFormRenderer } from "@/components/PublicFormRenderer";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/inscrever")({
   validateSearch: z.object({ origem: z.string().max(80).optional(), ref: z.string().min(8).max(48).optional() }),
   head: () => ({
     meta: [
-      { title: "Quero receber informações da campanha" },
-      { name: "description", content: "Inscreva-se para receber notícias da campanha pelo WhatsApp." },
+      ...shareMeta({
+        title: "Quero receber informações da campanha",
+        description: "Inscreva-se para receber notícias da Campanha do Povo que Batalha pelo WhatsApp.",
+        path: "/inscrever",
+      }),
       { name: "google", content: "notranslate" },
     ],
+    links: canonical("/inscrever"),
   }),
   ssr: false,
   component: Inscrever,
