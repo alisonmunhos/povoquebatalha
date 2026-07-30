@@ -563,6 +563,8 @@ function MissionDetailsPanel() {
           media_mime: q.data.mission.media_mime ?? null,
           media_filename: q.data.mission.media_filename ?? null,
         }}
+        initialBatchSize={q.data.mission.batch_size ?? 10}
+        initialCooldown={q.data.mission.cooldown_minutes ?? 60}
         onUpdated={invalidate}
       />
 
