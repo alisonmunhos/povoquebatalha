@@ -15,6 +15,7 @@ export type FilterOptionsBundle = {
   bairros: MultiOption[];
   ufs: MultiOption[];
   profissoes: MultiOption[];
+  instituicoes: MultiOption[];
   tipos_contato: MultiOption[];
   origens: MultiOption[];
   origem_detalhes: MultiOption[];
@@ -36,7 +37,30 @@ export type FilterOptionsBundle = {
   system_users?: MultiOption[];
   consentimento_lgpd?: MultiOption[];
   consentimento_dados_sensiveis?: MultiOption[];
+  capture_channel_counts?: Record<string, number>;
+  source_module_counts?: Record<string, number>;
+  source_form_type_counts?: Record<string, number>;
 };
+
+const SOURCE_MODULES: MultiOption[] = [
+  { value: "gestao_base", label: "Gestão da Base" },
+  { value: "territorio", label: "Território" },
+  { value: "agitacao", label: "Agitação" },
+  { value: "mapa", label: "Mapa" },
+  { value: "inbox", label: "Inbox" },
+  { value: "ficha_contato", label: "Ficha do contato" },
+  { value: "relacionamento", label: "Relacionamento" },
+  { value: "link_publico", label: "Links públicos" },
+  { value: "formulario_publico", label: "Formulário público" },
+  { value: "importacao", label: "Importação" },
+  { value: "manual", label: "Cadastro manual" },
+  { value: "outro", label: "Outro" },
+];
+
+const SOURCE_FORM_TYPES: MultiOption[] = [
+  { value: "cadastro_completo", label: "Cadastro completo" },
+  { value: "receber_informacoes", label: "Receber informações" },
+];
 
 const PHONE_STATUS: MultiOption[] = [
   { value: "valido", label: "Número OK" },
@@ -136,7 +160,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
   };
 
   const opts = options ?? {
-    cidades: [], bairros: [], ufs: [], profissoes: [], tipos_contato: [],
+    cidades: [], bairros: [], ufs: [], profissoes: [], instituicoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
     quem_indicou: [], rede_social: [], zona_eleitoral: [], como_conheceu: [], disponibilidade: [], faixa_etaria: [],
     tags: [], segmentos: [], campanhas: [], mensagens: [], importacoes: [],
@@ -212,11 +236,11 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         <Field label="Nome social contém…" hint="Busca livre no campo nome social">
           <Input value={filters.nome_social ?? ""} onChange={(e) => set("nome_social", e.target.value || undefined)} placeholder="Ex.: Ana" />
         </Field>
-        <Field label="Profissão contém…" hint="Busca livre no campo profissão">
-          <Input value={filters.profissao ?? ""} onChange={(e) => set("profissao", e.target.value || undefined)} placeholder="Ex.: professor" />
+        <Field label="Profissão" hint="Respostas já cadastradas. Digite no menu para achar; marque quantas quiser.">
+          <MultiSelectFilter options={opts.profissoes} value={filters.profissoes ?? []} onChange={(v) => set("profissoes", v)} placeholder="Qualquer profissão" />
         </Field>
-        <Field label="Onde trabalha contém…" hint="Busca livre no campo instituição/local de trabalho">
-          <Input value={filters.instituicao ?? ""} onChange={(e) => set("instituicao", e.target.value || undefined)} placeholder="Ex.: Escola Municipal..." />
+        <Field label="Onde trabalha" hint="Respostas já cadastradas no campo instituição/local de trabalho.">
+          <MultiSelectFilter options={opts.instituicoes} value={filters.instituicoes ?? []} onChange={(v) => set("instituicoes", v)} placeholder="Qualquer local" />
         </Field>
         <Field label="Coletivo Alicerce">
           <SingleSelectFilter
@@ -234,23 +258,23 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Movimento contém…" hint="Busca livre no nome do movimento">
-          <Input value={filters.movimento_social_contains ?? ""} onChange={(e) => set("movimento_social_contains", e.target.value || undefined)} placeholder="Ex.: MST" />
+        <Field label="Movimento social" hint="Respostas já cadastradas no nome do movimento.">
+          <MultiSelectFilter options={opts.movimentos_sociais} value={filters.movimentos_sociais ?? []} onChange={(v) => set("movimentos_sociais", v)} placeholder="Qualquer movimento" />
         </Field>
         <Field label="Faixa etária">
           <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} value={filters.faixas_etarias ?? []} onChange={(v) => set("faixas_etarias", v)} placeholder="Qualquer faixa" />
         </Field>
-        <Field label="Rede social contém…" hint="Busca livre no campo rede social">
-          <Input value={filters.rede_social ?? ""} onChange={(e) => set("rede_social", e.target.value || undefined)} placeholder="Ex.: @usuario" />
+        <Field label="Rede social" hint="Respostas já cadastradas.">
+          <MultiSelectFilter options={opts.rede_social} value={filters.rede_social_values ?? []} onChange={(v) => set("rede_social_values", v)} placeholder="Qualquer rede" />
         </Field>
-        <Field label="Quem indicou contém…">
-          <Input value={filters.quem_indicou ?? ""} onChange={(e) => set("quem_indicou", e.target.value || undefined)} placeholder="Ex.: Maria" />
+        <Field label="Quem indicou" hint="Respostas já cadastradas.">
+          <MultiSelectFilter options={opts.quem_indicou} value={filters.quem_indicou_values ?? []} onChange={(v) => set("quem_indicou_values", v)} placeholder="Qualquer indicação" />
         </Field>
-        <Field label="Zona eleitoral / local de votação contém…">
-          <Input value={filters.zona_eleitoral ?? ""} onChange={(e) => set("zona_eleitoral", e.target.value || undefined)} placeholder="Ex.: Escola Municipal..." />
+        <Field label="Zona eleitoral / local de votação" hint="Respostas já cadastradas.">
+          <MultiSelectFilter options={opts.zona_eleitoral} value={filters.zona_eleitoral_values ?? []} onChange={(v) => set("zona_eleitoral_values", v)} placeholder="Qualquer zona/local" />
         </Field>
-        <Field label="Como conheceu contém…">
-          <Input value={filters.como_conheceu ?? ""} onChange={(e) => set("como_conheceu", e.target.value || undefined)} placeholder="Ex.: Indicação" />
+        <Field label="Como conheceu a campanha" hint="Respostas já cadastradas.">
+          <MultiSelectFilter options={opts.como_conheceu} value={filters.como_conheceu_values ?? []} onChange={(v) => set("como_conheceu_values", v)} placeholder="Qualquer resposta" />
         </Field>
       </Section>
 
@@ -326,7 +350,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
 
       <Section icon={<Zap className="h-4 w-4" />} title="Origem e captação">
         <Field label="Canal" hint="Formulário público = preenchido via Entrada de Dados. Captação atribuída = cadastro presencial ou link gerado por alguém da equipe.">
-          <MultiSelectFilter options={CAPTURE_CHANNELS} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v as ("captacao_atribuida" | "formulario_publico")[])} placeholder="Qualquer canal" />
+          <MultiSelectFilter options={withCounts(CAPTURE_CHANNELS, opts.capture_channel_counts)} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v as ("captacao_atribuida" | "formulario_publico")[])} placeholder="Qualquer canal" />
         </Field>
         <Field label="Ponto de rastreio" hint="Só aparecem pontos com pelo menos um contato — nome do formulário, link nomeado ou 'Cadastro presencial'.">
           <MultiSelectFilter options={opts.tracking_points} value={filters.tracking_points ?? []} onChange={(v) => set("tracking_points", v)} placeholder="Qualquer ponto" />
@@ -339,30 +363,17 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Módulo de origem">
+        <Field label="Módulo de origem" hint="Opções sem contatos ficam desabilitadas.">
           <MultiSelectFilter
-            options={[
-              { value: "gestao_base", label: "Gestão da Base" },
-              { value: "territorio", label: "Território" },
-              { value: "agitacao", label: "Agitação" },
-              { value: "mapa", label: "Mapa" },
-              { value: "inbox", label: "Inbox" },
-              { value: "ficha_contato", label: "Ficha do contato" },
-              { value: "relacionamento", label: "Relacionamento" },
-              { value: "link_publico", label: "Links públicos" },
-              { value: "formulario_publico", label: "Formulário público" },
-            ]}
+            options={withCounts(SOURCE_MODULES, opts.source_module_counts)}
             value={filters.source_modules ?? []}
             onChange={(v) => set("source_modules", v)}
             placeholder="Qualquer módulo"
           />
         </Field>
-        <Field label="Tipo de formulário" hint="Cadastro completo vs. formulário curto (receber informações). Não confundir com status do cadastro.">
+        <Field label="Tipo de formulário" hint="Cadastro completo vs. formulário curto (receber informações). Opções sem contatos ficam desabilitadas.">
           <MultiSelectFilter
-            options={[
-              { value: "cadastro_completo", label: "Cadastro completo" },
-              { value: "receber_informacoes", label: "Receber informações" },
-            ]}
+            options={withCounts(SOURCE_FORM_TYPES, opts.source_form_type_counts)}
             value={filters.source_form_types ?? []}
             onChange={(v) => set("source_form_types", v)}
             placeholder="Qualquer tipo"
