@@ -842,7 +842,7 @@ export function QuestionField({
     return (
       <div>
         <p className="text-sm font-medium mb-2">{labelNode}</p>
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col gap-2 ${disabled ? "pointer-events-none opacity-70" : ""}`}>
           {(q.options ?? []).map((o) => {
             const isSelected = current === o.value;
             return (
@@ -859,6 +859,7 @@ export function QuestionField({
                   name={name}
                   required={q.required}
                   checked={isSelected}
+                  disabled={disabled}
                   onChange={() => onChange(o.value)}
                   className="sr-only"
                 />
