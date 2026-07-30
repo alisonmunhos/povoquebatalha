@@ -35,22 +35,34 @@ export function ColumnFilterHeader({
   className,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const selectedSet = new Set(selected);
+  const [draft, setDraft] = useState<string[]>(selected);
+  const inputRef = useRef<HTMLInputElement>(null);
   const count = selected.length;
   const hasOptions = options.length > 0;
 
+  useEffect(() => {
+    if (open) setDraft(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const draftSet = new Set(draft);
+
   function toggle(v: string) {
-    const next = new Set(selectedSet);
+    const next = new Set(draftSet);
     if (next.has(v)) next.delete(v);
     else next.add(v);
-    onChange([...next]);
+    setDraft([...next]);
   }
   function selectAll() {
-    onChange(options.map((o) => o.value));
+    setDraft(options.map((o) => o.value));
+  }
+  function apply() {
+    onChange(draft);
+    setOpen(false);
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -70,9 +82,17 @@ export function ColumnFilterHeader({
           <ChevronDown className="h-3 w-3 opacity-60" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[280px]" align={align}>
+      <PopoverContent
+        className="p-0 w-[280px]"
+        align={align}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
+        }}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <Command>
-          <CommandInput placeholder={`Buscar ${label.toLowerCase()}…`} />
+          <CommandInput ref={inputRef} placeholder={`Buscar ${label.toLowerCase()}…`} />
           <div className="flex items-center justify-between px-2 py-1.5 border-b text-xs">
             <button
               type="button"
@@ -81,20 +101,15 @@ export function ColumnFilterHeader({
             >
               Selecionar todos
             </button>
-            <button
-              type="button"
-              onClick={() => onChange([])}
-              disabled={count === 0}
-              className="text-muted-foreground hover:text-foreground disabled:opacity-40"
-            >
-              Limpar
-            </button>
+            <span className="text-muted-foreground normal-case">
+              {draft.length > 0 ? `${draft.length} selecionado(s)` : "Nenhum selecionado"}
+            </span>
           </div>
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {options.map((o) => {
-                const checked = selectedSet.has(o.value);
+                const checked = draftSet.has(o.value);
                 return (
                   <CommandItem
                     key={o.value}
@@ -125,11 +140,36 @@ export function ColumnFilterHeader({
               })}
             </CommandGroup>
           </CommandList>
+          <div className="flex items-center gap-2 border-t bg-card px-2 py-2 normal-case">
+            <button
+              type="button"
+              onClick={apply}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+            >
+              Aplicar{draft.length > 0 ? ` (${draft.length})` : ""}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraft([])}
+              disabled={draft.length === 0}
+              className="rounded-md border px-3 py-1.5 text-xs disabled:opacity-40"
+            >
+              Limpar
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="ml-auto px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Cancelar
+            </button>
+          </div>
         </Command>
       </PopoverContent>
     </Popover>
   );
 }
+
 
 type SortState = "asc" | "desc" | "none";
 
