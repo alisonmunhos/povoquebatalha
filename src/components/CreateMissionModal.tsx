@@ -80,6 +80,8 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
           message_template: composer.body,
           verify_whatsapp: verifyWhatsapp,
           instructions: instructions.trim() || undefined,
+          batch_size: batchSize,
+          cooldown_minutes: cooldownMinutes,
           media_path: media.media_path,
           media_mime: media.media_mime,
           media_filename: media.media_filename,
