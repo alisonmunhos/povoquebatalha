@@ -300,6 +300,7 @@ const updateMissionSchema = z.object({
   media_filename: z.string().max(200).nullable().optional(),
   batch_size: z.number().int().min(1).max(100).optional(),
   cooldown_minutes: z.number().int().min(0).max(1440).optional(),
+  instructions: z.string().max(4000).nullable().optional(),
 });
 
 export const updateAgitationMission = createServerFn({ method: "POST" })
@@ -319,6 +320,10 @@ export const updateAgitationMission = createServerFn({ method: "POST" })
     }
     if (data.batch_size !== undefined) row.batch_size = data.batch_size;
     if (data.cooldown_minutes !== undefined) row.cooldown_minutes = data.cooldown_minutes;
+    if (data.instructions !== undefined) {
+      const txt = (data.instructions ?? "").trim();
+      row.instructions = txt.length ? txt : null;
+    }
     const { error } = await context.supabase
       .from("agitation_missions")
       .update(row as never)
@@ -413,7 +418,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
       .select(
-        "id,title,message_template,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at,media_path,media_mime,media_filename",
+        "id,title,message_template,instructions,created_at,source_filters,paused_at,archived_at,is_open,batch_size,cooldown_minutes,opened_at,media_path,media_mime,media_filename",
       )
       .eq("id", data.mission_id)
       .single();
@@ -422,7 +427,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
     const { data: tasks, error: e2 } = await context.supabase
       .from("agitation_tasks")
       .select(
-        "id,status,assigned_contact_id,assigned_user_id,assigned_at,created_at,contacts!agitation_tasks_contact_id_fkey(id,nome,phone_e164,cidade)",
+        "id,status,assigned_contact_id,assigned_user_id,assigned_at,created_at,contacts!agitation_tasks_contact_id_fkey(id,nome,phone_e164,phone_raw,cidade,opt_out_at,arquivado_at)",
       )
       .eq("mission_id", data.mission_id)
       .order("created_at", { ascending: true });
@@ -487,13 +492,29 @@ export const getMissionDetail = createServerFn({ method: "GET" })
       };
       s.total++;
       if (t.status === "concluido") s.concluidos++;
-      else if (t.status === "nao_enviado") s.nao_enviados++;
+      else if (t.status === "nao_enviado" || t.status === "erro_numero") s.nao_enviados++;
       else s.pendentes++;
       linkStats.set(t.assigned_contact_id, s);
     }
 
+    // Todos os responsáveis possíveis (link avulso + agitador com conta),
+    // para o filtro "Responsável" do painel não ficar só com os links.
+    const assignees = [
+      ...assignedContactIds.map((id) => ({
+        kind: "link" as const,
+        id,
+        nome: nameByContactId.get(id) ?? null,
+      })),
+      ...assignedUserIds.map((id) => ({
+        kind: "conta" as const,
+        id,
+        nome: nameByUserId.get(id) ?? null,
+      })),
+    ];
+
     return {
       mission,
+      assignees,
       tasks: (tasks ?? []).map((t) => ({
         id: t.id,
         status: t.status,
@@ -1263,7 +1284,7 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
 // Marca uma task da MINHA leva como concluída ou não-enviada.
 const markTaskSchema = z.object({
   task_id: z.string().uuid(),
-  status: z.enum(["concluido", "nao_enviado", "pending"]),
+  status: z.enum(["concluido", "nao_enviado", "erro_numero", "pending"]),
 });
 export const markMyMissionTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1381,3 +1402,83 @@ export const undoRefuseMissionContact = createServerFn({ method: "POST" })
 
     return { ok: true as const };
   });
+
+// ===== "Deu erro / número não abriu": arquiva + marca telefone inválido =====
+// Diferente do opt-out: a pessoa não recusou, o número é que não serve.
+export const reportMissionContactError = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => refuseSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
+    const missionTitle =
+      (task as { agitation_missions?: { title?: string } | null }).agitation_missions?.title ??
+      "missão de agitação";
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+
+    const { error } = await supabaseAdmin
+      .from("contacts")
+      .update({
+        arquivado_at: now,
+        whatsapp_status: "invalido",
+        phone_status: "invalido",
+        lifecycle_status: "telefone_invalido",
+      })
+      .eq("id", task.contact_id);
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin
+      .from("agitation_tasks")
+      .update({ status: "erro_numero", completed_at: null })
+      .eq("id", task.id);
+
+    await supabaseAdmin.from("contact_audit_log").insert({
+      contact_id: task.contact_id,
+      user_id: context.userId,
+      action: "erro_numero_missao",
+      changes: { mission_id: task.mission_id, mission_title: missionTitle },
+    });
+    await supabaseAdmin.from("agitacao_contact_logs").insert({
+      contact_id: task.contact_id,
+      user_id: context.userId,
+      action: "observacao",
+      note: `Número não abriu o WhatsApp — arquivado durante a missão "${missionTitle}".`,
+      metadata: { mission_id: task.mission_id, kind: "erro_numero" },
+    });
+
+    return { ok: true as const };
+  });
+
+export const undoMissionContactError = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => refuseSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { error } = await supabaseAdmin
+      .from("contacts")
+      .update({
+        arquivado_at: null,
+        whatsapp_status: "desconhecido",
+        phone_status: null,
+        lifecycle_status: null,
+      })
+      .eq("id", task.contact_id);
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin
+      .from("agitation_tasks")
+      .update({ status: "pending", completed_at: null })
+      .eq("id", task.id);
+
+    await supabaseAdmin.from("contact_audit_log").insert({
+      contact_id: task.contact_id,
+      user_id: context.userId,
+      action: "erro_numero_missao_desfeito",
+      changes: { mission_id: task.mission_id },
+    });
+
+    return { ok: true as const };
+  });
+
