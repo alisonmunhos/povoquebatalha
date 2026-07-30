@@ -1,105 +1,47 @@
-## Diagnóstico confirmado
+## Sobre o "10": confirmado no código
 
-O link publicado já está retornando metadados corretos no HTML:
+O `10` não está escrito na tela — é o valor da coluna `batch_size` da missão. O problema real é **onde ele pode ser definido**:
 
-- `og:title` está com o título real do evento.
-- `og:description` está com a descrição real do evento.
-- `og:url` aponta para o próprio link do evento.
-- `og:image` aponta para a capa pública do evento.
-- A URL da capa responde `200`, como `image/jpeg`, com imagem real de `1059x1440`.
+- `CreateMissionModal.tsx` e `EditMissionModal.tsx` **não têm nenhum campo** de tamanho da leva nem de cooldown (verificado: nenhuma ocorrência de `batch_size`/`cooldown`). Então toda missão nasce com o padrão do banco: leva 10, cooldown 60 min.
+- O operador só consegue escolher esses valores **depois**, no modal "Abrir para auto-atribuição" (`OpenMissionModal.tsx`).
+- Pior: o alerta de notificação mostra "leva de 10" mesmo em missão de **atribuição direta** (como "Convite Plenária", que está `is_open = false` e teve os 53 contatos atribuídos de uma vez pelo coordenador). Aí o número não significa nada.
 
-O problema mais provável não é ausência de meta tags agora; é que o WhatsApp está usando cache antigo da prévia e/ou rejeitando a imagem por formato/dimensão pouco ideal para card de link. A imagem atual é vertical (`1059x1440`), enquanto prévias grandes de WhatsApp/Open Graph funcionam melhor com imagem horizontal, normalmente `1200x630` ou similar.
+Já o **53** é o `contact_count` do briefing: conta todas as tarefas da missão, não o que é seu.
 
-## Plano de correção
+---
 
-### 1. Tornar a imagem da prévia compatível com WhatsApp
+## Plano revisado
 
-Criar uma rota pública específica para imagem de compartilhamento do evento, por exemplo:
+### 1. Operador define o tamanho da leva e o cooldown na criação
+- Adicionar em `CreateMissionModal` (e em `EditMissionModal`, enquanto a missão não estiver arquivada) os campos **"Contatos por leva"** e **"Cooldown entre levas (minutos)"**, com os mesmos limites já usados no `OpenMissionModal` (leva 1–100, cooldown 0–1440) e os padrões atuais como valor inicial.
+- A função de criação/edição de missão passa a gravar `batch_size` e `cooldown_minutes`.
+- O `OpenMissionModal` continua existindo e passa a **pré-carregar os valores já definidos na missão** (em vez de recomeçar em 10/60), permitindo ajustar na hora de abrir.
+- Nenhum número fixo em tela: tudo lê `mission.batch_size` / `mission.cooldown_minutes`.
 
-```text
-/api/public/events/$slug/og-image
-```
+### 2. Briefing da notificação com números reais
+`getMissionNotificationBriefing` passa a devolver também: tipo da missão (aberta x atribuição direta), se o usuário já tem leva aberta e quantas tarefas dela estão pendentes/enviadas/não enviadas, contatos livres no pool, se pode pegar novo lote, motivo do bloqueio e horário de liberação do cooldown.
 
-Ela vai:
+### 3. Texto do alerta ajustado ao caso
+- **Com leva aberta**: "Sua leva: 53 contato(s) · 47 pendente(s)" — sem "público-alvo" e sem "leva de N".
+- **Missão aberta e sem leva**: "Você vai receber uma leva de {batch_size} contato(s) · {N} disponíveis".
+- **Atribuição direta**: nunca exibir "leva de N".
 
-- Buscar a capa original do evento.
-- Gerar uma versão horizontal em proporção Open Graph (`1200x630`).
-- Manter a capa real visível sem distorcer.
-- Usar fundo/recorte compatível com a identidade visual atual.
-- Responder como `image/jpeg` ou `image/png` com cache público.
+### 4. Botão contextual (o pedido principal)
+- **Já tem leva / contatos atribuídos** → "Abrir minha missão (N pendentes)" — entra na missão, não cria lote novo.
+- **Pode pegar lote** → "Aceitar missão (leva de {batch_size})".
+- **Em cooldown** → botão desabilitado com "Disponível em Xh Ymin" + link "Ver minhas missões".
+- **Fechada / pausada / sem contatos** → aviso explicativo e link para minhas missões.
 
-Assim o WhatsApp deixa de tentar montar a prévia a partir de uma imagem vertical crua.
+### 5. Erros deixam de ser engolidos
+Hoje o `catch` faz `console.error` e redireciona, parecendo sucesso. Passa a exibir a mensagem do servidor (toast) e manter o alerta aberto.
 
-### 2. Apontar `og:image` para a nova rota
+### 6. Entrar direto na missão pela notificação
+`/minhas-missoes` aceita `?mission=<id>`: ao abrir, rola e destaca a missão correspondente.
 
-Na rota pública do evento (`/evento/$slug`), trocar:
+### 7. Cooldown visível em "Minhas missões"
+Contagem regressiva ("Novo lote disponível em X min") no cartão, com o botão de pegar lote desabilitado enquanto durar.
 
-```text
-/api/public/events/$slug/cover
-```
-
-por:
-
-```text
-/api/public/events/$slug/og-image
-```
-
-Manter:
-
-- `og:image:width = 1200`
-- `og:image:height = 630`
-- `twitter:card = summary_large_image`
-- `canonical` e `og:url` apontando para a própria página do evento.
-
-### 3. Corrigir prévia antiga/cacheada
-
-Adicionar um controle de versão simples na imagem ou no link de preview, por exemplo:
-
-```text
-/api/public/events/$slug/og-image?v=<updated_at/ou timestamp-da-capa>
-```
-
-Isso ajuda a forçar WhatsApp e outros apps a perceberem que a imagem mudou.
-
-Importante: mesmo com isso, o WhatsApp pode manter cache por algum tempo para links já enviados. Para testar imediatamente, o ideal é enviar o link com um parâmetro novo, por exemplo:
-
-```text
-https://povoquebatalha.lovable.app/evento/...?...preview=2
-```
-
-sem alterar a página real.
-
-### 4. Padronizar para qualquer link público do app
-
-Aplicar o mesmo padrão às rotas públicas que geram prévia:
-
-- Eventos.
-- Missões públicas.
-- Formulários públicos.
-- Página inicial e páginas institucionais.
-
-Regra única:
-
-- Páginas com capa própria usam imagem OG gerada/normalizada.
-- Páginas sem capa usam `og-default.png` atual.
-- Nunca usar imagem antiga no `__root.tsx`.
-- Nunca depender de JS para metadados.
-
-### 5. Verificação antes de finalizar
-
-Depois da implementação, verificar:
-
-- HTML publicado/local contém apenas uma `og:image` correta.
-- A imagem `og-image` abre diretamente no navegador.
-- A imagem responde `200` para user agents tipo WhatsApp/Facebook.
-- Dimensão real da imagem gerada é `1200x630`.
-- Não há metadados antigos sobrescrevendo os novos.
-
-## Resultado esperado
-
-Ao reenviar o link com cache renovado, a prévia deve mostrar:
-
-- Título real do evento.
-- Descrição real do evento.
-- Imagem de capa do evento em formato grande e horizontal.
-- Visual alinhado com a identidade atual do app, sem voltar para o layout antigo.
+## Detalhes técnicos
+- Arquivos: `src/lib/agitation-missions.functions.ts`, `src/components/CreateMissionModal.tsx`, `src/components/EditMissionModal.tsx`, `src/components/OpenMissionModal.tsx`, `src/components/NotificationBell.tsx`, `src/routes/_authenticated/minhas-missoes.tsx`.
+- Sem migration: as colunas `batch_size` e `cooldown_minutes` já existem em `agitation_missions`, e `claim_mission_batch` já bloqueia leva aberta e cooldown. O que falta é a interface deixar configurar e respeitar isso.
+- Sem mudança no modelo de dados e sem impacto em links públicos.
