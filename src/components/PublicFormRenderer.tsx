@@ -122,6 +122,8 @@ export function PublicFormRenderer({
   const [showPassword, setShowPassword] = useState(false);
   const [emailAlreadyRegistered, setEmailAlreadyRegistered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  /** Presença no evento já registrada nesta jornada (não reenviar a cada etapa). */
+  const [eventHandled, setEventHandled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
     nome: string;
