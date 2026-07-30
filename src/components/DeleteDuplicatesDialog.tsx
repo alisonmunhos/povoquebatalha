@@ -39,11 +39,13 @@ function phoneOf(c: DeleteCandidate) {
 export function DeleteDuplicatesDialog({ group, targets, onClose, onDone }: Props) {
   const deleteFn = useServerFn(deleteDuplicateContacts);
   const [loading, setLoading] = useState<"hard" | "arquivar" | null>(null);
+  const [confirmarTudo, setConfirmarTudo] = useState(false);
 
   const targetIds = targets.map((t) => t.id);
   const remaining = group.filter((c) => !targetIds.includes(c.id));
   const bloqueados = targets.filter((t) => t.is_system_user);
-  const invalido = remaining.length < 1 || bloqueados.length > 0;
+  const removeTudo = remaining.length === 0;
+  const invalido = bloqueados.length > 0 || (removeTudo && !confirmarTudo);
 
   async function run(mode: "hard" | "arquivar") {
     setLoading(mode);
