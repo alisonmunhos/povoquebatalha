@@ -1,31 +1,50 @@
-# Quarto botão: "Não quer receber"
+## Objetivo
 
-Na tela **Minhas Missões**, cada contato da leva ganha um quarto botão, ao lado de "Enviar", "Enviei" e "Não consegui enviar".
+Tornar o painel de gestão da missão previsível: distinguir "ainda não acionado" de "não enviado por escolha" e de "deu erro", permitir devolver contatos ao admin sem risco de mensagem duplicada, ocultar ruído (opt-out e erros) e permitir editar a tela de orientação da missão.
 
-## O que o botão faz
+## 1. Novo estado "Deu erro"
 
-Um toque em **"Não quer receber"**:
+Hoje a tarefa só tem `pending`, `concluido` e `nao_enviado` — por isso "erro de número" e "vou enviar depois" ficam misturados.
 
-1. Marca o contato como **recusou contato** (opt-out) com o motivo "Pediu para não receber mensagens (missão: <título>)".
-2. **Arquiva** o contato imediatamente, então ele sai da base ativa e não entra em campanhas, missões ou segmentos futuros.
-3. Marca a tarefa da missão como **não enviada**, para a leva não ficar pendente por causa dele.
-4. Registra a ação no histórico do contato (auditoria), com quem fez e quando.
-5. Mostra um aviso na tela: *"<Nome> foi arquivado e não receberá mais mensagens"* com botão **Desfazer** por alguns segundos.
+- Migration adiciona o estado `erro_numero` em `agitation_tasks.status` (dados atuais preservados; nada é reclassificado).
+- Na tela do agitador (Minhas Missões), o botão "Não consegui enviar" vira dois:
+  - **Vou enviar depois** → `nao_enviado`
+  - **Deu erro / não abriu** → `erro_numero`
+- Ao marcar "Deu erro": o contato é **arquivado automaticamente** e o telefone marcado como inválido (sem usar opt-out, que é reservado a quem pediu para não receber), com aviso e **Desfazer** por alguns segundos — igual ao fluxo de "Não quer receber".
 
-Sem tela de confirmação, conforme escolhido. O **Desfazer** reverte tudo: remove o opt-out, desarquiva o contato e devolve a tarefa para "pendente".
+## 2. Filtros do painel da missão por intenção
 
-## Visual do card
+O select "Status" passa a ter opções que correspondem ao que existe de fato, cada uma com contador real:
 
-O contato arquivado por recusa fica com selo vermelho **"Não quer receber"** e os botões de envio desaparecem — evita reabrir o WhatsApp de quem pediu para não ser mais contatado. O contador do cabeçalho da missão passa a mostrar também "X recusou(aram)".
+- **Não acionado — sem responsável** (na missão, ninguém pegou)
+- **Atribuído e parado** (está na tela de alguém, sem nenhum clique)
+- **Enviado**
+- **Vou enviar depois**
+- **Deu erro**
+- **Não quer receber**
 
-Em telas estreitas os quatro botões ficam em duas linhas, com o botão de recusa em estilo discreto (contorno vermelho) para não competir com "Enviar".
+Correções nos filtros existentes:
+- O filtro "Responsável" hoje só lista quem recebeu **link**; passa a listar também os agitadores com conta (por isso algumas opções não retornavam nada).
+- Dois interruptores no topo da lista: **Ocultar quem não quer receber** e **Ocultar os que deram erro**.
+- Contadores aparecem em cada opção, então nenhum filtro leva a uma lista vazia sem explicação.
+
+## 3. Devolver contatos para redistribuir
+
+- Nova ação em massa a partir do filtro atual: **Remover atribuição** dos contatos "Atribuído e parado" ou "Vou enviar depois".
+- Ao remover, o contato volta como **"Sem atribuição"** e **não** entra no pool de auto-atribuição — só o admin redistribui (link ou agitador com conta).
+- Contatos já **Enviados** nunca são devolvidos, o que garante que ninguém receba a mensagem duas vezes.
+- A confirmação mostra sempre a quantidade afetada.
+
+## 4. Editar a orientação da missão
+
+- O modal "Editar mensagem" passa a editar também a **tela de orientação** (o texto que aparece antes de aceitar a missão), com pré-visualização de como o agitador vê.
+- O modal ganha seções: Mensagem, Orientação, Mídia, Cadência (lote e intervalo).
 
 ## Detalhes técnicos
 
-- Nova função de servidor `refuseMissionContact` em `src/lib/agitation-missions.functions.ts`, autenticada, recebendo `task_id`:
-  - valida que a tarefa pertence ao usuário logado (`assigned_user_id = userId`);
-  - só então usa o cliente privilegiado (carregado dentro do handler) para atualizar `contacts.opt_out_at`, `opt_out_motivo`, `arquivado_at`, `whatsapp_status = 'opt_out'` e `lifecycle_status = 'nao_enviar'`, além de gravar em `contact_audit_log` e `agitacao_contact_logs`.
-  - Isso é necessário porque a política de acesso atual só permite que agitadores editem contatos que eles mesmos captaram; a validação de posse da tarefa substitui essa checagem com segurança.
-- Função irmã `undoRefuseMissionContact` com a mesma validação, limpando `opt_out_at`/`arquivado_at`/motivo e voltando a tarefa para `pending`.
-- `src/routes/_authenticated/minhas-missoes.tsx`: novo handler `onRefuseTask`, estado local `refused` para feedback otimista, toast com ação Desfazer (sonner), selo e contador novos. `listMyMissions` passa a trazer `contacts.opt_out_at` e `contacts.arquivado_at` para o selo aparecer também após recarregar a página.
-- Nenhuma migration necessária: todos os campos usados já existem.
+- Migration: `agitation_tasks.status` aceita `erro_numero`; sem backfill destrutivo.
+- `src/lib/agitation-missions.functions.ts`: `markMyMissionTask` aceita `erro_numero`; novas funções `reportMissionContactError` / `undoMissionContactError` (validam posse da tarefa e usam client admin para arquivar, mesmo padrão de `refuseMissionContact`); `getMissionDetail` passa a retornar `opt_out_at`, `arquivado_at` e responsáveis por conta; `updateMission` passa a aceitar `instructions`.
+- `src/routes/_authenticated/missoes-agitacao.$missionId.tsx`: novo modelo de filtro derivado (status + atribuição + ruído), contadores e ação de remoção de atribuição.
+- `src/routes/_authenticated/minhas-missoes.tsx`: botões separados e feedback com Desfazer.
+- `src/components/EditMissionModal.tsx`: campo de orientação com pré-visualização.
+- Typecheck ao final.

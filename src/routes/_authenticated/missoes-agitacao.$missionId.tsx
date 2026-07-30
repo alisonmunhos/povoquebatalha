@@ -25,7 +25,23 @@ import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { ApplyTagModal } from "@/components/ApplyTagModal";
 import type { CrmFilters } from "@/lib/crm-filters";
 
-type StatusFilter = "todos" | "sem_atribuicao" | "atribuido" | "concluido" | "nao_enviado";
+/**
+ * Filtros por intenção (o que o admin realmente quer saber):
+ * - sem_responsavel: ninguém foi encarregado ainda
+ * - parado: tem responsável, mas nada aconteceu (nem enviou, nem marcou nada)
+ * - enviado: agitador confirmou o envio
+ * - depois: agitador marcou "vou enviar depois"
+ * - erro: número não abriu / inválido
+ * - optout: pessoa pediu pra não receber
+ */
+type StatusFilter =
+  | "todos"
+  | "sem_responsavel"
+  | "parado"
+  | "enviado"
+  | "depois"
+  | "erro"
+  | "optout";
 
 export const Route = createFileRoute("/_authenticated/missoes-agitacao/$missionId")({
   head: () => ({ meta: [{ title: "Detalhe da Missão" }] }),
@@ -44,9 +60,14 @@ type Task = {
     id: string;
     nome: string | null;
     phone_e164: string | null;
+    phone_raw?: string | null;
     cidade: string | null;
+    opt_out_at?: string | null;
+    arquivado_at?: string | null;
   } | null;
 };
+
+type Assignee = { kind: "link" | "conta"; id: string; nome: string | null };
 
 type LinkRow = {
   contact_id: string;
@@ -59,14 +80,36 @@ type LinkRow = {
   paused: boolean;
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  concluido: "bg-emerald-100 text-emerald-800",
-  nao_enviado: "bg-rose-100 text-rose-800",
+/** Estado real de cada contato dentro da missão, do ponto de vista do admin. */
+type TaskState = "sem_responsavel" | "parado" | "enviado" | "depois" | "erro" | "optout";
+
+function taskState(t: Task): TaskState {
+  if (t.contact?.opt_out_at) return "optout";
+  if (t.status === "erro_numero") return "erro";
+  if (t.status === "concluido") return "enviado";
+  if (t.status === "nao_enviado") return "depois";
+  if (t.assigned_contact_id || t.assigned_user_id) return "parado";
+  return "sem_responsavel";
+}
+
+const STATE_LABEL: Record<TaskState, string> = {
+  sem_responsavel: "Sem responsável",
+  parado: "Atribuído e parado",
+  enviado: "Enviado",
+  depois: "Vou enviar depois",
+  erro: "Erro de número",
+  optout: "Não quer receber",
 };
-const STATUS_LABEL: Record<string, string> = {
-  concluido: "Concluído",
-  nao_enviado: "Não enviado",
+
+const STATE_BADGE: Record<TaskState, string> = {
+  sem_responsavel: "bg-muted text-muted-foreground",
+  parado: "bg-sky-100 text-sky-800",
+  enviado: "bg-emerald-100 text-emerald-800",
+  depois: "bg-amber-100 text-amber-900",
+  erro: "bg-slate-700 text-white",
+  optout: "bg-rose-600 text-white",
 };
+
 
 function MissionDetailsPanel() {
   const { missionId } = Route.useParams();
@@ -89,6 +132,7 @@ function MissionDetailsPanel() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [responsavelFilter, setResponsavelFilter] = useState<string>("todos");
   const [hideSemNumero, setHideSemNumero] = useState(false);
+  const [hideOptOutErro, setHideOptOutErro] = useState(true);
 
 
   const q = useQuery({
@@ -109,6 +153,7 @@ function MissionDetailsPanel() {
 
   const tasks = (q.data?.tasks ?? []) as Task[];
   const links = (q.data?.links ?? []) as LinkRow[];
+  const assignees = (q.data?.assignees ?? []) as Assignee[];
   const missionPaused = !!q.data?.mission.paused_at;
   const missionArchived = !!q.data?.mission.archived_at;
   const missionIsOpen = !!q.data?.mission.is_open;
@@ -118,7 +163,7 @@ function MissionDetailsPanel() {
   }
 
   const availableForPool = tasks.filter(
-    (t) => !taskHasAssignment(t) && t.status === "pending",
+    (t) => taskState(t) === "sem_responsavel" && t.status === "pending",
   ).length;
 
   const assignedTaskIds = tasks.filter((t) => taskHasAssignment(t)).map((t) => t.id);
@@ -126,22 +171,36 @@ function MissionDetailsPanel() {
   const selectedIds = [...selected];
   const canAssign = selectedIds.length > 0 && !missionArchived;
 
+  // Contadores por estado — alimentam os rótulos dos filtros para o admin
+  // nunca escolher uma opção que não traz nada.
+  const stateCounts = tasks.reduce(
+    (acc, t) => {
+      const s = taskState(t);
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<TaskState, number>,
+  );
+
+  /** Contatos "parados": têm responsável e nenhuma ação — são os reaproveitáveis. */
+  const stalledTaskIds = tasks.filter((t) => taskState(t) === "parado").map((t) => t.id);
+
   const filteredTasks = tasks.filter((t) => {
-    const hasAssignment = taskHasAssignment(t);
-    if (statusFilter === "sem_atribuicao" && hasAssignment) return false;
-    if (statusFilter === "atribuido" && !(hasAssignment && t.status === "pending")) return false;
-    if (statusFilter === "concluido" && t.status !== "concluido") return false;
-    if (statusFilter === "nao_enviado" && t.status !== "nao_enviado") return false;
-    if (responsavelFilter === "sem_atribuicao" && hasAssignment) return false;
+    const state = taskState(t);
+    if (statusFilter !== "todos" && state !== statusFilter) return false;
+    if (hideOptOutErro && (state === "optout" || state === "erro")) return false;
+    if (responsavelFilter === "sem_atribuicao" && taskHasAssignment(t)) return false;
     if (
       responsavelFilter !== "todos" &&
       responsavelFilter !== "sem_atribuicao" &&
-      t.assigned_contact_id !== responsavelFilter
+      t.assigned_contact_id !== responsavelFilter &&
+      t.assigned_user_id !== responsavelFilter
     )
       return false;
-    if (hideSemNumero && !t.contact?.phone_e164) return false;
+    if (hideSemNumero && !(t.contact?.phone_e164 || t.contact?.phone_raw)) return false;
     return true;
   });
+
 
 
   function toggle(id: string) {
@@ -416,11 +475,17 @@ function MissionDetailsPanel() {
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             className="text-xs h-8 rounded-md border px-2 bg-background"
           >
-            <option value="todos">Status: todos</option>
-            <option value="sem_atribuicao">Sem atribuição</option>
-            <option value="atribuido">Atribuído (pendente)</option>
-            <option value="concluido">Concluído</option>
-            <option value="nao_enviado">Não enviado</option>
+            <option value="todos">Situação: todas ({tasks.length})</option>
+            <option value="sem_responsavel">
+              Sem responsável ({stateCounts.sem_responsavel ?? 0})
+            </option>
+            <option value="parado">
+              Atribuído e parado — ainda não acionou ({stateCounts.parado ?? 0})
+            </option>
+            <option value="enviado">Enviado ({stateCounts.enviado ?? 0})</option>
+            <option value="depois">Vou enviar depois ({stateCounts.depois ?? 0})</option>
+            <option value="erro">Erro de número ({stateCounts.erro ?? 0})</option>
+            <option value="optout">Não quer receber ({stateCounts.optout ?? 0})</option>
           </select>
           <select
             value={responsavelFilter}
@@ -428,10 +493,10 @@ function MissionDetailsPanel() {
             className="text-xs h-8 rounded-md border px-2 bg-background"
           >
             <option value="todos">Responsável: todos</option>
-            <option value="sem_atribuicao">Sem atribuição</option>
-            {links.map((l) => (
-              <option key={l.contact_id} value={l.contact_id}>
-                {l.nome ?? "(sem nome)"}
+            <option value="sem_atribuicao">Sem responsável</option>
+            {assignees.map((a) => (
+              <option key={`${a.kind}-${a.id}`} value={a.id}>
+                {a.kind === "link" ? "Link" : "Conta"}: {a.nome ?? "(sem nome)"}
               </option>
             ))}
           </select>
@@ -442,8 +507,14 @@ function MissionDetailsPanel() {
             />
             Esconder sem número
           </label>
+          <label className="flex items-center gap-1.5 text-xs h-8 rounded-md border px-2 bg-background cursor-pointer select-none">
+            <Checkbox
+              checked={hideOptOutErro}
+              onCheckedChange={(v) => setHideOptOutErro(v === true)}
+            />
+            Esconder quem não quer receber e erros de número
+          </label>
         </div>
-
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <label className="flex items-center gap-2 text-sm">
@@ -466,7 +537,16 @@ function MissionDetailsPanel() {
               disabled={selected.size === 0}
               onClick={() => onUnassign([...selected])}
             >
-              Desatribuir selecionados ({selected.size})
+              Liberar selecionados ({selected.size})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={stalledTaskIds.length === 0}
+              title="Libera só os contatos que têm responsável mas ainda não foram acionados, para você redistribuir."
+              onClick={() => onUnassign(stalledTaskIds)}
+            >
+              Liberar parados ({stalledTaskIds.length})
             </Button>
             <Button
               size="sm"
@@ -474,7 +554,7 @@ function MissionDetailsPanel() {
               disabled={!hasAnyAssignment}
               onClick={onUnassignAll}
             >
-              Desatribuir todos
+              Liberar todos
             </Button>
             <Button
               size="sm"
@@ -488,43 +568,47 @@ function MissionDetailsPanel() {
         </div>
 
         <div className="rounded-xl border divide-y">
-          {filteredTasks.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 p-3 text-sm">
-              <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} />
-              <div className="flex-1">
-                <div className="font-medium">{t.contact?.nome ?? "(sem nome)"}</div>
-                <div className="text-xs text-muted-foreground">
-                  {t.contact?.phone_e164 ?? "—"} · {t.contact?.cidade ?? "—"}
+          {filteredTasks.length === 0 && (
+            <div className="p-4 text-xs text-muted-foreground">
+              Nenhum contato nesta situação. Troque os filtros acima.
+            </div>
+          )}
+          {filteredTasks.map((t) => {
+            const state = taskState(t);
+            return (
+              <div key={t.id} className="flex items-center gap-3 p-3 text-sm">
+                <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} />
+                <div className="flex-1">
+                  <div className="font-medium">{t.contact?.nome ?? "(sem nome)"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {t.contact?.phone_e164 ?? t.contact?.phone_raw ?? "—"} ·{" "}
+                    {t.contact?.cidade ?? "—"}
+                  </div>
                 </div>
-              </div>
-              {taskHasAssignment(t) ? (
-                <>
-                  <span
-                    className={`text-xs rounded-full px-2 py-0.5 ${STATUS_BADGE[t.status] ?? "bg-muted text-muted-foreground"}`}
-                  >
-                    {STATUS_LABEL[t.status] ?? "Atribuído"} ·{" "}
-                    {t.assigned_contact_name
-                      ? `Link: ${t.assigned_contact_name}`
-                      : t.assigned_user_name
-                        ? `Conta: ${t.assigned_user_name}`
-                        : "—"}
-                  </span>
+                <span className={`text-xs rounded-full px-2 py-0.5 ${STATE_BADGE[state]}`}>
+                  {STATE_LABEL[state]}
+                  {t.assigned_contact_name
+                    ? ` · Link: ${t.assigned_contact_name}`
+                    : t.assigned_user_name
+                      ? ` · Conta: ${t.assigned_user_name}`
+                      : ""}
+                </span>
+                {taskHasAssignment(t) && (
                   <button
                     type="button"
-                    title="Desatribuir"
+                    title="Liberar atribuição"
                     onClick={() => onUnassign([t.id])}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <X className="h-4 w-4" />
                   </button>
-                </>
-              ) : (
-                <span className="text-xs rounded-full bg-muted px-2 py-0.5">Sem atribuição</span>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
+
 
       <AssignResponsibleModal
         open={assignOpen}
@@ -558,6 +642,7 @@ function MissionDetailsPanel() {
         missionId={missionId}
         initialTitle={q.data.mission.title}
         initialMessage={q.data.mission.message_template}
+        initialInstructions={q.data.mission.instructions ?? null}
         initialMedia={{
           media_path: q.data.mission.media_path ?? null,
           media_mime: q.data.mission.media_mime ?? null,

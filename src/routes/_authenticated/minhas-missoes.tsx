@@ -3,7 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Send, PlayCircle, AlertTriangle, BellOff } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  Send,
+  PlayCircle,
+  AlertTriangle,
+  BellOff,
+  PhoneOff,
+} from "lucide-react";
 import {
   listMyMissions,
   claimMissionBatch,
@@ -13,6 +21,8 @@ import {
   getMissionMediaUrl,
   refuseMissionContact,
   undoRefuseMissionContact,
+  reportMissionContactError,
+  undoMissionContactError,
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
@@ -157,6 +167,8 @@ function MissionBlockCard({
   const markFn = useServerFn(markMyMissionTask);
   const refuseFn = useServerFn(refuseMissionContact);
   const undoRefuseFn = useServerFn(undoRefuseMissionContact);
+  const errorFn = useServerFn(reportMissionContactError);
+  const undoErrorFn = useServerFn(undoMissionContactError);
   const [busy, setBusy] = useState(false);
 
   const cooldownQ = useQuery({
@@ -169,16 +181,22 @@ function MissionBlockCard({
   const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
   // Recusas marcadas agora nesta sessão (feedback imediato antes do recarregamento).
   const [refusedNow, setRefusedNow] = useState<Set<string>>(new Set());
+  // Erros marcados agora nesta sessão (feedback imediato antes do recarregamento).
+  const [erroredNow, setErroredNow] = useState<Set<string>>(new Set());
 
   const isRefused = (t: Task) => refusedNow.has(t.id) || !!t.contacts?.opt_out_at;
+  const isErrored = (t: Task) =>
+    !isRefused(t) && (erroredNow.has(t.id) || t.status === "erro_numero");
 
   const pendingTasks = block.tasks.filter(
-    (t) => !t.completed_at && t.status === "pending" && !isRefused(t),
+    (t) => !t.completed_at && t.status === "pending" && !isRefused(t) && !isErrored(t),
   );
   const sentTasks = block.tasks.filter((t) => t.status === "concluido");
   const refusedTasks = block.tasks.filter((t) => isRefused(t));
+  const erroredTasks = block.tasks.filter((t) => isErrored(t));
   const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado" && !isRefused(t));
   const openClaim = block.claim;
+
 
   /** Abre o WhatsApp; NÃO marca nada — só coloca a tarefa em "aguardando confirmação". */
   function onOpenWhatsApp(task: Task) {
@@ -206,6 +224,50 @@ function MissionBlockCard({
       onChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar.");
+    }
+  }
+
+  /** "Deu erro": arquiva o contato e marca o número como inválido, com Desfazer. */
+  async function onErrorTask(task: Task) {
+    const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
+    setErroredNow((prev) => new Set(prev).add(task.id));
+    setAwaitingConfirm((prev) => {
+      const next = new Set(prev);
+      next.delete(task.id);
+      return next;
+    });
+    try {
+      await errorFn({ data: { task_id: task.id } });
+      toast.success(`${nome}: número marcado como inválido e cadastro arquivado.`, {
+        duration: 8000,
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            void (async () => {
+              try {
+                await undoErrorFn({ data: { task_id: task.id } });
+                setErroredNow((prev) => {
+                  const next = new Set(prev);
+                  next.delete(task.id);
+                  return next;
+                });
+                toast.info(`${nome} voltou para a sua leva.`);
+                onChanged();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
+              }
+            })();
+          },
+        },
+      });
+      onChanged();
+    } catch (e) {
+      setErroredNow((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+      toast.error(e instanceof Error ? e.message : "Erro ao registrar.");
     }
   }
 
@@ -332,7 +394,8 @@ function MissionBlockCard({
         )}
         <div className="text-xs text-muted-foreground mt-2">
           {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
-          {pendingTasks.length} pendente(s) · {notSentTasks.length} não enviado(s)
+          {pendingTasks.length} pendente(s) · {notSentTasks.length} vou enviar depois
+          {erroredTasks.length > 0 ? ` · ${erroredTasks.length} com erro de número` : ""}
           {refusedTasks.length > 0 ? ` · ${refusedTasks.length} não quer(em) receber` : ""}
         </div>
       </div>
@@ -341,9 +404,11 @@ function MissionBlockCard({
         <div className="divide-y">
           {block.tasks.map((t) => {
             const refused = isRefused(t);
-            const waiting = !refused && awaitingConfirm.has(t.id);
-            const sent = !refused && t.status === "concluido";
-            const notSent = !refused && t.status === "nao_enviado";
+            const errored = isErrored(t);
+            const blocked = refused || errored;
+            const waiting = !blocked && awaitingConfirm.has(t.id);
+            const sent = !blocked && t.status === "concluido";
+            const notSent = !blocked && t.status === "nao_enviado";
             return (
               <div key={t.id} className="p-3 flex items-center gap-2 flex-wrap">
                 <div className="flex-1 min-w-[160px]">
@@ -357,28 +422,32 @@ function MissionBlockCard({
                     className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
                       refused
                         ? "bg-rose-600 text-white"
-                        : sent
-                          ? "bg-emerald-100 text-emerald-800"
-                          : notSent
-                            ? "bg-rose-100 text-rose-800"
-                            : waiting
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-muted text-muted-foreground"
+                        : errored
+                          ? "bg-slate-700 text-white"
+                          : sent
+                            ? "bg-emerald-100 text-emerald-800"
+                            : notSent
+                              ? "bg-amber-100 text-amber-900"
+                              : waiting
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {refused
                       ? "Não quer receber — arquivado"
-                      : sent
-                        ? "Enviado"
-                        : notSent
-                          ? "Não enviei"
-                          : waiting
-                            ? "Aguardando confirmação"
-                            : "Pendente"}
+                      : errored
+                        ? "Número com erro — arquivado"
+                        : sent
+                          ? "Enviado"
+                          : notSent
+                            ? "Vou enviar depois"
+                            : waiting
+                              ? "Aguardando confirmação"
+                              : "Pendente"}
                   </span>
                 </div>
 
-                {!refused && (
+                {!blocked && (
                   <>
                     <Button
                       size="sm"
@@ -404,9 +473,17 @@ function MissionBlockCard({
                         variant="outline"
                         onClick={() => onMarkTask(t, "nao_enviado")}
                       >
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Não consegui enviar
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Vou enviar depois
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-400 text-slate-700 hover:bg-slate-100"
+                      onClick={() => void onErrorTask(t)}
+                    >
+                      <PhoneOff className="h-3.5 w-3.5 mr-1" /> Deu erro / não abriu
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"

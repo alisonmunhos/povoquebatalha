@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ type Props = {
   missionId: string;
   initialTitle: string;
   initialMessage: string;
+  initialInstructions?: string | null;
   initialMedia?: MissionMedia;
   initialBatchSize?: number;
   initialCooldown?: number;
@@ -42,6 +44,7 @@ export function EditMissionModal({
   missionId,
   initialTitle,
   initialMessage,
+  initialInstructions,
   initialMedia,
   initialBatchSize = 10,
   initialCooldown = 60,
@@ -54,6 +57,7 @@ export function EditMissionModal({
     body: initialMessage,
   });
   const [media, setMedia] = useState<MissionMedia>(initialMedia ?? emptyMissionMedia);
+  const [instructions, setInstructions] = useState(initialInstructions ?? "");
   const [batchSize, setBatchSize] = useState(initialBatchSize);
   const [cooldownMinutes, setCooldownMinutes] = useState(initialCooldown);
   const [saving, setSaving] = useState(false);
@@ -63,10 +67,19 @@ export function EditMissionModal({
       setTitle(initialTitle);
       setComposer({ ...emptyComposerValue(), body: initialMessage });
       setMedia(initialMedia ?? emptyMissionMedia);
+      setInstructions(initialInstructions ?? "");
       setBatchSize(initialBatchSize);
       setCooldownMinutes(initialCooldown);
     }
-  }, [open, initialTitle, initialMessage, initialMedia, initialBatchSize, initialCooldown]);
+  }, [
+    open,
+    initialTitle,
+    initialMessage,
+    initialMedia,
+    initialInstructions,
+    initialBatchSize,
+    initialCooldown,
+  ]);
 
   async function onSubmit() {
     if (title.trim().length < 2) return toast.error("Informe um título para a missão.");
@@ -81,6 +94,7 @@ export function EditMissionModal({
           media_path: media.media_path,
           media_mime: media.media_mime,
           media_filename: media.media_filename,
+          instructions: instructions.trim() ? instructions.trim() : null,
           batch_size: batchSize,
           cooldown_minutes: cooldownMinutes,
         },
@@ -116,6 +130,25 @@ export function EditMissionModal({
           />
 
           <MissionImageUpload value={media} onChange={setMedia} />
+
+          <div>
+            <Label className="text-xs font-medium">
+              Tela de orientação (aparece antes de aceitar a missão)
+            </Label>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Explique o objetivo, o tom da conversa e o que fazer em cada situação. Deixe em branco
+              para não mostrar orientação.
+            </p>
+            <Textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={5}
+              maxLength={4000}
+              className="mt-1"
+              placeholder="Ex.: Fale como quem convida um amigo. Se a pessoa pedir pra não receber mais, use o botão 'Não quer receber'."
+            />
+          </div>
+
 
           <div className="rounded-lg border p-3 space-y-3">
             <div>
