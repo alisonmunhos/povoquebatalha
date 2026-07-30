@@ -128,45 +128,59 @@ export function PublicFormRenderer({
   } | null>(null);
 
   useEffect(() => {
+    const cacheKey = `${slug}|${recadToken ?? ""}`;
+
+    const apply = (json: { ok?: boolean; form?: Record<string, unknown> }) => {
+      if (!json.ok || !json.form) {
+        setForm(null);
+        setSectionedForm(null);
+        setLayoutMode("flat");
+        return;
+      }
+      const mode = ((json.form.layout_mode as "flat" | "sectioned" | undefined) ?? "flat");
+      setLayoutMode(mode);
+      if (mode === "sectioned") {
+        const loaded = json.form as unknown as SectionedFormDefinition;
+        setSectionedForm(loaded);
+        setForm(null);
+        if (loaded.initial_values) setValues((p) => ({ ...loaded.initial_values, ...p }));
+        const orderedSections = sortSections(loaded.sections ?? []);
+        const preferred = startSectionId ?? loaded.start_section_id;
+        const startId = preferred && orderedSections.some((s) => s.id === preferred)
+          ? preferred
+          : orderedSections[0]?.id ?? null;
+        setJourneyStartSectionId(startId);
+        setCurrentSectionId(startId);
+        const ctx = json.form.contact_context as ContactContext | null | undefined;
+        if (ctx) {
+          setContactContext(ctx);
+          setEmailAlreadyRegistered(Boolean(ctx.email_already_registered) || Boolean(ctx.has_account));
+        }
+        return;
+      }
+      setSectionedForm(null);
+      setForm(json.form as unknown as FormDefinition);
+      const initial = (json.form.initial_values as Record<string, AnswerValue> | null) ?? null;
+      if (initial) setValues((p) => ({ ...initial, ...p }));
+    };
+
+    // Reaproveita a definição já baixada nesta sessão (ex.: continuar o cadastro
+    // depois da tela de "presença confirmada"), evitando nova espera.
+    const cached = formPayloadCache.get(cacheKey);
+    if (cached) {
+      apply(cached);
+      return;
+    }
+
     const params = new URLSearchParams();
     if (recadToken) params.set("t", recadToken);
     if (startSectionId) params.set("s", startSectionId);
     const qs = params.toString();
-    const url = `/api/public/forms/${slug}${qs ? `?${qs}` : ""}`;
-    fetch(url)
+    fetch(`/api/public/forms/${slug}${qs ? `?${qs}` : ""}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!json.ok) {
-          setForm(null);
-          setSectionedForm(null);
-          setLayoutMode("flat");
-          return;
-        }
-        const mode = (json.form.layout_mode as "flat" | "sectioned" | undefined) ?? "flat";
-        setLayoutMode(mode);
-        if (mode === "sectioned") {
-          const loaded = json.form as SectionedFormDefinition;
-          setSectionedForm(loaded);
-          setForm(null);
-          if (loaded.initial_values) setValues(loaded.initial_values);
-          const sections = sortSections(loaded.sections ?? []);
-          const startId = loaded.start_section_id && sections.some((s) => s.id === loaded.start_section_id)
-            ? loaded.start_section_id
-            : sections[0]?.id ?? null;
-          setJourneyStartSectionId(startId);
-          setCurrentSectionId(startId);
-          if (json.form.contact_context) {
-            setContactContext(json.form.contact_context);
-            setEmailAlreadyRegistered(
-              Boolean(json.form.contact_context.email_already_registered) ||
-                Boolean(json.form.contact_context.has_account),
-            );
-          }
-          return;
-        }
-        setSectionedForm(null);
-        setForm(json.form);
-        if (json.form.initial_values) setValues(json.form.initial_values);
+        if (json?.ok) formPayloadCache.set(cacheKey, json);
+        apply(json);
       })
       .catch(() => {
         setForm(null);
