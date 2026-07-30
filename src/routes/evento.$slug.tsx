@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Calendar, CheckCircle2, Loader2, MapPin, XCircle } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 import { PublicFormRenderer } from "@/components/PublicFormRenderer";
+import { StepOverlay } from "@/components/StepOverlay";
+
 
 export const Route = createFileRoute("/evento/$slug")({
   validateSearch: (s: Record<string, unknown>) => ({
