@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
 
         const { data: mission, error } = await supabaseAdmin
           .from("agitation_missions")
-          .select("id,title,message_template,paused_at")
+          .select("id,title,message_template,paused_at,media_path,media_filename")
           .eq("id", params.missionId)
           .maybeSingle();
         if (error) {
@@ -89,6 +89,10 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
               id: mission.id,
               title: mission.title,
               message_template: mission.message_template,
+              media_url: mission.media_path
+                ? `/api/public/agitation-missions/${mission.id}/media`
+                : null,
+              media_filename: mission.media_filename,
             },
             tasks: (tasks ?? []).map((t) => ({
               id: t.id,
