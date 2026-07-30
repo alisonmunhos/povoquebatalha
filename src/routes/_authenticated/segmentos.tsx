@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Filter, Trash2, Users, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Filter, Trash2, Users, ArrowRight, Layers, Share2 } from "lucide-react";
 import { listSegments, deleteSegment, countSegment } from "@/lib/segments.functions";
+import { ShareTriageModal } from "@/components/swipe/ShareTriageModal";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/segmentos")({
@@ -15,6 +17,7 @@ function SegmentsPage() {
   const delFn = useServerFn(deleteSegment);
   const countFn = useServerFn(countSegment);
   const q = useQuery({ queryKey: ["segments"], queryFn: () => listFn() });
+  const [sharing, setSharing] = useState<{ id: string; nome: string } | null>(null);
 
   async function remove(id: string, nome: string) {
     if (!confirm(`Excluir segmento "${nome}"?`)) return;
@@ -24,6 +27,7 @@ function SegmentsPage() {
     const r = await countFn({ data: { id } });
     toast.info(`${r.total} contato(s)`);
   }
+
 
   return (
     <div className="p-6 md:p-10 max-w-5xl space-y-6">
