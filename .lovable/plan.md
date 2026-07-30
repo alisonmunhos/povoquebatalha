@@ -1,41 +1,29 @@
-## Diagnóstico (confirmado no código)
+## Diagnóstico (verificado no código)
 
-Na `src/routes/__root.tsx` existem metadados fixos aplicados ao app inteiro:
+**Como funcionava antes** (tela pública `/missao/$missionId/contato/$contactId`, ainda existe e funciona assim):
+- Lista **todos** os contatos da leva, agrupados por data.
+- Cada contato mostra um selo de status ("Concluído" / "Não enviado") e **os botões continuam ativos** — dá pra reenviar ou corrigir a marcação.
+- Nada some da tela.
 
-- `og:image` e `twitter:image` apontam para **um print antigo do preview** (arquivo `...-1782933848953.png` no R2) — é exatamente a miniatura com layout/cores antigos que aparece no seu WhatsApp.
-- `description` / `og:description` em inglês: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." — é o texto cinza do card.
-- Título genérico "Campanha Do Povo Que Batalha" para qualquer página.
+**Como está hoje** (tela logada `/minhas-missoes`, arquivo `src/routes/_authenticated/minhas-missoes.tsx`):
+- A lista renderiza apenas `tasks.filter(t => !t.completed_at && t.status === "pending")`.
+- O botão "Enviar" abre o WhatsApp e, logo em seguida, chama `markMyMissionTask` com status `concluido` — sem perguntar nada.
+- Resultado: assim que você clica em "Enviar" (mesmo sem enviar de fato no WhatsApp), a tarefa vira `concluido` e **desaparece da tela**. O mesmo vale para "Não enviei" (`nao_enviado`), que também some.
 
-Além disso, a rota do formulário `src/routes/f.$slug.tsx` está com `ssr: false` e sem `head()` próprio: o robô do WhatsApp não executa JavaScript, então recebe só os metadados da raiz (a imagem velha). O mesmo vale para as demais páginas públicas (`/inscrever`, `/atualizacao`, `/recadastro`, `/termos/$slug`, `/`, etc.).
+Ou seja: não é perda de dados — as tarefas continuam no banco com o novo status; a tela é que esconde tudo que não está `pending`.
 
-As rotas de evento e de missão já têm metadados corretos (feitos na etapa anterior) — o problema restante é a raiz contaminando todo o resto.
+## O que vou fazer
 
-## Plano
+Trazer o comportamento antigo para a tela logada, sem mexer no banco nem na auto-atribuição.
 
-**1. Limpar a raiz (`__root.tsx`)**
-- Remover o `og:image`/`twitter:image` fixos com o print antigo.
-- Trocar a descrição em inglês por texto em português da campanha.
-- Manter apenas defaults sitewide (título, `og:type`, `og:site_name`, `twitter:card`).
-
-**2. Imagem de compartilhamento padrão nova (1200×630)**
-- Gerar uma capa de marca com as cores atuais (#F0AA04 / #16130F / #7B4B94), logo e o nome da campanha, salva em `public/og-default.png`.
-- Usar essa imagem como `og:image` padrão nas páginas públicas que não têm imagem própria.
-
-**3. Formulários (`/f/$slug`) com prévia real**
-- Criar `getFormMeta` (server fn) buscando título e descrição do formulário publicado.
-- Trocar a rota para `ssr: "data-only"` com `loader` + `head()`, emitindo título/descrição reais do formulário, `og:url`, canonical e a imagem padrão de marca.
-
-**4. Demais páginas públicas**
-- Adicionar/ajustar `head()` com título, descrição, `og:*`, `twitter:card` e imagem padrão em: `/` (index), `/inscrever`, `/atualizacao`, `/recadastro`, `/cadastro-agitador`, `/cadastro-usuario`, `/obrigado`, `/termos/$slug`, `/auth`.
-- Revisar `/evento/$slug` e `/missao/...` para garantir que continuam com imagem própria (capa do evento / mídia da missão) e não herdam nada da raiz.
-
-**5. Cache do WhatsApp**
-- O WhatsApp guarda a prévia por link. Depois do deploy, links já enviados continuam mostrando a imagem antiga; reenviar com um parâmetro novo (ex.: `?v=2`) força a releitura. Vou avisar isso na entrega.
+1. **Não sumir mais nada**: a leva passa a listar todas as tarefas atribuídas, com selo de status (Pendente / Aguardando confirmação / Enviado / Não enviei).
+2. **Clicar em "Enviar" deixa de concluir sozinho**: abrir o WhatsApp muda a tarefa só para "aguardando confirmação" (estado local, sem gravar `concluido`), e o card mostra dois botões claros: **"Enviei"** e **"Não consegui enviar"**. Só o clique em "Enviei" grava `concluido`.
+3. **Poder corrigir**: qualquer tarefa já marcada continua com os botões ativos — "Reabrir WhatsApp" e trocar a marcação (de "Não enviei" para "Enviei" e vice-versa).
+4. **Contadores coerentes**: o cabeçalho da missão mostra total / enviados / pendentes / não enviados, e o botão "Avisar que concluí" continua alertando sobre pendentes.
+5. Mesma lógica aplicada de forma consistente com a tela pública, para as duas se comportarem igual.
 
 ## Detalhes técnicos
 
-- Metadados por rota via `head()` do `createFileRoute`; `og:image` só em rotas folha (nunca no `__root`), pois a raiz sobrescreveria as capas de evento/missão.
-- URLs absolutas montadas com `getRequestOrigin()` (já existe em `src/lib/site-origin.functions.ts`).
-- `ssr: "data-only"` nas rotas que precisam de prévia: o HTML sai do servidor com as meta tags, mas a renderização continua no cliente (sem risco de quebrar formulários que usam APIs do navegador).
-- `form_definitions` não tem coluna de capa hoje; formulários usarão a imagem de marca padrão. Se quiser capa por formulário depois, dá pra adicionar coluna + rota de imagem igual à do evento.
-- Sem mudanças de banco nesta etapa.
+- Arquivo principal: `src/routes/_authenticated/minhas-missoes.tsx` (remoção do filtro `pendingTasks` na renderização, novo estado local `awaitingConfirm: Set<taskId>`, novos botões).
+- `markMyMissionTask` em `src/lib/agitation-missions.functions.ts` já aceita `concluido` e `nao_enviado` e limpa `completed_at` quando não é concluído — serve para desfazer, sem alteração de schema.
+- Sem migration, sem mudança em `claim_mission_batch` nem no cooldown.
