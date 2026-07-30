@@ -241,11 +241,36 @@ function DupPage() {
                 {contatos.map((c2) => (
                   <div
                     key={c2.id}
-                    className={`rounded-lg border p-3 text-sm ${
-                      sugerido?.id === c2.id ? "border-primary bg-primary/5" : "bg-background"
+                    className={`rounded-lg border p-3 text-sm relative ${
+                      marcados.includes(c2.id)
+                        ? "border-destructive bg-destructive/5"
+                        : sugerido?.id === c2.id
+                          ? "border-primary bg-primary/5"
+                          : "bg-background"
                     }`}
                   >
-                    <div className="font-semibold truncate">{c2.nome ?? "Sem nome"}</div>
+                    {podeExcluir && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1">
+                        <Checkbox
+                          checked={marcados.includes(c2.id)}
+                          onCheckedChange={() => toggleSelected(g.key, c2.id)}
+                          aria-label={`Selecionar ${c2.nome ?? "cadastro"} para excluir`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => abrirExclusao([c2.id])}
+                          disabled={contatos.length < 2}
+                          title="Excluir este cadastro"
+                          aria-label={`Excluir ${c2.nome ?? "cadastro"}`}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    <div className={`font-semibold truncate ${podeExcluir ? "pr-16" : ""}`}>
+                      {c2.nome ?? "Sem nome"}
+                    </div>
                     <div className="text-xs text-muted-foreground tabular-nums">
                       {formatPhoneBR(c2.phone_e164 ?? null) || c2.phone_raw || "sem telefone"}
                     </div>
