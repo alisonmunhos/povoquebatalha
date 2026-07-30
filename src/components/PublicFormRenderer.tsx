@@ -73,6 +73,13 @@ type SectionedFormDefinition = {
 };
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 
+/**
+ * Cache em memória da definição pública do formulário (por slug + token), para
+ * remontagens do renderizador não pagarem outra viagem ao servidor.
+ */
+const formPayloadCache = new Map<string, { ok?: boolean; form?: Record<string, unknown> }>();
+
+
 export function PublicFormRenderer({
   slug, refToken, recadToken, startSectionId, eventSlug, eventRsvpStatus, onEventConfirmed,
   presentation = "inline", primaryActionLabel, onExit,
