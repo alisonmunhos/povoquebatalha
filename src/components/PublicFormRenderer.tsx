@@ -499,7 +499,106 @@ export function PublicFormRenderer({
     ))
     : false;
 
+  const isFirstStep = sectionHistory.length === 0;
+  const sectionSubmitLabel = submitting
+    ? "Enviando…"
+    : isFirstStep && primaryActionLabel
+      ? primaryActionLabel
+      : hasNextSection
+        ? "Continuar"
+        : "Enviar";
+
+  const sectionFields = sectionedForm && currentSection ? (
+    <>
+      {currentSection.description?.trim() && (
+        <p className="text-sm text-muted-foreground">{currentSection.description.trim()}</p>
+      )}
+      <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
+      {isAccountSection && (
+        <AccountCreationFields
+          email={contactContext?.email ?? ""}
+          nome={contactContext?.nome ?? ""}
+          phone={contactContext?.phone ?? ""}
+          emailAlreadyRegistered={emailAlreadyRegistered}
+          password={accountPassword}
+          passwordConfirm={accountPasswordConfirm}
+          showPassword={showPassword}
+          onPasswordChange={setAccountPassword}
+          onPasswordConfirmChange={setAccountPasswordConfirm}
+          onToggleShowPassword={() => setShowPassword((p) => !p)}
+        />
+      )}
+      {sectionQuestions
+        .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
+        .map((q) => (
+          <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
+        ))}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </>
+  ) : null;
+
+  const sectionSubmitButton = (
+    <button
+      type="submit"
+      disabled={submitting}
+      className="w-full rounded-md bg-primary text-primary-foreground py-3 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+    >
+      {isFirstStep && primaryActionLabel ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      {sectionSubmitLabel}
+    </button>
+  );
+
+  // ===== Modo sobreposto: cada etapa cobre a tela anterior, com "Voltar" =====
+  if (presentation === "overlay") {
+    if (isLoading) {
+      return (
+        <StepOverlay title="Carregando…" onClose={onExit}>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+          </div>
+        </StepOverlay>
+      );
+    }
+    if (isMissing || isSectionedMissing) {
+      return (
+        <StepOverlay title="Formulário indisponível" onClose={onExit}>
+          <p className="text-muted-foreground">Formulário não encontrado ou indisponível.</p>
+        </StepOverlay>
+      );
+    }
+    if (success) {
+      return (
+        <StepOverlay title="Tudo certo!" onClose={onExit}>
+          <SuccessScreen
+            nome={success.nome}
+            whatsappButton={success.whatsapp_button}
+            confirmationEnabled={success.confirmation_enabled}
+            order={success.success_screen_order}
+            pushEnabled={success.push_button_enabled}
+            contactId={success.contact_id}
+            contactToken={success.contact_recad_token}
+            linkedEvent={success.linked_event}
+          />
+        </StepOverlay>
+      );
+    }
+    if (layoutMode === "sectioned" && sectionedForm && currentSection) {
+      return (
+        <StepOverlay
+          title={sectionTitle}
+          subtitle={progressLabel}
+          onBack={isFirstStep && !onExit ? undefined : goBack}
+          onSubmit={onContinueSectioned}
+          footer={sectionSubmitButton}
+        >
+          <div className="space-y-5">{sectionFields}</div>
+        </StepOverlay>
+      );
+    }
+  }
+
   return (
+
     <div className="min-h-screen bg-muted/20" translate="no">
       <header className="border-b bg-background">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center">
