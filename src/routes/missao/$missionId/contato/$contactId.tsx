@@ -230,6 +230,30 @@ function MissionExecutorPage() {
             {tasks.length} contato(s) atribuído(s) a você · {pendentes} pendente(s)
           </p>
         </div>
+        {mission.media_url && (
+          <div className="flex items-center gap-3 rounded-lg border bg-background p-3">
+            <img
+              src={mission.media_url}
+              alt="Imagem da missão"
+              className="h-16 w-16 rounded object-cover"
+            />
+            <div className="flex-1 min-w-[120px]">
+              <p className="text-xs font-medium">Imagem para enviar junto</p>
+              <p className="text-[11px] text-muted-foreground">
+                Baixe e anexe no WhatsApp junto com a mensagem.
+              </p>
+            </div>
+            <a
+              href={mission.media_url}
+              download={mission.media_filename ?? "imagem-da-missao"}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted"
+            >
+              Baixar
+            </a>
+          </div>
+        )}
         {groups.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Nenhum contato atribuído a você nesta missão.
