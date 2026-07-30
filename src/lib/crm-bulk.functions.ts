@@ -144,56 +144,31 @@ export const idsByFilter = createServerFn({ method: "POST" })
     const excludeSet = rel.excludeIds;
 
     const allowedSet = allowedIds ? new Set(allowedIds) : null;
-      const { pageIds, total: t } = await paginateWithAllowedIds({
-        buildIdQuery: () => buildQuery("id", false) as never,
-        allowed: {
-          has: (id: string) => (allowedSet ? allowedSet.has(id) : true) && !excludeSet.has(id),
-        } as Set<string>,
-        from,
-        pageSize: data.pageSize,
-      });
-      total = t;
-      if (pageIds.length) {
-        const { data: pageRows, error } = await context.supabase
-          .from("contacts")
-          .select(CONTACT_LIST_COLS)
-          .in("id", pageIds);
-        if (error) throw error;
-        const byId = new Map(((pageRows ?? []) as unknown as ContactRichRow[]).map((r) => [r.id, r]));
-        rows = pageIds.map((id) => byId.get(id)).filter(Boolean) as ContactRichRow[];
-      }
-    } else {
-      let q = buildQuery(CONTACT_LIST_COLS, true).range(from, to);
-      if (allowedIds?.length) q = q.in("id", allowedIds);
-      const { data: r, count, error } = await q;
-      if (error) throw error;
-      rows = (r ?? []) as unknown as ContactRichRow[];
-      total = count ?? 0;
-    }
+    const inlineAllowed = allowedIds && allowedIds.length <= INLINE_ID_LIMIT ? allowedIds : null;
 
+    // Busca paginada de verdade: o PostgREST devolve no máximo 1.000 linhas por
+    // chamada, então percorremos em blocos até atingir `max` ou esgotar.
+    const rows = await fetchAllPaged<{ id: string }>(
+      () => {
+        let q = context.supabase.from("contacts").select("id").order("created_at", { ascending: false });
+        q = applyCrmFilters(q as never, data.filters as CrmFilters);
+        if (inlineAllowed) q = q.in("id", inlineAllowed);
+        if (excludeSet.size && excludeSet.size <= INLINE_ID_LIMIT) {
+          q = q.not("id", "in", `(${Array.from(excludeSet).map((v) => `"${v}"`).join(",")})`);
+        }
+        return q as never;
+      },
+      { hardCap: 100_000 },
+    );
 
-    // Tags por contato
-    const ids = rows.map((r) => r.id);
-    let tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
-    if (ids.length) {
-      const { data: rels } = await context.supabase
-        .from("contact_tags")
-        .select("contact_id, tags(id,nome,cor)")
-        .in("contact_id", ids);
-      tagMap = (rels ?? []).reduce<typeof tagMap>((acc, r) => {
-        const t = r.tags as { id: string; nome: string; cor: string } | null;
-        if (!t) return acc;
-        (acc[r.contact_id] ??= []).push(t);
-        return acc;
-      }, {});
-    }
+    const all = rows
+      .map((r) => r.id)
+      .filter((id) => (allowedSet ? allowedSet.has(id) : true) && !excludeSet.has(id));
 
-    return {
-      rows: rows.map((r) => ({ ...r, tags: tagMap[r.id] ?? [] })),
-      total,
-      page: data.page,
-      pageSize: data.pageSize,
-    };
+    const ids = all.slice(0, data.max);
+    // `total` é a contagem real do filtro; `truncated` avisa a interface que a
+    // seleção não cobre todos os contatos filtrados (limite de segurança `max`).
+    return { ids, total: all.length, truncated: all.length > ids.length };
   });
 
 
