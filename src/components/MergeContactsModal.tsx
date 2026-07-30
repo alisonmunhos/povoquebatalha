@@ -11,7 +11,6 @@ import { getMergeCandidates, mergeContactsBulk } from "@/lib/duplicates.function
 import { formatPhoneBR } from "@/lib/phone";
 import {
   CONFIANCA_LABEL,
-  requiresTypedConfirmation,
   suggestSurvivor,
   survivorReason,
   type MergeCandidate,
@@ -76,7 +75,7 @@ export function MergeContactsModal({
   const [survivorId, setSurvivorId] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [motivo, setMotivo] = useState("");
-  const [confirmText, setConfirmText] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const suggested = useMemo(() => suggestSurvivor(rows), [rows]);
@@ -89,12 +88,35 @@ export function MergeContactsModal({
 
   const survivor = rows.find((r) => r.id === survivorId) ?? null;
   const others = rows.filter((r) => r.id !== survivorId);
-  const needsTyped = requiresTypedConfirmation(matchType);
-  const canMerge = !!survivor && others.length > 0 && (!needsTyped || confirmText.trim() === "MESCLAR");
+  const canMerge = !!survivor && others.length > 0;
+
+  /** Campos com valor diferente nos dois lados — só esses exigem decisão. */
+  const conflitos = useMemo(() => {
+    if (!survivor) return [];
+    return [...TEXT_FIELDS, ...BOOL_FIELDS]
+      .map((f) => {
+        const sv = val(survivor, f.key);
+        const alt = [...new Set(others.map((o) => val(o, f.key)).filter((v) => v !== "—" && v !== sv))];
+        return { ...f, sv, alt };
+      })
+      .filter((f) => f.sv !== "—" && f.alt.length > 0);
+  }, [survivor, others]);
+
+  /** Campos vazios no sobrevivente que serão preenchidos sozinhos. */
+  const herdados = useMemo(() => {
+    if (!survivor) return [];
+    return [...TEXT_FIELDS, ...BOOL_FIELDS]
+      .filter((f) => {
+        const sv = val(survivor, f.key);
+        return sv === "—" && others.some((o) => val(o, f.key) !== "—");
+      })
+      .map((f) => f.label);
+  }, [survivor, others]);
 
   async function doMerge() {
     if (!survivor) return;
     setSaving(true);
+    setErro(null);
     try {
       const res = await mergeFn({
         data: {
@@ -105,12 +127,17 @@ export function MergeContactsModal({
           confianca: (matchType as "forte" | "provavel" | "possivel") ?? "provavel",
         },
       });
-      if (res.ok) toast.success(`${res.merged.length} contato(s) unificado(s) com sucesso.`);
-      else toast.warning(`${res.merged.length} unificado(s), ${res.falhas.length} com erro.`);
-      onMerged();
-      onClose();
+      if (res.ok) {
+        toast.success(`${res.merged.length} contato(s) unificado(s) com sucesso.`);
+        onMerged();
+        onClose();
+        return;
+      }
+      // Falha parcial ou total: mantém a tela aberta e mostra o motivo real.
+      setErro(res.falhas.map((f) => f.erro).join(" · "));
+      if (res.merged.length > 0) onMerged();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível mesclar.");
+      setErro(e instanceof Error ? e.message : "Não foi possível unificar.");
     } finally {
       setSaving(false);
     }
