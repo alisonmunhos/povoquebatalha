@@ -49,10 +49,24 @@ export const deleteSegment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { data: usadas } = await context.supabase
+      .from("campaigns")
+      .select("nome")
+      .eq("segment_id", data.id)
+      .limit(5);
+
+    if (usadas?.length) {
+      const nomes = usadas.map((c: { nome: string }) => c.nome).join(", ");
+      throw new Error(
+        `Este segmento está sendo usado em ${usadas.length} campanha(s) (${nomes}). Exclua ou troque o público dessas campanhas antes de remover o segmento.`,
+      );
+    }
+
     const { error } = await context.supabase.from("segments").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true as const };
   });
+
 
 export const countSegment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
