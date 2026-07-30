@@ -154,12 +154,15 @@ export function NotificationBell() {
   });
 
   useEffect(() => {
-    let userId: string | null = null;
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
     supabase.auth.getUser().then(({ data }) => {
-      userId = data.user?.id ?? null;
-      if (!userId) return;
-      const channel = supabase
-        .channel(`notif-${userId}`)
+      const userId = data.user?.id ?? null;
+      if (!userId || cancelled) return;
+      const existing = (window as unknown as { __notifChannel?: unknown }).__notifChannel;
+      if (existing) supabase.removeChannel(existing as never);
+      channel = supabase
+        .channel(`notif-${userId}-${Math.random().toString(36).slice(2)}`)
         .on(
           "postgres_changes",
           {
@@ -174,16 +177,19 @@ export function NotificationBell() {
             // Toca o som exclusivo quando o app está aberto.
             playPqbNotificationSound();
           },
-
         )
         .subscribe();
       (window as unknown as { __notifChannel?: unknown }).__notifChannel = channel;
     });
     return () => {
-      const ch = (window as unknown as { __notifChannel?: { unsubscribe: () => void } }).__notifChannel;
-      if (ch) supabase.removeChannel(ch as never);
+      cancelled = true;
+      if (channel) {
+        supabase.removeChannel(channel);
+        (window as unknown as { __notifChannel?: unknown }).__notifChannel = undefined;
+      }
     };
   }, [qc]);
+
 
   const unread = countQ.data?.unread ?? 0;
   const items = (listQ.data?.notifications ?? []) as Notification[];

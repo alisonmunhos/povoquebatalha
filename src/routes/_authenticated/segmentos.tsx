@@ -21,8 +21,15 @@ function SegmentsPage() {
 
   async function remove(id: string, nome: string) {
     if (!confirm(`Excluir segmento "${nome}"?`)) return;
-    await delFn({ data: { id } }); toast.success("Segmento excluído"); q.refetch();
+    try {
+      await delFn({ data: { id } });
+      toast.success("Segmento excluído");
+      q.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível excluir o segmento");
+    }
   }
+
   async function showCount(id: string) {
     const r = await countFn({ data: { id } });
     toast.info(`${r.total} contato(s)`);
