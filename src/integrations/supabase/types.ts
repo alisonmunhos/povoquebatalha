@@ -881,6 +881,7 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           score: number | null
+          snoozed_until: string | null
           status: string
         }
         Insert: {
@@ -893,6 +894,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           score?: number | null
+          snoozed_until?: string | null
           status?: string
         }
         Update: {
@@ -905,6 +907,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           score?: number | null
+          snoozed_until?: string | null
           status?: string
         }
         Relationships: [

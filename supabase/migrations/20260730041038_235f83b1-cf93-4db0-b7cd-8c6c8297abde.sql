@@ -1,0 +1,2 @@
+ALTER TABLE public.contact_duplicates ADD COLUMN IF NOT EXISTS snoozed_until timestamptz;
+CREATE INDEX IF NOT EXISTS idx_contact_duplicates_pending ON public.contact_duplicates (status, snoozed_until);
