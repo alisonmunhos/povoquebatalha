@@ -57,6 +57,7 @@ export function EditMissionModal({
     body: initialMessage,
   });
   const [media, setMedia] = useState<MissionMedia>(initialMedia ?? emptyMissionMedia);
+  const [instructions, setInstructions] = useState(initialInstructions ?? "");
   const [batchSize, setBatchSize] = useState(initialBatchSize);
   const [cooldownMinutes, setCooldownMinutes] = useState(initialCooldown);
   const [saving, setSaving] = useState(false);
@@ -66,10 +67,19 @@ export function EditMissionModal({
       setTitle(initialTitle);
       setComposer({ ...emptyComposerValue(), body: initialMessage });
       setMedia(initialMedia ?? emptyMissionMedia);
+      setInstructions(initialInstructions ?? "");
       setBatchSize(initialBatchSize);
       setCooldownMinutes(initialCooldown);
     }
-  }, [open, initialTitle, initialMessage, initialMedia, initialBatchSize, initialCooldown]);
+  }, [
+    open,
+    initialTitle,
+    initialMessage,
+    initialMedia,
+    initialInstructions,
+    initialBatchSize,
+    initialCooldown,
+  ]);
 
   async function onSubmit() {
     if (title.trim().length < 2) return toast.error("Informe um título para a missão.");
