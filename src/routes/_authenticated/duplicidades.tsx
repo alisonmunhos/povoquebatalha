@@ -358,6 +358,7 @@ function DupPage() {
                           className="text-destructive"
                           onClick={() => abrirExclusao(contatos.map((c2) => c2.id))}
                         >
+                          Excluir todos os cadastros deste bloco
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setSelected((p) => ({ ...p, [g.key]: contatos.map((c2) => c2.id) }))}
