@@ -211,18 +211,36 @@ type DupPairRow = {
   reason: string | null;
   score: number | null;
   created_at: string;
+  status?: string;
+  snoozed_until?: string | null;
+  resolved_at?: string | null;
 };
 
-/** Duplicidades pendentes agrupadas por pessoa (componentes conectados). */
-export const listDuplicateGroups = createServerFn({ method: "GET" })
+export type DuplicateView = "revisar" | "adiados" | "decididos";
+
+/** Duplicidades agrupadas por pessoa (componentes conectados), por aba. */
+export const listDuplicateGroups = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: pairs, error } = await context.supabase
+  .inputValidator((d: unknown) =>
+    z.object({ view: z.enum(["revisar", "adiados", "decididos"]).default("revisar") }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const nowIso = new Date().toISOString();
+    let query = context.supabase
       .from("contact_duplicates")
-      .select("id,contact_a,contact_b,match_type,reason,score,created_at")
-      .eq("status", "pendente")
+      .select("id,contact_a,contact_b,match_type,reason,score,created_at,status,snoozed_until,resolved_at");
+
+    if (data.view === "revisar") {
+      query = query.eq("status", "pendente").or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`);
+    } else if (data.view === "adiados") {
+      query = query.eq("status", "pendente").gt("snoozed_until", nowIso);
+    } else {
+      query = query.in("status", ["separados", "ignorado", "mesclado"]);
+    }
+
+    const { data: pairs, error } = await query
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(data.view === "decididos" ? 200 : 500);
     if (error) throw error;
     const rows = (pairs ?? []) as DupPairRow[];
 
@@ -251,16 +269,26 @@ export const listDuplicateGroups = createServerFn({ method: "GET" })
 
     const groups = new Map<
       string,
-      { key: string; contacts: ContactRow[]; pairs: DupPairRow[]; match_type: string }
+      {
+        key: string;
+        contacts: ContactRow[];
+        pairs: DupPairRow[];
+        match_type: string;
+        snoozed_until: string | null;
+        status: string;
+      }
     >();
     for (const p of rows) {
       const key = find(p.contact_a);
-      const g = groups.get(key) ?? { key, contacts: [], pairs: [], match_type: "possivel" };
+      const g =
+        groups.get(key) ??
+        { key, contacts: [], pairs: [], match_type: "possivel", snoozed_until: null, status: p.status ?? "pendente" };
       for (const cid of [p.contact_a, p.contact_b]) {
         const c = byId.get(cid);
         if (c && !g.contacts.some((x) => x.id === cid)) g.contacts.push(c);
       }
       g.pairs.push(p);
+      if (p.snoozed_until && (!g.snoozed_until || p.snoozed_until > g.snoozed_until)) g.snoozed_until = p.snoozed_until;
       const rank: Record<string, number> = { possivel: 0, provavel: 1, forte: 2 };
       if ((rank[p.match_type] ?? 0) > (rank[g.match_type] ?? 0)) g.match_type = p.match_type;
       groups.set(key, g);
@@ -276,20 +304,83 @@ export const listDuplicateGroups = createServerFn({ method: "GET" })
     };
   });
 
-/** Marca todos os pares pendentes de um grupo como resolvidos. */
+/** Contagens das abas (para revisar, adiados, já decididos). */
+export const countDuplicateQueues = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const nowIso = new Date().toISOString();
+    const [revisar, adiados, decididos] = await Promise.all([
+      context.supabase
+        .from("contact_duplicates")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`),
+      context.supabase
+        .from("contact_duplicates")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .gt("snoozed_until", nowIso),
+      context.supabase
+        .from("contact_duplicates")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["separados", "ignorado", "mesclado"]),
+    ]);
+    return {
+      revisar: revisar.count ?? 0,
+      adiados: adiados.count ?? 0,
+      decididos: decididos.count ?? 0,
+    };
+  });
+
+/** Aplica uma decisão a todos os pares de um grupo. */
 export const resolveDuplicateGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ pair_ids: z.array(z.string().uuid()).min(1), action: z.enum(["separados", "ignorar"]) }).parse(d),
+    z
+      .object({
+        pair_ids: z.array(z.string().uuid()).min(1),
+        action: z.enum(["separados", "arquivar", "adiar", "reabrir"]),
+        dias: z.number().int().min(1).max(365).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem decidir sobre contatos repetidos.");
+
+    const nowIso = new Date().toISOString();
+    let patch: Record<string, unknown>;
+    if (data.action === "adiar") {
+      const dias = data.dias ?? 7;
+      patch = {
+        status: "pendente",
+        snoozed_until: new Date(Date.now() + dias * 86400000).toISOString(),
+        resolved_at: null,
+        resolved_by: context.userId,
+      };
+    } else if (data.action === "reabrir") {
+      patch = { status: "pendente", snoozed_until: null, resolved_at: null, resolved_by: context.userId };
+    } else {
+      patch = {
+        status: data.action === "arquivar" ? "ignorado" : "separados",
+        snoozed_until: null,
+        resolved_at: nowIso,
+        resolved_by: context.userId,
+      };
+    }
+
+    const { data: updated, error } = await context.supabase
       .from("contact_duplicates")
-      .update({ status: data.action, resolved_at: new Date().toISOString(), resolved_by: context.userId })
-      .in("id", data.pair_ids);
+      .update(patch)
+      .in("id", data.pair_ids)
+      .select("id");
     if (error) throw error;
-    return { ok: true as const };
+    const afetados = updated?.length ?? 0;
+    if (afetados === 0) {
+      throw new Error("Nada foi alterado — você pode não ter permissão para decidir sobre contatos repetidos.");
+    }
+    return { ok: true as const, afetados };
   });
+
 
 /** Revarre a base procurando duplicidades ainda não registradas (em blocos). */
 export const rescanDuplicates = createServerFn({ method: "POST" })
