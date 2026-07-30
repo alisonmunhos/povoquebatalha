@@ -62,6 +62,22 @@ export function ActiveFiltersChips({
     chips.push({ key: `ch-${ch}`, label: `Canal: ${label}`, onRemove: removeFromArr("capture_channels", ch) });
   }
   for (const v of filters.tracking_points ?? []) chips.push({ key: `tp-${v}`, label: `Rastreio: ${v}`, onRemove: removeFromArr("tracking_points", v) });
+  for (const v of filters.tracking_form_ids ?? [])
+    chips.push({ key: `tf-${v}`, label: `Formulário: ${findLabel(options?.formularios, v)}`, onRemove: removeFromArr("tracking_form_ids", v) });
+  if (filters.created_desde) chips.push({ key: "cd-de", label: `Cadastrado desde: ${filters.created_desde}`, onRemove: remove("created_desde") });
+  if (filters.created_ate) chips.push({ key: "cd-ate", label: `Cadastrado até: ${filters.created_ate}`, onRemove: remove("created_ate") });
+  if (filters.missao_recebida)
+    chips.push({ key: "mis", label: `Recebeu missão: ${filters.missao_recebida === "sim" ? "sim" : "não"}`, onRemove: remove("missao_recebida") });
+  if (filters.missao_id)
+    chips.push({ key: "mis-id", label: `Missão: ${findLabel(options?.missoes, filters.missao_id)}`, onRemove: remove("missao_id") });
+  if (filters.evento_rsvp) {
+    const l = filters.evento_rsvp === "sim" ? "confirmou" : filters.evento_rsvp === "recusou" ? "recusou" : "não confirmou";
+    chips.push({ key: "ev", label: `Evento: ${l}`, onRemove: remove("evento_rsvp") });
+  }
+  if (filters.evento_id)
+    chips.push({ key: "ev-id", label: `Evento: ${findLabel(options?.eventos, filters.evento_id)}`, onRemove: remove("evento_id") });
+  if (filters.respondeu_mensagem)
+    chips.push({ key: "resp", label: `Já respondeu: ${filters.respondeu_mensagem === "sim" ? "sim" : "não"}`, onRemove: remove("respondeu_mensagem") });
   for (const v of filters.captured_by_user_ids ?? []) {
     chips.push({
       key: `cb-${v}`,

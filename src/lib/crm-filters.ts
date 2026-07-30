@@ -56,6 +56,7 @@ export const crmFilterSchema = z.object({
   faixa_etaria: z.string().optional(),
   faixas_etarias: z.array(z.string()).optional(),
   rede_social: z.string().trim().optional(),
+  rede_social_values: z.array(z.string()).optional(),
   zona_eleitoral: z.string().trim().optional(),
   zona_eleitoral_values: z.array(z.string()).optional(),
   como_conheceu: z.string().trim().optional(),
@@ -115,6 +116,14 @@ export const crmFilterSchema = z.object({
   erro_campanha_id: z.string().uuid().optional(),
   recebeu_template_id: z.string().uuid().optional(),
   nao_recebeu_template_id: z.string().uuid().optional(),
+
+  // Histórico — missões de agitação, eventos, formulários e respostas
+  missao_recebida: z.enum(["sim", "nao"]).optional(),
+  missao_id: z.string().uuid().optional(),
+  evento_rsvp: z.enum(["sim", "nao", "recusou"]).optional(),
+  evento_id: z.string().uuid().optional(),
+  tracking_form_ids: z.array(z.string().uuid()).optional(),
+  respondeu_mensagem: z.enum(["sim", "nao"]).optional(),
 
   // Filtros usados pela planilha BI (contatos-bi)
   formas_ajuda_outro: z.string().trim().optional(),
@@ -233,9 +242,28 @@ export async function paginateWithAllowedIds(opts: {
 
 
 
-/** Remove caracteres que quebram o parser de `.or()` do PostgREST. */
+/**
+ * Valor de texto usado direto em `.ilike(col, valor)` — o cliente já escapa,
+ * então basta normalizar espaços (nada de apagar caracteres do usuário).
+ */
 function safe(v: string): string {
-  return v.replace(/[,()"%]/g, " ").trim();
+  return v.trim();
+}
+
+/**
+ * Envolve o valor em aspas para uso dentro de `.or(...)`, que é parseado pelo
+ * PostgREST. Aspas preservam vírgulas, parênteses e espaços — antes esses
+ * caracteres eram apagados e valores como "Jardim América (Zona 2)" nunca
+ * casavam com eles mesmos.
+ */
+function quoteOrValue(v: string): string {
+  return `"${v.trim().replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+function orIlike(col: string, value: string): string {
+  return `${col}.ilike.${quoteOrValue(value)}`;
+}
+function orIlikeContains(col: string, text: string): string {
+  return `${col}.ilike.${quoteOrValue(`%${text.trim()}%`)}`;
 }
 
 const SEARCH_COLS = [
@@ -259,7 +287,7 @@ function applyExactIlikeArrayFilter<T extends {
 }>(q: T, col: string, arr: string[] | undefined): T {
   if (!arr?.length) return q;
   const { values, empty } = splitEmptyToken(arr);
-  const clauses: string[] = values.map((v) => `${col}.ilike.${safe(v)}`);
+  const clauses: string[] = values.map((v) => orIlike(col, v));
   if (empty) clauses.push(`${col}.is.null`);
   if (!clauses.length) return q;
   return q.or(clauses.join(","));
@@ -307,8 +335,9 @@ function applyTextContainsEmptyFilter<T extends {
   empty: boolean | undefined,
 ): T {
   const text = contains?.trim();
+  if (text && !empty) return q.ilike(col, `%${text}%`);
   const clauses: string[] = [];
-  if (text) clauses.push(`${col}.ilike.%${safe(text)}%`);
+  if (text) clauses.push(orIlikeContains(col, text));
   if (empty) {
     clauses.push(`${col}.is.null`);
     clauses.push(`${col}.eq.`);
@@ -318,8 +347,6 @@ function applyTextContainsEmptyFilter<T extends {
     const c = clauses[0]!;
     if (c.endsWith(".is.null")) return q.is(col, null);
     if (c.endsWith(".eq.")) return q.eq(col, "");
-    const match = c.match(/^(.+)\.ilike\.%(.+)%$/);
-    if (match) return q.ilike(match[1]!, `%${match[2]}%`);
   }
   return q.or(clauses.join(","));
 }
@@ -345,7 +372,7 @@ export function applyCrmFilters<T extends {
     // (coluna já gravada em minúsculas e sem acento), os demais campos seguem ilike.
     const s = safe(f.search);
     const norm = normalizeSearchTerm(f.search);
-    const clauses = SEARCH_COLS.filter((c) => s).map((c) => `${c}.ilike.%${s}%`);
+    const clauses = s ? SEARCH_COLS.map((c) => orIlikeContains(c, s)) : [];
     if (norm) clauses.push(`nome_normalizado.ilike.%${norm}%`);
     if (clauses.length) q = q.or(clauses.join(","));
   }
@@ -442,7 +469,11 @@ export function applyCrmFilters<T extends {
     else if (empty) q = q.is("faixa_etaria", null);
     else if (values.length) q = q.in("faixa_etaria", values);
   }
-  if (f.rede_social) q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
+  if (f.rede_social_values?.length) {
+    q = applyExactIlikeArrayFilter(q, "rede_social", f.rede_social_values);
+  } else if (f.rede_social) {
+    q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
+  }
   if (f.zona_eleitoral_values?.length) {
     q = applyExactIlikeArrayFilter(q, "zona_eleitoral", f.zona_eleitoral_values);
   } else if (f.zona_eleitoral) {
@@ -462,7 +493,7 @@ export function applyCrmFilters<T extends {
   }
   if (f.origem_detalhe) q = q.ilike("origem_detalhe", `%${safe(f.origem_detalhe)}%`);
   if (f.origem_detalhes?.length) {
-    q = q.or(f.origem_detalhes.map((v) => `origem_detalhe.ilike.${safe(v)}`).join(","));
+    q = q.or(f.origem_detalhes.map((v) => orIlike("origem_detalhe", v)).join(","));
   }
 
   // Origem e captação (Bloco C)
@@ -470,7 +501,7 @@ export function applyCrmFilters<T extends {
   if (f.tracking_points?.length) {
     const { values, empty } = splitEmptyToken(f.tracking_points);
     if (empty && values.length) {
-      q = q.or(`active_tracking_label.in.(${values.map((v) => `"${safe(v)}"`).join(",")}),active_tracking_label.is.null`);
+      q = q.or(`active_tracking_label.in.(${values.map((v) => quoteOrValue(v)).join(",")}),active_tracking_label.is.null`);
     } else if (empty) q = q.is("active_tracking_label", null);
     else if (values.length) q = q.in("active_tracking_label", values);
   }
@@ -492,6 +523,7 @@ export function applyCrmFilters<T extends {
   if (f.source_modules?.length) q = q.in("primary_source_module", f.source_modules);
   if (f.source_form_types?.length) q = q.in("source_form_type", f.source_form_types);
   if (f.sem_rastreio_fino || f.sem_origem_rastreada) q = q.is("active_tracking_label", null);
+  if (f.tracking_form_ids?.length) q = q.in("active_tracking_form_id", f.tracking_form_ids);
   if (f.captado_desde) q = q.gte("source_captured_at", `${f.captado_desde}T00:00:00`);
   if (f.captado_ate) q = q.lte("source_captured_at", `${f.captado_ate}T23:59:59.999Z`);
   if (f.is_system_user === "sim") q = q.eq("is_system_user", true);
@@ -511,7 +543,7 @@ export function applyCrmFilters<T extends {
   if (f.apto_envio === "sim") {
     q = q.eq("consentimento_whatsapp", true)
          .is("opt_out_at", null)
-         .not("lifecycle_status", "eq", "nao_enviar")
+         .or("lifecycle_status.is.null,lifecycle_status.neq.nao_enviar")
          .eq("phone_status", "valido");
   }
   if (f.apto_envio === "nao") {
@@ -538,7 +570,7 @@ export function applyCrmFilters<T extends {
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);
   if (f.optOut === "nao") q = q.is("opt_out_at", null);
   if (f.bloqueado === "sim") q = q.eq("lifecycle_status", "nao_enviar" as never);
-  if (f.bloqueado === "nao") q = q.not("lifecycle_status", "eq", "nao_enviar");
+  if (f.bloqueado === "nao") q = q.or("lifecycle_status.is.null,lifecycle_status.neq.nao_enviar");
   if (f.phone_status) q = q.eq("phone_status", f.phone_status);
   if (f.phone_statuses?.length) {
     const { values, empty } = splitEmptyToken(f.phone_statuses);
@@ -583,8 +615,7 @@ export function applyCrmFilters<T extends {
     const text = f.phone_contains?.trim();
     const clauses: string[] = [];
     if (text) {
-      const s = safe(text);
-      clauses.push(`phone_raw.ilike.%${s}%`, `phone_e164.ilike.%${s}%`);
+      clauses.push(orIlikeContains("phone_raw", text), orIlikeContains("phone_e164", text));
     }
     if (f.phone_empty) {
       clauses.push("phone_raw.is.null", "phone_e164.is.null");
@@ -596,7 +627,7 @@ export function applyCrmFilters<T extends {
     const clauses: string[] = [];
     if (s) {
       for (const col of ["endereco", "bairro", "cidade", "cep", "complemento", "referencia", "numero"]) {
-        clauses.push(`${col}.ilike.%${s}%`);
+        clauses.push(orIlikeContains(col, s));
       }
     }
     if (f.endereco_empty) {
@@ -626,4 +657,118 @@ export function applyCrmFilters<T extends {
   }
 
   return q;
+}
+
+
+/**
+ * Filtros que dependem de outras tabelas (tags, campanhas, automações,
+ * missões de agitação, eventos e respostas recebidas). Resolve tudo em uma
+ * única função para que listagem, exportação e seleção usem exatamente as
+ * mesmas regras.
+ */
+export type RelationalFilterResult = {
+  allowedIds: string[] | null;
+  excludeIds: Set<string>;
+  noMatch: boolean;
+};
+
+const EMPTY_RELATIONAL: RelationalFilterResult = { allowedIds: [], excludeIds: new Set(), noMatch: true };
+
+export async function resolveRelationalFilterIds(
+  supabase: TagFilterSupabase,
+  f: CrmFilters,
+): Promise<RelationalFilterResult> {
+  const sb = supabase as any;
+  let allowedIds: string[] | null = null;
+  const excludeIds = new Set<string>();
+
+  function intersect(ids: string[]) {
+    const set = new Set(ids);
+    allowedIds = allowedIds ? allowedIds.filter((id) => set.has(id)) : Array.from(set);
+  }
+  async function distinctContactIds(build: () => unknown): Promise<string[]> {
+    const rows = await fetchAllPaged<{ contact_id: string | null }>(build as never);
+    return Array.from(new Set(rows.map((r) => r.contact_id).filter(Boolean) as string[]));
+  }
+
+  if (f.tag_ids?.length) {
+    const { ids, noMatch } = await resolveContactIdsForTagFilter(supabase, f.tag_ids);
+    if (noMatch) return EMPTY_RELATIONAL;
+    if (ids?.length) allowedIds = ids;
+  }
+
+  const idsForCampaign = (campaignId: string, statuses?: string[]) =>
+    distinctContactIds(() => {
+      let qr = sb.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
+      if (statuses?.length) qr = qr.in("status", statuses);
+      return qr;
+    });
+  const idsForTemplate = (templateId: string) =>
+    distinctContactIds(() =>
+      sb.from("automation_deliveries").select("contact_id").eq("template_id", templateId).eq("status", "sent"),
+    );
+  const idsForMission = () =>
+    distinctContactIds(() => {
+      let qr = sb.from("agitation_tasks").select("contact_id").eq("status", "concluido");
+      if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
+      return qr;
+    });
+  const idsForEvent = (statuses: string[]) =>
+    distinctContactIds(() => {
+      let qr = sb.from("event_rsvps").select("contact_id").in("status", statuses);
+      if (f.evento_id) qr = qr.eq("event_id", f.evento_id);
+      return qr;
+    });
+  const idsWhoReplied = () =>
+    distinctContactIds(() => sb.from("inbound_messages").select("contact_id").not("contact_id", "is", null));
+
+  if (f.recebeu_campanha_id) {
+    const ids = await idsForCampaign(f.recebeu_campanha_id, ["sent", "delivered", "read"]);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  }
+  if (f.nao_recebeu_campanha_id) {
+    for (const id of await idsForCampaign(f.nao_recebeu_campanha_id, ["sent", "delivered", "read"])) excludeIds.add(id);
+  }
+  if (f.erro_campanha_id) {
+    const ids = await idsForCampaign(f.erro_campanha_id, ["failed"]);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  }
+  if (f.recebeu_template_id) {
+    const ids = await idsForTemplate(f.recebeu_template_id);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  }
+  if (f.nao_recebeu_template_id) {
+    for (const id of await idsForTemplate(f.nao_recebeu_template_id)) excludeIds.add(id);
+  }
+
+  if (f.missao_recebida === "sim") {
+    const ids = await idsForMission();
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  } else if (f.missao_recebida === "nao") {
+    for (const id of await idsForMission()) excludeIds.add(id);
+  }
+
+  if (f.evento_rsvp === "sim" || f.evento_rsvp === "recusou") {
+    const statuses = f.evento_rsvp === "sim" ? ["confirmado", "confirmed", "sim", "yes"] : ["recusado", "declined", "nao", "no"];
+    const ids = await idsForEvent(statuses);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  } else if (f.evento_rsvp === "nao") {
+    for (const id of await idsForEvent(["confirmado", "confirmed", "sim", "yes"])) excludeIds.add(id);
+  }
+
+  if (f.respondeu_mensagem === "sim") {
+    const ids = await idsWhoReplied();
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  } else if (f.respondeu_mensagem === "nao") {
+    for (const id of await idsWhoReplied()) excludeIds.add(id);
+  }
+
+  if (allowedIds && !allowedIds.length) return EMPTY_RELATIONAL;
+  return { allowedIds, excludeIds, noMatch: false };
 }

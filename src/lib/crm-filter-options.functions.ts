@@ -79,7 +79,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     // 20k linhas com dezenas de colunas estourava a conexão e derrubava a tela
     // com "fetch failed" (resposta grande demais / tempo esgotado).
     const CONTACT_COLUMNS =
-      "cidade,bairro,uf,profissao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,consentimento_dados_sensiveis,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id";
+      "cidade,bairro,uf,profissao,instituicao,tipo_contato,origem,origem_detalhe,formas_ajuda,formas_ajuda_outro,movimento_social_nome,quem_indicou,rede_social,zona_eleitoral,disponibilidade,como_conheceu,faixa_etaria,lifecycle_status,consentimento_whatsapp,consentimento_lgpd,consentimento_dados_sensiveis,participa_movimento_social,coletivo_alicerce,active_tracking_label,active_tracking_form_id,imported_by_user_id,active_capture_channel,primary_source_module,source_form_type";
     const CHUNK = 1000;
     const MAX_ROWS = 20000;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -148,6 +148,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
     const lifecycle_status_counts: Counter = new Map();
     const tracking_points: Counter = new Map();
     const imported_by_counts = new Map<string, number>();
+    const capture_channel_counts = new Map<string, number>();
+    const source_module_counts = new Map<string, number>();
+    const source_form_type_counts = new Map<string, number>();
     let consentSim = 0;
     let consentNao = 0;
     let consentEmpty = 0;
@@ -177,7 +180,7 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (cidadeMatch) bump(bairros, c.bairro);
       bump(ufs, c.uf, (s) => s.toUpperCase());
       bump(profissoes, c.profissao);
-      // instituicao: coluna removida do schema; mantido comentário para futura reintrodução.
+      bump(instituicoes, c.instituicao);
       bump(tipos_contato, c.tipo_contato, (s) => s);
       bump(origens, c.origem as unknown as string, (s) => s);
       bump(origem_detalhes, c.origem_detalhe);
@@ -189,6 +192,14 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       if (c.imported_by_user_id) {
         const uid = c.imported_by_user_id as string;
         imported_by_counts.set(uid, (imported_by_counts.get(uid) ?? 0) + 1);
+      }
+      for (const [col, counter] of [
+        ["active_capture_channel", capture_channel_counts],
+        ["primary_source_module", source_module_counts],
+        ["source_form_type", source_form_type_counts],
+      ] as [string, Map<string, number>][]) {
+        const v = (c as Record<string, unknown>)[col];
+        if (typeof v === "string" && v) counter.set(v, (counter.get(v) ?? 0) + 1);
       }
       bump(movimentos_sociais, c.movimento_social_nome);
       bump(quem_indicou, c.quem_indicou);
@@ -331,6 +342,33 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       kind: t.kind as string,
     }));
 
+    // Missões de agitação
+    const { data: missions } = await sb
+      .from("agitation_missions")
+      .select("id,title,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    const missionsOpts = (missions ?? []).map((m) => ({
+      value: m.id as string,
+      label: m.title as string,
+    }));
+
+    // Eventos
+    const { data: eventsRows } = await sb
+      .from("events")
+      .select("id,title,starts_at,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    const eventsOpts = (eventsRows ?? []).map((e) => ({
+      value: e.id as string,
+      label: e.title as string,
+    }));
+
+    // Formulários (rastreio fino por formulário) — reaproveita a leitura do topo
+    const formsOpts = [...formLabelById.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+
     // Lotes de importação
     const { data: imports } = await sb
       .from("imports")
@@ -426,6 +464,12 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       campanhas: campaignsOpts,
       mensagens: templatesOpts,
       importacoes: importsOpts,
+      missoes: missionsOpts,
+      eventos: eventsOpts,
+      formularios: formsOpts,
+      capture_channel_counts: Object.fromEntries(capture_channel_counts),
+      source_module_counts: Object.fromEntries(source_module_counts),
+      source_form_type_counts: Object.fromEntries(source_form_type_counts),
       tracking_points: toOptions(tracking_points).filter((o) => o.count > 0),
       imported_by: importedByOpts,
       totalContatosBase: contacts?.length ?? 0,
