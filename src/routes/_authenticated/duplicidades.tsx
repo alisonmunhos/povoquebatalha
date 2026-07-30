@@ -72,11 +72,23 @@ function DupPage() {
   const counts = useQuery({ queryKey: ["dup-counts"], queryFn: () => countsFn() });
   const [merging, setMerging] = useState<{ ids: string[]; matchType: string } | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [deleting, setDeleting] = useState<{ group: DeleteCandidate[]; targets: DeleteCandidate[] } | null>(null);
+  // Seleção de cadastros por bloco (chave do grupo -> ids marcados)
+  const [selected, setSelected] = useState<Record<string, string[]>>({});
+
+  function toggleSelected(groupKey: string, id: string) {
+    setSelected((prev) => {
+      const cur = prev[groupKey] ?? [];
+      return { ...prev, [groupKey]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+    });
+  }
 
   function refresh() {
+    setSelected({});
     q.refetch();
     counts.refetch();
   }
+
 
   async function act(
     pairIds: string[],
