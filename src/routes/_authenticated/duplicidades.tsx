@@ -390,6 +390,15 @@ function DupPage() {
           onMerged={() => refresh()}
         />
       )}
+
+      {deleting && (
+        <DeleteDuplicatesDialog
+          group={deleting.group}
+          targets={deleting.targets}
+          onClose={() => setDeleting(null)}
+          onDone={() => refresh()}
+        />
+      )}
     </div>
   );
 }
