@@ -11,6 +11,8 @@ import {
   type DuplicateView,
 } from "@/lib/duplicates.functions";
 import { MergeContactsModal } from "@/components/MergeContactsModal";
+import { DeleteDuplicatesDialog, type DeleteCandidate } from "@/components/DeleteDuplicatesDialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatPhoneBR } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import {
