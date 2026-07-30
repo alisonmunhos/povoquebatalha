@@ -1,46 +1,48 @@
-## Problema
+## Objetivo
 
-Nos menus suspensos de filtro (Gestão da Base), cada clique numa opção aplica o filtro na hora. Isso re-renderiza a tela inteira embaixo do menu; o popover é reposicionado e o foco volta para o gatilho, o que faz a página rolar para o topo. O usuário precisa rolar de volta para marcar a próxima opção.
+Poder excluir um cadastro repetido direto no card, sem precisar abrir a unificação. Quando o grupo ficar com apenas um cadastro, ele sai da fila automaticamente e o contato restante é mantido.
 
-## Solução
+## Como vai funcionar na tela
 
-Trocar o comportamento "aplica a cada clique" por "rascunho + Aplicar", e travar o foco/rolagem do popover.
+Em cada card de contato dentro do bloco de repetidos:
 
-### 1. Rascunho local no menu (`src/components/MultiSelectFilter.tsx`)
+- Uma caixinha de seleção no canto do card (para escolher vários).
+- Um botão discreto de lixeira no card (excluir só aquele).
 
-- Ao abrir, o componente copia a seleção atual para um estado interno (rascunho).
-- Marcar/desmarcar opções altera só o rascunho — nada é aplicado, nenhuma consulta é disparada, a tela de baixo não re-renderiza.
-- Rodapé fixo no menu com:
-  - **Aplicar** (mostra quantos itens ficarão selecionados) — envia a seleção e fecha;
-  - **Limpar** — zera o rascunho;
-  - **Cancelar** — fecha descartando alterações.
-- Contador de selecionados no cabeçalho do menu e "Selecionar todos" (respeitando o texto de busca ativo).
-- Fechar clicando fora = cancelar (comportamento previsível, sem aplicar por acidente).
+Na barra de ações do bloco (junto de "Unificar cadastros"):
 
-### 2. Impedir o pulo de tela
+- Quando houver cards marcados: "Excluir selecionados (N)".
+- Sempre disponível: menu "Excluir…" com a opção "Excluir todos deste bloco menos o sugerido para ficar" (mantém o cadastro mais completo, exclui os demais).
 
-- No conteúdo do popover, cancelar o foco automático de abertura/fechamento (`onOpenAutoFocus` / `onCloseAutoFocus`), enviando o foco para o campo de busca dentro do menu em vez do gatilho.
-- Manter a lista interna com rolagem própria e altura máxima, para que rolar dentro do menu nunca role a página.
-- Em telas de celular, abrir o menu como painel inferior (bottom sheet) ocupando altura fixa, com o mesmo rodapé Aplicar/Limpar/Cancelar — evita o menu "fugir" da tela.
+Só administradores veem essas ações — igual às outras decisões da tela.
 
-### 3. Mesmo padrão nos outros pontos
+## Confirmação (sem digitar nada)
 
-- `SingleSelectFilter` (mesmo arquivo): manter aplicação imediata (é 1 clique e fecha), mas aplicar as mesmas travas de foco.
-- `src/components/ColumnFilterHeader.tsx` (filtros por coluna): mesmo rascunho + Aplicar/Cancelar, para o comportamento ser igual em toda a Gestão da Base.
-- `src/components/contacts-sheet/ColumnFilterPopover.tsx` já tem Aplicar/Limpar/Cancelar — só receberá o ajuste de foco/rolagem.
+Um único diálogo mostrando: nomes/telefones dos cadastros que serão excluídos, quantos serão excluídos, qual permanece, e o aviso de que o histórico, mensagens e tags daquele cadastro serão perdidos (diferente da unificação, que transfere tudo).
 
-### 4. Barra de filtros ativos
+O diálogo terá duas opções de ação:
+- **Excluir definitivamente** (apaga do banco, registrando em auditoria).
+- **Tirar da base** (arquiva, preserva histórico) — alternativa segura.
 
-Sem mudança de lógica: os chips continuam refletindo o que foi aplicado. Como agora só aplica no botão, os chips param de "piscar" a cada clique.
+Bloqueios de segurança:
+- Não é permitido excluir todos os cadastros de um bloco — pelo menos um sempre fica. Se a seleção incluir todos, a interface avisa e obriga a deixar um.
+- Cadastro que é usuário do sistema não pode ser excluído por aqui; o card mostra o motivo e a opção fica desabilitada (recomendação: unificar).
+
+## Depois da exclusão
+
+- Se sobrar 1 cadastro: os pares do bloco são marcados como resolvidos e o bloco some da fila "Para revisar".
+- Se sobrarem 2 ou mais: o bloco continua na fila, apenas com os pares que ainda envolvem cadastros existentes — segue possível unificar.
+- Mensagem de retorno com quantos foram excluídos e o que permanece.
 
 ## Detalhes técnicos
 
-- Estado do rascunho sincronizado por `useEffect` no evento de abertura (`open === true`), não a cada render, para não sobrescrever a edição em andamento.
-- `PopoverContent` com `modal` e `onOpenAutoFocus={(e) => e.preventDefault()}` + foco programático no `CommandInput`; `onCloseAutoFocus={(e) => e.preventDefault()}` para não devolver foco ao gatilho fora da viewport.
-- Sem alteração em `crm-filters.ts`, nas funções de servidor ou na URL: a assinatura `onChange(string[])` continua a mesma, só passa a ser chamada uma vez, no Aplicar.
-- Mobile detectado com o hook existente `useIsMobile`.
-
-## Verificação
-
-- Typecheck.
-- Teste no preview em viewport de celular: abrir "Cidade", marcar 3 opções seguidas sem a página rolar, aplicar, conferir chips e contagem da tabela.
+- Nova função de servidor `deleteDuplicateContacts` em `src/lib/duplicates.functions.ts`:
+  - exige admin (`requireAdmin`);
+  - recebe `group_key`, `pair_ids`, `delete_ids`, `mode: "hard" | "arquivar"`;
+  - valida que ao menos um contato do grupo permanece e que nenhum `is_system_user` está na lista;
+  - grava auditoria por contato (reaproveitando o padrão de `auditHardDelete` em `contacts.functions.ts`, extraído para um helper compartilhado);
+  - exclui (ou arquiva) e, na sequência, atualiza `contact_duplicates`: pares que envolvem contatos excluídos ficam `status = 'separados'`/resolvidos; se restar só um contato no grupo, todos os pares do grupo são resolvidos.
+  - Observação: se as linhas de `contact_duplicates` já caem por `on delete cascade`, o passo de atualização só cobre os pares remanescentes — confirmo isso na implementação consultando a definição da tabela.
+- UI em `src/routes/_authenticated/duplicidades.tsx`: estado local de seleção por bloco, botão de lixeira no card, e um novo componente `DeleteDuplicatesDialog` em `src/components/` com o resumo e as duas ações.
+- Invalidação de `dup-groups` e `dup-counts` após a operação.
+- Ao final: typecheck.
