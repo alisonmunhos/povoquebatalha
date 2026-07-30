@@ -81,7 +81,7 @@ function Contatos() {
   const initialFilters = useMemo<CrmFilters>(() => {
     const parsed = decodeBase64UrlSafe<CrmFilters>(search.f);
     if (parsed && typeof parsed === "object") return parsed;
-    return { archived: "todos" };
+    return { archived: "nao" };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [filters, setFilters] = useState<CrmFilters>(initialFilters);
@@ -156,7 +156,8 @@ function Contatos() {
   // volta do WhatsApp e permite compartilhar link do estado atual.
   useEffect(() => {
     const encoded = encodeBase64UrlSafe(filters);
-    const isDefaultFilter = encoded === encodeBase64UrlSafe({ archived: "todos" });
+    const isDefaultFilter =
+      encoded === encodeBase64UrlSafe({ archived: "nao" }) || encoded === encodeBase64UrlSafe({});
     navigate({
       search: (prev: Record<string, unknown>) => ({
         ...prev,
