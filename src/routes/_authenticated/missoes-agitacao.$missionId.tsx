@@ -475,11 +475,17 @@ function MissionDetailsPanel() {
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             className="text-xs h-8 rounded-md border px-2 bg-background"
           >
-            <option value="todos">Status: todos</option>
-            <option value="sem_atribuicao">Sem atribuição</option>
-            <option value="atribuido">Atribuído (pendente)</option>
-            <option value="concluido">Concluído</option>
-            <option value="nao_enviado">Não enviado</option>
+            <option value="todos">Situação: todas ({tasks.length})</option>
+            <option value="sem_responsavel">
+              Sem responsável ({stateCounts.sem_responsavel ?? 0})
+            </option>
+            <option value="parado">
+              Atribuído e parado — ainda não acionou ({stateCounts.parado ?? 0})
+            </option>
+            <option value="enviado">Enviado ({stateCounts.enviado ?? 0})</option>
+            <option value="depois">Vou enviar depois ({stateCounts.depois ?? 0})</option>
+            <option value="erro">Erro de número ({stateCounts.erro ?? 0})</option>
+            <option value="optout">Não quer receber ({stateCounts.optout ?? 0})</option>
           </select>
           <select
             value={responsavelFilter}
@@ -487,10 +493,10 @@ function MissionDetailsPanel() {
             className="text-xs h-8 rounded-md border px-2 bg-background"
           >
             <option value="todos">Responsável: todos</option>
-            <option value="sem_atribuicao">Sem atribuição</option>
-            {links.map((l) => (
-              <option key={l.contact_id} value={l.contact_id}>
-                {l.nome ?? "(sem nome)"}
+            <option value="sem_atribuicao">Sem responsável</option>
+            {assignees.map((a) => (
+              <option key={`${a.kind}-${a.id}`} value={a.id}>
+                {a.kind === "link" ? "Link" : "Conta"}: {a.nome ?? "(sem nome)"}
               </option>
             ))}
           </select>
@@ -501,8 +507,14 @@ function MissionDetailsPanel() {
             />
             Esconder sem número
           </label>
+          <label className="flex items-center gap-1.5 text-xs h-8 rounded-md border px-2 bg-background cursor-pointer select-none">
+            <Checkbox
+              checked={hideOptOutErro}
+              onCheckedChange={(v) => setHideOptOutErro(v === true)}
+            />
+            Esconder quem não quer receber e erros de número
+          </label>
         </div>
-
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <label className="flex items-center gap-2 text-sm">
@@ -525,7 +537,16 @@ function MissionDetailsPanel() {
               disabled={selected.size === 0}
               onClick={() => onUnassign([...selected])}
             >
-              Desatribuir selecionados ({selected.size})
+              Liberar selecionados ({selected.size})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={stalledTaskIds.length === 0}
+              title="Libera só os contatos que têm responsável mas ainda não foram acionados, para você redistribuir."
+              onClick={() => onUnassign(stalledTaskIds)}
+            >
+              Liberar parados ({stalledTaskIds.length})
             </Button>
             <Button
               size="sm"
@@ -533,7 +554,7 @@ function MissionDetailsPanel() {
               disabled={!hasAnyAssignment}
               onClick={onUnassignAll}
             >
-              Desatribuir todos
+              Liberar todos
             </Button>
             <Button
               size="sm"
@@ -547,43 +568,47 @@ function MissionDetailsPanel() {
         </div>
 
         <div className="rounded-xl border divide-y">
-          {filteredTasks.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 p-3 text-sm">
-              <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} />
-              <div className="flex-1">
-                <div className="font-medium">{t.contact?.nome ?? "(sem nome)"}</div>
-                <div className="text-xs text-muted-foreground">
-                  {t.contact?.phone_e164 ?? "—"} · {t.contact?.cidade ?? "—"}
+          {filteredTasks.length === 0 && (
+            <div className="p-4 text-xs text-muted-foreground">
+              Nenhum contato nesta situação. Troque os filtros acima.
+            </div>
+          )}
+          {filteredTasks.map((t) => {
+            const state = taskState(t);
+            return (
+              <div key={t.id} className="flex items-center gap-3 p-3 text-sm">
+                <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} />
+                <div className="flex-1">
+                  <div className="font-medium">{t.contact?.nome ?? "(sem nome)"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {t.contact?.phone_e164 ?? t.contact?.phone_raw ?? "—"} ·{" "}
+                    {t.contact?.cidade ?? "—"}
+                  </div>
                 </div>
-              </div>
-              {taskHasAssignment(t) ? (
-                <>
-                  <span
-                    className={`text-xs rounded-full px-2 py-0.5 ${STATUS_BADGE[t.status] ?? "bg-muted text-muted-foreground"}`}
-                  >
-                    {STATUS_LABEL[t.status] ?? "Atribuído"} ·{" "}
-                    {t.assigned_contact_name
-                      ? `Link: ${t.assigned_contact_name}`
-                      : t.assigned_user_name
-                        ? `Conta: ${t.assigned_user_name}`
-                        : "—"}
-                  </span>
+                <span className={`text-xs rounded-full px-2 py-0.5 ${STATE_BADGE[state]}`}>
+                  {STATE_LABEL[state]}
+                  {t.assigned_contact_name
+                    ? ` · Link: ${t.assigned_contact_name}`
+                    : t.assigned_user_name
+                      ? ` · Conta: ${t.assigned_user_name}`
+                      : ""}
+                </span>
+                {taskHasAssignment(t) && (
                   <button
                     type="button"
-                    title="Desatribuir"
+                    title="Liberar atribuição"
                     onClick={() => onUnassign([t.id])}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <X className="h-4 w-4" />
                   </button>
-                </>
-              ) : (
-                <span className="text-xs rounded-full bg-muted px-2 py-0.5">Sem atribuição</span>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
+
 
       <AssignResponsibleModal
         open={assignOpen}
