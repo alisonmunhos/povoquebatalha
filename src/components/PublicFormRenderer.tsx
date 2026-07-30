@@ -381,7 +381,7 @@ export function PublicFormRenderer({
     }
   }
 
-  async function submitFinal(terminalSectionId: string) {
+  async function submitFinal(terminalSectionId: string, effective: Record<string, AnswerValue> = values) {
     setSubmitting(true);
     setError(null);
     try {
@@ -395,7 +395,7 @@ export function PublicFormRenderer({
           start_section_id: journeyStartSectionId ?? terminalSectionId,
           event_slug: eventSlug ?? "",
           event_rsvp_status: eventRsvpStatus ?? "confirmed",
-          answers: values,
+          answers: effective,
           hp: "",
         }),
       });
