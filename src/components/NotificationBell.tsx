@@ -228,16 +228,28 @@ export function NotificationBell() {
     }
   }
 
+  function goToMission(missionId: string) {
+    setDetail(null);
+    navigate({ to: "/minhas-missoes", search: { mission: missionId } });
+  }
+
   async function acceptMission() {
     if (!detail?.mission_id) return;
+    const missionId = detail.mission_id;
     setAcceptingMission(true);
     try {
-      await claimFn({ data: { mission_id: detail.mission_id } });
-      setDetail(null);
-      navigate({ to: "/minhas-missoes" });
+      const r = await claimFn({ data: { mission_id: missionId } });
+      if (!r.task_ids.length) {
+        toast.info("Não há contatos disponíveis nesta missão agora.");
+      } else {
+        toast.success(`${r.task_ids.length} contato(s) atribuído(s) a você.`);
+      }
+      qc.invalidateQueries({ queryKey: ["my-missions"] });
+      goToMission(missionId);
     } catch (e) {
-      console.error(e);
-      window.location.href = "/minhas-missoes";
+      // Não redirecionar fingindo sucesso: mostrar o motivo real do bloqueio.
+      toast.error(e instanceof Error ? e.message : "Não foi possível aceitar a missão agora.");
+      missionBriefingQ.refetch();
     } finally {
       setAcceptingMission(false);
     }
