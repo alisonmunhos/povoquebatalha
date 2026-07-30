@@ -630,45 +630,11 @@ export function PublicFormRenderer({
             {progressLabel && <p className="text-sm text-muted-foreground mt-1">{progressLabel}</p>}
             <form onSubmit={onContinueSectioned} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
               <h2 className="text-lg font-semibold">{sectionTitle}</h2>
-              {currentSection.description?.trim() && (
-                <p className="text-xs text-muted-foreground -mt-2">{currentSection.description.trim()}</p>
-              )}
-              <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
-              {isAccountSection ? (
-                <>
-                  <AccountCreationFields
-                    email={contactContext?.email ?? ""}
-                    nome={contactContext?.nome ?? ""}
-                    phone={contactContext?.phone ?? ""}
-                    emailAlreadyRegistered={emailAlreadyRegistered}
-                    password={accountPassword}
-                    passwordConfirm={accountPasswordConfirm}
-                    showPassword={showPassword}
-                    onPasswordChange={setAccountPassword}
-                    onPasswordConfirmChange={setAccountPasswordConfirm}
-                    onToggleShowPassword={() => setShowPassword((p) => !p)}
-                  />
-                  {sectionQuestions
-                    .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
-                    .map((q) => (
-                      <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
-                    ))}
-                </>
-              ) : (
-                sectionQuestions
-                  .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
-                  .map((q) => (
-                    <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
-                  ))
-              )}
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
-                <ChevronRight className="h-4 w-4" />
-                {submitting ? "Enviando…" : hasNextSection ? "Continuar" : "Enviar"}
-              </button>
+              {sectionFields}
+              {sectionSubmitButton}
             </form>
           </>
+
         ) : form ? (
           <>
             <h1 className="text-3xl font-bold tracking-tight">{form.title}</h1>
