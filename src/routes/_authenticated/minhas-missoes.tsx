@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Send, PlayCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, Send, PlayCircle, AlertTriangle, BellOff } from "lucide-react";
 import {
   listMyMissions,
   claimMissionBatch,
@@ -11,6 +11,8 @@ import {
   getMissionCooldownStatus,
   markMyMissionTask,
   getMissionMediaUrl,
+  refuseMissionContact,
+  undoRefuseMissionContact,
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
@@ -29,6 +31,8 @@ type ContactShape = MessageVarContact & {
   id?: string;
   phone_e164: string | null;
   phone_raw: string | null;
+  opt_out_at?: string | null;
+  arquivado_at?: string | null;
 };
 
 type Task = {
@@ -151,6 +155,8 @@ function MissionBlockCard({
   const claimFn = useServerFn(claimMissionBatch);
   const completeFn = useServerFn(completeMissionClaim);
   const markFn = useServerFn(markMyMissionTask);
+  const refuseFn = useServerFn(refuseMissionContact);
+  const undoRefuseFn = useServerFn(undoRefuseMissionContact);
   const [busy, setBusy] = useState(false);
 
   const cooldownQ = useQuery({
@@ -161,10 +167,17 @@ function MissionBlockCard({
   });
 
   const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
+  // Recusas marcadas agora nesta sessão (feedback imediato antes do recarregamento).
+  const [refusedNow, setRefusedNow] = useState<Set<string>>(new Set());
 
-  const pendingTasks = block.tasks.filter((t) => !t.completed_at && t.status === "pending");
+  const isRefused = (t: Task) => refusedNow.has(t.id) || !!t.contacts?.opt_out_at;
+
+  const pendingTasks = block.tasks.filter(
+    (t) => !t.completed_at && t.status === "pending" && !isRefused(t),
+  );
   const sentTasks = block.tasks.filter((t) => t.status === "concluido");
-  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado");
+  const refusedTasks = block.tasks.filter((t) => isRefused(t));
+  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado" && !isRefused(t));
   const openClaim = block.claim;
 
   /** Abre o WhatsApp; NÃO marca nada — só coloca a tarefa em "aguardando confirmação". */
@@ -193,6 +206,50 @@ function MissionBlockCard({
       onChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar.");
+    }
+  }
+
+  /** "Não quer receber": arquiva o contato na hora e oferece Desfazer. */
+  async function onRefuseTask(task: Task) {
+    const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
+    setRefusedNow((prev) => new Set(prev).add(task.id));
+    setAwaitingConfirm((prev) => {
+      const next = new Set(prev);
+      next.delete(task.id);
+      return next;
+    });
+    try {
+      await refuseFn({ data: { task_id: task.id } });
+      toast.success(`${nome} foi arquivado e não receberá mais mensagens.`, {
+        duration: 8000,
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            void (async () => {
+              try {
+                await undoRefuseFn({ data: { task_id: task.id } });
+                setRefusedNow((prev) => {
+                  const next = new Set(prev);
+                  next.delete(task.id);
+                  return next;
+                });
+                toast.info(`${nome} voltou para a sua leva.`);
+                onChanged();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
+              }
+            })();
+          },
+        },
+      });
+      onChanged();
+    } catch (e) {
+      setRefusedNow((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+      toast.error(e instanceof Error ? e.message : "Erro ao registrar a recusa.");
     }
   }
 
@@ -276,17 +333,19 @@ function MissionBlockCard({
         <div className="text-xs text-muted-foreground mt-2">
           {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
           {pendingTasks.length} pendente(s) · {notSentTasks.length} não enviado(s)
+          {refusedTasks.length > 0 ? ` · ${refusedTasks.length} não quer(em) receber` : ""}
         </div>
       </div>
 
       {block.tasks.length > 0 && (
         <div className="divide-y">
           {block.tasks.map((t) => {
-            const waiting = awaitingConfirm.has(t.id);
-            const sent = t.status === "concluido";
-            const notSent = t.status === "nao_enviado";
+            const refused = isRefused(t);
+            const waiting = !refused && awaitingConfirm.has(t.id);
+            const sent = !refused && t.status === "concluido";
+            const notSent = !refused && t.status === "nao_enviado";
             return (
-              <div key={t.id} className="p-3 flex items-center gap-3 flex-wrap">
+              <div key={t.id} className="p-3 flex items-center gap-2 flex-wrap">
                 <div className="flex-1 min-w-[160px]">
                   <div className="font-medium text-sm">
                     {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
@@ -296,43 +355,67 @@ function MissionBlockCard({
                   </div>
                   <span
                     className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
-                      sent
-                        ? "bg-emerald-100 text-emerald-800"
-                        : notSent
-                          ? "bg-rose-100 text-rose-800"
-                          : waiting
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-muted text-muted-foreground"
+                      refused
+                        ? "bg-rose-600 text-white"
+                        : sent
+                          ? "bg-emerald-100 text-emerald-800"
+                          : notSent
+                            ? "bg-rose-100 text-rose-800"
+                            : waiting
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {sent
-                      ? "Enviado"
-                      : notSent
-                        ? "Não enviei"
-                        : waiting
-                          ? "Aguardando confirmação"
-                          : "Pendente"}
+                    {refused
+                      ? "Não quer receber — arquivado"
+                      : sent
+                        ? "Enviado"
+                        : notSent
+                          ? "Não enviei"
+                          : waiting
+                            ? "Aguardando confirmação"
+                            : "Pendente"}
                   </span>
                 </div>
 
-                <Button
-                  size="sm"
-                  variant={sent || notSent ? "outline" : "default"}
-                  onClick={() => onOpenWhatsApp(t)}
-                >
-                  <Send className="h-3.5 w-3.5 mr-1" />
-                  {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
-                </Button>
+                {!refused && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant={sent || notSent ? "outline" : "default"}
+                      onClick={() => onOpenWhatsApp(t)}
+                    >
+                      <Send className="h-3.5 w-3.5 mr-1" />
+                      {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
+                    </Button>
 
-                {!sent && (
-                  <Button size="sm" variant="secondary" onClick={() => onMarkTask(t, "concluido")}>
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
-                  </Button>
-                )}
-                {!notSent && (
-                  <Button size="sm" variant="outline" onClick={() => onMarkTask(t, "nao_enviado")}>
-                    <XCircle className="h-3.5 w-3.5 mr-1" /> Não consegui enviar
-                  </Button>
+                    {!sent && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onMarkTask(t, "concluido")}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
+                      </Button>
+                    )}
+                    {!notSent && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onMarkTask(t, "nao_enviado")}
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Não consegui enviar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                      onClick={() => void onRefuseTask(t)}
+                    >
+                      <BellOff className="h-3.5 w-3.5 mr-1" /> Não quer receber
+                    </Button>
+                  </>
                 )}
               </div>
             );

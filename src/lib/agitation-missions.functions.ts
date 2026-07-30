@@ -1128,7 +1128,7 @@ export const listMyMissions = createServerFn({ method: "GET" })
     const { data: tasks } = await context.supabase
       .from("agitation_tasks")
       .select(
-        "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw)",
+        "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw,opt_out_at,arquivado_at)",
       )
       .eq("assigned_user_id", context.userId);
 
@@ -1278,5 +1278,106 @@ export const markMyMissionTask = createServerFn({ method: "POST" })
       .eq("id", data.task_id)
       .eq("assigned_user_id", context.userId);
     if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ===== "Não quer receber": arquiva + registra opt-out do contato da minha leva =====
+// Valida a posse da tarefa (assigned_user_id) e só então usa o cliente privilegiado,
+// porque a política de acesso só deixa o agitador editar contatos que ele captou.
+const refuseSchema = z.object({ task_id: z.string().uuid() });
+
+async function loadOwnedTask(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  taskId: string,
+) {
+  const { data, error } = await supabase
+    .from("agitation_tasks")
+    .select("id, contact_id, mission_id, assigned_user_id, agitation_missions(title)")
+    .eq("id", taskId)
+    .eq("assigned_user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.contact_id) throw new Error("Contato desta missão não está na sua leva.");
+  return data;
+}
+
+export const refuseMissionContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => refuseSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
+    const missionTitle =
+      (task as { agitation_missions?: { title?: string } | null }).agitation_missions?.title ??
+      "missão de agitação";
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+
+    const { error } = await supabaseAdmin
+      .from("contacts")
+      .update({
+        opt_out_at: now,
+        opt_out_motivo: `Pediu para não receber mensagens (missão: ${missionTitle})`,
+        arquivado_at: now,
+        whatsapp_status: "opt_out",
+        lifecycle_status: "nao_enviar",
+        consentimento_whatsapp: false,
+      })
+      .eq("id", task.contact_id);
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin
+      .from("agitation_tasks")
+      .update({ status: "nao_enviado", completed_at: null })
+      .eq("id", task.id);
+
+    await supabaseAdmin.from("contact_audit_log").insert({
+      contact_id: task.contact_id,
+      user_id: context.userId,
+      action: "opt_out_missao",
+      changes: { mission_id: task.mission_id, mission_title: missionTitle },
+    });
+    await supabaseAdmin.from("agitacao_contact_logs").insert({
+      contact_id: task.contact_id,
+      user_id: context.userId,
+      action: "observacao",
+      note: `Não quer receber mensagens — arquivado durante a missão "${missionTitle}".`,
+      metadata: { mission_id: task.mission_id, kind: "opt_out" },
+    });
+
+    return { ok: true as const };
+  });
+
+export const undoRefuseMissionContact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => refuseSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { error } = await supabaseAdmin
+      .from("contacts")
+      .update({
+        opt_out_at: null,
+        opt_out_motivo: null,
+        arquivado_at: null,
+        whatsapp_status: "desconhecido",
+        lifecycle_status: null,
+      })
+      .eq("id", task.contact_id);
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin
+      .from("agitation_tasks")
+      .update({ status: "pending", completed_at: null })
+      .eq("id", task.id);
+
+    await supabaseAdmin.from("contact_audit_log").insert({
+      contact_id: task.contact_id,
+      user_id: context.userId,
+      action: "opt_out_missao_desfeito",
+      changes: { mission_id: task.mission_id },
+    });
+
     return { ok: true as const };
   });
