@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
 import { getMissionMeta } from "@/lib/mission-meta.functions";
 import { getRequestOrigin } from "@/lib/site-origin.functions";
+import { OG_DEFAULT_IMAGE, SITE_URL } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/missao/$missionId/contato/$contactId")({
   ssr: "data-only",
@@ -16,27 +17,26 @@ export const Route = createFileRoute("/missao/$missionId/contato/$contactId")({
   head: ({ params, loaderData }) => {
     const title = loaderData?.meta?.title ?? "Minhas tarefas de agitação";
     const description = "Abra sua lista de contatos e envie a mensagem da missão.";
-    const origin = loaderData?.origin ?? "https://povoquebatalha.lovable.app";
+    const origin = loaderData?.origin ?? SITE_URL;
     const imageUrl = loaderData?.meta?.hasMedia
       ? `${origin}/api/public/agitation-missions/${params.missionId}/media`
-      : null;
+      : OG_DEFAULT_IMAGE;
 
     return {
       meta: [
         { title },
         { name: "description", content: description },
+        { property: "og:site_name", content: "Campanha do Povo que Batalha" },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
-        ...(imageUrl
-          ? [
-              { property: "og:image", content: imageUrl },
-              { property: "og:image:width", content: "1200" },
-              { property: "og:image:height", content: "630" },
-              { name: "twitter:image", content: imageUrl },
-            ]
-          : []),
-        { name: "twitter:card", content: imageUrl ? "summary_large_image" : "summary" },
+        { property: "og:image", content: imageUrl },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { name: "twitter:image", content: imageUrl },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
         { name: "robots", content: "noindex" },
       ],
     };

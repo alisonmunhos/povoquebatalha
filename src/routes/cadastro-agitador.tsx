@@ -1,13 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { UserSignupForm } from "@/components/UserSignupForm";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/cadastro-agitador")({
   head: () => ({
     meta: [
-      { title: "Cadastro de agitador — Campanha do Povo que Batalha" },
-      { name: "description", content: "Cadastre-se como agitador(a) voluntário(a) da Campanha do Povo que Batalha." },
+      ...shareMeta({
+        title: "Cadastro de agitador — Campanha do Povo que Batalha",
+        description: "Cadastre-se como agitador(a) voluntário(a) da Campanha do Povo que Batalha.",
+        path: "/cadastro-agitador",
+      }),
       { name: "google", content: "notranslate" },
     ],
+    links: canonical("/cadastro-agitador"),
   }),
   ssr: false,
   component: CadastroAgitador,

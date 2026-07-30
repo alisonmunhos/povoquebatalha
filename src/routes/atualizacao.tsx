@@ -3,6 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { Recadastro } from "./recadastro";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/atualizacao")({
   validateSearch: z.object({
@@ -12,12 +13,15 @@ export const Route = createFileRoute("/atualizacao")({
   }),
   head: () => ({
     meta: [
-      { title: "Atualização de Apoiadores" },
-      { name: "description", content: "Atualize seus dados para continuar recebendo comunicados da Campanha do Povo que Batalha." },
-      { property: "og:title", content: "Atualização de Apoiadores" },
-      { property: "og:description", content: "Confirme seus dados e receba comunicados pelo WhatsApp." },
+      ...shareMeta({
+        title: "Atualização de Apoiadores",
+        description:
+          "Atualize seus dados para continuar recebendo comunicados da Campanha do Povo que Batalha.",
+        path: "/atualizacao",
+      }),
       { name: "google", content: "notranslate" },
     ],
+    links: canonical("/atualizacao"),
   }),
   ssr: false,
   component: Recadastro,

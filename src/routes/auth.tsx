@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Megaphone, Loader2 } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 const searchSchema = z.object({
   next: z.string().optional(),
@@ -11,10 +12,12 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
-    meta: [
-      { title: "Entrar — Campanha do Povo que Batalha" },
-      { name: "description", content: "Acesso ao painel administrativo da campanha." },
-    ],
+    meta: shareMeta({
+      title: "Entrar — Campanha do Povo que Batalha",
+      description: "Acesso ao painel da Campanha do Povo que Batalha.",
+      path: "/auth",
+    }),
+    links: canonical("/auth"),
   }),
   validateSearch: searchSchema,
   component: AuthPage,

@@ -1,40 +1,41 @@
-## O que está acontecendo
+## Diagnóstico (confirmado no código)
 
-Verifiquei o código e há duas causas somadas:
+Na `src/routes/__root.tsx` existem metadados fixos aplicados ao app inteiro:
 
-1. **O link do WhatsApp (`api.whatsapp.com/send?text=...`) só carrega texto.** Nenhum arquivo pode ser anexado por link — isso é limitação do WhatsApp, não do sistema. Hoje a imagem da missão só aparece em "Minhas missões" como um botão "Baixar" (e no link público do agitador ela nem aparece: o endpoint `/api/public/agitation-missions/$missionId/$contactId` não retorna `media_path`).
-2. **Quando a mensagem tem um link, o WhatsApp tenta gerar a pré-visualização — mas nossas páginas não entregam imagem.** A página `/evento/$slug` está com `ssr: false` e só define `title`; não tem `og:image`. E a capa do evento é servida por **URL assinada que expira em 1 hora**, de um bucket privado — inutilizável para preview.
+- `og:image` e `twitter:image` apontam para **um print antigo do preview** (arquivo `...-1782933848953.png` no R2) — é exatamente a miniatura com layout/cores antigos que aparece no seu WhatsApp.
+- `description` / `og:description` em inglês: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." — é o texto cinza do card.
+- Título genérico "Campanha Do Povo Que Batalha" para qualquer página.
 
-Ou seja: para a imagem "ir junto" sem Z-API, o caminho é o **preview rico do link**.
+Além disso, a rota do formulário `src/routes/f.$slug.tsx` está com `ssr: false` e sem `head()` próprio: o robô do WhatsApp não executa JavaScript, então recebe só os metadados da raiz (a imagem velha). O mesmo vale para as demais páginas públicas (`/inscrever`, `/atualizacao`, `/recadastro`, `/termos/$slug`, `/`, etc.).
+
+As rotas de evento e de missão já têm metadados corretos (feitos na etapa anterior) — o problema restante é a raiz contaminando todo o resto.
 
 ## Plano
 
-### 1. URL pública e estável para as imagens
-- Nova rota `GET /api/public/events/$slug/cover` que lê a capa do bucket (cliente admin, server-side) e devolve os bytes com `Cache-Control` longo e `Content-Type` correto.
-- Nova rota equivalente `GET /api/public/agitation-missions/$missionId/media` para a imagem da missão.
-- Nada de URL assinada: link fixo, sem expiração, servido pelo próprio domínio (requisito dos crawlers do WhatsApp).
+**1. Limpar a raiz (`__root.tsx`)**
+- Remover o `og:image`/`twitter:image` fixos com o print antigo.
+- Trocar a descrição em inglês por texto em português da campanha.
+- Manter apenas defaults sitewide (título, `og:type`, `og:site_name`, `twitter:card`).
 
-### 2. Preview rico na página do evento
-- Tirar o `ssr: false` de `/evento/$slug` (mantendo a parte interativa client-only) e adicionar um `loader` público leve que busca título, descrição e capa.
-- `head()` passa a emitir: `og:title`, `og:description`, `og:image` (URL absoluta da rota do item 1), `og:image:width`/`height`, `og:type=website`, `twitter:card=summary_large_image`.
-- Resultado: ao colar o link do evento no WhatsApp, aparece o card grande com a capa.
+**2. Imagem de compartilhamento padrão nova (1200×630)**
+- Gerar uma capa de marca com as cores atuais (#F0AA04 / #16130F / #7B4B94), logo e o nome da campanha, salva em `public/og-default.png`.
+- Usar essa imagem como `og:image` padrão nas páginas públicas que não têm imagem própria.
 
-### 3. Preview do link da missão
-- Se a mensagem da missão aponta para o link exclusivo `/missao/$missionId/contato/$contactId`, essa página também ganha `head()` com `og:image` apontando para a imagem da missão (rota do item 2 acima), para o card aparecer mesmo quando não há evento.
+**3. Formulários (`/f/$slug`) com prévia real**
+- Criar `getFormMeta` (server fn) buscando título e descrição do formulário publicado.
+- Trocar a rota para `ssr: "data-only"` com `loader` + `head()`, emitindo título/descrição reais do formulário, `og:url`, canonical e a imagem padrão de marca.
 
-### 4. Ajudar o agitador nos dois fluxos
-- Devolver `media_path`/`media_filename` no endpoint público da missão e exibir a imagem no link público (hoje ausente), com "Baixar imagem".
-- No modal de criação/edição da missão, um aviso curto: "A imagem vai aparecer como capa do link na conversa. Para enviar o arquivo em si, o agitador precisa anexá-lo."
+**4. Demais páginas públicas**
+- Adicionar/ajustar `head()` com título, descrição, `og:*`, `twitter:card` e imagem padrão em: `/` (index), `/inscrever`, `/atualizacao`, `/recadastro`, `/cadastro-agitador`, `/cadastro-usuario`, `/obrigado`, `/termos/$slug`, `/auth`.
+- Revisar `/evento/$slug` e `/missao/...` para garantir que continuam com imagem própria (capa do evento / mídia da missão) e não herdam nada da raiz.
 
-## Sobre "tamanho real da imagem"
-
-O WhatsApp decide entre **card pequeno (miniatura quadrada)** e **card grande** pela proporção e resolução da imagem — não dá para forçar por código. Para sair grande, a capa precisa ter no mínimo ~600×315 px e proporção próxima de 1.91:1 (ex.: 1200×630). Vou:
-- adicionar `og:image:width`/`height` e `twitter:card=summary_large_image` (o que maximiza a chance do card grande);
-- avisar no upload da capa quando a imagem estiver abaixo do recomendado, sugerindo 1200×630.
-
-Ele **não** mostra a imagem em tamanho original dentro do balão — isso só existe quando o arquivo é anexado de fato.
+**5. Cache do WhatsApp**
+- O WhatsApp guarda a prévia por link. Depois do deploy, links já enviados continuam mostrando a imagem antiga; reenviar com um parâmetro novo (ex.: `?v=2`) força a releitura. Vou avisar isso na entrega.
 
 ## Detalhes técnicos
-- Rotas em `src/routes/api/public/...` com `createFileRoute` + handler `GET`, lendo do bucket `campaign-media` via `supabaseAdmin` importado dentro do handler.
-- `head()` precisa de URL **absoluta** — montada a partir do domínio publicado.
-- Sem alterações de banco e sem Z-API. Nenhuma rota pública existente muda de endereço.
+
+- Metadados por rota via `head()` do `createFileRoute`; `og:image` só em rotas folha (nunca no `__root`), pois a raiz sobrescreveria as capas de evento/missão.
+- URLs absolutas montadas com `getRequestOrigin()` (já existe em `src/lib/site-origin.functions.ts`).
+- `ssr: "data-only"` nas rotas que precisam de prévia: o HTML sai do servidor com as meta tags, mas a renderização continua no cliente (sem risco de quebrar formulários que usam APIs do navegador).
+- `form_definitions` não tem coluna de capa hoje; formulários usarão a imagem de marca padrão. Se quiser capa por formulário depois, dá pra adicionar coluna + rota de imagem igual à do evento.
+- Sem mudanças de banco nesta etapa.

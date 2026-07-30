@@ -2,10 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/termos/$slug")({
   head: ({ params }) => ({
-    meta: [{ title: `${params.slug} — Campanha do Povo que Batalha` }],
+    meta: shareMeta({
+      title: `${params.slug} — Campanha do Povo que Batalha`,
+      description: "Termos e políticas da Campanha do Povo que Batalha.",
+      path: `/termos/${params.slug}`,
+    }),
+    links: canonical(`/termos/${params.slug}`),
   }),
   ssr: false,
   component: TermosPage,

@@ -6,6 +6,7 @@ import { PublicFormRenderer } from "@/components/PublicFormRenderer";
 import { StepOverlay } from "@/components/StepOverlay";
 import { getEventMeta } from "@/lib/event-meta.functions";
 import { getRequestOrigin } from "@/lib/site-origin.functions";
+import { OG_DEFAULT_IMAGE, SITE_URL } from "@/lib/site-meta";
 
 
 export const Route = createFileRoute("/evento/$slug")({
@@ -26,29 +27,26 @@ export const Route = createFileRoute("/evento/$slug")({
     const title = loaderData?.meta?.title ?? "Evento";
     const description =
       loaderData?.meta?.description ?? "Confirme sua presença neste evento.";
-    const origin = loaderData?.origin ?? "https://povoquebatalha.lovable.app";
+    const origin = loaderData?.origin ?? SITE_URL;
     const pageUrl = `${origin}/evento/${params.slug}`;
     const imageUrl = loaderData?.meta?.hasCover
       ? `${origin}/api/public/events/${params.slug}/cover`
-      : null;
+      : OG_DEFAULT_IMAGE;
 
     return {
       meta: [
         { title: `${title} — Confirmar presença` },
         { name: "description", content: description },
+        { property: "og:site_name", content: "Campanha do Povo que Batalha" },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
         { property: "og:url", content: pageUrl },
-        ...(imageUrl
-          ? [
-              { property: "og:image", content: imageUrl },
-              { property: "og:image:width", content: "1200" },
-              { property: "og:image:height", content: "630" },
-              { name: "twitter:image", content: imageUrl },
-            ]
-          : []),
-        { name: "twitter:card", content: imageUrl ? "summary_large_image" : "summary" },
+        { property: "og:image", content: imageUrl },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { name: "twitter:image", content: imageUrl },
+        { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: title },
         { name: "twitter:description", content: description },
       ],

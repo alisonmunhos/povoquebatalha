@@ -3,24 +3,19 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Megaphone } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 const MAIN_SECTIONED_FORM_SLUG = "seja-um-apoiador-a-da-campanha-do-povo-que-batalha";
 
 export const Route = createFileRoute("/")({
   head: () => ({
-    meta: [
-      { title: "Campanha do Povo que Batalha" },
-      {
-        name: "description",
-        content:
-          "Faça parte da Campanha do Povo que Batalha. Cadastre-se e receba as próximas ações.",
-      },
-      { property: "og:title", content: "Campanha do Povo que Batalha" },
-      {
-        property: "og:description",
-        content: "Faça parte da Campanha do Povo que Batalha. Cadastre-se e receba as próximas ações.",
-      },
-    ],
+    meta: shareMeta({
+      title: "Campanha do Povo que Batalha",
+      description:
+        "Faça parte da Campanha do Povo que Batalha. Cadastre-se e receba as próximas ações.",
+      path: "/",
+    }),
+    links: canonical("/"),
   }),
   ssr: false,
   component: Landing,
