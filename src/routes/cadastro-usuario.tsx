@@ -2,15 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { UserSignupForm } from "@/components/UserSignupForm";
 import { PUBLIC_SIGNUP_ROLES, ROLE_LABEL } from "@/lib/roles";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/cadastro-usuario")({
   validateSearch: z.object({ role: z.enum(PUBLIC_SIGNUP_ROLES).optional() }),
   head: () => ({
     meta: [
-      { title: "Cadastro de usuário — Campanha do Povo que Batalha" },
-      { name: "description", content: "Cadastre-se para acessar o painel da Campanha do Povo que Batalha." },
+      ...shareMeta({
+        title: "Cadastro de usuário — Campanha do Povo que Batalha",
+        description: "Cadastre-se para acessar o painel da Campanha do Povo que Batalha.",
+        path: "/cadastro-usuario",
+      }),
       { name: "google", content: "notranslate" },
     ],
+    links: canonical("/cadastro-usuario"),
   }),
   ssr: false,
   component: CadastroUsuario,

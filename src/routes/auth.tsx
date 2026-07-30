@@ -11,10 +11,12 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
-    meta: [
-      { title: "Entrar — Campanha do Povo que Batalha" },
-      { name: "description", content: "Acesso ao painel administrativo da campanha." },
-    ],
+    meta: shareMeta({
+      title: "Entrar — Campanha do Povo que Batalha",
+      description: "Acesso ao painel da Campanha do Povo que Batalha.",
+      path: "/auth",
+    }),
+    links: canonical("/auth"),
   }),
   validateSearch: searchSchema,
   component: AuthPage,
