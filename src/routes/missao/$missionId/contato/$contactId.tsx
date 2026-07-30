@@ -152,7 +152,12 @@ function ContactCard({
 
 function MissionExecutorPage() {
   const { missionId, contactId } = Route.useParams();
-  const [mission, setMission] = useState<{ title: string; message_template: string } | null>(null);
+  const [mission, setMission] = useState<{
+    title: string;
+    message_template: string;
+    media_url?: string | null;
+    media_filename?: string | null;
+  } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
