@@ -41,7 +41,9 @@ function DupPage() {
   async function act(pairIds: string[], action: "separados" | "ignorar") {
     try {
       await resolveFn({ data: { pair_ids: pairIds, action } });
-      toast.success(action === "separados" ? "Marcado como pessoas diferentes." : "Adiado para revisão depois.");
+      toast.success(
+        action === "separados" ? "Marcado como pessoas diferentes." : "Ignorado por enquanto — sai da fila.",
+      );
       q.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao processar");
