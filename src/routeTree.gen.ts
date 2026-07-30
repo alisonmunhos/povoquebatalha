@@ -77,6 +77,8 @@ import { Route as ApiPublicFormsSlugSectionProgressRouteImport } from './routes/
 import { Route as ApiPublicFormsSlugAccountSectionRouteImport } from './routes/api/public/forms/$slug/account-section'
 import { Route as ApiPublicEventsSlugRsvpRouteImport } from './routes/api/public/events/$slug/rsvp'
 import { Route as ApiPublicEventsSlugIcsRouteImport } from './routes/api/public/events/$slug/ics'
+import { Route as ApiPublicEventsSlugCoverRouteImport } from './routes/api/public/events/$slug/cover'
+import { Route as ApiPublicAgitationMissionsMissionIdMediaRouteImport } from './routes/api/public/agitation-missions/$missionId/media'
 import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$contactId'
 
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
@@ -442,6 +444,18 @@ const ApiPublicEventsSlugIcsRoute = ApiPublicEventsSlugIcsRouteImport.update({
   path: '/ics',
   getParentRoute: () => ApiPublicEventsSlugRoute,
 } as any)
+const ApiPublicEventsSlugCoverRoute =
+  ApiPublicEventsSlugCoverRouteImport.update({
+    id: '/cover',
+    path: '/cover',
+    getParentRoute: () => ApiPublicEventsSlugRoute,
+  } as any)
+const ApiPublicAgitationMissionsMissionIdMediaRoute =
+  ApiPublicAgitationMissionsMissionIdMediaRouteImport.update({
+    id: '/api/public/agitation-missions/$missionId/media',
+    path: '/api/public/agitation-missions/$missionId/media',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAgitationMissionsMissionIdContactIdRoute =
   ApiPublicAgitationMissionsMissionIdContactIdRouteImport.update({
     id: '/api/public/agitation-missions/$missionId/$contactId',
@@ -514,6 +528,8 @@ export interface FileRoutesByFullPath {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/agitation-missions/$missionId/media': typeof ApiPublicAgitationMissionsMissionIdMediaRoute
+  '/api/public/events/$slug/cover': typeof ApiPublicEventsSlugCoverRoute
   '/api/public/events/$slug/ics': typeof ApiPublicEventsSlugIcsRoute
   '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
@@ -583,6 +599,8 @@ export interface FileRoutesByTo {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/agitation-missions/$missionId/media': typeof ApiPublicAgitationMissionsMissionIdMediaRoute
+  '/api/public/events/$slug/cover': typeof ApiPublicEventsSlugCoverRoute
   '/api/public/events/$slug/ics': typeof ApiPublicEventsSlugIcsRoute
   '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
@@ -655,6 +673,8 @@ export interface FileRoutesById {
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  '/api/public/agitation-missions/$missionId/media': typeof ApiPublicAgitationMissionsMissionIdMediaRoute
+  '/api/public/events/$slug/cover': typeof ApiPublicEventsSlugCoverRoute
   '/api/public/events/$slug/ics': typeof ApiPublicEventsSlugIcsRoute
   '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
@@ -727,6 +747,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/agitation-missions/$missionId/media'
+    | '/api/public/events/$slug/cover'
     | '/api/public/events/$slug/ics'
     | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
@@ -796,6 +818,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/agitation-missions/$missionId/media'
+    | '/api/public/events/$slug/cover'
     | '/api/public/events/$slug/ics'
     | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
@@ -867,6 +891,8 @@ export interface FileRouteTypes {
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
+    | '/api/public/agitation-missions/$missionId/media'
+    | '/api/public/events/$slug/cover'
     | '/api/public/events/$slug/ics'
     | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
@@ -907,6 +933,7 @@ export interface RootRouteChildren {
   ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
   MissaoMissionIdContatoContactIdRoute: typeof MissaoMissionIdContatoContactIdRoute
   ApiPublicAgitationMissionsMissionIdContactIdRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
+  ApiPublicAgitationMissionsMissionIdMediaRoute: typeof ApiPublicAgitationMissionsMissionIdMediaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1387,6 +1414,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEventsSlugIcsRouteImport
       parentRoute: typeof ApiPublicEventsSlugRoute
     }
+    '/api/public/events/$slug/cover': {
+      id: '/api/public/events/$slug/cover'
+      path: '/cover'
+      fullPath: '/api/public/events/$slug/cover'
+      preLoaderRoute: typeof ApiPublicEventsSlugCoverRouteImport
+      parentRoute: typeof ApiPublicEventsSlugRoute
+    }
+    '/api/public/agitation-missions/$missionId/media': {
+      id: '/api/public/agitation-missions/$missionId/media'
+      path: '/api/public/agitation-missions/$missionId/media'
+      fullPath: '/api/public/agitation-missions/$missionId/media'
+      preLoaderRoute: typeof ApiPublicAgitationMissionsMissionIdMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/agitation-missions/$missionId/$contactId': {
       id: '/api/public/agitation-missions/$missionId/$contactId'
       path: '/api/public/agitation-missions/$missionId/$contactId'
@@ -1498,11 +1539,13 @@ const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 interface ApiPublicEventsSlugRouteChildren {
+  ApiPublicEventsSlugCoverRoute: typeof ApiPublicEventsSlugCoverRoute
   ApiPublicEventsSlugIcsRoute: typeof ApiPublicEventsSlugIcsRoute
   ApiPublicEventsSlugRsvpRoute: typeof ApiPublicEventsSlugRsvpRoute
 }
 
 const ApiPublicEventsSlugRouteChildren: ApiPublicEventsSlugRouteChildren = {
+  ApiPublicEventsSlugCoverRoute: ApiPublicEventsSlugCoverRoute,
   ApiPublicEventsSlugIcsRoute: ApiPublicEventsSlugIcsRoute,
   ApiPublicEventsSlugRsvpRoute: ApiPublicEventsSlugRsvpRoute,
 }
@@ -1560,17 +1603,9 @@ const rootRouteChildren: RootRouteChildren = {
   MissaoMissionIdContatoContactIdRoute: MissaoMissionIdContatoContactIdRoute,
   ApiPublicAgitationMissionsMissionIdContactIdRoute:
     ApiPublicAgitationMissionsMissionIdContactIdRoute,
+  ApiPublicAgitationMissionsMissionIdMediaRoute:
+    ApiPublicAgitationMissionsMissionIdMediaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
