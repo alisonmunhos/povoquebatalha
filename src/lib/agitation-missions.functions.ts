@@ -230,6 +230,8 @@ export const createAgitationMission = createServerFn({ method: "POST" })
         media_path: data.media_path ?? null,
         media_mime: data.media_mime ?? null,
         media_filename: data.media_filename ?? null,
+        ...(data.batch_size !== undefined ? { batch_size: data.batch_size } : {}),
+        ...(data.cooldown_minutes !== undefined ? { cooldown_minutes: data.cooldown_minutes } : {}),
       } as never)
       .select("id")
       .single();
