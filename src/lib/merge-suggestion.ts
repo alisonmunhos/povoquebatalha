@@ -103,7 +103,3 @@ export const CONFIANCA_LABEL: Record<string, string> = {
   possivel: "Baixa",
 };
 
-/** Só pedimos a digitação de confirmação quando a confiança é baixa. */
-export function requiresTypedConfirmation(matchType?: string | null): boolean {
-  return matchType !== "forte" && matchType !== "provavel";
-}

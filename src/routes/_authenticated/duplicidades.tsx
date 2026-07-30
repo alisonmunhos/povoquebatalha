@@ -41,7 +41,9 @@ function DupPage() {
   async function act(pairIds: string[], action: "separados" | "ignorar") {
     try {
       await resolveFn({ data: { pair_ids: pairIds, action } });
-      toast.success(action === "separados" ? "Marcado como pessoas diferentes." : "Adiado para revisão depois.");
+      toast.success(
+        action === "separados" ? "Marcado como pessoas diferentes." : "Ignorado por enquanto — sai da fila.",
+      );
       q.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao processar");
@@ -158,8 +160,13 @@ function DupPage() {
                 <Button size="sm" variant="outline" onClick={() => act(pairIds, "separados")}>
                   São pessoas diferentes
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => act(pairIds, "ignorar")}>
-                  Decidir depois
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => act(pairIds, "ignorar")}
+                  title="Some da fila agora. Volta a aparecer se você clicar em “Verificar a base agora” e os cadastros ainda estiverem parecidos."
+                >
+                  Ignorar por enquanto
                 </Button>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {g.pairs[0]?.reason ?? "Detecção automática"}
