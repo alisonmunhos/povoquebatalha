@@ -209,6 +209,50 @@ function MissionBlockCard({
     }
   }
 
+  /** "Não quer receber": arquiva o contato na hora e oferece Desfazer. */
+  async function onRefuseTask(task: Task) {
+    const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
+    setRefusedNow((prev) => new Set(prev).add(task.id));
+    setAwaitingConfirm((prev) => {
+      const next = new Set(prev);
+      next.delete(task.id);
+      return next;
+    });
+    try {
+      await refuseFn({ data: { task_id: task.id } });
+      toast.success(`${nome} foi arquivado e não receberá mais mensagens.`, {
+        duration: 8000,
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            void (async () => {
+              try {
+                await undoRefuseFn({ data: { task_id: task.id } });
+                setRefusedNow((prev) => {
+                  const next = new Set(prev);
+                  next.delete(task.id);
+                  return next;
+                });
+                toast.info(`${nome} voltou para a sua leva.`);
+                onChanged();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
+              }
+            })();
+          },
+        },
+      });
+      onChanged();
+    } catch (e) {
+      setRefusedNow((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+      toast.error(e instanceof Error ? e.message : "Erro ao registrar a recusa.");
+    }
+  }
+
   async function onComplete() {
     if (!openClaim) return;
     if (pendingTasks.length > 0) {
