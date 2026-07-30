@@ -508,10 +508,52 @@ export function NotificationBell() {
                               <p className="text-sm whitespace-pre-wrap break-words">{briefing.instructions}</p>
                             </div>
                           )}
-                          <div className="text-sm text-muted-foreground">
-                            Público-alvo: <span className="font-medium text-foreground">{briefing.contact_count}</span> contato(s)
-                            {briefing.batch_size ? ` · leva de ${briefing.batch_size}` : ""}
+                          <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                            {briefing.has_my_tasks ? (
+                              <>
+                                <div>
+                                  Sua leva:{" "}
+                                  <span className="font-semibold text-foreground">
+                                    {briefing.mine_total}
+                                  </span>{" "}
+                                  contato(s)
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {briefing.mine_pending} pendente(s) · {briefing.mine_sent} enviado(s) ·{" "}
+                                  {briefing.mine_not_sent} não enviado(s)
+                                </div>
+                              </>
+                            ) : briefing.self_assign ? (
+                              <>
+                                <div>
+                                  Você vai receber uma leva de{" "}
+                                  <span className="font-semibold text-foreground">
+                                    {briefing.batch_size}
+                                  </span>{" "}
+                                  contato(s)
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {briefing.available_now} disponível(is) no total desta missão
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">
+                                Esta missão é distribuída pela coordenação. Aguarde os contatos serem
+                                atribuídos a você.
+                              </div>
+                            )}
+                            {briefing.in_cooldown && briefing.releases_at && (
+                              <div className="text-xs text-amber-600 dark:text-amber-400">
+                                Você poderá pegar uma nova leva{" "}
+                                {formatDistanceToNow(new Date(briefing.releases_at), {
+                                  addSuffix: true,
+                                  locale: ptBR,
+                                })}
+                                .
+                              </div>
+                            )}
                           </div>
+
                         </div>
                       )}
                       {!briefing && !missionBriefingQ.isLoading && detail.body && (
