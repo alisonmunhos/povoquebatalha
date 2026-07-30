@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   crmFilterSchema,
   applyCrmFilters,
-  resolveContactIdsForTagFilter,
+  resolveRelationalFilterIds,
   fetchAllPaged,
   paginateWithAllowedIds,
   INLINE_ID_LIMIT,
@@ -42,62 +42,13 @@ export const listContactsRich = createServerFn({ method: "POST" })
     const to = from + data.pageSize - 1;
     const empty = { rows: [] as never[], total: 0, page: data.page, pageSize: data.pageSize };
 
-    // --- Restrições que dependem de consultas auxiliares (resolvidas antes) ---
-    let allowedIds: string[] | null = null;
-    if (data.filters.tag_ids?.length) {
-      const { ids, noMatch } = await resolveContactIdsForTagFilter(context.supabase, data.filters.tag_ids);
-      if (noMatch) return empty;
-      if (ids?.length) allowedIds = ids;
-    }
+    // --- Restrições que dependem de outras tabelas (resolvidas antes) ---
+    const rel = await resolveRelationalFilterIds(context.supabase, data.filters as CrmFilters);
+    if (rel.noMatch) return empty;
+    const allowedIds = rel.allowedIds;
+    const excludeSet = rel.excludeIds;
 
-    async function idsForCampaign(campaignId: string, statuses?: string[]) {
-      const rows = await fetchAllPaged<{ contact_id: string }>(() => {
-        let qr = context.supabase.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
-        if (statuses?.length) qr = qr.in("status", statuses as never[]);
-        return qr as never;
-      });
-      return Array.from(new Set(rows.map((x) => x.contact_id)));
-    }
-    async function idsForTemplate(templateId: string) {
-      const rows = await fetchAllPaged<{ contact_id: string }>(() =>
-        context.supabase
-          .from("automation_deliveries")
-          .select("contact_id")
-          .eq("template_id", templateId)
-          .eq("status", "sent") as never,
-      );
-      return Array.from(new Set(rows.map((x) => x.contact_id)));
-    }
 
-    const excludeIds: string[] = [];
-    function intersectAllowed(ids: string[]) {
-      allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
-    }
-
-    if (data.filters.recebeu_campanha_id) {
-      const ids = await idsForCampaign(data.filters.recebeu_campanha_id, ["sent", "delivered", "read"]);
-      if (!ids.length) return empty;
-      intersectAllowed(ids);
-    }
-    if (data.filters.nao_recebeu_campanha_id) {
-      excludeIds.push(...(await idsForCampaign(data.filters.nao_recebeu_campanha_id, ["sent", "delivered", "read"])));
-    }
-    if (data.filters.erro_campanha_id) {
-      const ids = await idsForCampaign(data.filters.erro_campanha_id, ["failed"]);
-      if (!ids.length) return empty;
-      intersectAllowed(ids);
-    }
-    if (data.filters.recebeu_template_id) {
-      const ids = await idsForTemplate(data.filters.recebeu_template_id);
-      if (!ids.length) return empty;
-      intersectAllowed(ids);
-    }
-    if (data.filters.nao_recebeu_template_id) {
-      excludeIds.push(...(await idsForTemplate(data.filters.nao_recebeu_template_id)));
-    }
-    if (allowedIds && !allowedIds.length) return empty;
-
-    const excludeSet = new Set(excludeIds);
 
     function buildQuery(cols: string, withCount: boolean) {
       let q = withCount
@@ -122,6 +73,77 @@ export const listContactsRich = createServerFn({ method: "POST" })
 
     if (useMemoryIntersection) {
       const allowedSet = allowedIds ? new Set(allowedIds) : null;
+      const { pageIds, total: t } = await paginateWithAllowedIds({
+        buildIdQuery: () => buildQuery("id", false) as never,
+        allowed: {
+          has: (id: string) => (allowedSet ? allowedSet.has(id) : true) && !excludeSet.has(id),
+        } as Set<string>,
+        from,
+        pageSize: data.pageSize,
+      });
+      total = t;
+      if (pageIds.length) {
+        const { data: pageRows, error } = await context.supabase
+          .from("contacts")
+          .select(CONTACT_LIST_COLS)
+          .in("id", pageIds);
+        if (error) throw error;
+        const byId = new Map(((pageRows ?? []) as unknown as ContactRichRow[]).map((r) => [r.id, r]));
+        rows = pageIds.map((id) => byId.get(id)).filter(Boolean) as ContactRichRow[];
+      }
+    } else {
+      let q = buildQuery(CONTACT_LIST_COLS, true).range(from, to);
+      if (allowedIds?.length) q = q.in("id", allowedIds);
+      const { data: r, count, error } = await q;
+      if (error) throw error;
+      rows = (r ?? []) as unknown as ContactRichRow[];
+      total = count ?? 0;
+    }
+
+
+    // Tags por contato
+    const ids = rows.map((r) => r.id);
+    let tagMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {};
+    if (ids.length) {
+      const { data: rels } = await context.supabase
+        .from("contact_tags")
+        .select("contact_id, tags(id,nome,cor)")
+        .in("contact_id", ids);
+      tagMap = (rels ?? []).reduce<typeof tagMap>((acc, r) => {
+        const t = r.tags as { id: string; nome: string; cor: string } | null;
+        if (!t) return acc;
+        (acc[r.contact_id] ??= []).push(t);
+        return acc;
+      }, {});
+    }
+
+    return {
+      rows: rows.map((r) => ({ ...r, tags: tagMap[r.id] ?? [] })),
+      total,
+      page: data.page,
+      pageSize: data.pageSize,
+    };
+  });
+
+
+// ===== IDs por filtro (selecionar tudo do filtro / export) =====
+export const idsByFilter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      filters: crmFilterSchema.partial().default({}),
+      max: z.number().int().min(1).max(10000).default(5000),
+    }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const emptyResult = { ids: [] as string[], total: 0, truncated: false };
+
+    const rel = await resolveRelationalFilterIds(context.supabase, data.filters as CrmFilters);
+    if (rel.noMatch) return emptyResult;
+    const allowedIds = rel.allowedIds;
+    const excludeSet = rel.excludeIds;
+
+    const allowedSet = allowedIds ? new Set(allowedIds) : null;
       const { pageIds, total: t } = await paginateWithAllowedIds({
         buildIdQuery: () => buildQuery("id", false) as never,
         allowed: {
