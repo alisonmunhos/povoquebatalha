@@ -4,18 +4,60 @@ import { Calendar, CheckCircle2, Loader2, MapPin, XCircle } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 import { PublicFormRenderer } from "@/components/PublicFormRenderer";
 import { StepOverlay } from "@/components/StepOverlay";
+import { getEventMeta } from "@/lib/event-meta.functions";
+import { getRequestOrigin } from "@/lib/site-origin.functions";
 
 
 export const Route = createFileRoute("/evento/$slug")({
   validateSearch: (s: Record<string, unknown>) => ({
     t: typeof s.t === "string" ? s.t : undefined,
   }),
-  head: ({ params }) => ({
-    meta: [{ title: `${params.slug} — Evento` }],
-  }),
-  ssr: false,
+  // "data-only": o loader roda no servidor (garantindo as meta tags para a
+  // pré-visualização do link no WhatsApp), mas a página é renderizada no cliente.
+  ssr: "data-only",
+  loader: async ({ params }) => {
+    const [meta, origin] = await Promise.all([
+      getEventMeta({ data: { slug: params.slug } }),
+      getRequestOrigin(),
+    ]);
+    return { meta, origin };
+  },
+  head: ({ params, loaderData }) => {
+    const title = loaderData?.meta?.title ?? "Evento";
+    const description =
+      loaderData?.meta?.description ?? "Confirme sua presença neste evento.";
+    const origin = loaderData?.origin ?? "https://povoquebatalha.lovable.app";
+    const pageUrl = `${origin}/evento/${params.slug}`;
+    const imageUrl = loaderData?.meta?.hasCover
+      ? `${origin}/api/public/events/${params.slug}/cover`
+      : null;
+
+    return {
+      meta: [
+        { title: `${title} — Confirmar presença` },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: pageUrl },
+        ...(imageUrl
+          ? [
+              { property: "og:image", content: imageUrl },
+              { property: "og:image:width", content: "1200" },
+              { property: "og:image:height", content: "630" },
+              { name: "twitter:image", content: imageUrl },
+            ]
+          : []),
+        { name: "twitter:card", content: imageUrl ? "summary_large_image" : "summary" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+      ],
+      links: [{ rel: "canonical", href: pageUrl }],
+    };
+  },
   component: EventoPublicPage,
 });
+
 
 type EventData = {
   id: string;
