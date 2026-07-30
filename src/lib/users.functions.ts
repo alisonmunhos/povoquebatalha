@@ -494,10 +494,11 @@ export const rejectPendingUser = createServerFn({ method: "POST" })
 
 // Lista leve de usuários do sistema (id + nome + e-mail + papéis) para popular
 // dropdowns como "captado por" nos filtros do CRM. Disponível para qualquer
-// usuário autenticado — não expõe informação sensível além de nome/e-mail.
+// usuário autenticado. O e-mail só é devolvido para admin/operador; para os
+// demais papéis vem vazio, evitando expor e-mails internos em dropdowns.
 export const listSystemUserOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: users, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     if (error) throw error;
@@ -515,10 +516,13 @@ export const listSystemUserOptions = createServerFn({ method: "GET" })
       arr.push(r.role);
       rolesById.set(r.user_id, arr);
     });
+    const callerRoles = (rolesById.get(context.userId) ?? []) as string[];
+    const canSeeEmails = callerRoles.includes("admin") || callerRoles.includes("operador");
+
     return {
       users: users.users.map((u) => ({
         id: u.id,
-        email: u.email ?? "",
+        email: canSeeEmails ? (u.email ?? "") : "",
         full_name: nameById.get(u.id) ?? null,
         roles: rolesById.get(u.id) ?? [],
       })),
