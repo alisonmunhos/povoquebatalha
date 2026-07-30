@@ -152,6 +152,7 @@ function MissionDetailsPanel() {
 
   const tasks = (q.data?.tasks ?? []) as Task[];
   const links = (q.data?.links ?? []) as LinkRow[];
+  const assignees = (q.data?.assignees ?? []) as Assignee[];
   const missionPaused = !!q.data?.mission.paused_at;
   const missionArchived = !!q.data?.mission.archived_at;
   const missionIsOpen = !!q.data?.mission.is_open;
@@ -161,7 +162,7 @@ function MissionDetailsPanel() {
   }
 
   const availableForPool = tasks.filter(
-    (t) => !taskHasAssignment(t) && t.status === "pending",
+    (t) => taskState(t) === "sem_responsavel" && t.status === "pending",
   ).length;
 
   const assignedTaskIds = tasks.filter((t) => taskHasAssignment(t)).map((t) => t.id);
@@ -169,22 +170,36 @@ function MissionDetailsPanel() {
   const selectedIds = [...selected];
   const canAssign = selectedIds.length > 0 && !missionArchived;
 
+  // Contadores por estado — alimentam os rótulos dos filtros para o admin
+  // nunca escolher uma opção que não traz nada.
+  const stateCounts = tasks.reduce(
+    (acc, t) => {
+      const s = taskState(t);
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<TaskState, number>,
+  );
+
+  /** Contatos "parados": têm responsável e nenhuma ação — são os reaproveitáveis. */
+  const stalledTaskIds = tasks.filter((t) => taskState(t) === "parado").map((t) => t.id);
+
   const filteredTasks = tasks.filter((t) => {
-    const hasAssignment = taskHasAssignment(t);
-    if (statusFilter === "sem_atribuicao" && hasAssignment) return false;
-    if (statusFilter === "atribuido" && !(hasAssignment && t.status === "pending")) return false;
-    if (statusFilter === "concluido" && t.status !== "concluido") return false;
-    if (statusFilter === "nao_enviado" && t.status !== "nao_enviado") return false;
-    if (responsavelFilter === "sem_atribuicao" && hasAssignment) return false;
+    const state = taskState(t);
+    if (statusFilter !== "todos" && state !== statusFilter) return false;
+    if (hideOptOutErro && (state === "optout" || state === "erro")) return false;
+    if (responsavelFilter === "sem_atribuicao" && taskHasAssignment(t)) return false;
     if (
       responsavelFilter !== "todos" &&
       responsavelFilter !== "sem_atribuicao" &&
-      t.assigned_contact_id !== responsavelFilter
+      t.assigned_contact_id !== responsavelFilter &&
+      t.assigned_user_id !== responsavelFilter
     )
       return false;
-    if (hideSemNumero && !t.contact?.phone_e164) return false;
+    if (hideSemNumero && !(t.contact?.phone_e164 || t.contact?.phone_raw)) return false;
     return true;
   });
+
 
 
   function toggle(id: string) {
