@@ -307,7 +307,9 @@ export async function saveFormContactFromAnswers(
     }
   }
 
-  if (contactPayload.cidade || contactPayload.cep) {
+  // Geocodificação só na etapa final: é uma chamada HTTP externa e não pode
+  // atrasar a troca de telas nas etapas intermediárias.
+  if (finalize && (contactPayload.cidade || contactPayload.cep)) {
     try {
       const { geocodeAddress } = await import("@/lib/cep.server");
       const g = await geocodeAddress({
@@ -335,11 +337,15 @@ export async function saveFormContactFromAnswers(
     }
   }
 
+  // Uma única consulta traz os dados finais e se a pessoa já tem login.
   const { data: savedContact } = await supabaseAdmin
     .from("contacts")
-    .select("recad_token,nome,email,phone_raw,phone_e164")
+    .select("recad_token,nome,email,phone_raw,phone_e164,is_system_user,profiles(id)")
     .eq("id", savedId)
     .single();
+
+  const profiles = (savedContact as { profiles?: unknown } | null)?.profiles;
+  const hasProfile = Array.isArray(profiles) ? profiles.length > 0 : Boolean(profiles);
 
   return {
     contactId: savedId,
@@ -347,6 +353,7 @@ export async function saveFormContactFromAnswers(
     nome: savedContact?.nome ?? nome,
     email: savedContact?.email ?? email,
     phone: savedContact?.phone_raw ?? savedContact?.phone_e164 ?? phoneRaw ?? null,
+    hasAccount: Boolean(savedContact?.is_system_user) || hasProfile,
   };
 }
 
