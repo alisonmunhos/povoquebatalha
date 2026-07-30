@@ -11,7 +11,10 @@ export const getRequestOrigin = createServerFn({ method: "GET" }).handler(() => 
     const req = getRequest();
     const proto = req.headers.get("x-forwarded-proto") ?? "https";
     const host = req.headers.get("host");
-    if (host) return `${proto}://${host}`;
+    if (host) {
+      const localProto = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : proto;
+      return `${localProto}://${host}`;
+    }
   } catch {
     /* ignore */
   }
