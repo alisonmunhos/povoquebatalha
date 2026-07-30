@@ -496,7 +496,7 @@ function Contatos() {
                       if (e.key === "Escape") { setCreatingTag(false); setNewTagName(""); }
                     }}
                     placeholder="Nome da nova tag"
-                    className="h-8 w-40 text-xs text-foreground"
+                    className="h-8 w-full sm:w-40 text-xs text-foreground"
                   />
                   <Button size="sm" variant="secondary" onClick={doCreateTag}>Criar</Button>
                   <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={() => { setCreatingTag(false); setNewTagName(""); }}>Cancelar</Button>
@@ -510,7 +510,7 @@ function Contatos() {
                       if (v === "__new__") { setCreatingTag(true); return; }
                       setBulkTagId(v);
                     }}
-                    className="text-xs h-8 rounded-md text-foreground px-2"
+                    className="text-xs h-8 rounded-md text-foreground px-2 min-w-0 flex-1 sm:flex-none sm:w-auto"
                   >
                     <option value="">— escolher tag —</option>
                     <option value="__new__">+ Criar nova tag…</option>
@@ -523,22 +523,22 @@ function Contatos() {
             </div>
 
 
-            <div className="h-6 w-px bg-primary-foreground/30" />
+            <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
 
             {/* Status */}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Status</span>
-              <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2">
+              <select value={bulkLifecycle} onChange={(e) => setBulkLifecycle(e.target.value)} className="text-xs h-8 rounded-md text-foreground px-2 min-w-0 flex-1 sm:flex-none sm:w-auto">
                 <option value="">— escolher status —</option>
                 {LIFECYCLE.map((l) => <option key={l} value={l}>{LIFECYCLE_LABEL[l] ?? l}</option>)}
               </select>
               <Button size="sm" variant="secondary" onClick={doBulkLifecycle}>Aplicar status</Button>
             </div>
 
-            <div className="h-6 w-px bg-primary-foreground/30" />
+            <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
 
             {/* Ações */}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Ações</span>
               <Button size="sm" variant="secondary" onClick={doBulkCheckWhatsapp} title="Consulta Z-API para confirmar quais números têm WhatsApp">
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Verificar no WhatsApp
@@ -562,10 +562,10 @@ function Contatos() {
               )}
             </div>
 
-            <div className="h-6 w-px bg-primary-foreground/30" />
+            <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
 
             {/* Exportação/Segmento */}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Exportar</span>
               <Button size="sm" variant="secondary" onClick={() => doExport("selecionados")}><Download className="h-3 w-3 mr-1" /> CSV</Button>
               <Button size="sm" variant="secondary" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "estatico" })}>Criar segmento</Button>
