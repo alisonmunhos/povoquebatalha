@@ -409,3 +409,120 @@ export const rescanDuplicates = createServerFn({ method: "POST" })
     }
     return { novos, processados: list.length, done: list.length < data.limit };
   });
+
+// ---------------------------------------------------------------------------
+// Exclusão de cadastros repetidos direto na tela de duplicidades
+// ---------------------------------------------------------------------------
+
+/**
+ * Exclui (ou arquiva) cadastros de um grupo de repetidos.
+ * Sempre mantém pelo menos um cadastro do grupo e nunca remove usuários do sistema.
+ * Ao excluir de vez, os pares em contact_duplicates caem por ON DELETE CASCADE;
+ * quando sobra só um cadastro, o grupo some sozinho da fila.
+ */
+export const deleteDuplicateContacts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        group_ids: z.array(z.string().uuid()).min(2).max(50),
+        delete_ids: z.array(z.string().uuid()).min(1).max(49),
+        mode: z.enum(["hard", "arquivar"]).default("hard"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId, "Apenas administradores podem excluir contatos.");
+
+    const deleteIds = Array.from(new Set(data.delete_ids));
+    const remaining = data.group_ids.filter((id) => !deleteIds.includes(id));
+    if (remaining.length < 1) {
+      throw new Error("Pelo menos um cadastro do grupo precisa ser mantido.");
+    }
+
+    const { data: alvos, error: getErr } = await context.supabase
+      .from("contacts")
+      .select("*")
+      .in("id", deleteIds);
+    if (getErr) throw getErr;
+    const rows = alvos ?? [];
+    if (rows.length === 0) throw new Error("Os cadastros selecionados não foram encontrados.");
+
+    const sistema = rows.filter((c) => c.is_system_user);
+    if (sistema.length > 0) {
+      throw new Error(
+        `Não é possível excluir por aqui: ${sistema
+          .map((c) => c.nome)
+          .join(", ")} tem acesso ao sistema. Use "Unificar cadastros".`,
+      );
+    }
+
+    const ids = rows.map((c) => c.id);
+
+    if (data.mode === "arquivar") {
+      const { error } = await context.supabase
+        .from("contacts")
+        .update({ arquivado_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+      await context.supabase.from("contact_audit_log").insert(
+        ids.map((id) => ({ contact_id: id, user_id: context.userId, action: "archive" })),
+      );
+    } else {
+      for (const c of rows) {
+        try {
+          await context.supabase.from("access_audit_log").insert({
+            actor_id: context.userId,
+            target_user_id: null,
+            event: "contact_hard_delete",
+            meta: {
+              contact_id: c.id,
+              nome: c.nome,
+              phone_e164: c.phone_e164,
+              email: c.email,
+              cidade: c.cidade,
+              uf: c.uf,
+              origem: c.origem,
+              motivo: "duplicidade",
+              deleted_at: new Date().toISOString(),
+            } as never,
+          });
+        } catch {
+          /* auditoria não bloqueia */
+        }
+      }
+      const { error } = await context.supabase.from("contacts").delete().in("id", ids);
+      if (error) throw error;
+    }
+
+    // Resolve os pares que envolvem os cadastros retirados. No modo "hard" o
+    // cascade já apagou, então isso cobre principalmente o modo "arquivar".
+    const orFilter = ids.map((id) => `contact_a.eq.${id},contact_b.eq.${id}`).join(",");
+    await context.supabase
+      .from("contact_duplicates")
+      .update({
+        status: "separados",
+        snoozed_until: null,
+        resolved_at: new Date().toISOString(),
+        resolved_by: context.userId,
+      })
+      .eq("status", "pendente")
+      .or(orFilter);
+
+    // Se sobrou um só, encerra o que restar do grupo.
+    if (remaining.length === 1) {
+      const soId = remaining[0];
+      await context.supabase
+        .from("contact_duplicates")
+        .update({
+          status: "separados",
+          snoozed_until: null,
+          resolved_at: new Date().toISOString(),
+          resolved_by: context.userId,
+        })
+        .eq("status", "pendente")
+        .or(`contact_a.eq.${soId},contact_b.eq.${soId}`);
+    }
+
+    return { ok: true as const, removidos: ids.length, restantes: remaining.length, mode: data.mode };
+  });

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Clock, Copy, GitMerge, RefreshCw, RotateCcw, Users } from "lucide-react";
+import { Clock, Copy, GitMerge, RefreshCw, RotateCcw, Trash2, Users } from "lucide-react";
 import {
   listDuplicateGroups,
   resolveDuplicateGroup,
@@ -11,6 +11,8 @@ import {
   type DuplicateView,
 } from "@/lib/duplicates.functions";
 import { MergeContactsModal } from "@/components/MergeContactsModal";
+import { DeleteDuplicatesDialog, type DeleteCandidate } from "@/components/DeleteDuplicatesDialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatPhoneBR } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,11 +72,23 @@ function DupPage() {
   const counts = useQuery({ queryKey: ["dup-counts"], queryFn: () => countsFn() });
   const [merging, setMerging] = useState<{ ids: string[]; matchType: string } | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [deleting, setDeleting] = useState<{ group: DeleteCandidate[]; targets: DeleteCandidate[] } | null>(null);
+  // Seleção de cadastros por bloco (chave do grupo -> ids marcados)
+  const [selected, setSelected] = useState<Record<string, string[]>>({});
+
+  function toggleSelected(groupKey: string, id: string) {
+    setSelected((prev) => {
+      const cur = prev[groupKey] ?? [];
+      return { ...prev, [groupKey]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+    });
+  }
 
   function refresh() {
+    setSelected({});
     q.refetch();
     counts.refetch();
   }
+
 
   async function act(
     pairIds: string[],
@@ -187,6 +201,14 @@ function DupPage() {
           const contatos = g.contacts as unknown as MergeCandidate[];
           const sugerido = suggestSurvivor(contatos);
           const pairIds = g.pairs.map((p) => p.id);
+          const grupoParaExcluir = contatos as unknown as DeleteCandidate[];
+          const marcados = selected[g.key] ?? [];
+          const podeExcluir = view === "revisar" && isAdmin;
+          function abrirExclusao(ids: string[]) {
+            const targets = grupoParaExcluir.filter((c) => ids.includes(c.id));
+            if (targets.length === 0) return;
+            setDeleting({ group: grupoParaExcluir, targets });
+          }
           return (
             <div key={g.key} className="border rounded-xl bg-card overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
@@ -219,11 +241,36 @@ function DupPage() {
                 {contatos.map((c2) => (
                   <div
                     key={c2.id}
-                    className={`rounded-lg border p-3 text-sm ${
-                      sugerido?.id === c2.id ? "border-primary bg-primary/5" : "bg-background"
+                    className={`rounded-lg border p-3 text-sm relative ${
+                      marcados.includes(c2.id)
+                        ? "border-destructive bg-destructive/5"
+                        : sugerido?.id === c2.id
+                          ? "border-primary bg-primary/5"
+                          : "bg-background"
                     }`}
                   >
-                    <div className="font-semibold truncate">{c2.nome ?? "Sem nome"}</div>
+                    {podeExcluir && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1">
+                        <Checkbox
+                          checked={marcados.includes(c2.id)}
+                          onCheckedChange={() => toggleSelected(g.key, c2.id)}
+                          aria-label={`Selecionar ${c2.nome ?? "cadastro"} para excluir`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => abrirExclusao([c2.id])}
+                          disabled={contatos.length < 2}
+                          title="Excluir este cadastro"
+                          aria-label={`Excluir ${c2.nome ?? "cadastro"}`}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    <div className={`font-semibold truncate ${podeExcluir ? "pr-16" : ""}`}>
+                      {c2.nome ?? "Sem nome"}
+                    </div>
                     <div className="text-xs text-muted-foreground tabular-nums">
                       {formatPhoneBR(c2.phone_e164 ?? null) || c2.phone_raw || "sem telefone"}
                     </div>
@@ -280,6 +327,45 @@ function DupPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {marcados.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => abrirExclusao(marcados)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" /> Excluir selecionados ({marcados.length})
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-destructive">
+                          Excluir…
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            abrirExclusao(
+                              contatos
+                                .filter((c2) => c2.id !== (sugerido?.id ?? contatos[0].id))
+                                .map((c2) => c2.id),
+                            )
+                          }
+                        >
+                          Excluir todos, menos o sugerido para ficar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSelected((p) => ({ ...p, [g.key]: contatos.map((c2) => c2.id) }))}
+                        >
+                          Marcar todos para escolher o que fica
+                        </DropdownMenuItem>
+                        {marcados.length > 0 && (
+                          <DropdownMenuItem onClick={() => setSelected((p) => ({ ...p, [g.key]: [] }))}>
+                            Limpar seleção
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </>
                 )}
                 {view !== "revisar" && isAdmin && g.status !== "mesclado" && (
@@ -302,6 +388,15 @@ function DupPage() {
           matchType={merging.matchType}
           onClose={() => setMerging(null)}
           onMerged={() => refresh()}
+        />
+      )}
+
+      {deleting && (
+        <DeleteDuplicatesDialog
+          group={deleting.group}
+          targets={deleting.targets}
+          onClose={() => setDeleting(null)}
+          onDone={() => refresh()}
         />
       )}
     </div>
