@@ -131,6 +131,25 @@ export function EditMissionModal({
 
           <MissionImageUpload value={media} onChange={setMedia} />
 
+          <div>
+            <Label className="text-xs font-medium">
+              Tela de orientação (aparece antes de aceitar a missão)
+            </Label>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Explique o objetivo, o tom da conversa e o que fazer em cada situação. Deixe em branco
+              para não mostrar orientação.
+            </p>
+            <Textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={5}
+              maxLength={4000}
+              className="mt-1"
+              placeholder="Ex.: Fale como quem convida um amigo. Se a pessoa pedir pra não receber mais, use o botão 'Não quer receber'."
+            />
+          </div>
+
+
           <div className="rounded-lg border p-3 space-y-3">
             <div>
               <Label className="text-xs font-semibold">Ritmo da missão</Label>
