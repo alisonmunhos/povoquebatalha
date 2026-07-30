@@ -755,12 +755,14 @@ function QuestionLabel({ label, linkText, linkUrl }: { label: string; linkText?:
 }
 
 export function QuestionField({
-  q, value, onChange, onToggleMulti,
+  q, value, onChange, onToggleMulti, disabled = false,
 }: {
   q: FormQuestion;
   value: AnswerValue | undefined;
   onChange: (v: AnswerValue) => void;
   onToggleMulti: (option: string) => void;
+  /** Bloqueia novos toques enquanto a etapa está sendo salva. */
+  disabled?: boolean;
 }) {
   const labelNode = <QuestionLabel label={`${q.label}${q.required ? " *" : ""}`} linkText={q.link_text} linkUrl={q.link_url} />;
 
