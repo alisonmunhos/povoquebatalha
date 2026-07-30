@@ -23,6 +23,8 @@ const createMissionSchema = z.object({
   media_path: z.string().max(500).nullable().optional(),
   media_mime: z.string().max(120).nullable().optional(),
   media_filename: z.string().max(200).nullable().optional(),
+  batch_size: z.number().int().min(1).max(100).optional(),
+  cooldown_minutes: z.number().int().min(0).max(1440).optional(),
 });
 
 
