@@ -107,6 +107,8 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
         const saved = result as Exclude<typeof result, { ok: false }>;
 
         // Presença no evento é gravada na mesma operação do salvamento do contato.
+        // O cliente para de enviar `event_slug` depois da primeira confirmação,
+        // então isso não se repete a cada etapa.
         let eventConfirmed = false;
         if (d.event_slug) {
           const { confirmEventRsvpForContact } = await import("@/lib/events-public.server");
@@ -118,25 +120,6 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
           eventConfirmed = rsvp.ok && (d.event_rsvp_status ?? "confirmed") === "confirmed";
         }
 
-        // A pessoa já tem conta no sistema? (evita pedir criação de senha de novo)
-        let hasAccount = false;
-        {
-          const { data: c } = await supabaseAdmin
-            .from("contacts")
-            .select("is_system_user")
-            .eq("id", saved.contactId)
-            .maybeSingle();
-          hasAccount = Boolean(c?.is_system_user);
-          if (!hasAccount) {
-            const { data: prof } = await supabaseAdmin
-              .from("profiles")
-              .select("id")
-              .eq("contact_id", saved.contactId)
-              .maybeSingle();
-            hasAccount = Boolean(prof);
-          }
-        }
-
         return new Response(
           JSON.stringify({
             ok: true,
@@ -144,7 +127,7 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
             email: saved.email,
             nome: saved.nome,
             phone: saved.phone,
-            has_account: hasAccount,
+            has_account: saved.hasAccount,
             event_confirmed: eventConfirmed,
           }),
           { headers: cors },

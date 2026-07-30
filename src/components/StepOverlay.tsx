@@ -1,7 +1,7 @@
 // Painel sobreposto usado no fluxo público (evento + cadastro por seções).
 // No celular ocupa a tela inteira; no desktop vira um cartão centralizado.
 // Sempre com cabeçalho fixo (Voltar / título / etapa) e rodapé fixo de ação.
-import { useEffect, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, X } from "lucide-react";
 
 export function StepOverlay({
@@ -37,13 +37,19 @@ export function StepOverlay({
   }, []);
 
   // Botão/gesto "voltar" do celular recua uma etapa em vez de sair da página.
+  // O callback fica numa ref para o histórico ser empilhado UMA única vez por
+  // painel — antes ele era re-empilhado a cada render, dessincronizando a seta
+  // da tela com o "voltar" do navegador.
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+  const hasBack = Boolean(onBack);
   useEffect(() => {
-    if (!onBack) return;
+    if (!hasBack) return;
     window.history.pushState({ stepOverlay: true }, "");
-    const onPop = () => onBack();
+    const onPop = () => onBackRef.current?.();
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [onBack]);
+  }, [hasBack]);
 
   const panelClass =
     "animate-in slide-in-from-right-4 fade-in flex h-[100dvh] w-full flex-col bg-background shadow-xl sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:border";

@@ -73,6 +73,13 @@ type SectionedFormDefinition = {
 };
 type WhatsappButtonInfo = { phone: string | null; message: string | null } | null;
 
+/**
+ * Cache em memória da definição pública do formulário (por slug + token), para
+ * remontagens do renderizador não pagarem outra viagem ao servidor.
+ */
+const formPayloadCache = new Map<string, { ok?: boolean; form?: Record<string, unknown> }>();
+
+
 export function PublicFormRenderer({
   slug, refToken, recadToken, startSectionId, eventSlug, eventRsvpStatus, onEventConfirmed,
   presentation = "inline", primaryActionLabel, onExit,
@@ -115,6 +122,8 @@ export function PublicFormRenderer({
   const [showPassword, setShowPassword] = useState(false);
   const [emailAlreadyRegistered, setEmailAlreadyRegistered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  /** Presença no evento já registrada nesta jornada (não reenviar a cada etapa). */
+  const [eventHandled, setEventHandled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
     nome: string;
@@ -128,47 +137,68 @@ export function PublicFormRenderer({
   } | null>(null);
 
   useEffect(() => {
+    const cacheKey = `${slug}|${recadToken ?? ""}`;
+
+    const apply = (
+      json: { ok?: boolean; form?: Record<string, unknown> },
+      opts: { keepPosition?: boolean } = {},
+    ) => {
+      if (!json.ok || !json.form) {
+        setForm(null);
+        setSectionedForm(null);
+        setLayoutMode("flat");
+        return;
+      }
+      const mode = ((json.form.layout_mode as "flat" | "sectioned" | undefined) ?? "flat");
+      setLayoutMode(mode);
+      if (mode === "sectioned") {
+        const loaded = json.form as unknown as SectionedFormDefinition;
+        setSectionedForm(loaded);
+        setForm(null);
+        if (loaded.initial_values) setValues((p) => ({ ...loaded.initial_values, ...p }));
+        const orderedSections = sortSections(loaded.sections ?? []);
+        const preferred = startSectionId ?? loaded.start_section_id;
+        const startId = preferred && orderedSections.some((s) => s.id === preferred)
+          ? preferred
+          : orderedSections[0]?.id ?? null;
+        if (!opts.keepPosition) {
+          setJourneyStartSectionId(startId);
+          setCurrentSectionId(startId);
+        }
+        const ctx = json.form.contact_context as ContactContext | null | undefined;
+        if (ctx) {
+          setContactContext(ctx);
+          setEmailAlreadyRegistered(Boolean(ctx.email_already_registered) || Boolean(ctx.has_account));
+        }
+        return;
+      }
+      setSectionedForm(null);
+      setForm(json.form as unknown as FormDefinition);
+      const initial = (json.form.initial_values as Record<string, AnswerValue> | null) ?? null;
+      if (initial) setValues((p) => ({ ...initial, ...p }));
+    };
+
+    // Reaproveita a definição já baixada nesta sessão (ex.: continuar o cadastro
+    // depois da tela de "presença confirmada"), evitando tela de "Carregando…".
+    const exact = formPayloadCache.get(cacheKey);
+    const structural = exact ?? formPayloadCache.get(`${slug}|`);
+    if (structural) apply(structural);
+    if (exact) return;
+
     const params = new URLSearchParams();
     if (recadToken) params.set("t", recadToken);
     if (startSectionId) params.set("s", startSectionId);
     const qs = params.toString();
-    const url = `/api/public/forms/${slug}${qs ? `?${qs}` : ""}`;
-    fetch(url)
+    fetch(`/api/public/forms/${slug}${qs ? `?${qs}` : ""}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!json.ok) {
-          setForm(null);
-          setSectionedForm(null);
-          setLayoutMode("flat");
-          return;
-        }
-        const mode = (json.form.layout_mode as "flat" | "sectioned" | undefined) ?? "flat";
-        setLayoutMode(mode);
-        if (mode === "sectioned") {
-          const loaded = json.form as SectionedFormDefinition;
-          setSectionedForm(loaded);
-          setForm(null);
-          if (loaded.initial_values) setValues(loaded.initial_values);
-          const sections = sortSections(loaded.sections ?? []);
-          const startId = loaded.start_section_id && sections.some((s) => s.id === loaded.start_section_id)
-            ? loaded.start_section_id
-            : sections[0]?.id ?? null;
-          setJourneyStartSectionId(startId);
-          setCurrentSectionId(startId);
-          if (json.form.contact_context) {
-            setContactContext(json.form.contact_context);
-            setEmailAlreadyRegistered(
-              Boolean(json.form.contact_context.email_already_registered) ||
-                Boolean(json.form.contact_context.has_account),
-            );
-          }
-          return;
-        }
-        setSectionedForm(null);
-        setForm(json.form);
-        if (json.form.initial_values) setValues(json.form.initial_values);
+        if (json?.ok) formPayloadCache.set(cacheKey, json);
+        // Se já mostramos a estrutura em cache, o refresh não pode voltar a
+        // pessoa para a primeira etapa.
+        apply(json, { keepPosition: Boolean(structural) });
       })
       .catch(() => {
+        if (structural) return;
         setForm(null);
         setSectionedForm(null);
         setLayoutMode("flat");
@@ -240,11 +270,11 @@ export function PublicFormRenderer({
     return map;
   }, [form, sectionedForm, layoutMode, values]);
 
-  function validateCurrentSection(): string | null {
+  function validateCurrentSection(effective: Record<string, AnswerValue> = values): string | null {
     const visible = sectionQuestions.filter(
       (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
     );
-    return findFirstRequiredEmpty(visible, values, parentAnswers);
+    return findFirstRequiredEmpty(visible, effective, parentAnswers);
   }
 
 
@@ -262,7 +292,9 @@ export function PublicFormRenderer({
     return null;
   }
 
-  async function saveSectionProgress(): Promise<{ ok: boolean; recadToken: string | null; eventConfirmed: boolean }> {
+  async function saveSectionProgress(
+    effective: Record<string, AnswerValue> = values,
+  ): Promise<{ ok: boolean; recadToken: string | null; eventConfirmed: boolean }> {
     if (!sectionedForm || !currentSection || isAccountSection) {
       return { ok: true, recadToken: activeRecadToken || null, eventConfirmed: false };
     }
@@ -276,15 +308,17 @@ export function PublicFormRenderer({
           ref_token: refToken ?? "",
           recad_token: activeRecadToken || "",
           current_section_id: currentSection.id,
-          event_slug: eventSlug ?? "",
+          // Depois de registrada, a presença não é reenviada a cada etapa.
+          event_slug: eventHandled ? "" : eventSlug ?? "",
           event_rsvp_status: eventRsvpStatus ?? "confirmed",
-          answers: values,
+          answers: effective,
           hp: "",
         }),
       });
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
       if (json.recad_token) setActiveRecadToken(json.recad_token);
+      if (eventSlug && !eventHandled) setEventHandled(true);
       if (json.has_account) setEmailAlreadyRegistered(true);
       if (json.email != null || json.nome != null || json.phone != null) {
         setContactContext((prev) => ({
@@ -354,7 +388,7 @@ export function PublicFormRenderer({
     }
   }
 
-  async function submitFinal(terminalSectionId: string) {
+  async function submitFinal(terminalSectionId: string, effective: Record<string, AnswerValue> = values) {
     setSubmitting(true);
     setError(null);
     try {
@@ -368,7 +402,7 @@ export function PublicFormRenderer({
           start_section_id: journeyStartSectionId ?? terminalSectionId,
           event_slug: eventSlug ?? "",
           event_rsvp_status: eventRsvpStatus ?? "confirmed",
-          answers: values,
+          answers: effective,
           hp: "",
         }),
       });
@@ -393,11 +427,15 @@ export function PublicFormRenderer({
     }
   }
 
-  async function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!sectionedForm || !currentSection) return;
+  /**
+   * Avança a etapa atual. `override` é usado no avanço automático, porque o
+   * estado do React ainda não refletiu a opção recém-clicada.
+   */
+  async function continueFlow(override?: Record<string, AnswerValue>) {
+    if (!sectionedForm || !currentSection || submitting) return;
+    const effective = override ?? values;
     setError(null);
-    const validationError = validateCurrentSection() ?? validateAccountSection();
+    const validationError = validateCurrentSection(effective) ?? validateAccountSection();
     if (validationError) {
       setError(validationError);
       return;
@@ -408,7 +446,7 @@ export function PublicFormRenderer({
       sections,
       sectionedForm.questions,
       sectionedForm.branch_rules ?? [],
-      values,
+      effective,
     );
 
     if (isAccountSection) {
@@ -416,15 +454,14 @@ export function PublicFormRenderer({
       if (!ok) return;
       if (nextId) {
         goToSection(nextId);
-
         return;
       }
-      void submitFinal(currentSection.id);
+      void submitFinal(currentSection.id, effective);
       return;
     }
 
     if (nextId) {
-      const saved = await saveSectionProgress();
+      const saved = await saveSectionProgress(effective);
       if (!saved.ok) return;
       // Presença confirmada dentro da página do evento: paramos aqui pra mostrar
       // a mensagem configurada, em vez de emendar direto na próxima etapa.
@@ -433,18 +470,22 @@ export function PublicFormRenderer({
         return;
       }
       goToSection(nextId);
-
       return;
     }
     if (eventSlug && onEventConfirmed) {
-      const saved = await saveSectionProgress();
+      const saved = await saveSectionProgress(effective);
       if (!saved.ok) return;
       if (saved.eventConfirmed) {
         onEventConfirmed({ recadToken: saved.recadToken, nextSectionId: null });
         return;
       }
     }
-    void submitFinal(currentSection.id);
+    void submitFinal(currentSection.id, effective);
+  }
+
+  async function onContinueSectioned(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await continueFlow();
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -510,6 +551,27 @@ export function PublicFormRenderer({
         ? "Continuar"
         : "Enviar";
 
+  // Seção de escolha única (uma só pergunta obrigatória): tocar na opção já avança,
+  // sem exigir um segundo toque em "Continuar".
+  const visibleSectionQuestions = sectionQuestions.filter(
+    (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
+  );
+  const autoAdvanceQuestionId =
+    !isAccountSection &&
+    visibleSectionQuestions.length === 1 &&
+    visibleSectionQuestions[0].required &&
+    visibleSectionQuestions[0].response_type === "multiple_choice" &&
+    visibleSectionQuestions[0].filter_kind !== "multiselect"
+      ? visibleSectionQuestions[0].id
+      : null;
+
+  const handleAnswerChange = (questionId: string, v: AnswerValue) => {
+    set(questionId, v);
+    if (questionId === autoAdvanceQuestionId && !submitting) {
+      void continueFlow({ ...values, [questionId]: v });
+    }
+  };
+
   const sectionFields = sectionedForm && currentSection ? (
     <>
       {currentSection.description?.trim() && (
@@ -530,11 +592,21 @@ export function PublicFormRenderer({
           onToggleShowPassword={() => setShowPassword((p) => !p)}
         />
       )}
-      {sectionQuestions
-        .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
-        .map((q) => (
-          <QuestionField key={q.id} q={q} value={values[q.id]} onChange={(v) => set(q.id, v)} onToggleMulti={(opt) => toggleMulti(q.id, opt)} />
-        ))}
+      {visibleSectionQuestions.map((q) => (
+        <QuestionField
+          key={q.id}
+          q={q}
+          value={values[q.id]}
+          disabled={submitting}
+          onChange={(v) => handleAnswerChange(q.id, v)}
+          onToggleMulti={(opt) => toggleMulti(q.id, opt)}
+        />
+      ))}
+      {submitting && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Salvando suas respostas…
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </>
   ) : null;
@@ -545,7 +617,13 @@ export function PublicFormRenderer({
       disabled={submitting}
       className="w-full rounded-md bg-primary text-primary-foreground py-3 font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
     >
-      {isFirstStep && primaryActionLabel ? <CheckCircle2 className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      {submitting ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isFirstStep && primaryActionLabel ? (
+        <CheckCircle2 className="h-4 w-4" />
+      ) : (
+        <ChevronRight className="h-4 w-4" />
+      )}
       {sectionSubmitLabel}
     </button>
   );
@@ -684,12 +762,14 @@ function QuestionLabel({ label, linkText, linkUrl }: { label: string; linkText?:
 }
 
 export function QuestionField({
-  q, value, onChange, onToggleMulti,
+  q, value, onChange, onToggleMulti, disabled = false,
 }: {
   q: FormQuestion;
   value: AnswerValue | undefined;
   onChange: (v: AnswerValue) => void;
   onToggleMulti: (option: string) => void;
+  /** Bloqueia novos toques enquanto a etapa está sendo salva. */
+  disabled?: boolean;
 }) {
   const labelNode = <QuestionLabel label={`${q.label}${q.required ? " *" : ""}`} linkText={q.link_text} linkUrl={q.link_url} />;
 
@@ -769,7 +849,7 @@ export function QuestionField({
     return (
       <div>
         <p className="text-sm font-medium mb-2">{labelNode}</p>
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col gap-2 ${disabled ? "pointer-events-none opacity-70" : ""}`}>
           {(q.options ?? []).map((o) => {
             const isSelected = current === o.value;
             return (
@@ -786,6 +866,7 @@ export function QuestionField({
                   name={name}
                   required={q.required}
                   checked={isSelected}
+                  disabled={disabled}
                   onChange={() => onChange(o.value)}
                   className="sr-only"
                 />
