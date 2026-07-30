@@ -117,6 +117,14 @@ export const crmFilterSchema = z.object({
   recebeu_template_id: z.string().uuid().optional(),
   nao_recebeu_template_id: z.string().uuid().optional(),
 
+  // Histórico — missões de agitação, eventos, formulários e respostas
+  missao_recebida: z.enum(["sim", "nao"]).optional(),
+  missao_id: z.string().uuid().optional(),
+  evento_rsvp: z.enum(["sim", "nao", "recusou"]).optional(),
+  evento_id: z.string().uuid().optional(),
+  tracking_form_ids: z.array(z.string().uuid()).optional(),
+  respondeu_mensagem: z.enum(["sim", "nao"]).optional(),
+
   // Filtros usados pela planilha BI (contatos-bi)
   formas_ajuda_outro: z.string().trim().optional(),
   formas_ajuda_outro_values: z.array(z.string()).optional(),
@@ -515,6 +523,7 @@ export function applyCrmFilters<T extends {
   if (f.source_modules?.length) q = q.in("primary_source_module", f.source_modules);
   if (f.source_form_types?.length) q = q.in("source_form_type", f.source_form_types);
   if (f.sem_rastreio_fino || f.sem_origem_rastreada) q = q.is("active_tracking_label", null);
+  if (f.tracking_form_ids?.length) q = q.in("active_tracking_form_id", f.tracking_form_ids);
   if (f.captado_desde) q = q.gte("source_captured_at", `${f.captado_desde}T00:00:00`);
   if (f.captado_ate) q = q.lte("source_captured_at", `${f.captado_ate}T23:59:59.999Z`);
   if (f.is_system_user === "sim") q = q.eq("is_system_user", true);
@@ -648,4 +657,118 @@ export function applyCrmFilters<T extends {
   }
 
   return q;
+}
+
+
+/**
+ * Filtros que dependem de outras tabelas (tags, campanhas, automações,
+ * missões de agitação, eventos e respostas recebidas). Resolve tudo em uma
+ * única função para que listagem, exportação e seleção usem exatamente as
+ * mesmas regras.
+ */
+export type RelationalFilterResult = {
+  allowedIds: string[] | null;
+  excludeIds: Set<string>;
+  noMatch: boolean;
+};
+
+const EMPTY_RELATIONAL: RelationalFilterResult = { allowedIds: [], excludeIds: new Set(), noMatch: true };
+
+export async function resolveRelationalFilterIds(
+  supabase: TagFilterSupabase,
+  f: CrmFilters,
+): Promise<RelationalFilterResult> {
+  const sb = supabase as any;
+  let allowedIds: string[] | null = null;
+  const excludeIds = new Set<string>();
+
+  function intersect(ids: string[]) {
+    const set = new Set(ids);
+    allowedIds = allowedIds ? allowedIds.filter((id) => set.has(id)) : Array.from(set);
+  }
+  async function distinctContactIds(build: () => unknown): Promise<string[]> {
+    const rows = await fetchAllPaged<{ contact_id: string | null }>(build as never);
+    return Array.from(new Set(rows.map((r) => r.contact_id).filter(Boolean) as string[]));
+  }
+
+  if (f.tag_ids?.length) {
+    const { ids, noMatch } = await resolveContactIdsForTagFilter(supabase, f.tag_ids);
+    if (noMatch) return EMPTY_RELATIONAL;
+    if (ids?.length) allowedIds = ids;
+  }
+
+  const idsForCampaign = (campaignId: string, statuses?: string[]) =>
+    distinctContactIds(() => {
+      let qr = sb.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
+      if (statuses?.length) qr = qr.in("status", statuses);
+      return qr;
+    });
+  const idsForTemplate = (templateId: string) =>
+    distinctContactIds(() =>
+      sb.from("automation_deliveries").select("contact_id").eq("template_id", templateId).eq("status", "sent"),
+    );
+  const idsForMission = () =>
+    distinctContactIds(() => {
+      let qr = sb.from("agitation_tasks").select("contact_id").eq("status", "concluido");
+      if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
+      return qr;
+    });
+  const idsForEvent = (statuses: string[]) =>
+    distinctContactIds(() => {
+      let qr = sb.from("event_rsvps").select("contact_id").in("status", statuses);
+      if (f.evento_id) qr = qr.eq("event_id", f.evento_id);
+      return qr;
+    });
+  const idsWhoReplied = () =>
+    distinctContactIds(() => sb.from("inbound_messages").select("contact_id").not("contact_id", "is", null));
+
+  if (f.recebeu_campanha_id) {
+    const ids = await idsForCampaign(f.recebeu_campanha_id, ["sent", "delivered", "read"]);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  }
+  if (f.nao_recebeu_campanha_id) {
+    for (const id of await idsForCampaign(f.nao_recebeu_campanha_id, ["sent", "delivered", "read"])) excludeIds.add(id);
+  }
+  if (f.erro_campanha_id) {
+    const ids = await idsForCampaign(f.erro_campanha_id, ["failed"]);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  }
+  if (f.recebeu_template_id) {
+    const ids = await idsForTemplate(f.recebeu_template_id);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  }
+  if (f.nao_recebeu_template_id) {
+    for (const id of await idsForTemplate(f.nao_recebeu_template_id)) excludeIds.add(id);
+  }
+
+  if (f.missao_recebida === "sim") {
+    const ids = await idsForMission();
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  } else if (f.missao_recebida === "nao") {
+    for (const id of await idsForMission()) excludeIds.add(id);
+  }
+
+  if (f.evento_rsvp === "sim" || f.evento_rsvp === "recusou") {
+    const statuses = f.evento_rsvp === "sim" ? ["confirmado", "confirmed", "sim", "yes"] : ["recusado", "declined", "nao", "no"];
+    const ids = await idsForEvent(statuses);
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  } else if (f.evento_rsvp === "nao") {
+    for (const id of await idsForEvent(["confirmado", "confirmed", "sim", "yes"])) excludeIds.add(id);
+  }
+
+  if (f.respondeu_mensagem === "sim") {
+    const ids = await idsWhoReplied();
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
+  } else if (f.respondeu_mensagem === "nao") {
+    for (const id of await idsWhoReplied()) excludeIds.add(id);
+  }
+
+  if (allowedIds && !allowedIds.length) return EMPTY_RELATIONAL;
+  return { allowedIds, excludeIds, noMatch: false };
 }
