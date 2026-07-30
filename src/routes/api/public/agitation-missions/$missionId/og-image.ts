@@ -10,7 +10,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
 
         const { data: mission } = await supabaseAdmin
           .from("agitation_missions")
-          .select("media_path,media_mime,updated_at")
+          .select("media_path,media_mime,created_at")
           .eq("id", params.missionId)
           .maybeSingle();
 
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/public/agitation-missions/$missionId/
             "Cache-Control": "public, max-age=3600, s-maxage=86400",
             "Access-Control-Allow-Origin": "*",
             "X-Preview-Image": "open-graph-1200x630",
-            "Last-Modified": mission.updated_at ? new Date(mission.updated_at).toUTCString() : new Date().toUTCString(),
+            "Last-Modified": mission.created_at ? new Date(mission.created_at).toUTCString() : new Date().toUTCString(),
           },
         });
       },
