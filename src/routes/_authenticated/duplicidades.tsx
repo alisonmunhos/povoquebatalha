@@ -355,6 +355,11 @@ function DupPage() {
                           Excluir todos, menos o sugerido para ficar
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => abrirExclusao(contatos.map((c2) => c2.id))}
+                        >
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           onClick={() => setSelected((p) => ({ ...p, [g.key]: contatos.map((c2) => c2.id) }))}
                         >
                           Marcar todos para escolher o que fica
