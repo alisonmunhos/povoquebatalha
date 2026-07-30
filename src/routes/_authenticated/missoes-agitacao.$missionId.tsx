@@ -60,9 +60,14 @@ type Task = {
     id: string;
     nome: string | null;
     phone_e164: string | null;
+    phone_raw?: string | null;
     cidade: string | null;
+    opt_out_at?: string | null;
+    arquivado_at?: string | null;
   } | null;
 };
+
+type Assignee = { kind: "link" | "conta"; id: string; nome: string | null };
 
 type LinkRow = {
   contact_id: string;
@@ -75,14 +80,36 @@ type LinkRow = {
   paused: boolean;
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  concluido: "bg-emerald-100 text-emerald-800",
-  nao_enviado: "bg-rose-100 text-rose-800",
+/** Estado real de cada contato dentro da missão, do ponto de vista do admin. */
+type TaskState = "sem_responsavel" | "parado" | "enviado" | "depois" | "erro" | "optout";
+
+function taskState(t: Task): TaskState {
+  if (t.contact?.opt_out_at) return "optout";
+  if (t.status === "erro_numero") return "erro";
+  if (t.status === "concluido") return "enviado";
+  if (t.status === "nao_enviado") return "depois";
+  if (t.assigned_contact_id || t.assigned_user_id) return "parado";
+  return "sem_responsavel";
+}
+
+const STATE_LABEL: Record<TaskState, string> = {
+  sem_responsavel: "Sem responsável",
+  parado: "Atribuído e parado",
+  enviado: "Enviado",
+  depois: "Vou enviar depois",
+  erro: "Erro de número",
+  optout: "Não quer receber",
 };
-const STATUS_LABEL: Record<string, string> = {
-  concluido: "Concluído",
-  nao_enviado: "Não enviado",
+
+const STATE_BADGE: Record<TaskState, string> = {
+  sem_responsavel: "bg-muted text-muted-foreground",
+  parado: "bg-sky-100 text-sky-800",
+  enviado: "bg-emerald-100 text-emerald-800",
+  depois: "bg-amber-100 text-amber-900",
+  erro: "bg-slate-700 text-white",
+  optout: "bg-rose-600 text-white",
 };
+
 
 function MissionDetailsPanel() {
   const { missionId } = Route.useParams();
