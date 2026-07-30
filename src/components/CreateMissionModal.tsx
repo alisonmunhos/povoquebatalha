@@ -48,6 +48,8 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
   const [instructions, setInstructions] = useState("");
   const [media, setMedia] = useState<MissionMedia>(emptyMissionMedia);
   const [verifyWhatsapp, setVerifyWhatsapp] = useState(false);
+  const [batchSize, setBatchSize] = useState(10);
+  const [cooldownMinutes, setCooldownMinutes] = useState(60);
   const [templateId, setTemplateId] = useState("");
   const [saving, setSaving] = useState(false);
 
