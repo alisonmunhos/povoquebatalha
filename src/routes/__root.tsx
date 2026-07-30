@@ -80,19 +80,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#16130F" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "Território" },
-      { title: "Campanha Do Povo Que Batalha" },
-      { name: "description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Campanha Do Povo Que Batalha" },
-      { property: "og:description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
+      { title: "Campanha do Povo que Batalha" },
+      {
+        name: "description",
+        content:
+          "Plataforma de mobilização da Campanha do Povo que Batalha: cadastro de apoiadores, eventos e ações pelo WhatsApp.",
+      },
+      { property: "og:site_name", content: "Campanha do Povo que Batalha" },
+      { property: "og:title", content: "Campanha do Povo que Batalha" },
+      {
+        property: "og:description",
+        content:
+          "Plataforma de mobilização da Campanha do Povo que Batalha: cadastro de apoiadores, eventos e ações pelo WhatsApp.",
+      },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
       { name: "google", content: "notranslate" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Campanha Do Povo Que Batalha" },
-      { name: "twitter:description", content: "WhatsApp Connect integrates with WhatsApp API for campaign management and mass messaging." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/814014bd-db6c-41a4-b132-f0bd999863aa/id-preview-e6b98cac--3045d5d2-135a-486e-99c7-42103653d991.lovable.app-1782933848953.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/814014bd-db6c-41a4-b132-f0bd999863aa/id-preview-e6b98cac--3045d5d2-135a-486e-99c7-42103653d991.lovable.app-1782933848953.png" },
+      // Atenção: nada de og:image/twitter:image aqui — a raiz sobrescreveria
+      // as capas próprias de eventos e missões. Cada rota folha define a sua.
     ],
     links: [
       { rel: "stylesheet", href: appCss },
