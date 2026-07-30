@@ -610,10 +610,57 @@ export function NotificationBell() {
                   </div>
                   {isMissionDetail ? (
                     <div className="flex flex-col gap-2">
-                      <Button size="lg" className="w-full" onClick={acceptMission} disabled={acceptingMission}>
-                        {acceptingMission ? "Aceitando…" : "Aceitar missão"}
-                      </Button>
-                      <Button size="lg" variant="outline" className="w-full" onClick={() => setDetail(null)}>
+                      {briefing?.has_my_tasks && (
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={() => detail.mission_id && goToMission(detail.mission_id)}
+                        >
+                          Abrir minha missão ({briefing.mine_pending} pendente
+                          {briefing.mine_pending === 1 ? "" : "s"})
+                        </Button>
+                      )}
+                      {briefing?.can_claim && (
+                        <Button
+                          size="lg"
+                          variant={briefing.has_my_tasks ? "outline" : "default"}
+                          className="w-full"
+                          onClick={acceptMission}
+                          disabled={acceptingMission}
+                        >
+                          {acceptingMission
+                            ? "Aceitando…"
+                            : `Aceitar missão (leva de ${Math.min(briefing.batch_size, briefing.available_now)})`}
+                        </Button>
+                      )}
+                      {briefing && !briefing.can_claim && !briefing.has_my_tasks && (
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={() => detail.mission_id && goToMission(detail.mission_id)}
+                        >
+                          Ver missão
+                        </Button>
+                      )}
+                      {!briefing && (
+                        <Button size="lg" className="w-full" onClick={acceptMission} disabled={acceptingMission}>
+                          {acceptingMission ? "Aceitando…" : "Aceitar missão"}
+                        </Button>
+                      )}
+                      {briefing && !briefing.can_claim && briefing.block_reason && (
+                        <p className="text-xs text-center text-muted-foreground">
+                          {briefing.block_reason === "leva_aberta"
+                            ? "Você já tem uma leva em aberto. Conclua-a para pegar mais contatos."
+                            : briefing.block_reason === "cooldown"
+                              ? "Aguarde o tempo de espera para pegar uma nova leva."
+                              : briefing.block_reason === "sem_contatos"
+                                ? "Não há contatos disponíveis nesta missão agora."
+                                : briefing.block_reason === "atribuicao_direta"
+                                  ? "Os contatos desta missão são distribuídos pela coordenação."
+                                  : "Missão indisponível para novas levas no momento."}
+                        </p>
+                      )}
+                      <Button size="lg" variant="ghost" className="w-full" onClick={() => setDetail(null)}>
                         Agora não
                       </Button>
                     </div>
