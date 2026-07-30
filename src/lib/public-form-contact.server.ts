@@ -73,6 +73,8 @@ export type SaveFormContactResult = {
   nome: string | null;
   email: string | null;
   phone: string | null;
+  /** Já tem login no sistema (usuário interno ou perfil vinculado). */
+  hasAccount: boolean;
 };
 
 export type SaveFormContactError = { ok: false; status: number; error: string };
