@@ -163,6 +163,42 @@ export function CreateMissionModal({ open, onOpenChange, source, labelSelecao }:
 
           <MissionImageUpload value={media} onChange={setMedia} />
 
+          <div className="rounded-lg border p-3 space-y-3">
+            <div>
+              <Label className="text-xs font-semibold">Ritmo da missão</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Vale quando a missão for aberta para auto-atribuição: quantos contatos cada
+                agitador pega por vez e quanto tempo precisa esperar para pegar mais.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium">Contatos por leva</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Cooldown entre levas (minutos)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={1440}
+                  value={cooldownMinutes}
+                  onChange={(e) =>
+                    setCooldownMinutes(Math.min(1440, Math.max(0, Number(e.target.value) || 0)))
+                  }
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </div>
+
           <label className="flex items-center gap-2 text-xs cursor-pointer">
             <Checkbox
               checked={verifyWhatsapp}
