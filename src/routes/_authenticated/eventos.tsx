@@ -335,6 +335,10 @@ function EventosPage() {
         <div className="grid gap-3 sm:grid-cols-2 border-t pt-4">
           <div className="sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground">Imagem de capa (opcional)</label>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Essa imagem aparece na pré-visualização do link do evento no WhatsApp. Para o card
+              grande, use 1200×630 px (mínimo 600×315).
+            </p>
             <div className="mt-1 flex items-center gap-3 flex-wrap">
               {coverPreview && (
                 <img src={coverPreview} alt="Capa do evento" className="h-16 w-28 rounded object-cover border" />
