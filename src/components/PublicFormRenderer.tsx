@@ -283,7 +283,9 @@ export function PublicFormRenderer({
     return null;
   }
 
-  async function saveSectionProgress(): Promise<{ ok: boolean; recadToken: string | null; eventConfirmed: boolean }> {
+  async function saveSectionProgress(
+    effective: Record<string, AnswerValue> = values,
+  ): Promise<{ ok: boolean; recadToken: string | null; eventConfirmed: boolean }> {
     if (!sectionedForm || !currentSection || isAccountSection) {
       return { ok: true, recadToken: activeRecadToken || null, eventConfirmed: false };
     }
@@ -297,9 +299,10 @@ export function PublicFormRenderer({
           ref_token: refToken ?? "",
           recad_token: activeRecadToken || "",
           current_section_id: currentSection.id,
-          event_slug: eventSlug ?? "",
+          // Depois de registrada, a presença não é reenviada a cada etapa.
+          event_slug: eventHandled ? "" : eventSlug ?? "",
           event_rsvp_status: eventRsvpStatus ?? "confirmed",
-          answers: values,
+          answers: effective,
           hp: "",
         }),
       });
