@@ -11,12 +11,17 @@ export const getEventMeta = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: event } = await supabaseAdmin
       .from("events")
-      .select("title,description,location,starts_at,cover_path,is_published")
+      .select("title,description,location,starts_at,cover_path,is_published,updated_at")
       .eq("slug", data.slug)
       .maybeSingle();
 
     if (!event || !event.is_published) {
-      return { title: null as string | null, description: null as string | null, hasCover: false };
+      return {
+        title: null as string | null,
+        description: null as string | null,
+        hasCover: false,
+        imageVersion: null as string | null,
+      };
     }
 
     const quando = new Date(event.starts_at).toLocaleString("pt-BR", {
@@ -29,5 +34,10 @@ export const getEventMeta = createServerFn({ method: "GET" })
       (event.description?.trim() || "").slice(0, 180) ||
       [quando, event.location?.trim()].filter(Boolean).join(" · ");
 
-    return { title: event.title, description, hasCover: Boolean(event.cover_path) };
+    return {
+      title: event.title,
+      description,
+      hasCover: Boolean(event.cover_path),
+      imageVersion: event.cover_path ? `${event.updated_at ?? ""}:${event.cover_path}` : null,
+    };
   });

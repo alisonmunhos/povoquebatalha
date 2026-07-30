@@ -18,8 +18,11 @@ export const Route = createFileRoute("/missao/$missionId/contato/$contactId")({
     const title = loaderData?.meta?.title ?? "Minhas tarefas de agitação";
     const description = "Abra sua lista de contatos e envie a mensagem da missão.";
     const origin = loaderData?.origin ?? SITE_URL;
+    const imageVersion = loaderData?.meta?.imageVersion
+      ? `?v=${encodeURIComponent(loaderData.meta.imageVersion)}`
+      : "";
     const imageUrl = loaderData?.meta?.hasMedia
-      ? `${origin}/api/public/agitation-missions/${params.missionId}/media`
+      ? `${origin}/api/public/agitation-missions/${params.missionId}/og-image${imageVersion}`
       : OG_DEFAULT_IMAGE;
 
     return {
