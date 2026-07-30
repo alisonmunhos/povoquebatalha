@@ -139,7 +139,10 @@ export function PublicFormRenderer({
   useEffect(() => {
     const cacheKey = `${slug}|${recadToken ?? ""}`;
 
-    const apply = (json: { ok?: boolean; form?: Record<string, unknown> }) => {
+    const apply = (
+      json: { ok?: boolean; form?: Record<string, unknown> },
+      opts: { keepPosition?: boolean } = {},
+    ) => {
       if (!json.ok || !json.form) {
         setForm(null);
         setSectionedForm(null);
@@ -158,8 +161,10 @@ export function PublicFormRenderer({
         const startId = preferred && orderedSections.some((s) => s.id === preferred)
           ? preferred
           : orderedSections[0]?.id ?? null;
-        setJourneyStartSectionId(startId);
-        setCurrentSectionId(startId);
+        if (!opts.keepPosition) {
+          setJourneyStartSectionId(startId);
+          setCurrentSectionId(startId);
+        }
         const ctx = json.form.contact_context as ContactContext | null | undefined;
         if (ctx) {
           setContactContext(ctx);
@@ -174,12 +179,11 @@ export function PublicFormRenderer({
     };
 
     // Reaproveita a definição já baixada nesta sessão (ex.: continuar o cadastro
-    // depois da tela de "presença confirmada"), evitando nova espera.
-    const cached = formPayloadCache.get(cacheKey);
-    if (cached) {
-      apply(cached);
-      return;
-    }
+    // depois da tela de "presença confirmada"), evitando tela de "Carregando…".
+    const exact = formPayloadCache.get(cacheKey);
+    const structural = exact ?? formPayloadCache.get(`${slug}|`);
+    if (structural) apply(structural);
+    if (exact) return;
 
     const params = new URLSearchParams();
     if (recadToken) params.set("t", recadToken);
@@ -189,9 +193,12 @@ export function PublicFormRenderer({
       .then((r) => r.json())
       .then((json) => {
         if (json?.ok) formPayloadCache.set(cacheKey, json);
-        apply(json);
+        // Se já mostramos a estrutura em cache, o refresh não pode voltar a
+        // pessoa para a primeira etapa.
+        apply(json, { keepPosition: Boolean(structural) });
       })
       .catch(() => {
+        if (structural) return;
         setForm(null);
         setSectionedForm(null);
         setLayoutMode("flat");
