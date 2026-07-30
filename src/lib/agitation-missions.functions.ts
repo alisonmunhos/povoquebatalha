@@ -298,6 +298,8 @@ const updateMissionSchema = z.object({
   media_path: z.string().max(500).nullable().optional(),
   media_mime: z.string().max(120).nullable().optional(),
   media_filename: z.string().max(200).nullable().optional(),
+  batch_size: z.number().int().min(1).max(100).optional(),
+  cooldown_minutes: z.number().int().min(0).max(1440).optional(),
 });
 
 export const updateAgitationMission = createServerFn({ method: "POST" })
@@ -315,6 +317,8 @@ export const updateAgitationMission = createServerFn({ method: "POST" })
       row.media_mime = data.media_mime ?? null;
       row.media_filename = data.media_filename ?? null;
     }
+    if (data.batch_size !== undefined) row.batch_size = data.batch_size;
+    if (data.cooldown_minutes !== undefined) row.cooldown_minutes = data.cooldown_minutes;
     const { error } = await context.supabase
       .from("agitation_missions")
       .update(row as never)
