@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Megaphone, Loader2 } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 const searchSchema = z.object({
   next: z.string().optional(),

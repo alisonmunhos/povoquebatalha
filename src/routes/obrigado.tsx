@@ -1,14 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { CheckCircle2, Megaphone } from "lucide-react";
+import { shareMeta, canonical } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/obrigado")({
   validateSearch: z.object({ origem: z.enum(["recadastro", "inscricao"]).optional() }),
   head: () => ({
-    meta: [
-      { title: "Obrigado!" },
-      { name: "description", content: "Atualização recebida com sucesso." },
-    ],
+    meta: shareMeta({
+      title: "Obrigado! — Campanha do Povo que Batalha",
+      description: "Recebemos seus dados. Obrigado por fazer parte da campanha.",
+      path: "/obrigado",
+    }),
+    links: canonical("/obrigado"),
   }),
   ssr: false,
   component: Obrigado,
