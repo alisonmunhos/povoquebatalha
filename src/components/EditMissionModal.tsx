@@ -31,6 +31,8 @@ type Props = {
   initialTitle: string;
   initialMessage: string;
   initialMedia?: MissionMedia;
+  initialBatchSize?: number;
+  initialCooldown?: number;
   onUpdated: () => void;
 };
 
@@ -41,6 +43,8 @@ export function EditMissionModal({
   initialTitle,
   initialMessage,
   initialMedia,
+  initialBatchSize = 10,
+  initialCooldown = 60,
   onUpdated,
 }: Props) {
   const updateFn = useServerFn(updateAgitationMission);
@@ -50,6 +54,8 @@ export function EditMissionModal({
     body: initialMessage,
   });
   const [media, setMedia] = useState<MissionMedia>(initialMedia ?? emptyMissionMedia);
+  const [batchSize, setBatchSize] = useState(initialBatchSize);
+  const [cooldownMinutes, setCooldownMinutes] = useState(initialCooldown);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -57,8 +63,10 @@ export function EditMissionModal({
       setTitle(initialTitle);
       setComposer({ ...emptyComposerValue(), body: initialMessage });
       setMedia(initialMedia ?? emptyMissionMedia);
+      setBatchSize(initialBatchSize);
+      setCooldownMinutes(initialCooldown);
     }
-  }, [open, initialTitle, initialMessage, initialMedia]);
+  }, [open, initialTitle, initialMessage, initialMedia, initialBatchSize, initialCooldown]);
 
   async function onSubmit() {
     if (title.trim().length < 2) return toast.error("Informe um título para a missão.");
@@ -73,6 +81,8 @@ export function EditMissionModal({
           media_path: media.media_path,
           media_mime: media.media_mime,
           media_filename: media.media_filename,
+          batch_size: batchSize,
+          cooldown_minutes: cooldownMinutes,
         },
       });
       toast.success("Missão atualizada. O texto novo já vale pra todos os links ativos.");
@@ -106,13 +116,48 @@ export function EditMissionModal({
           />
 
           <MissionImageUpload value={media} onChange={setMedia} />
+
+          <div className="rounded-lg border p-3 space-y-3">
+            <div>
+              <Label className="text-xs font-semibold">Ritmo da missão</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Usado quando a missão está aberta para auto-atribuição.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium">Contatos por leva</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Cooldown entre levas (minutos)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={1440}
+                  value={cooldownMinutes}
+                  onChange={(e) =>
+                    setCooldownMinutes(Math.min(1440, Math.max(0, Number(e.target.value) || 0)))
+                  }
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={onSubmit} disabled={saving}>
-            {saving ? "Salvando…" : "Salvar mensagem"}
+            {saving ? "Salvando…" : "Salvar missão"}
           </Button>
         </DialogFooter>
       </DialogContent>
