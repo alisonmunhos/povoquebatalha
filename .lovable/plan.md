@@ -1,46 +1,40 @@
-## Objetivo
+## O que está acontecendo
 
-1. Trocar o texto do botão "Continuar" por "Confirmar presença" no contexto da página do evento.
-2. Reformular a navegação entre etapas: hoje cada etapa nova aparece **abaixo** e o usuário precisa rolar. Passar a exibir cada etapa **por cima** da anterior, em tela cheia no celular, sempre com "Voltar".
+Verifiquei o código e há duas causas somadas:
 
-## Parte 1 — Texto do botão
+1. **O link do WhatsApp (`api.whatsapp.com/send?text=...`) só carrega texto.** Nenhum arquivo pode ser anexado por link — isso é limitação do WhatsApp, não do sistema. Hoje a imagem da missão só aparece em "Minhas missões" como um botão "Baixar" (e no link público do agitador ela nem aparece: o endpoint `/api/public/agitation-missions/$missionId/$contactId` não retorna `media_path`).
+2. **Quando a mensagem tem um link, o WhatsApp tenta gerar a pré-visualização — mas nossas páginas não entregam imagem.** A página `/evento/$slug` está com `ssr: false` e só define `title`; não tem `og:image`. E a capa do evento é servida por **URL assinada que expira em 1 hora**, de um bucket privado — inutilizável para preview.
 
-Na Seção 1 do formulário vinculado a um evento, o botão de envio passa a mostrar **"Confirmar presença"** (com ícone de check em vez de seta). Nas demais seções e nos formulários normais, o texto continua "Continuar" / "Enviar".
+Ou seja: para a imagem "ir junto" sem Z-API, o caminho é o **preview rico do link**.
 
-Se a pessoa entrou pelo caminho "não poderei ir", o botão dessa mesma seção mostra **"Enviar meus dados"**, para não sugerir confirmação.
+## Plano
 
-## Parte 2 — Telas sobrepostas (a sugestão)
+### 1. URL pública e estável para as imagens
+- Nova rota `GET /api/public/events/$slug/cover` que lê a capa do bucket (cliente admin, server-side) e devolve os bytes com `Cache-Control` longo e `Content-Type` correto.
+- Nova rota equivalente `GET /api/public/agitation-missions/$missionId/media` para a imagem da missão.
+- Nada de URL assinada: link fixo, sem expiração, servido pelo próprio domínio (requisito dos crawlers do WhatsApp).
 
-Proposta: transformar cada passo do fluxo público num **painel sobreposto** em vez de conteúdo empilhado na página.
+### 2. Preview rico na página do evento
+- Tirar o `ssr: false` de `/evento/$slug` (mantendo a parte interativa client-only) e adicionar um `loader` público leve que busca título, descrição e capa.
+- `head()` passa a emitir: `og:title`, `og:description`, `og:image` (URL absoluta da rota do item 1), `og:image:width`/`height`, `og:type=website`, `twitter:card=summary_large_image`.
+- Resultado: ao colar o link do evento no WhatsApp, aparece o card grande com a capa.
 
-- No celular: painel ocupa a tela inteira (100dvh), entra deslizando da direita.
-- No desktop: painel centralizado sobre um fundo escurecido, largura máxima confortável.
-- Cabeçalho fixo do painel: botão **Voltar** (seta) à esquerda, título curto da etapa no centro, indicador "Etapa 2 de 4" abaixo.
-- Rodapé fixo com o botão de ação principal — no celular o botão fica sempre visível, sem rolagem.
-- A cada troca de etapa, o foco vai para o topo do painel (sem "pulo" de scroll), e a etapa anterior permanece visível ao fundo, dando a sensação de avanço.
-- Fechar (X) só existe onde faz sentido sair sem perder nada; nas etapas do cadastro o caminho de saída é "Voltar".
+### 3. Preview do link da missão
+- Se a mensagem da missão aponta para o link exclusivo `/missao/$missionId/contato/$contactId`, essa página também ganha `head()` com `og:image` apontando para a imagem da missão (rota do item 2 acima), para o card aparecer mesmo quando não há evento.
 
-Comportamento do "Voltar":
-- Volta à etapa anterior do formulário preservando o que já foi digitado (as respostas já ficam em memória).
-- Na primeira etapa, "Voltar" fecha o painel e retorna à página do evento.
-- Também responde ao botão físico/gesto de voltar do celular, para não sair da página sem querer.
+### 4. Ajudar o agitador nos dois fluxos
+- Devolver `media_path`/`media_filename` no endpoint público da missão e exibir a imagem no link público (hoje ausente), com "Baixar imagem".
+- No modal de criação/edição da missão, um aviso curto: "A imagem vai aparecer como capa do link na conversa. Para enviar o arquivo em si, o agitador precisa anexá-lo."
 
-Telas que passam a ser painéis sobrepostos:
-1. Seção 1 do formulário (confirmar presença).
-2. Mensagem de presença confirmada / mensagem de recusa configurada — aparece por cima, com o botão configurado ("Completar meu cadastro" ou "Quero continuar com vocês").
-3. Seções seguintes do cadastro (dados, endereço etc.).
-4. Criação de senha / finalizar cadastro — este é o caso citado: passa a abrir por cima, como pop-up fechável, com Voltar.
-5. Tela final de sucesso.
+## Sobre "tamanho real da imagem"
+
+O WhatsApp decide entre **card pequeno (miniatura quadrada)** e **card grande** pela proporção e resolução da imagem — não dá para forçar por código. Para sair grande, a capa precisa ter no mínimo ~600×315 px e proporção próxima de 1.91:1 (ex.: 1200×630). Vou:
+- adicionar `og:image:width`/`height` e `twitter:card=summary_large_image` (o que maximiza a chance do card grande);
+- avisar no upload da capa quando a imagem estiver abaixo do recomendado, sugerindo 1200×630.
+
+Ele **não** mostra a imagem em tamanho original dentro do balão — isso só existe quando o arquivo é anexado de fato.
 
 ## Detalhes técnicos
-
-- Novo componente `src/components/StepOverlay.tsx`: wrapper acessível (Radix Dialog já usado no projeto) com variante full-screen no mobile via `sm:` breakpoints, cabeçalho/rodapé fixos, `aria-label` e travamento de scroll do fundo. Reaproveita o `useReleaseBodyPointerEvents` já existente em `dialog.tsx`.
-- `PublicFormRenderer.tsx`: nova prop opcional `presentation: "inline" | "overlay"` (padrão `inline`, para não mexer nos formulários públicos autônomos). No modo `overlay`, o corpo da seção é renderizado dentro do `StepOverlay`, com o botão de ação no rodapé. Nova prop `submitLabel`/`primaryActionLabel` para o texto "Confirmar presença".
-- Pilha de navegação: array de etapas visitadas em estado local + `history.pushState` por etapa para integrar com o botão voltar do Android; `popstate` recua uma etapa.
-- `evento.$slug.tsx`: passa `presentation="overlay"`, define o rótulo do botão conforme `formMode`, e move os blocos `confirmedStop` / recusa para dentro do overlay. Remove os `window.scrollTo` que hoje tentam compensar o problema.
-- Sem alteração de banco, de rotas ou de regras de negócio; mudança é de apresentação.
-
-## Riscos e cuidados
-
-- Teclado do celular sobre o rodapé fixo: usar `env(safe-area-inset-bottom)` e `100dvh` para evitar que o botão fique escondido.
-- Formulários públicos fora do evento (`/f/$slug`, recadastro, inscrição) permanecem no modo inline nesta entrega — se quiser, aplico o overlay neles depois, num segundo passo controlado.
+- Rotas em `src/routes/api/public/...` com `createFileRoute` + handler `GET`, lendo do bucket `campaign-media` via `supabaseAdmin` importado dentro do handler.
+- `head()` precisa de URL **absoluta** — montada a partir do domínio publicado.
+- Sem alterações de banco e sem Z-API. Nenhuma rota pública existente muda de endereço.

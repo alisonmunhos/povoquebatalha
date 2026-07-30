@@ -1,12 +1,49 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
+import { getMissionMeta } from "@/lib/mission-meta.functions";
+import { getRequestOrigin } from "@/lib/site-origin.functions";
 
 export const Route = createFileRoute("/missao/$missionId/contato/$contactId")({
-  head: () => ({ meta: [{ title: "Minhas tarefas de agitação" }] }),
-  ssr: false,
+  ssr: "data-only",
+  loader: async ({ params }) => {
+    const [meta, origin] = await Promise.all([
+      getMissionMeta({ data: { mission_id: params.missionId } }),
+      getRequestOrigin(),
+    ]);
+    return { meta, origin };
+  },
+  head: ({ params, loaderData }) => {
+    const title = loaderData?.meta?.title ?? "Minhas tarefas de agitação";
+    const description = "Abra sua lista de contatos e envie a mensagem da missão.";
+    const origin = loaderData?.origin ?? "https://povoquebatalha.lovable.app";
+    const imageUrl = loaderData?.meta?.hasMedia
+      ? `${origin}/api/public/agitation-missions/${params.missionId}/media`
+      : null;
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        ...(imageUrl
+          ? [
+              { property: "og:image", content: imageUrl },
+              { property: "og:image:width", content: "1200" },
+              { property: "og:image:height", content: "630" },
+              { name: "twitter:image", content: imageUrl },
+            ]
+          : []),
+        { name: "twitter:card", content: imageUrl ? "summary_large_image" : "summary" },
+        { name: "robots", content: "noindex" },
+      ],
+    };
+  },
   component: MissionExecutorPage,
 });
+
 
 type Task = {
   id: string;
@@ -115,7 +152,12 @@ function ContactCard({
 
 function MissionExecutorPage() {
   const { missionId, contactId } = Route.useParams();
-  const [mission, setMission] = useState<{ title: string; message_template: string } | null>(null);
+  const [mission, setMission] = useState<{
+    title: string;
+    message_template: string;
+    media_url?: string | null;
+    media_filename?: string | null;
+  } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -188,6 +230,30 @@ function MissionExecutorPage() {
             {tasks.length} contato(s) atribuído(s) a você · {pendentes} pendente(s)
           </p>
         </div>
+        {mission.media_url && (
+          <div className="flex items-center gap-3 rounded-lg border bg-background p-3">
+            <img
+              src={mission.media_url}
+              alt="Imagem da missão"
+              className="h-16 w-16 rounded object-cover"
+            />
+            <div className="flex-1 min-w-[120px]">
+              <p className="text-xs font-medium">Imagem para enviar junto</p>
+              <p className="text-[11px] text-muted-foreground">
+                Baixe e anexe no WhatsApp junto com a mensagem.
+              </p>
+            </div>
+            <a
+              href={mission.media_url}
+              download={mission.media_filename ?? "imagem-da-missao"}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted"
+            >
+              Baixar
+            </a>
+          </div>
+        )}
         {groups.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Nenhum contato atribuído a você nesta missão.
