@@ -11,12 +11,13 @@ export const getMissionMeta = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: mission } = await supabaseAdmin
       .from("agitation_missions")
-      .select("title,media_path")
+      .select("title,media_path,created_at")
       .eq("id", data.mission_id)
       .maybeSingle();
 
     return {
       title: mission?.title ?? null,
       hasMedia: Boolean(mission?.media_path),
+      imageVersion: mission?.media_path ? `${mission.created_at ?? ""}:${mission.media_path}` : null,
     };
   });

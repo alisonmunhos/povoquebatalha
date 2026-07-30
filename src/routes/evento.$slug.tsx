@@ -29,8 +29,11 @@ export const Route = createFileRoute("/evento/$slug")({
       loaderData?.meta?.description ?? "Confirme sua presença neste evento.";
     const origin = loaderData?.origin ?? SITE_URL;
     const pageUrl = `${origin}/evento/${params.slug}`;
+    const imageVersion = loaderData?.meta?.imageVersion
+      ? `?v=${encodeURIComponent(loaderData.meta.imageVersion)}`
+      : "";
     const imageUrl = loaderData?.meta?.hasCover
-      ? `${origin}/api/public/events/${params.slug}/cover`
+      ? `${origin}/api/public/events/${params.slug}/og-image${imageVersion}`
       : OG_DEFAULT_IMAGE;
 
     return {
