@@ -142,10 +142,15 @@ function MissionBlockCard({
     enabled: block.mission.is_open,
   });
 
+  const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
+
   const pendingTasks = block.tasks.filter((t) => !t.completed_at && t.status === "pending");
+  const sentTasks = block.tasks.filter((t) => t.status === "concluido");
+  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado");
   const openClaim = block.claim;
 
-  async function onSendTask(task: Task) {
+  /** Abre o WhatsApp; NÃO marca nada — só coloca a tarefa em "aguardando confirmação". */
+  function onOpenWhatsApp(task: Task) {
     const digits = digitsFromPhone(task.contacts);
     if (!digits) return toast.error("Contato sem telefone.");
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -156,17 +161,17 @@ function MissionBlockCard({
       `https://api.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(rendered)}`,
       "_blank",
     );
-    try {
-      await markFn({ data: { task_id: task.id, status: "concluido" } });
-      onChanged();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao marcar.");
-    }
+    setAwaitingConfirm((prev) => new Set(prev).add(task.id));
   }
 
-  async function onSkipTask(task: Task) {
+  async function onMarkTask(task: Task, status: "concluido" | "nao_enviado") {
     try {
-      await markFn({ data: { task_id: task.id, status: "nao_enviado" } });
+      await markFn({ data: { task_id: task.id, status } });
+      setAwaitingConfirm((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
       onChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar.");
