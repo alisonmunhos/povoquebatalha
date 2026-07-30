@@ -327,6 +327,45 @@ function DupPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {marcados.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => abrirExclusao(marcados)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" /> Excluir selecionados ({marcados.length})
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-destructive">
+                          Excluir…
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            abrirExclusao(
+                              contatos
+                                .filter((c2) => c2.id !== (sugerido?.id ?? contatos[0].id))
+                                .map((c2) => c2.id),
+                            )
+                          }
+                        >
+                          Excluir todos, menos o sugerido para ficar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSelected((p) => ({ ...p, [g.key]: contatos.map((c2) => c2.id) }))}
+                        >
+                          Marcar todos para escolher o que fica
+                        </DropdownMenuItem>
+                        {marcados.length > 0 && (
+                          <DropdownMenuItem onClick={() => setSelected((p) => ({ ...p, [g.key]: [] }))}>
+                            Limpar seleção
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </>
                 )}
                 {view !== "revisar" && isAdmin && g.status !== "mesclado" && (
