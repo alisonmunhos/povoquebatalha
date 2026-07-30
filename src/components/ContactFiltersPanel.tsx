@@ -30,6 +30,9 @@ export type FilterOptionsBundle = {
   tags: (MultiOption & { cor?: string | null })[];
   segmentos: { value: string; label: string; tipo: string }[];
   campanhas: { value: string; label: string; status: string }[];
+  missoes?: { value: string; label: string }[];
+  eventos?: { value: string; label: string }[];
+  formularios?: { value: string; label: string }[];
   mensagens: { value: string; label: string; kind: string }[];
   importacoes: MultiOption[];
   tracking_points: MultiOption[];
@@ -164,7 +167,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
     quem_indicou: [], rede_social: [], zona_eleitoral: [], como_conheceu: [], disponibilidade: [], faixa_etaria: [],
     tags: [], segmentos: [], campanhas: [], mensagens: [], importacoes: [],
-    tracking_points: [], imported_by: [],
+    tracking_points: [], imported_by: [], missoes: [], eventos: [], formularios: [],
   };
 
   const systemUsersFn = useServerFn(listSystemUserOptions);
@@ -177,7 +180,11 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
   const systemUserOptions = useMemo<MultiOption[]>(() => {
     const arr = (systemUsersQ.data?.users ?? []).map((u) => ({
       value: u.id,
-      label: u.full_name && u.full_name.trim().length > 0 ? u.full_name : u.email || u.id,
+      // Nunca cair no e-mail como rótulo: é dado interno do usuário.
+      label:
+        u.full_name && u.full_name.trim().length > 0
+          ? u.full_name
+          : `Usuário sem nome (${u.id.slice(0, 8)})`,
     }));
     arr.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
     return arr;
@@ -205,7 +212,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         <Field label="Tags">
           <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
         </Field>
-        <Field label="Cadastro (ciclo de vida)" hint="Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
+        <Field label="Situação do cadastro" hint="Progresso do recadastro + marcações manuais (bloqueado, precisa revisão). Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
           <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
         </Field>
         <Field label="Status do número" hint="Qualidade técnica do telefone. 'Falta DDD' = precisa completar o código de área.">
@@ -217,7 +224,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
       </Section>
 
 
-      <Section icon={<MapPin className="h-4 w-4" />} title="Localização">
+      <Section icon={<MapPin className="h-4 w-4" />} title="Onde está">
         <Field label="UF">
           <MultiSelectFilter options={opts.ufs} value={filters.ufs ?? []} onChange={(v) => set("ufs", v)} placeholder="Qualquer UF" />
         </Field>
@@ -229,8 +236,8 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         </Field>
       </Section>
 
-      <Section icon={<User className="h-4 w-4" />} title="Perfil">
-        <Field label="Tipo de contato">
+      <Section icon={<User className="h-4 w-4" />} title="Quem é">
+        <Field label="Tipo de contato" informativo>
           <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} value={filters.tipos_contato ?? []} onChange={(v) => set("tipos_contato", v)} placeholder="Qualquer tipo" />
         </Field>
         <Field label="Nome social contém…" hint="Busca livre no campo nome social">
@@ -242,7 +249,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         <Field label="Onde trabalha" hint="Respostas já cadastradas no campo instituição/local de trabalho.">
           <MultiSelectFilter options={opts.instituicoes} value={filters.instituicoes ?? []} onChange={(v) => set("instituicoes", v)} placeholder="Qualquer local" />
         </Field>
-        <Field label="Coletivo Alicerce">
+        <Field label="Coletivo Alicerce" informativo>
           <SingleSelectFilter
             options={SIM_NAO}
             value={filters.coletivo_alicerce === undefined ? undefined : filters.coletivo_alicerce ? "sim" : "nao"}
@@ -258,38 +265,38 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Movimento social" hint="Respostas já cadastradas no nome do movimento.">
+        <Field label="Movimento social" informativo hint="Respostas já cadastradas no nome do movimento.">
           <MultiSelectFilter options={opts.movimentos_sociais} value={filters.movimentos_sociais ?? []} onChange={(v) => set("movimentos_sociais", v)} placeholder="Qualquer movimento" />
         </Field>
-        <Field label="Faixa etária">
+        <Field label="Faixa etária" informativo>
           <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} value={filters.faixas_etarias ?? []} onChange={(v) => set("faixas_etarias", v)} placeholder="Qualquer faixa" />
         </Field>
-        <Field label="Rede social" hint="Respostas já cadastradas.">
+        <Field label="Rede social" informativo hint="Respostas já cadastradas.">
           <MultiSelectFilter options={opts.rede_social} value={filters.rede_social_values ?? []} onChange={(v) => set("rede_social_values", v)} placeholder="Qualquer rede" />
         </Field>
-        <Field label="Quem indicou" hint="Respostas já cadastradas.">
+        <Field label="Quem indicou" informativo hint="Respostas já cadastradas.">
           <MultiSelectFilter options={opts.quem_indicou} value={filters.quem_indicou_values ?? []} onChange={(v) => set("quem_indicou_values", v)} placeholder="Qualquer indicação" />
         </Field>
-        <Field label="Zona eleitoral / local de votação" hint="Respostas já cadastradas.">
+        <Field label="Zona eleitoral / local de votação" informativo hint="Respostas já cadastradas.">
           <MultiSelectFilter options={opts.zona_eleitoral} value={filters.zona_eleitoral_values ?? []} onChange={(v) => set("zona_eleitoral_values", v)} placeholder="Qualquer zona/local" />
         </Field>
-        <Field label="Como conheceu a campanha" hint="Respostas já cadastradas.">
+        <Field label="Como conheceu a campanha" informativo hint="Respostas já cadastradas.">
           <MultiSelectFilter options={opts.como_conheceu} value={filters.como_conheceu_values ?? []} onChange={(v) => set("como_conheceu_values", v)} placeholder="Qualquer resposta" />
         </Field>
       </Section>
 
-      <Section icon={<Users className="h-4 w-4" />} title="Participação">
+      <Section icon={<Users className="h-4 w-4" />} title="Como pode ajudar">
         <Field label="Formas de ajuda">
           <MultiSelectFilter options={opts.formas_ajuda} value={filters.formas_ajuda ?? []} onChange={(v) => set("formas_ajuda", v)} placeholder="Todas as formas" />
         </Field>
-        <Field label="Disponibilidade">
+        <Field label="Disponibilidade" informativo>
           <MultiSelectFilter options={opts.disponibilidade} value={filters.disponibilidade ?? []} onChange={(v) => set("disponibilidade", v)} placeholder="Qualquer dia/período" />
         </Field>
       </Section>
 
 
 
-      <Section icon={<MessageCircle className="h-4 w-4" />} title="Comunicação">
+      <Section icon={<MessageCircle className="h-4 w-4" />} title="Posso falar com essa pessoa?">
         <Field label="Apto para envio" hint="Atalho: consentimento WhatsApp = sim, sem opt-out, não bloqueado e telefone válido.">
           <SingleSelectFilter
             options={SIM_NAO}
@@ -330,7 +337,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
       </Section>
 
 
-      <Section icon={<History className="h-4 w-4" />} title="Histórico de mensagens">
+      <Section icon={<History className="h-4 w-4" />} title="O que já aconteceu">
         <Field label="Recebeu campanha">
           <SingleSelectFilter options={opts.campanhas} value={filters.recebeu_campanha_id} onChange={(v) => set("recebeu_campanha_id", v)} placeholder="Escolher campanha" />
         </Field>
@@ -346,9 +353,43 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         <Field label="NÃO recebeu mensagem salva">
           <SingleSelectFilter options={opts.mensagens} value={filters.nao_recebeu_template_id} onChange={(v) => set("nao_recebeu_template_id", v)} placeholder="Escolher mensagem" />
         </Field>
+        <Field label="Recebeu mensagem de missão" hint="Conta só o que o agitador marcou como enviado.">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.missao_recebida}
+            onChange={(v) => set("missao_recebida", v as "sim" | "nao" | undefined)}
+            placeholder="Qualquer"
+          />
+        </Field>
+        <Field label="Missão específica" hint="Opcional: limita o filtro acima a uma missão.">
+          <SingleSelectFilter options={opts.missoes ?? []} value={filters.missao_id} onChange={(v) => set("missao_id", v)} placeholder="Qualquer missão" />
+        </Field>
+        <Field label="Presença em evento">
+          <SingleSelectFilter
+            options={[
+              { value: "sim", label: "Confirmou presença" },
+              { value: "recusou", label: "Recusou o convite" },
+              { value: "nao", label: "Não confirmou" },
+            ]}
+            value={filters.evento_rsvp}
+            onChange={(v) => set("evento_rsvp", v as "sim" | "nao" | "recusou" | undefined)}
+            placeholder="Qualquer"
+          />
+        </Field>
+        <Field label="Evento específico" hint="Opcional: limita o filtro de presença a um evento.">
+          <SingleSelectFilter options={opts.eventos ?? []} value={filters.evento_id} onChange={(v) => set("evento_id", v)} placeholder="Qualquer evento" />
+        </Field>
+        <Field label="Já respondeu alguma mensagem" hint="Teve pelo menos uma resposta recebida no WhatsApp.">
+          <SingleSelectFilter
+            options={SIM_NAO}
+            value={filters.respondeu_mensagem}
+            onChange={(v) => set("respondeu_mensagem", v as "sim" | "nao" | undefined)}
+            placeholder="Qualquer"
+          />
+        </Field>
       </Section>
 
-      <Section icon={<Zap className="h-4 w-4" />} title="Origem e captação">
+      <Section icon={<Zap className="h-4 w-4" />} title="Como entrou">
         <Field label="Canal" hint="Formulário público = preenchido via Entrada de Dados. Captação atribuída = cadastro presencial ou link gerado por alguém da equipe.">
           <MultiSelectFilter options={withCounts(CAPTURE_CHANNELS, opts.capture_channel_counts)} value={filters.capture_channels ?? []} onChange={(v) => set("capture_channels", v as ("captacao_atribuida" | "formulario_publico")[])} placeholder="Qualquer canal" />
         </Field>
@@ -386,6 +427,20 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             onChange={(v) => set("sem_rastreio_fino", v === undefined ? undefined : v === "sim")}
             placeholder="Qualquer"
           />
+        </Field>
+        <Field label="Formulário específico" hint="Contatos cujo cadastro veio deste formulário.">
+          <MultiSelectFilter
+            options={opts.formularios ?? []}
+            value={filters.tracking_form_ids ?? []}
+            onChange={(v) => set("tracking_form_ids", v)}
+            placeholder="Qualquer formulário"
+          />
+        </Field>
+        <Field label="Cadastrado desde" hint="Data de entrada do contato na base.">
+          <Input type="date" value={filters.created_desde ?? ""} onChange={(e) => set("created_desde", e.target.value || undefined)} />
+        </Field>
+        <Field label="Cadastrado até">
+          <Input type="date" value={filters.created_ate ?? ""} onChange={(e) => set("created_ate", e.target.value || undefined)} />
         </Field>
         <Field label="Captado desde">
           <Input type="date" value={filters.captado_desde ?? ""} onChange={(e) => set("captado_desde", e.target.value || undefined)} />
@@ -441,11 +496,25 @@ function Section({ icon, title, defaultOpen = false, children }: { icon: ReactNo
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Field({
+  label,
+  hint,
+  informativo,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  /** Campo é só etiqueta de cadastro: não entra em nenhuma regra de envio. */
+  informativo?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs text-muted-foreground block mb-1">{label}</label>
       {children}
+      {informativo && (
+        <p className="text-[10px] text-muted-foreground/80 mt-1 italic">informativo, não afeta envios</p>
+      )}
       {hint && <p className="text-[10px] text-muted-foreground mt-1">{hint}</p>}
     </div>
   );
