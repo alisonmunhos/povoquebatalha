@@ -44,6 +44,7 @@ export function EditMissionModal({
   missionId,
   initialTitle,
   initialMessage,
+  initialInstructions,
   initialMedia,
   initialBatchSize = 10,
   initialCooldown = 60,
