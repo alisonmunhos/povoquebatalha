@@ -71,9 +71,11 @@ export function MissionImageUpload({ value, onChange }: Props) {
     <div>
       <Label className="text-xs font-medium">Imagem da missão (opcional)</Label>
       <p className="text-[10px] text-muted-foreground mt-1">
-        O WhatsApp não permite anexar arquivo automaticamente pelo link. A imagem aparece para o
-        agitador baixar e enviar junto da mensagem.
+        A imagem aparece como capa na pré-visualização do link dentro da conversa do WhatsApp e
+        também fica disponível para o agitador baixar e anexar. Ideal: 1200×630 px. O WhatsApp não
+        permite anexar o arquivo automaticamente pelo link.
       </p>
+
 
       <input
         ref={inputRef}
