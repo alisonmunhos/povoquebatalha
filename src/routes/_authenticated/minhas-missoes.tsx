@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Send, PlayCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, Send, PlayCircle, AlertTriangle, BellOff } from "lucide-react";
 import {
   listMyMissions,
   claimMissionBatch,
@@ -11,6 +11,8 @@ import {
   getMissionCooldownStatus,
   markMyMissionTask,
   getMissionMediaUrl,
+  refuseMissionContact,
+  undoRefuseMissionContact,
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
@@ -29,6 +31,8 @@ type ContactShape = MessageVarContact & {
   id?: string;
   phone_e164: string | null;
   phone_raw: string | null;
+  opt_out_at?: string | null;
+  arquivado_at?: string | null;
 };
 
 type Task = {
