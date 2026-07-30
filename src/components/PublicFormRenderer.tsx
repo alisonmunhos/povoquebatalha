@@ -10,6 +10,8 @@ import { resolveNextSectionId, sortSections, findFirstRequiredEmpty } from "@/li
 import { buildSuccessBlocks } from "@/lib/form-success-blocks";
 import type { SuccessScreenOrder } from "@/lib/form-sections.types";
 import { PublicFormPushButton } from "@/components/PublicFormPushButton";
+import { StepOverlay } from "@/components/StepOverlay";
+
 
 export type AddressValue = {
   cep?: string; endereco?: string; numero?: string; complemento?: string;
