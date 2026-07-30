@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Send, PlayCircle, AlertTriangle } from "lucide-react";
 import {
@@ -18,6 +18,9 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/_authenticated/minhas-missoes")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    mission: typeof search.mission === "string" ? search.mission : undefined,
+  }),
   head: () => ({ meta: [{ title: "Minhas Missões — Povo que Batalha" }] }),
   component: MyMissionsPage,
 });
@@ -92,6 +95,7 @@ function MyMissionsPage() {
   const listFn = useServerFn(listMyMissions);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["my-missions"], queryFn: () => listFn() });
+  const { mission: focusMissionId } = Route.useSearch();
 
   if (q.isLoading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   const missions = (q.data?.missions ?? []) as MissionBlock[];
@@ -117,7 +121,12 @@ function MyMissionsPage() {
       )}
 
       {missions.map((m) => (
-        <MissionBlockCard key={m.mission.id} block={m} onChanged={refetchAll} />
+        <MissionBlockCard
+          key={m.mission.id}
+          block={m}
+          onChanged={refetchAll}
+          focused={focusMissionId === m.mission.id}
+        />
       ))}
     </div>
   );
@@ -126,10 +135,18 @@ function MyMissionsPage() {
 function MissionBlockCard({
   block,
   onChanged,
+  focused = false,
 }: {
   block: MissionBlock;
   onChanged: () => void;
+  focused?: boolean;
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focused && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focused]);
   const cooldownFn = useServerFn(getMissionCooldownStatus);
   const claimFn = useServerFn(claimMissionBatch);
   const completeFn = useServerFn(completeMissionClaim);
@@ -140,6 +157,7 @@ function MissionBlockCard({
     queryKey: ["mission-cooldown", block.mission.id],
     queryFn: () => cooldownFn({ data: { mission_id: block.mission.id } }),
     enabled: block.mission.is_open,
+    refetchInterval: 60_000,
   });
 
   const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
@@ -229,7 +247,12 @@ function MissionBlockCard({
       : null;
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
+    <div
+      ref={cardRef}
+      className={`rounded-xl border bg-card overflow-hidden ${
+        focused ? "ring-2 ring-primary" : ""
+      }`}
+    >
       <div className="p-4 border-b bg-primary/5">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="font-display text-lg">{block.mission.title}</h2>

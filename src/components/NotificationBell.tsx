@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff, Volume2 } from "lucide-react";
+import { toast } from "sonner";
 
 
 import { formatDistanceToNow } from "date-fns";
@@ -228,16 +229,28 @@ export function NotificationBell() {
     }
   }
 
+  function goToMission(missionId: string) {
+    setDetail(null);
+    navigate({ to: "/minhas-missoes", search: { mission: missionId } });
+  }
+
   async function acceptMission() {
     if (!detail?.mission_id) return;
+    const missionId = detail.mission_id;
     setAcceptingMission(true);
     try {
-      await claimFn({ data: { mission_id: detail.mission_id } });
-      setDetail(null);
-      navigate({ to: "/minhas-missoes" });
+      const r = await claimFn({ data: { mission_id: missionId } });
+      if (!r.task_ids.length) {
+        toast.info("Não há contatos disponíveis nesta missão agora.");
+      } else {
+        toast.success(`${r.task_ids.length} contato(s) atribuído(s) a você.`);
+      }
+      qc.invalidateQueries({ queryKey: ["my-missions"] });
+      goToMission(missionId);
     } catch (e) {
-      console.error(e);
-      window.location.href = "/minhas-missoes";
+      // Não redirecionar fingindo sucesso: mostrar o motivo real do bloqueio.
+      toast.error(e instanceof Error ? e.message : "Não foi possível aceitar a missão agora.");
+      missionBriefingQ.refetch();
     } finally {
       setAcceptingMission(false);
     }
@@ -495,10 +508,52 @@ export function NotificationBell() {
                               <p className="text-sm whitespace-pre-wrap break-words">{briefing.instructions}</p>
                             </div>
                           )}
-                          <div className="text-sm text-muted-foreground">
-                            Público-alvo: <span className="font-medium text-foreground">{briefing.contact_count}</span> contato(s)
-                            {briefing.batch_size ? ` · leva de ${briefing.batch_size}` : ""}
+                          <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                            {briefing.has_my_tasks ? (
+                              <>
+                                <div>
+                                  Sua leva:{" "}
+                                  <span className="font-semibold text-foreground">
+                                    {briefing.mine_total}
+                                  </span>{" "}
+                                  contato(s)
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {briefing.mine_pending} pendente(s) · {briefing.mine_sent} enviado(s) ·{" "}
+                                  {briefing.mine_not_sent} não enviado(s)
+                                </div>
+                              </>
+                            ) : briefing.self_assign ? (
+                              <>
+                                <div>
+                                  Você vai receber uma leva de{" "}
+                                  <span className="font-semibold text-foreground">
+                                    {briefing.batch_size}
+                                  </span>{" "}
+                                  contato(s)
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {briefing.available_now} disponível(is) no total desta missão
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">
+                                Esta missão é distribuída pela coordenação. Aguarde os contatos serem
+                                atribuídos a você.
+                              </div>
+                            )}
+                            {briefing.in_cooldown && briefing.releases_at && (
+                              <div className="text-xs text-amber-600 dark:text-amber-400">
+                                Você poderá pegar uma nova leva{" "}
+                                {formatDistanceToNow(new Date(briefing.releases_at), {
+                                  addSuffix: true,
+                                  locale: ptBR,
+                                })}
+                                .
+                              </div>
+                            )}
                           </div>
+
                         </div>
                       )}
                       {!briefing && !missionBriefingQ.isLoading && detail.body && (
@@ -555,10 +610,57 @@ export function NotificationBell() {
                   </div>
                   {isMissionDetail ? (
                     <div className="flex flex-col gap-2">
-                      <Button size="lg" className="w-full" onClick={acceptMission} disabled={acceptingMission}>
-                        {acceptingMission ? "Aceitando…" : "Aceitar missão"}
-                      </Button>
-                      <Button size="lg" variant="outline" className="w-full" onClick={() => setDetail(null)}>
+                      {briefing?.has_my_tasks && (
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={() => detail.mission_id && goToMission(detail.mission_id)}
+                        >
+                          Abrir minha missão ({briefing.mine_pending} pendente
+                          {briefing.mine_pending === 1 ? "" : "s"})
+                        </Button>
+                      )}
+                      {briefing?.can_claim && (
+                        <Button
+                          size="lg"
+                          variant={briefing.has_my_tasks ? "outline" : "default"}
+                          className="w-full"
+                          onClick={acceptMission}
+                          disabled={acceptingMission}
+                        >
+                          {acceptingMission
+                            ? "Aceitando…"
+                            : `Aceitar missão (leva de ${Math.min(briefing.batch_size, briefing.available_now)})`}
+                        </Button>
+                      )}
+                      {briefing && !briefing.can_claim && !briefing.has_my_tasks && (
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={() => detail.mission_id && goToMission(detail.mission_id)}
+                        >
+                          Ver missão
+                        </Button>
+                      )}
+                      {!briefing && (
+                        <Button size="lg" className="w-full" onClick={acceptMission} disabled={acceptingMission}>
+                          {acceptingMission ? "Aceitando…" : "Aceitar missão"}
+                        </Button>
+                      )}
+                      {briefing && !briefing.can_claim && briefing.block_reason && (
+                        <p className="text-xs text-center text-muted-foreground">
+                          {briefing.block_reason === "leva_aberta"
+                            ? "Você já tem uma leva em aberto. Conclua-a para pegar mais contatos."
+                            : briefing.block_reason === "cooldown"
+                              ? "Aguarde o tempo de espera para pegar uma nova leva."
+                              : briefing.block_reason === "sem_contatos"
+                                ? "Não há contatos disponíveis nesta missão agora."
+                                : briefing.block_reason === "atribuicao_direta"
+                                  ? "Os contatos desta missão são distribuídos pela coordenação."
+                                  : "Missão indisponível para novas levas no momento."}
+                        </p>
+                      )}
+                      <Button size="lg" variant="ghost" className="w-full" onClick={() => setDetail(null)}>
                         Agora não
                       </Button>
                     </div>
