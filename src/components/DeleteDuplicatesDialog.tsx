@@ -39,11 +39,13 @@ function phoneOf(c: DeleteCandidate) {
 export function DeleteDuplicatesDialog({ group, targets, onClose, onDone }: Props) {
   const deleteFn = useServerFn(deleteDuplicateContacts);
   const [loading, setLoading] = useState<"hard" | "arquivar" | null>(null);
+  const [confirmarTudo, setConfirmarTudo] = useState(false);
 
   const targetIds = targets.map((t) => t.id);
   const remaining = group.filter((c) => !targetIds.includes(c.id));
   const bloqueados = targets.filter((t) => t.is_system_user);
-  const invalido = remaining.length < 1 || bloqueados.length > 0;
+  const removeTudo = remaining.length === 0;
+  const invalido = bloqueados.length > 0 || (removeTudo && !confirmarTudo);
 
   async function run(mode: "hard" | "arquivar") {
     setLoading(mode);
@@ -99,8 +101,20 @@ export function DeleteDuplicatesDialog({ group, targets, onClose, onDone }: Prop
               Permanece na base
             </div>
             {remaining.length === 0 ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">
-                Você precisa deixar pelo menos um cadastro. Desmarque um dos selecionados.
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 space-y-2 text-destructive">
+                <div>
+                  Nenhum cadastro vai permanecer na base — este bloco de repetidos será apagado por
+                  completo.
+                </div>
+                <label className="flex items-start gap-2 text-xs font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={confirmarTudo}
+                    onChange={(e) => setConfirmarTudo(e.target.checked)}
+                  />
+                  Entendi que nenhum cadastro será mantido
+                </label>
               </div>
             ) : (
               <ul className="space-y-1">
@@ -113,6 +127,7 @@ export function DeleteDuplicatesDialog({ group, targets, onClose, onDone }: Prop
               </ul>
             )}
           </div>
+
 
           {bloqueados.length > 0 && (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">

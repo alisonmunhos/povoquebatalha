@@ -426,7 +426,7 @@ export const deleteDuplicateContacts = createServerFn({ method: "POST" })
     z
       .object({
         group_ids: z.array(z.string().uuid()).min(2).max(50),
-        delete_ids: z.array(z.string().uuid()).min(1).max(49),
+        delete_ids: z.array(z.string().uuid()).min(1).max(50),
         mode: z.enum(["hard", "arquivar"]).default("hard"),
       })
       .parse(d),
@@ -435,10 +435,9 @@ export const deleteDuplicateContacts = createServerFn({ method: "POST" })
     await requireAdmin(context.supabase, context.userId, "Apenas administradores podem excluir contatos.");
 
     const deleteIds = Array.from(new Set(data.delete_ids));
+    // Também é permitido retirar todos os cadastros do bloco (o bloco some da fila).
     const remaining = data.group_ids.filter((id) => !deleteIds.includes(id));
-    if (remaining.length < 1) {
-      throw new Error("Pelo menos um cadastro do grupo precisa ser mantido.");
-    }
+
 
     const { data: alvos, error: getErr } = await context.supabase
       .from("contacts")
