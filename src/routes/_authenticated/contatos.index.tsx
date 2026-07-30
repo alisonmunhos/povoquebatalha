@@ -388,7 +388,7 @@ function Contatos() {
 
       {/* Busca + toggle filtros + ações principais */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[260px] max-w-md">
+        <div className="relative w-full min-w-0 basis-full sm:basis-auto sm:flex-1 sm:min-w-[260px] sm:max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={searchInput}
