@@ -311,6 +311,7 @@ export function PublicFormRenderer({
       const json = await r.json();
       if (!r.ok || !json.ok) throw new Error(json.error ?? "Erro ao salvar progresso");
       if (json.recad_token) setActiveRecadToken(json.recad_token);
+      if (eventSlug && !eventHandled) setEventHandled(true);
       if (json.has_account) setEmailAlreadyRegistered(true);
       if (json.email != null || json.nome != null || json.phone != null) {
         setContactContext((prev) => ({
