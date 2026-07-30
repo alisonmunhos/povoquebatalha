@@ -1,7 +1,7 @@
 // Painel sobreposto usado no fluxo público (evento + cadastro por seções).
 // No celular ocupa a tela inteira; no desktop vira um cartão centralizado.
 // Sempre com cabeçalho fixo (Voltar / título / etapa) e rodapé fixo de ação.
-import { useEffect, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, X } from "lucide-react";
 
 export function StepOverlay({
