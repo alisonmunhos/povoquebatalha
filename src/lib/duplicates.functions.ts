@@ -348,7 +348,7 @@ export const resolveDuplicateGroup = createServerFn({ method: "POST" })
     await requireAdmin(context.supabase, context.userId, "Apenas administradores podem decidir sobre contatos repetidos.");
 
     const nowIso = new Date().toISOString();
-    let patch: Record<string, unknown>;
+    let patch: Database["public"]["Tables"]["contact_duplicates"]["Update"];
     if (data.action === "adiar") {
       const dias = data.dias ?? 7;
       patch = {
