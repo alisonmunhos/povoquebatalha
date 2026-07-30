@@ -905,25 +905,113 @@ export const listAgitadorUsers = createServerFn({ method: "GET" })
   });
 
 // Briefing exibido no popup de notificação de missão.
+// Mostra o que é REAL pro usuário: a leva dele (se já tem) ou o lote que ele
+// vai receber (só quando a missão está aberta pra auto-atribuição).
 export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => missionIdSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { data: mission, error } = await context.supabase
       .from("agitation_missions")
-      .select("title, instructions, batch_size")
+      .select("title, instructions, batch_size, cooldown_minutes, is_open, paused_at, archived_at")
       .eq("id", data.mission_id)
       .single();
     if (error || !mission) throw new Error("Missão não encontrada");
+
     const { count } = await context.supabase
       .from("agitation_tasks")
       .select("id", { count: "exact", head: true })
       .eq("mission_id", data.mission_id);
+
+    // Tarefas que já são minhas nesta missão
+    const { data: myTasks } = await context.supabase
+      .from("agitation_tasks")
+      .select("id, status, completed_at")
+      .eq("mission_id", data.mission_id)
+      .eq("assigned_user_id", context.userId);
+    const mine = myTasks ?? [];
+    const mine_total = mine.length;
+    const mine_sent = mine.filter((t) => t.status === "concluido").length;
+    const mine_not_sent = mine.filter((t) => t.status === "nao_enviado").length;
+    const mine_pending = mine.filter((t) => !t.completed_at && t.status === "pending").length;
+
+    const { data: openClaim } = await context.supabase
+      .from("agitation_mission_claims")
+      .select("id")
+      .eq("mission_id", data.mission_id)
+      .eq("user_id", context.userId)
+      .is("completed_at", null)
+      .limit(1)
+      .maybeSingle();
+
+    const { data: lastCompleted } = await context.supabase
+      .from("agitation_mission_claims")
+      .select("completed_at")
+      .eq("mission_id", data.mission_id)
+      .eq("user_id", context.userId)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { count: available } = await context.supabase
+      .from("agitation_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("mission_id", data.mission_id)
+      .is("assigned_user_id", null)
+      .is("assigned_contact_id", null)
+      .eq("status", "pending");
+
+    const releases_at = lastCompleted?.completed_at
+      ? new Date(
+          new Date(lastCompleted.completed_at).getTime() + mission.cooldown_minutes * 60_000,
+        ).toISOString()
+      : null;
+    const in_cooldown = !!releases_at && new Date(releases_at).getTime() > Date.now();
+    const has_open_claim = !!openClaim;
+    const self_assign = !!mission.is_open && !mission.paused_at && !mission.archived_at;
+    const can_claim = self_assign && !has_open_claim && (available ?? 0) > 0 && !in_cooldown;
+
+    const block_reason:
+      | "leva_aberta"
+      | "cooldown"
+      | "sem_contatos"
+      | "atribuicao_direta"
+      | "indisponivel"
+      | null = can_claim
+      ? null
+      : has_open_claim
+        ? "leva_aberta"
+        : in_cooldown
+          ? "cooldown"
+          : !self_assign
+            ? mission.archived_at || mission.paused_at
+              ? "indisponivel"
+              : "atribuicao_direta"
+            : (available ?? 0) === 0
+              ? "sem_contatos"
+              : "indisponivel";
+
     return {
       title: mission.title,
       instructions: mission.instructions,
       contact_count: count ?? 0,
       batch_size: mission.batch_size,
+      cooldown_minutes: mission.cooldown_minutes,
+      self_assign,
+      paused: !!mission.paused_at,
+      archived: !!mission.archived_at,
+      available_now: available ?? 0,
+      mine_total,
+      mine_pending,
+      mine_sent,
+      mine_not_sent,
+      has_open_claim,
+      has_my_tasks: mine_total > 0,
+      releases_at,
+      in_cooldown,
+      can_claim,
+      block_reason,
     };
   });
 
