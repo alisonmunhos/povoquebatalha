@@ -94,6 +94,7 @@ export function EditMissionModal({
           media_path: media.media_path,
           media_mime: media.media_mime,
           media_filename: media.media_filename,
+          instructions: instructions.trim() ? instructions.trim() : null,
           batch_size: batchSize,
           cooldown_minutes: cooldownMinutes,
         },
