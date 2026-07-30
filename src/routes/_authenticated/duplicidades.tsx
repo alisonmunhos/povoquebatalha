@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Clock, Copy, GitMerge, RefreshCw, RotateCcw, Users } from "lucide-react";
+import { Clock, Copy, GitMerge, RefreshCw, RotateCcw, Trash2, Users } from "lucide-react";
 import {
   listDuplicateGroups,
   resolveDuplicateGroup,
