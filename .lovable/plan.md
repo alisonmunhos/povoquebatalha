@@ -1,31 +1,77 @@
 ## Objetivo
 
-Hoje, ao selecionar todos os cadastros de um bloco de repetidos, a tela obriga a manter pelo menos um: aparece "Você precisa deixar pelo menos um cadastro" e os botões de excluir ficam desativados. Você quer poder excluir todos, com a chance de cancelar.
+Criar uma tela mobile de **Triagem por Swipe** disponível automaticamente em todo segmento (novo ou já existente), mais dois gatilhos no card de cada segmento: **Abrir Swipe** e **Compartilhar tarefa de triagem**.
 
-## O que muda
+Nada de novo no backend de negócio: reaproveitamos o que já existe — arquivar (`archiveContact`, que também desarquiva), observações (`logTerritoryAction` / timeline `listContactLogsUnified`) e a ficha completa (`/contatos/$id`).
 
-**1. Tela de confirmação (`DeleteDuplicatesDialog`)**
-- Quando todos os cadastros do bloco estiverem marcados, em vez do bloqueio vermelho aparece um aviso claro: "Nenhum cadastro vai permanecer na base — este bloco de repetidos será apagado por completo."
-- Os botões "Excluir definitivamente" e "Tirar da base" ficam habilitados nesse caso.
-- Como é uma ação sem volta, adiciono uma caixinha de confirmação: "Entendi que nenhum cadastro será mantido". Sem marcar, o botão de excluir definitivamente continua desativado (o "Tirar da base", que só arquiva, também pede a marcação para manter coerência).
-- "Cancelar" continua disponível e sem efeito nenhum.
-- Continua bloqueado apenas o caso de contato com acesso ao sistema (esse nunca pode ser excluído por aqui) — nesse caso a mensagem segue explicando o motivo.
+---
 
-**2. Menu do bloco (`duplicidades.tsx`)**
-- No menu "Excluir…" incluo a opção "Excluir todos os cadastros deste bloco", que marca todos e já abre a confirmação.
-- A opção atual "Excluir todos, menos o sugerido para ficar" permanece.
+## 1. Estrutura de componentes
 
-**3. Regra do servidor (`deleteDuplicateContacts`)**
-- Hoje a função recusa quando não sobra ninguém ("Pelo menos um cadastro do grupo precisa ser mantido") e limita `delete_ids` a no máximo 49. Vou permitir apagar o grupo inteiro:
-  - aceitar `delete_ids` cobrindo todos os IDs do grupo;
-  - remover a exigência de sobrar um;
-  - manter a proteção de contatos com acesso ao sistema;
-  - manter o registro em auditoria de cada exclusão definitiva (nome, telefone, e-mail, motivo "duplicidade").
-- Com o bloco vazio, os pares de duplicidade caem sozinhos (exclusão em cascata) ou são marcados como resolvidos no modo "Tirar da base".
+**Tela de Segmentos (`/segmentos`)** — só ganha ações no card existente:
+- `SegmentCardActions` — botões "Abrir Swipe" (vai para `/segmentos/$id/swipe`) e ícone "Compartilhar".
+- `ShareTriageDialog` — cria/lista o link da tarefa, copia e oferece envio por WhatsApp.
+
+**Tela de swipe (`/_authenticated/segmentos/$id/swipe`)**, mobile-first:
+```text
+SwipeTriagePage            fila, undo, atalhos de teclado no desktop
+├─ TriageProgressBar       "12 de 240 revisados" + nome do segmento
+├─ SwipeDeck               card atual + próximo (pré-render atrás)
+│  └─ ContactSwipeCard     nome, profissão, local de trabalho,
+│                          chips de tags, selo Alicerce,
+│                          bloco "Observação atual" (obrigatório ler),
+│                          gatilho "Nova observação"
+├─ SwipeActionCluster      4 botões redondos (amarelo topo / vermelho,
+│                          roxo, verde na linha do polegar)
+├─ AddNoteSheet            bottom sheet (vaul, já instalado) → salva log
+├─ ContactFullSheet        ficha completa em tela cheia + "Fechar"
+└─ UndoSnackbar            "Desfazer" com contagem regressiva
+```
+
+A ficha completa é aberta **sem sair da tela de swipe** (sheet full-screen reaproveitando o formulário da ficha), então o card atual permanece intacto ao fechar.
+
+---
+
+## 2. Estado da fila, segmentos dinâmicos, pular e desfazer
+
+**Fonte da fila:** nova server fn `listSegmentTriageQueue` em `src/lib/segments.functions.ts`:
+- segmento **estático** → `member_ids`;
+- segmento **dinâmico** → mesma `applyCrmFilters` já usada em `countSegment` (garante que a fila reflete quem entrou depois);
+- sempre filtra arquivados e usuários do sistema (`contact-rules.ts`), ordena estável por `created_at,id` e pagina de 40 em 40 com cursor.
+
+**Estado no cliente** (um `useReducer` em `useTriageQueue`):
+- `queue` (ids pendentes), `deferred` (pulados), `decided` (Set de ids já tratados nesta sessão), `history` (pilha de ações).
+- Ao esvaziar `queue`, busca a próxima página; quando não há mais páginas, reinjeta `deferred` (é aí que o "pular" reaparece) e faz um **refetch** da primeira página para capturar novas entradas do segmento dinâmico, ignorando ids em `decided`.
+- Ações: direita = só remove da fila; esquerda = `archiveContact({archived:true})` otimista; baixo = move para o fim de `deferred`; amarelo = abre a ficha.
+
+**Desfazer:** cada ação empilha `{ contactId, tipo, posiçãoAnterior }`. O botão desfaz a última: recoloca o card na frente, tira de `decided` e, se era arquivar, chama `archiveContact({archived:false})`. O snackbar fica ~8s; a pilha guarda as últimas 20 (dá para desfazer em sequência).
+
+---
+
+## 3. Link de compartilhamento seguro
+
+Uma migration cria `segment_triage_shares` (`id`, `segment_id`, `token` único, `created_by`, `label`, `is_active`, `expires_at`, `use_count`), com GRANTs e RLS: leitura/escrita só para staff autenticado (nada exposto a `anon`).
+
+- Rota `/triagem/$token` (pública apenas para *resolver*): se não houver sessão, redireciona para `/auth?next=/triagem/<token>`; com sessão válida, resolve o token via server fn autenticada e redireciona para a tela de swipe do segmento.
+- O token identifica a **tarefa**, nunca autoriza dados: os contatos continuam vindo pelo cliente autenticado, sob RLS do usuário que entrou. Quem não tem permissão de ver contatos vê um aviso claro em vez de dados.
+- Revogar link = `is_active = false` no diálogo de compartilhamento.
+
+---
+
+## 4. Fluidez do gesto sem conflito com a rolagem
+
+- O card usa **Pointer Events** (`setPointerCapture`) com `touch-action: none` só no card; a página de swipe não rola (`h-[100dvh]`, cluster fixo, conteúdo longo rola dentro do bloco de observação, que trava a propagação do gesto).
+- Detecção de eixo: nos primeiros ~10px decide horizontal vs. vertical e ignora o outro eixo, evitando arrasto ambíguo.
+- Animação por `transform`/`opacity` com `requestAnimationFrame` (sem nova dependência), limiar de ~30% da largura ou velocidade > 0.5px/ms; abaixo disso o card volta com mola curta.
+- Feedback ao vivo: rótulo colorido (Arquivar / Manter / Pular) surge conforme a direção; leve `navigator.vibrate(10)` ao confirmar, quando suportado.
+- Acessibilidade: os botões fazem exatamente o mesmo que o gesto e têm `aria-label`; o gesto é um extra, nunca o único caminho.
+
+---
 
 ## Detalhes técnicos
 
-- `src/lib/duplicates.functions.ts`: ajustar o schema (`delete_ids` até 50, sem obrigar `remaining >= 1`) e trocar o `throw` por um caminho que trata `remaining.length === 0`.
-- `src/components/DeleteDuplicatesDialog.tsx`: novo estado `confirmarTudo`, texto condicional e `invalido` calculado só pelos bloqueados + confirmação.
-- `src/routes/_authenticated/duplicidades.tsx`: nova entrada no dropdown de exclusão.
-- Ao final, rodar o typecheck.
+- Novos arquivos: `src/routes/_authenticated/segmentos.$id.swipe.tsx`, `src/routes/triagem.$token.tsx`, `src/components/swipe/*`, `src/hooks/use-triage-queue.ts`, `src/hooks/use-swipe-gesture.ts`.
+- Alterações: `src/routes/_authenticated/segmentos.tsx` (dois gatilhos por card), `src/lib/segments.functions.ts` (`listSegmentTriageQueue`, `createSegmentTriageShare`, `listSegmentTriageShares`, `resolveSegmentTriageShare`).
+- Migration nova apenas para `segment_triage_shares` — nenhuma alteração destrutiva, nenhum dado existente tocado.
+- Todas as chamadas usam `useServerFn` + React Query, com invalidação de `["segments"]` e do cache da fila.
+- Fecho com `tsgo` (typecheck) e um teste manual no viewport mobile.
