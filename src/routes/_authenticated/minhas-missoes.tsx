@@ -251,33 +251,72 @@ function MissionBlockCard({
           />
         )}
         <div className="text-xs text-muted-foreground mt-2">
-          {block.tasks.length} contato(s) na sua leva · {block.concluded} concluído(s) ·{" "}
-          {pendingTasks.length} pendente(s)
+          {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
+          {pendingTasks.length} pendente(s) · {notSentTasks.length} não enviado(s)
         </div>
       </div>
 
-      {pendingTasks.length > 0 && (
+      {block.tasks.length > 0 && (
         <div className="divide-y">
-          {pendingTasks.map((t) => (
-            <div key={t.id} className="p-3 flex items-center gap-3 flex-wrap">
-              <div className="flex-1 min-w-[160px]">
-                <div className="font-medium text-sm">
-                  {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
+          {block.tasks.map((t) => {
+            const waiting = awaitingConfirm.has(t.id);
+            const sent = t.status === "concluido";
+            const notSent = t.status === "nao_enviado";
+            return (
+              <div key={t.id} className="p-3 flex items-center gap-3 flex-wrap">
+                <div className="flex-1 min-w-[160px]">
+                  <div className="font-medium text-sm">
+                    {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t.contacts?.phone_e164 ?? t.contacts?.phone_raw ?? "—"}
+                  </div>
+                  <span
+                    className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
+                      sent
+                        ? "bg-emerald-100 text-emerald-800"
+                        : notSent
+                          ? "bg-rose-100 text-rose-800"
+                          : waiting
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {sent
+                      ? "Enviado"
+                      : notSent
+                        ? "Não enviei"
+                        : waiting
+                          ? "Aguardando confirmação"
+                          : "Pendente"}
+                  </span>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {t.contacts?.phone_e164 ?? t.contacts?.phone_raw ?? "—"}
-                </div>
+
+                <Button
+                  size="sm"
+                  variant={sent || notSent ? "outline" : "default"}
+                  onClick={() => onOpenWhatsApp(t)}
+                >
+                  <Send className="h-3.5 w-3.5 mr-1" />
+                  {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
+                </Button>
+
+                {!sent && (
+                  <Button size="sm" variant="secondary" onClick={() => onMarkTask(t, "concluido")}>
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
+                  </Button>
+                )}
+                {!notSent && (
+                  <Button size="sm" variant="outline" onClick={() => onMarkTask(t, "nao_enviado")}>
+                    <XCircle className="h-3.5 w-3.5 mr-1" /> Não consegui enviar
+                  </Button>
+                )}
               </div>
-              <Button size="sm" onClick={() => onSendTask(t)}>
-                <Send className="h-3.5 w-3.5 mr-1" /> Enviar
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => onSkipTask(t)}>
-                <XCircle className="h-3.5 w-3.5 mr-1" /> Não enviei
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
 
       <div className="p-3 border-t bg-muted/30 flex flex-col gap-2">
         {openClaim && (
