@@ -56,6 +56,7 @@ export const crmFilterSchema = z.object({
   faixa_etaria: z.string().optional(),
   faixas_etarias: z.array(z.string()).optional(),
   rede_social: z.string().trim().optional(),
+  rede_social_values: z.array(z.string()).optional(),
   zona_eleitoral: z.string().trim().optional(),
   zona_eleitoral_values: z.array(z.string()).optional(),
   como_conheceu: z.string().trim().optional(),
@@ -460,7 +461,11 @@ export function applyCrmFilters<T extends {
     else if (empty) q = q.is("faixa_etaria", null);
     else if (values.length) q = q.in("faixa_etaria", values);
   }
-  if (f.rede_social) q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
+  if (f.rede_social_values?.length) {
+    q = applyExactIlikeArrayFilter(q, "rede_social", f.rede_social_values);
+  } else if (f.rede_social) {
+    q = q.ilike("rede_social", `%${safe(f.rede_social)}%`);
+  }
   if (f.zona_eleitoral_values?.length) {
     q = applyExactIlikeArrayFilter(q, "zona_eleitoral", f.zona_eleitoral_values);
   } else if (f.zona_eleitoral) {
