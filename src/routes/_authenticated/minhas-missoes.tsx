@@ -155,6 +155,8 @@ function MissionBlockCard({
   const claimFn = useServerFn(claimMissionBatch);
   const completeFn = useServerFn(completeMissionClaim);
   const markFn = useServerFn(markMyMissionTask);
+  const refuseFn = useServerFn(refuseMissionContact);
+  const undoRefuseFn = useServerFn(undoRefuseMissionContact);
   const [busy, setBusy] = useState(false);
 
   const cooldownQ = useQuery({
@@ -165,10 +167,17 @@ function MissionBlockCard({
   });
 
   const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
+  // Recusas marcadas agora nesta sessão (feedback imediato antes do recarregamento).
+  const [refusedNow, setRefusedNow] = useState<Set<string>>(new Set());
 
-  const pendingTasks = block.tasks.filter((t) => !t.completed_at && t.status === "pending");
+  const isRefused = (t: Task) => refusedNow.has(t.id) || !!t.contacts?.opt_out_at;
+
+  const pendingTasks = block.tasks.filter(
+    (t) => !t.completed_at && t.status === "pending" && !isRefused(t),
+  );
   const sentTasks = block.tasks.filter((t) => t.status === "concluido");
-  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado");
+  const refusedTasks = block.tasks.filter((t) => isRefused(t));
+  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado" && !isRefused(t));
   const openClaim = block.claim;
 
   /** Abre o WhatsApp; NÃO marca nada — só coloca a tarefa em "aguardando confirmação". */
