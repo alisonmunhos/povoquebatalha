@@ -480,9 +480,10 @@ function Contatos() {
           </div>
 
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-primary-foreground/20 pt-2">
+          <div className="flex flex-col items-stretch gap-3 border-t border-primary-foreground/20 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2">
             {/* Tags */}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+
               <span className="text-xs uppercase tracking-wide opacity-70">Tags</span>
               {creatingTag ? (
                 <>
