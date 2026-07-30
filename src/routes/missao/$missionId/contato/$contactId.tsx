@@ -1,12 +1,49 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { renderMessageVars, type MessageVarContact } from "@/lib/message-vars";
+import { getMissionMeta } from "@/lib/mission-meta.functions";
+import { getRequestOrigin } from "@/lib/site-origin.functions";
 
 export const Route = createFileRoute("/missao/$missionId/contato/$contactId")({
-  head: () => ({ meta: [{ title: "Minhas tarefas de agitação" }] }),
-  ssr: false,
+  ssr: "data-only",
+  loader: async ({ params }) => {
+    const [meta, origin] = await Promise.all([
+      getMissionMeta({ data: { mission_id: params.missionId } }),
+      getRequestOrigin(),
+    ]);
+    return { meta, origin };
+  },
+  head: ({ params, loaderData }) => {
+    const title = loaderData?.meta?.title ?? "Minhas tarefas de agitação";
+    const description = "Abra sua lista de contatos e envie a mensagem da missão.";
+    const origin = loaderData?.origin ?? "https://povoquebatalha.lovable.app";
+    const imageUrl = loaderData?.meta?.hasMedia
+      ? `${origin}/api/public/agitation-missions/${params.missionId}/media`
+      : null;
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        ...(imageUrl
+          ? [
+              { property: "og:image", content: imageUrl },
+              { property: "og:image:width", content: "1200" },
+              { property: "og:image:height", content: "630" },
+              { name: "twitter:image", content: imageUrl },
+            ]
+          : []),
+        { name: "twitter:card", content: imageUrl ? "summary_large_image" : "summary" },
+        { name: "robots", content: "noindex" },
+      ],
+    };
+  },
   component: MissionExecutorPage,
 });
+
 
 type Task = {
   id: string;
