@@ -1,47 +1,48 @@
-## Sobre o "10": confirmado no código
+## Bug 1 — causa real (confirmada, não suposta)
 
-O `10` não está escrito na tela — é o valor da coluna `batch_size` da missão. O problema real é **onde ele pode ser definido**:
+Rodei a mesclagem real do par `a0d31249…` ("Guilherme Gil" x "Guilherme Gil") direto no banco, dentro de uma transação desfeita ao final. O resultado:
 
-- `CreateMissionModal.tsx` e `EditMissionModal.tsx` **não têm nenhum campo** de tamanho da leva nem de cooldown (verificado: nenhuma ocorrência de `batch_size`/`cooldown`). Então toda missão nasce com o padrão do banco: leva 10, cooldown 60 min.
-- O operador só consegue escolher esses valores **depois**, no modal "Abrir para auto-atribuição" (`OpenMissionModal.tsx`).
-- Pior: o alerta de notificação mostra "leva de 10" mesmo em missão de **atribuição direta** (como "Convite Plenária", que está `is_open = false` e teve os 53 contatos atribuídos de uma vez pelo coordenador). Aí o número não significa nada.
+```text
+ERROR: duplicate key value violates unique constraint
+       "campaign_recipients_campaign_id_contact_id_key"
+DETAIL: Key (campaign_id, contact_id)=(6954283c…, 4a1c0383…) already exists.
+CONTEXT: UPDATE public.campaign_recipients SET contact_id = p_survivor
+         WHERE contact_id = p_merged   (merge_contacts, linha 145)
+```
 
-Já o **53** é o `contact_count` do briefing: conta todas as tarefas da missão, não o que é seu.
+Ou seja: **os dois cadastros receberam a mesma campanha**. A função `merge_contacts` transfere os destinatários de campanha com um `UPDATE` cego, e a tabela tem regra de "um destinatário por campanha". A transação inteira é abortada — por isso o par continua `pendente` e não existe **nenhum** registro em `contact_merges` para esses dois contatos.
 
----
+Não é o campo "MESCLAR": esse par é de confiança **provável**, e nessa confiança a digitação nem é exigida. O botão estava habilitado.
 
-## Plano revisado
+O erro fica invisível porque `mergeContactsBulk` captura a falha por item, devolve `{ ok: false, falhas: [...] }`, e o modal só mostra um aviso genérico ("0 unificado(s), 1 com erro") e **fecha mesmo assim**, parecendo sucesso.
 
-### 1. Operador define o tamanho da leva e o cooldown na criação
-- Adicionar em `CreateMissionModal` (e em `EditMissionModal`, enquanto a missão não estiver arquivada) os campos **"Contatos por leva"** e **"Cooldown entre levas (minutos)"**, com os mesmos limites já usados no `OpenMissionModal` (leva 1–100, cooldown 0–1440) e os padrões atuais como valor inicial.
-- A função de criação/edição de missão passa a gravar `batch_size` e `cooldown_minutes`.
-- O `OpenMissionModal` continua existindo e passa a **pré-carregar os valores já definidos na missão** (em vez de recomeçar em 10/60), permitindo ajustar na hora de abrir.
-- Nenhum número fixo em tela: tudo lê `mission.batch_size` / `mission.cooldown_minutes`.
+A função tem o mesmo tratamento cego em `automation_deliveries` (também única por automação+contato). `event_rsvps`, `agitation_tasks`, `agitation_link_pauses`, `contact_tags` e `conversations` já são tratadas corretamente.
 
-### 2. Briefing da notificação com números reais
-`getMissionNotificationBriefing` passa a devolver também: tipo da missão (aberta x atribuição direta), se o usuário já tem leva aberta e quantas tarefas dela estão pendentes/enviadas/não enviadas, contatos livres no pool, se pode pegar novo lote, motivo do bloqueio e horário de liberação do cooldown.
+## Correção 1 — o que fazer
 
-### 3. Texto do alerta ajustado ao caso
-- **Com leva aberta**: "Sua leva: 53 contato(s) · 47 pendente(s)" — sem "público-alvo" e sem "leva de N".
-- **Missão aberta e sem leva**: "Você vai receber uma leva de {batch_size} contato(s) · {N} disponíveis".
-- **Atribuição direta**: nunca exibir "leva de N".
+1. **Migration** ajustando `merge_contacts`: antes de mover, apagar do absorvido o registro conflitante (mesmo padrão já usado em `event_rsvps`), para `campaign_recipients` e `automation_deliveries`. Nada é perdido de fato: o sobrevivente já tem o registro daquela campanha/automação.
+2. **Mensagem de erro visível**: o modal deixa de fechar quando há falha — mostra a mensagem real do banco dentro do modal e mantém a tela aberta.
 
-### 4. Botão contextual (o pedido principal)
-- **Já tem leva / contatos atribuídos** → "Abrir minha missão (N pendentes)" — entra na missão, não cria lote novo.
-- **Pode pegar lote** → "Aceitar missão (leva de {batch_size})".
-- **Em cooldown** → botão desabilitado com "Disponível em Xh Ymin" + link "Ver minhas missões".
-- **Fechada / pausada / sem contatos** → aviso explicativo e link para minhas missões.
+## Correção 2 — remover a digitação "MESCLAR"
+Retirar `confirmText`/`needsTyped` do `MergeContactsModal.tsx` e a função `requiresTypedConfirmation` de `merge-suggestion.ts` (sem outros usos). O botão passa a ser a única confirmação.
 
-### 5. Erros deixam de ser engolidos
-Hoje o `catch` faz `console.error` e redireciona, parecendo sucesso. Passa a exibir a mensagem do servidor (toast) e manter o alerta aberto.
+## Correção 3 — "Decidir depois": duas opções
 
-### 6. Entrar direto na missão pela notificação
-`/minhas-missoes` aceita `?mission=<id>`: ao abrir, rola e destaca a missão correspondente.
+**(a) Renomear (recomendado).** Trocar o rótulo para **"Ignorar por enquanto"** e explicar na tela que o par sai da fila e só volta se a verificação da base for rodada de novo. Zero mudança de banco, e já é verdade hoje: o `rescanDuplicates` recria pares que voltarem a bater.
 
-### 7. Cooldown visível em "Minhas missões"
-Contagem regressiva ("Novo lote disponível em X min") no cartão, com o botão de pegar lote desabilitado enquanto durar.
+**(b) Implementar o adiamento de verdade.** Nova coluna `postergado_ate` em `contact_duplicates`, o par continua `pendente` mas some da lista até a data; a fila ordena por ela. Exige migration, ajuste em `listDuplicateGroups`, `countPendingDuplicates` e um seletor de prazo na interface.
 
-## Detalhes técnicos
-- Arquivos: `src/lib/agitation-missions.functions.ts`, `src/components/CreateMissionModal.tsx`, `src/components/EditMissionModal.tsx`, `src/components/OpenMissionModal.tsx`, `src/components/NotificationBell.tsx`, `src/routes/_authenticated/minhas-missoes.tsx`.
-- Sem migration: as colunas `batch_size` e `cooldown_minutes` já existem em `agitation_missions`, e `claim_mission_batch` já bloqueia leva aberta e cooldown. O que falta é a interface deixar configurar e respeitar isso.
-- Sem mudança no modelo de dados e sem impacto em links públicos.
+**Recomendação: (a)**, com o rótulo honesto. É a opção tecnicamente mais simples e o comportamento (a) já tem uma válvula de escape — o botão "Verificar a base agora" traz de volta o que ainda for duplicado. Se você preferir (b), implemento na sequência.
+
+## Correção 4 — menos ruído na comparação
+Na tabela de comparação, só entram os campos em **conflito real** (os dois lados preenchidos e diferentes). Os campos que só existem num dos cadastros passam para um bloco menor abaixo: "Estes campos serão preenchidos automaticamente: Bairro, Profissão, E-mail…", sem botão nenhum. Se não houver conflito algum, a tabela é substituída por "Nenhuma divergência — nada a decidir".
+
+## Arquivos tocados
+- `supabase/migrations/…_merge_contacts_unique_fix.sql` (nova versão de `merge_contacts`)
+- `src/components/MergeContactsModal.tsx` (digitação removida, erro visível, comparação enxuta)
+- `src/lib/merge-suggestion.ts` (remover `requiresTypedConfirmation`)
+- `src/routes/_authenticated/duplicidades.tsx` (rótulo do botão de adiar)
+
+## Cuidados
+- A migration só altera a função; não apaga contatos nem históricos.
+- Após aplicar, testo de novo o par do Guilherme na transação com rollback antes de considerar resolvido.
