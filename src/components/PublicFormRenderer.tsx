@@ -261,11 +261,11 @@ export function PublicFormRenderer({
     return map;
   }, [form, sectionedForm, layoutMode, values]);
 
-  function validateCurrentSection(): string | null {
+  function validateCurrentSection(effective: Record<string, AnswerValue> = values): string | null {
     const visible = sectionQuestions.filter(
       (q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value,
     );
-    return findFirstRequiredEmpty(visible, values, parentAnswers);
+    return findFirstRequiredEmpty(visible, effective, parentAnswers);
   }
 
 
