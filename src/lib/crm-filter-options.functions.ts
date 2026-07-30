@@ -342,6 +342,39 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       kind: t.kind as string,
     }));
 
+    // Missões de agitação
+    const { data: missions } = await sb
+      .from("agitation_missions")
+      .select("id,title,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    const missionsOpts = (missions ?? []).map((m) => ({
+      value: m.id as string,
+      label: m.title as string,
+    }));
+
+    // Eventos
+    const { data: eventsRows } = await sb
+      .from("events")
+      .select("id,title,starts_at,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    const eventsOpts = (eventsRows ?? []).map((e) => ({
+      value: e.id as string,
+      label: e.title as string,
+    }));
+
+    // Formulários publicados (rastreio fino por formulário)
+    const { data: formDefs } = await sb
+      .from("form_definitions")
+      .select("id,title,slug")
+      .order("title", { ascending: true })
+      .limit(200);
+    const formsOpts = (formDefs ?? []).map((f) => ({
+      value: f.id as string,
+      label: (f.title as string) ?? (f.slug as string),
+    }));
+
     // Lotes de importação
     const { data: imports } = await sb
       .from("imports")
@@ -437,6 +470,9 @@ export const getContactFilterOptions = createServerFn({ method: "GET" })
       campanhas: campaignsOpts,
       mensagens: templatesOpts,
       importacoes: importsOpts,
+      missoes: missionsOpts,
+      eventos: eventsOpts,
+      formularios: formsOpts,
       capture_channel_counts: Object.fromEntries(capture_channel_counts),
       source_module_counts: Object.fromEntries(source_module_counts),
       source_form_type_counts: Object.fromEntries(source_form_type_counts),
