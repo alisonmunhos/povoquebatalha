@@ -25,7 +25,23 @@ import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { ApplyTagModal } from "@/components/ApplyTagModal";
 import type { CrmFilters } from "@/lib/crm-filters";
 
-type StatusFilter = "todos" | "sem_atribuicao" | "atribuido" | "concluido" | "nao_enviado";
+/**
+ * Filtros por intenção (o que o admin realmente quer saber):
+ * - sem_responsavel: ninguém foi encarregado ainda
+ * - parado: tem responsável, mas nada aconteceu (nem enviou, nem marcou nada)
+ * - enviado: agitador confirmou o envio
+ * - depois: agitador marcou "vou enviar depois"
+ * - erro: número não abriu / inválido
+ * - optout: pessoa pediu pra não receber
+ */
+type StatusFilter =
+  | "todos"
+  | "sem_responsavel"
+  | "parado"
+  | "enviado"
+  | "depois"
+  | "erro"
+  | "optout";
 
 export const Route = createFileRoute("/_authenticated/missoes-agitacao/$missionId")({
   head: () => ({ meta: [{ title: "Detalhe da Missão" }] }),
