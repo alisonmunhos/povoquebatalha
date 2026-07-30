@@ -233,9 +233,28 @@ export async function paginateWithAllowedIds(opts: {
 
 
 
-/** Remove caracteres que quebram o parser de `.or()` do PostgREST. */
+/**
+ * Valor de texto usado direto em `.ilike(col, valor)` — o cliente já escapa,
+ * então basta normalizar espaços (nada de apagar caracteres do usuário).
+ */
 function safe(v: string): string {
-  return v.replace(/[,()"%]/g, " ").trim();
+  return v.trim();
+}
+
+/**
+ * Envolve o valor em aspas para uso dentro de `.or(...)`, que é parseado pelo
+ * PostgREST. Aspas preservam vírgulas, parênteses e espaços — antes esses
+ * caracteres eram apagados e valores como "Jardim América (Zona 2)" nunca
+ * casavam com eles mesmos.
+ */
+function quoteOrValue(v: string): string {
+  return `"${v.trim().replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+function orIlike(col: string, value: string): string {
+  return `${col}.ilike.${quoteOrValue(value)}`;
+}
+function orIlikeContains(col: string, text: string): string {
+  return `${col}.ilike.${quoteOrValue(`%${text.trim()}%`)}`;
 }
 
 const SEARCH_COLS = [
@@ -259,7 +278,7 @@ function applyExactIlikeArrayFilter<T extends {
 }>(q: T, col: string, arr: string[] | undefined): T {
   if (!arr?.length) return q;
   const { values, empty } = splitEmptyToken(arr);
-  const clauses: string[] = values.map((v) => `${col}.ilike.${safe(v)}`);
+  const clauses: string[] = values.map((v) => orIlike(col, v));
   if (empty) clauses.push(`${col}.is.null`);
   if (!clauses.length) return q;
   return q.or(clauses.join(","));
@@ -307,8 +326,9 @@ function applyTextContainsEmptyFilter<T extends {
   empty: boolean | undefined,
 ): T {
   const text = contains?.trim();
+  if (text && !empty) return q.ilike(col, `%${text}%`);
   const clauses: string[] = [];
-  if (text) clauses.push(`${col}.ilike.%${safe(text)}%`);
+  if (text) clauses.push(orIlikeContains(col, text));
   if (empty) {
     clauses.push(`${col}.is.null`);
     clauses.push(`${col}.eq.`);
@@ -318,8 +338,6 @@ function applyTextContainsEmptyFilter<T extends {
     const c = clauses[0]!;
     if (c.endsWith(".is.null")) return q.is(col, null);
     if (c.endsWith(".eq.")) return q.eq(col, "");
-    const match = c.match(/^(.+)\.ilike\.%(.+)%$/);
-    if (match) return q.ilike(match[1]!, `%${match[2]}%`);
   }
   return q.or(clauses.join(","));
 }
@@ -345,7 +363,7 @@ export function applyCrmFilters<T extends {
     // (coluna já gravada em minúsculas e sem acento), os demais campos seguem ilike.
     const s = safe(f.search);
     const norm = normalizeSearchTerm(f.search);
-    const clauses = SEARCH_COLS.filter((c) => s).map((c) => `${c}.ilike.%${s}%`);
+    const clauses = s ? SEARCH_COLS.map((c) => orIlikeContains(c, s)) : [];
     if (norm) clauses.push(`nome_normalizado.ilike.%${norm}%`);
     if (clauses.length) q = q.or(clauses.join(","));
   }
@@ -462,7 +480,7 @@ export function applyCrmFilters<T extends {
   }
   if (f.origem_detalhe) q = q.ilike("origem_detalhe", `%${safe(f.origem_detalhe)}%`);
   if (f.origem_detalhes?.length) {
-    q = q.or(f.origem_detalhes.map((v) => `origem_detalhe.ilike.${safe(v)}`).join(","));
+    q = q.or(f.origem_detalhes.map((v) => orIlike("origem_detalhe", v)).join(","));
   }
 
   // Origem e captação (Bloco C)
@@ -470,7 +488,7 @@ export function applyCrmFilters<T extends {
   if (f.tracking_points?.length) {
     const { values, empty } = splitEmptyToken(f.tracking_points);
     if (empty && values.length) {
-      q = q.or(`active_tracking_label.in.(${values.map((v) => `"${safe(v)}"`).join(",")}),active_tracking_label.is.null`);
+      q = q.or(`active_tracking_label.in.(${values.map((v) => quoteOrValue(v)).join(",")}),active_tracking_label.is.null`);
     } else if (empty) q = q.is("active_tracking_label", null);
     else if (values.length) q = q.in("active_tracking_label", values);
   }
@@ -511,7 +529,7 @@ export function applyCrmFilters<T extends {
   if (f.apto_envio === "sim") {
     q = q.eq("consentimento_whatsapp", true)
          .is("opt_out_at", null)
-         .not("lifecycle_status", "eq", "nao_enviar")
+         .or("lifecycle_status.is.null,lifecycle_status.neq.nao_enviar")
          .eq("phone_status", "valido");
   }
   if (f.apto_envio === "nao") {
@@ -538,7 +556,7 @@ export function applyCrmFilters<T extends {
   if (f.optOut === "sim") q = q.not("opt_out_at", "is", null);
   if (f.optOut === "nao") q = q.is("opt_out_at", null);
   if (f.bloqueado === "sim") q = q.eq("lifecycle_status", "nao_enviar" as never);
-  if (f.bloqueado === "nao") q = q.not("lifecycle_status", "eq", "nao_enviar");
+  if (f.bloqueado === "nao") q = q.or("lifecycle_status.is.null,lifecycle_status.neq.nao_enviar");
   if (f.phone_status) q = q.eq("phone_status", f.phone_status);
   if (f.phone_statuses?.length) {
     const { values, empty } = splitEmptyToken(f.phone_statuses);
@@ -583,8 +601,7 @@ export function applyCrmFilters<T extends {
     const text = f.phone_contains?.trim();
     const clauses: string[] = [];
     if (text) {
-      const s = safe(text);
-      clauses.push(`phone_raw.ilike.%${s}%`, `phone_e164.ilike.%${s}%`);
+      clauses.push(orIlikeContains("phone_raw", text), orIlikeContains("phone_e164", text));
     }
     if (f.phone_empty) {
       clauses.push("phone_raw.is.null", "phone_e164.is.null");
@@ -596,7 +613,7 @@ export function applyCrmFilters<T extends {
     const clauses: string[] = [];
     if (s) {
       for (const col of ["endereco", "bairro", "cidade", "cep", "complemento", "referencia", "numero"]) {
-        clauses.push(`${col}.ilike.%${s}%`);
+        clauses.push(orIlikeContains(col, s));
       }
     }
     if (f.endereco_empty) {
