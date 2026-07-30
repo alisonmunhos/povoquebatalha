@@ -201,6 +201,14 @@ function DupPage() {
           const contatos = g.contacts as unknown as MergeCandidate[];
           const sugerido = suggestSurvivor(contatos);
           const pairIds = g.pairs.map((p) => p.id);
+          const grupoParaExcluir = contatos as unknown as DeleteCandidate[];
+          const marcados = selected[g.key] ?? [];
+          const podeExcluir = view === "revisar" && isAdmin;
+          function abrirExclusao(ids: string[]) {
+            const targets = grupoParaExcluir.filter((c) => ids.includes(c.id));
+            if (targets.length === 0) return;
+            setDeleting({ group: grupoParaExcluir, targets });
+          }
           return (
             <div key={g.key} className="border rounded-xl bg-card overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
