@@ -19,16 +19,16 @@ export const getFormMeta = createServerFn({ method: "GET" })
       return { title: null as string | null, description: null as string | null };
     }
 
-    // A descrição da prévia usa o subtítulo da primeira seção, quando existir.
+    // A descrição da prévia usa a descrição da primeira seção, quando existir.
     const { data: section } = await supabaseAdmin
       .from("form_sections")
-      .select("subtitle,position")
+      .select("description,order_index")
       .eq("form_definition_id", form.id)
-      .order("position", { ascending: true })
+      .order("order_index", { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    const description = (section?.subtitle?.trim() || "").slice(0, 180) || null;
+    const description = (section?.description?.trim() || "").slice(0, 180) || null;
 
     return { title: form.title ?? null, description };
   });
