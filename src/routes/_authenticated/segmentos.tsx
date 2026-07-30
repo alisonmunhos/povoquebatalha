@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Filter, Trash2, Users, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Filter, Trash2, Users, ArrowRight, Layers, Share2 } from "lucide-react";
 import { listSegments, deleteSegment, countSegment } from "@/lib/segments.functions";
+import { ShareTriageModal } from "@/components/swipe/ShareTriageModal";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/segmentos")({
@@ -15,6 +17,7 @@ function SegmentsPage() {
   const delFn = useServerFn(deleteSegment);
   const countFn = useServerFn(countSegment);
   const q = useQuery({ queryKey: ["segments"], queryFn: () => listFn() });
+  const [sharing, setSharing] = useState<{ id: string; nome: string } | null>(null);
 
   async function remove(id: string, nome: string) {
     if (!confirm(`Excluir segmento "${nome}"?`)) return;
@@ -24,6 +27,7 @@ function SegmentsPage() {
     const r = await countFn({ data: { id } });
     toast.info(`${r.total} contato(s)`);
   }
+
 
   return (
     <div className="p-6 md:p-10 max-w-5xl space-y-6">
@@ -56,7 +60,22 @@ function SegmentsPage() {
               <div className="text-xs text-muted-foreground">
                 {s.tipo === "estatico" ? `${memberIds.length} contato(s) fixos` : `${filtroKeys.length} filtro(s) ativos: ${filtroKeys.slice(0, 4).join(", ") || "nenhum"}`}
               </div>
-              <div className="flex items-center justify-between pt-2 border-t">
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                <Link
+                  to="/triagem/$segmentId"
+                  params={{ segmentId: s.id }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-black text-primary-foreground shadow-punch"
+                >
+                  <Layers className="h-3.5 w-3.5" /> Abrir Swipe
+                </Link>
+                <button
+                  onClick={() => setSharing({ id: s.id, nome: s.nome })}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2 text-xs font-black hover:bg-muted"
+                >
+                  <Share2 className="h-3.5 w-3.5" /> Compartilhar
+                </button>
+              </div>
+              <div className="flex items-center justify-between pt-2">
                 <button onClick={() => showCount(s.id)} className="text-xs text-primary hover:underline inline-flex items-center gap-1"><Users className="h-3 w-3" /> Contar</button>
                 <Link to="/contatos" search={{ segment: s.id }} className="text-xs text-primary hover:underline inline-flex items-center gap-1">Abrir no CRM <ArrowRight className="h-3 w-3" /></Link>
                 <button onClick={() => remove(s.id, s.nome)} className="p-1.5 hover:bg-accent rounded text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -65,6 +84,11 @@ function SegmentsPage() {
           );
         })}
       </ul>
+
+      {sharing && (
+        <ShareTriageModal segmentId={sharing.id} segmentNome={sharing.nome} onClose={() => setSharing(null)} />
+      )}
     </div>
+
   );
 }
