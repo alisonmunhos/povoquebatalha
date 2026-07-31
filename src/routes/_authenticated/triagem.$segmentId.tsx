@@ -63,7 +63,7 @@ function TriagePage() {
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-black">{meta.data?.segment.nome ?? "Triagem"}</p>
           <p className="text-[11px] text-muted-foreground">
-            {queue.reviewed} triado(s)
+            {(meta.data?.reviewed ?? 0) + queue.reviewed} triado(s)
             {meta.data ? ` · ${meta.data.total} na lista` : ""}
             {queue.deferredCount ? ` · ${queue.deferredCount} pulado(s)` : ""}
           </p>
