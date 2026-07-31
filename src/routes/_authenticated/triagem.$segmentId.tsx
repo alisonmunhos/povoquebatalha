@@ -4,7 +4,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, HelpCircle, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { getSegmentTriageMeta } from "@/lib/segment-triage.functions";
 import { useTriageQueue } from "@/hooks/use-triage-queue";
@@ -33,6 +33,16 @@ function TriagePage() {
   const queue = useTriageQueue(segmentId);
   const [noteOpen, setNoteOpen] = useState(false);
   const [fichaOpen, setFichaOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  // Contadores explícitos: decisões já salvas + as desta sessão.
+  // "Pular" nunca conta como triado — o contato volta para o fim da fila.
+  const mantidos = (meta.data?.mantidos ?? 0) + queue.kept;
+  const arquivados = (meta.data?.arquivados ?? 0) + queue.archived;
+  const pulados = Math.max(meta.data?.pulados ?? 0, queue.deferredCount);
+  const total = meta.data?.total ?? 0;
+  const restantes = Math.max(0, total - mantidos);
+
 
   // Falhas de gravação precisam ser visíveis — antes ficavam num botão oculto.
   useEffect(() => {
