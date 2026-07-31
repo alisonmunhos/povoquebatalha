@@ -307,6 +307,11 @@ export function getColumnFilterValue(columnKey: string, filters: CrmFilters): un
 
   const raw = (filters as Record<string, unknown>)[info.filterKey as string];
   if (info.uiType === "array" || info.uiType === "tag") {
+    const excludeKey = getColumnExcludeKey(columnKey);
+    if (excludeKey) {
+      const exc = (filters as Record<string, unknown>)[excludeKey as string];
+      if (Array.isArray(exc) && exc.length) return exc;
+    }
     if (Array.isArray(raw) && raw.length) return raw;
     return (
       legacyArrayValue(columnKey, filters) ??
