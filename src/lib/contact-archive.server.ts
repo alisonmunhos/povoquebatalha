@@ -65,6 +65,21 @@ export async function setContactArchived(client: MinimalClient, opts: ArchiveCon
   const { error } = await client.from("contacts").update(values).eq("id", opts.contactId);
   if (error) throw error;
 
+  // Desarquivar devolve o contato à triagem por swipe: apagamos as decisões
+  // antigas para que ele reapareça na fila (em segmento estático e dinâmico).
+  if (!opts.archived) {
+    const table = client.from("segment_triage_decisions");
+    if (table.delete) {
+      try {
+        await table.delete().eq("contact_id", opts.contactId);
+      } catch {
+        /* limpeza best-effort: não impede o desarquivamento */
+      }
+    }
+  }
+
+
+
   const { error: auditError } = await client.from("contact_audit_log").insert({
     contact_id: opts.contactId,
     user_id: opts.userId,

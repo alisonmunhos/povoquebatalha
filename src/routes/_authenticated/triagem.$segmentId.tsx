@@ -63,12 +63,28 @@ function TriagePage() {
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-black">{meta.data?.segment.nome ?? "Triagem"}</p>
           <p className="text-[11px] text-muted-foreground">
-            {(meta.data?.reviewed ?? 0) + queue.reviewed} triado(s)
-            {meta.data ? ` · ${meta.data.total} na lista` : ""}
-            {queue.deferredCount ? ` · ${queue.deferredCount} pulado(s)` : ""}
+            {meta.data ? `Faltam ${restantes}` : "Carregando…"}
+            {` · ${mantidos} mantido(s) · ${arquivados} arquivado(s)`}
+            {pulados ? ` · ${pulados} pulado(s)` : ""}
           </p>
+          {meta.data && total > 0 && (
+            <div className="mx-auto mt-1 h-1 w-32 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${Math.min(100, Math.round(((total - restantes) / total) * 100))}%` }}
+              />
+            </div>
+          )}
         </div>
-        <span className="w-9" />
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          aria-label="Como funciona a triagem"
+          className="rounded-md p-2 hover:bg-muted"
+        >
+          <HelpCircle className="h-5 w-5" />
+        </button>
+
       </header>
 
       <div className="relative min-h-0 flex-1 px-4 pt-4">
