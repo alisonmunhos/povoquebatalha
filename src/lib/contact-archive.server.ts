@@ -10,8 +10,10 @@ type MinimalClient = {
   from: (table: string) => {
     update: (values: unknown) => { eq: (col: string, val: string) => Promise<{ error: unknown }> };
     insert: (values: unknown) => Promise<{ error: unknown }>;
+    delete?: () => { eq: (col: string, val: string) => Promise<{ error: unknown }> };
   };
 };
+
 
 export type ArchiveContactOptions = {
   contactId: string;
