@@ -211,6 +211,8 @@ function MyMissionsPage() {
 function MissionSummaryCard({ block, onOpen }: { block: MissionBlock; onOpen: () => void }) {
   const total = block.tasks.length;
   const sent = block.tasks.filter((t) => t.status === TASK_STATUS.ENVIADO).length;
+  const later = block.tasks.filter((t) => t.status === TASK_STATUS.PENDENTE_ENVIO).length;
+  const notSent = block.tasks.filter((t) => t.status === TASK_STATUS.SEM_ACAO).length;
   const archived = block.tasks.filter((t) => isArchivedTaskStatus(t.status)).length;
   const percent = total > 0 ? Math.round((sent / total) * 100) : 0;
   const claimOpen = !!block.claim && !block.claim.completed_at;
@@ -238,9 +240,10 @@ function MissionSummaryCard({ block, onOpen }: { block: MissionBlock; onOpen: ()
       </div>
 
       <p className="mt-2 text-xs text-muted-foreground">
-        {total} contato(s) na sua leva · {sent} enviado(s)
-        {archived > 0 ? ` · ${archived} arquivado(s)` : ""}
+        Enviados {sent} de {total} · Não enviados {notSent} · Vou enviar depois {later} · Arquivados{" "}
+        {archived}
       </p>
+
 
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
