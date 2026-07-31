@@ -5,6 +5,7 @@ import { LIFECYCLE_LABEL } from "@/lib/phone-labels";
 import {
   clearColumnFilter,
   getColumnFilterValue,
+  getColumnFilterMode,
   isColumnFilterActive,
   resolveFilterField,
   type DateRangeFilterValue,
