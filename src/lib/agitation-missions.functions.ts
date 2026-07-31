@@ -1263,7 +1263,7 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
 
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
-      .select("id, user_id, task_count, completed_at, claimed_at")
+      .select("id, user_id, task_count, completed_at, cancelled_at, claimed_at")
       .eq("mission_id", data.mission_id)
       .in("user_id", userIds)
       .order("claimed_at", { ascending: true });
@@ -1275,7 +1275,12 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
     });
     const latestClaimByUser = new Map<
       string,
-      { task_count: number; completed_at: string | null; claimed_at: string }
+      {
+        task_count: number;
+        completed_at: string | null;
+        cancelled_at: string | null;
+        claimed_at: string;
+      }
     >();
     (claims ?? []).forEach((c) => {
       const cur = latestClaimByUser.get(c.user_id);
@@ -1283,9 +1288,26 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
         latestClaimByUser.set(c.user_id, {
           task_count: c.task_count,
           completed_at: c.completed_at,
+          cancelled_at: c.cancelled_at,
           claimed_at: c.claimed_at,
         });
       }
+    });
+
+    // Envios reais (não "leva fechada"): fonte da verdade para o painel do admin.
+    const { data: userTasks } = await context.supabase
+      .from("agitation_tasks")
+      .select("assigned_user_id, status, completed_at")
+      .eq("mission_id", data.mission_id)
+      .in("assigned_user_id", userIds);
+    const statsByUser = new Map<string, { assigned: number; sent: number; pending: number }>();
+    (userTasks ?? []).forEach((t) => {
+      if (!t.assigned_user_id) return;
+      const s = statsByUser.get(t.assigned_user_id) ?? { assigned: 0, sent: 0, pending: 0 };
+      s.assigned += 1;
+      if (t.status === "concluido") s.sent += 1;
+      else if (t.status === "pending" && !t.completed_at) s.pending += 1;
+      statsByUser.set(t.assigned_user_id, s);
     });
 
     return {
@@ -1298,8 +1320,10 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
         cancelled_at: n.cancelled_at,
         claim: latestClaimByUser.get(n.user_id) ?? null,
         claims: claimsByUser.get(n.user_id) ?? [],
+        stats: statsByUser.get(n.user_id) ?? { assigned: 0, sent: 0, pending: 0 },
       })),
     };
+
   });
 
 // Marca uma task da MINHA leva como concluída ou não-enviada.
