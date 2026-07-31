@@ -69,9 +69,11 @@ type MissionBlock = {
     media_filename?: string | null;
   };
   claim: { id: string; completed_at: string | null; claimed_at: string } | null;
+  released_claim_at?: string | null;
   tasks: Task[];
   pending: number;
   concluded: number;
+
 };
 
 /** Mostra a imagem da missão pro agitador baixar e anexar no WhatsApp. */
