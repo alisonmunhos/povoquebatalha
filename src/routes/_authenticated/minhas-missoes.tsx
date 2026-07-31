@@ -259,7 +259,8 @@ function MissionBlockCard({
     setAwaitingConfirm((prev) => new Set(prev).add(task.id));
   }
 
-  async function onMarkTask(task: Task, status: "concluido" | "nao_enviado") {
+  async function onMarkTask(task: Task, status: typeof TASK_STATUS.ENVIADO | typeof TASK_STATUS.PENDENTE_ENVIO) {
+    setStatusNow(task.id, status);
     try {
       await markFn({ data: { task_id: task.id, status } });
       setAwaitingConfirm((prev) => {
@@ -269,6 +270,7 @@ function MissionBlockCard({
       });
       onChanged();
     } catch (e) {
+      setStatusNow(task.id, null);
       toast.error(e instanceof Error ? e.message : "Erro ao marcar.");
     }
   }
@@ -276,7 +278,7 @@ function MissionBlockCard({
   /** "Deu erro": arquiva o contato e marca o número como inválido, com Desfazer. */
   async function onErrorTask(task: Task) {
     const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
-    setErroredNow((prev) => new Set(prev).add(task.id));
+    setStatusNow(task.id, TASK_STATUS.ARQUIVADO_ERRO);
     setAwaitingConfirm((prev) => {
       const next = new Set(prev);
       next.delete(task.id);
@@ -286,33 +288,11 @@ function MissionBlockCard({
       await errorFn({ data: { task_id: task.id } });
       toast.success(`${nome}: número marcado como inválido e cadastro arquivado.`, {
         duration: 8000,
-        action: {
-          label: "Desfazer",
-          onClick: () => {
-            void (async () => {
-              try {
-                await undoErrorFn({ data: { task_id: task.id } });
-                setErroredNow((prev) => {
-                  const next = new Set(prev);
-                  next.delete(task.id);
-                  return next;
-                });
-                toast.info(`${nome} voltou para a sua leva.`);
-                onChanged();
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
-              }
-            })();
-          },
-        },
+        action: { label: "Desfazer", onClick: () => void onUndoArchived(task) },
       });
       onChanged();
     } catch (e) {
-      setErroredNow((prev) => {
-        const next = new Set(prev);
-        next.delete(task.id);
-        return next;
-      });
+      setStatusNow(task.id, null);
       toast.error(e instanceof Error ? e.message : "Erro ao registrar.");
     }
   }
@@ -320,7 +300,7 @@ function MissionBlockCard({
   /** "Não quer receber": arquiva o contato na hora e oferece Desfazer. */
   async function onRefuseTask(task: Task) {
     const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
-    setRefusedNow((prev) => new Set(prev).add(task.id));
+    setStatusNow(task.id, TASK_STATUS.ARQUIVADO_OPTOUT);
     setAwaitingConfirm((prev) => {
       const next = new Set(prev);
       next.delete(task.id);
@@ -330,36 +310,33 @@ function MissionBlockCard({
       await refuseFn({ data: { task_id: task.id } });
       toast.success(`${nome} foi arquivado e não receberá mais mensagens.`, {
         duration: 8000,
-        action: {
-          label: "Desfazer",
-          onClick: () => {
-            void (async () => {
-              try {
-                await undoRefuseFn({ data: { task_id: task.id } });
-                setRefusedNow((prev) => {
-                  const next = new Set(prev);
-                  next.delete(task.id);
-                  return next;
-                });
-                toast.info(`${nome} voltou para a sua leva.`);
-                onChanged();
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
-              }
-            })();
-          },
-        },
+        action: { label: "Desfazer", onClick: () => void onUndoArchived(task) },
       });
       onChanged();
     } catch (e) {
-      setRefusedNow((prev) => {
-        const next = new Set(prev);
-        next.delete(task.id);
-        return next;
-      });
+      setStatusNow(task.id, null);
       toast.error(e instanceof Error ? e.message : "Erro ao registrar a recusa.");
     }
   }
+
+  /**
+   * Reverte um contato arquivado (erro de número ou "não quer receber").
+   * Usa o mesmo mecanismo de desarquivamento da Gestão da Base — um contato por vez.
+   */
+  async function onUndoArchived(task: Task) {
+    const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
+    const wasOptOut = statusOf(task) === TASK_STATUS.ARQUIVADO_OPTOUT;
+    try {
+      if (wasOptOut) await undoRefuseFn({ data: { task_id: task.id } });
+      else await undoErrorFn({ data: { task_id: task.id } });
+      setStatusNow(task.id, TASK_STATUS.SEM_ACAO);
+      toast.info(`${nome} foi desarquivado e voltou para a sua leva.`);
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
+    }
+  }
+
 
   async function onComplete() {
     if (!openClaim) return;
