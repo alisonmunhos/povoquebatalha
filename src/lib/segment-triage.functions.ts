@@ -118,18 +118,45 @@ export const getSegmentTriageMeta = createServerFn({ method: "POST" })
       total = count ?? 0;
     }
 
-    const { count: reviewed } = await decisions(context.supabase)
-      .select("id", { count: "exact", head: true })
+    // Decisões já salvas deste usuário, separadas por tipo — é o que alimenta
+    // os contadores explícitos do cabeçalho ("mantidos / arquivados / pulados").
+    const { data: decRows } = await decisions(context.supabase)
+      .select("decision")
       .eq("segment_id", data.segmentId)
-      .eq("user_id", context.userId)
-      .in("decision", ["manter", "arquivar"]);
+      .eq("user_id", context.userId);
+
+    let mantidos = 0;
+    let arquivados = 0;
+    let pulados = 0;
+    for (const r of (decRows ?? []) as Array<{ decision: string }>) {
+      if (r.decision === "manter") mantidos += 1;
+      else if (r.decision === "arquivar") arquivados += 1;
+      else if (r.decision === "pular") pulados += 1;
+    }
 
     return {
       segment: { id: seg.id, nome: seg.nome, descricao: seg.descricao, tipo: seg.tipo as "dinamico" | "estatico" },
       total,
-      reviewed: reviewed ?? 0,
+      mantidos,
+      arquivados,
+      pulados,
+      reviewed: mantidos + arquivados,
     };
   });
+
+/** Limpa as decisões deste usuário no segmento (botão "Recomeçar triagem"). */
+export const resetSegmentTriage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ segmentId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await decisions(context.supabase)
+      .delete()
+      .eq("segment_id", data.segmentId)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
 
 /**
  * Uma página da fila de triagem. Sempre recalculada no servidor — em segmento
