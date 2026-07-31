@@ -401,16 +401,32 @@ function MissionDetailsPanel() {
       {(recipientsQ.data?.recipients?.length ?? 0) > 0 && (
         <div>
           <h2 className="text-sm font-semibold mb-2">Destinatários</h2>
+          <div className="rounded-lg border bg-muted/30 p-3 mb-2 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium text-foreground">O que cada situação significa</p>
+            <p><strong>Não lida</strong>: recebeu o aviso e nunca abriu.</p>
+            <p><strong>Lida</strong>: abriu o aviso, mas não pegou contatos.</p>
+            <p><strong>Em andamento</strong>: pegou contatos e ainda não avisou que terminou.</p>
+            <p><strong>Concluída</strong>: avisou que terminou e tratou todos os contatos da leva.</p>
+            <p><strong>Concluída parcialmente</strong>: avisou que terminou deixando contatos não enviados.</p>
+            <p><strong>Fechou sem enviar</strong>: avisou que terminou sem enviar nenhuma mensagem.</p>
+            <p><strong>Liberada pela organização</strong>: a leva dela foi devolvida para a fila.</p>
+          </div>
           <div className="rounded-xl border divide-y">
             {(recipientsQ.data?.recipients ?? []).map((r) => {
               const isCancelled = !!r.cancelled_at;
               const claim = r.claim;
               const stats = r.stats ?? { assigned: 0, sent: 0, pending: 0 };
+              const untouched = stats.pending;
               const status = isCancelled
                 ? { label: "Cancelada", className: "bg-rose-100 text-rose-800" }
                 : claim?.completed_at
                   ? stats.sent > 0
-                    ? { label: "Concluída", className: "bg-emerald-100 text-emerald-800" }
+                    ? untouched > 0
+                      ? {
+                          label: `Concluída parcialmente (${stats.sent} de ${stats.assigned})`,
+                          className: "bg-amber-100 text-amber-900",
+                        }
+                      : { label: "Concluída", className: "bg-emerald-100 text-emerald-800" }
                     : { label: "Fechou sem enviar", className: "bg-orange-100 text-orange-800" }
                   : claim?.cancelled_at
                     ? { label: "Liberada pela organização", className: "bg-slate-200 text-slate-800" }
@@ -427,11 +443,12 @@ function MissionDetailsPanel() {
                       Notificada em {new Date(r.notified_at).toLocaleString("pt-BR")}
                       {r.read_at && ` · lida em ${new Date(r.read_at).toLocaleString("pt-BR")}`}
                       {stats.assigned > 0 &&
-                        ` · ${stats.sent} de ${stats.assigned} enviado(s)${stats.pending > 0 ? ` · ${stats.pending} sem envio` : ""}`}
+                        ` · enviados ${stats.sent} de ${stats.assigned}${untouched > 0 ? ` · ${untouched} não enviado(s)` : ""}`}
                       {claim?.cancelled_at &&
                         ` · leva liberada em ${new Date(claim.cancelled_at).toLocaleString("pt-BR")}`}
                     </div>
                   </div>
+
 
                   <span className={`text-xs rounded-full px-2 py-0.5 ${status.className}`}>
                     {status.label}

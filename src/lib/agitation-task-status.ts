@@ -39,11 +39,12 @@ export function isArchivedTaskStatus(status: string | null | undefined): boolean
 
 export const TASK_STATUS_LABEL: Record<string, string> = {
   [TASK_STATUS.SEM_ACAO]: "Não enviado",
-  [TASK_STATUS.PENDENTE_ENVIO]: "Pendente de envio",
+  [TASK_STATUS.PENDENTE_ENVIO]: "Vou enviar depois",
   [TASK_STATUS.ENVIADO]: "Enviado",
   [TASK_STATUS.ARQUIVADO_ERRO]: "Arquivado — número com erro",
   [TASK_STATUS.ARQUIVADO_OPTOUT]: "Arquivado — não quer receber",
 };
+
 
 /**
  * Cores: "Pendente de envio" usa laranja sólido, um tom claramente diferente do
@@ -59,12 +60,17 @@ export const TASK_STATUS_CLASS: Record<string, string> = {
 
 export type TaskStatusFilter = "nao_enviados" | "pendente" | "enviado" | "arquivados";
 
+/**
+ * Rótulos únicos usados na tela do agitador, no cartão da missão e no painel do
+ * admin — para a mesma coisa nunca ter dois nomes diferentes.
+ */
 export const TASK_STATUS_FILTERS: { key: TaskStatusFilter; label: string }[] = [
   { key: "nao_enviados", label: "Não enviados" },
-  { key: "pendente", label: "Pendente" },
-  { key: "enviado", label: "Enviado" },
+  { key: "pendente", label: "Vou enviar depois" },
+  { key: "enviado", label: "Enviados" },
   { key: "arquivados", label: "Arquivados" },
 ];
+
 
 export function taskStatusFilterKey(status: string | null | undefined): TaskStatusFilter {
   if (isArchivedTaskStatus(status)) return "arquivados";

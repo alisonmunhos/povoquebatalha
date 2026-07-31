@@ -1,71 +1,49 @@
-# Missões de Agitação — próximos passos (Fase C reforçada)
+## Relatório verificado — missão "Convite Plenária PPB" (criada 31/07 13:05 BRT)
 
-## Contexto: o que já está pronto (Fase A, verificado no código)
-- Status explícitos centralizados em `src/lib/agitation-task-status.ts`: `sem_acao`, `pendente_envio`, `enviado`, `arquivado_erro`, `arquivado_optout`.
-- Cores: laranja = pendente, verde = enviado, vermelho = arquivado (sai da lista ativa).
-- Filtros na tela do agitador: Não enviados / Pendente / Enviado / Arquivados.
-- Trava: contato arquivado por erro/opt-out não volta sozinho para "sem atribuição".
-- "Desfazer" da missão usa a mesma função da Gestão da Base (`contact-archive.server.ts`).
-- Número da coordenação `+5551995131811` como padrão editável.
-- Missões não usam Z-API — sempre link manual do WhatsApp.
+Dados lidos direto do banco (tarefas, levas e notificações da missão).
 
-## Falta fazer
-Fase B (visual), Fase C (engajamento) e Fase D (BI do admin).
+| Pessoa | Recebeu | Leu | Pegou leva | Enviou | Arquivou (erro nº) | Sem ação | Situação real |
+|---|---|---|---|---|---|---|---|
+| Rafael José dos Santos | sim | 13:06 | 13:06 | 10 | 0 | 0 | Leva fechada 14:45 — 100% enviado |
+| Diego Masiero | sim | 13:09 | 13:09 | 6 | 4 | 0 | Leva fechada 14:43 — tudo tratado |
+| Mateus Ballardin | sim | 13:55 | 13:55 | 4 | 3 | 3 | Leva fechada 15:12 com 3 contatos sem toque |
+| Alison Munhos | sim | — | 13:19 | 1 | 0 | 9 | Leva ainda aberta (em andamento) |
+| "Sistema" (conta interna) | sim | — | 14:03 | 0 | 2 | 8 | Leva aberta, 8 contatos travados nessa conta |
+| Fabíola Barcelos | sim | 15:57 | não pegou | 0 | 0 | 0 | Só abriu a notificação |
 
----
+Além disso, 66 contatos da missão nunca foram atribuídos a ninguém.
 
-## Passo 1 — Fase B: dashboard e cartões de missão
+## O que cada etiqueta do painel do admin significa hoje
 
-Tela `/agitacao`:
-- Sair os cards "Confirmados" e "Sem resposta" da linha de cima (seguem acessíveis pelos filtros da lista).
-- "Meus captados" e "Ainda não abordados" descem para os quadrados de baixo.
-- No lugar dos dois de cima, um retângulo roxo único, alinhado à largura dos dois de baixo: **Suas Missões**, com contagem de missões em aberto, levando para a tela de missões.
+- **Não lida** — a pessoa recebeu a notificação e nunca abriu.
+- **Lida** — abriu o briefing, mas não clicou em "aceitar/pegar contatos" (caso da Fabíola).
+- **Em andamento** — tem leva aberta, sem ter clicado em "avisei que terminei" (Alison e "Sistema").
+- **Concluída** — fechou a leva e enviou ao menos 1 mensagem (Rafael, Diego, Mateus).
+- **Fechou sem enviar** — fechou a leva com 0 envios (ninguém nesta missão).
+- **Liberada pela organização** — o admin liberou a leva parada dela.
+- **Cancelada** — a notificação foi cancelada.
 
-Tela `/minhas-missoes`:
-- Deixar de empilhar todas as missões numa rolagem só: **um cartão por missão** (título, total de contatos, quantos enviados, selo de "ainda não concluída" e barra de progresso).
-- Clicar no cartão abre a missão em foco; pegar mais lote da mesma missão volta sempre para a mesma tela dela.
-- Preservar `/minhas-missoes?mission=ID` (link das notificações).
+Ou seja: as etiquetas medem o **ciclo da leva**, não a qualidade do trabalho. Por isso "Concluída" não garante que os 10 contatos foram tratados — o Mateus fechou com 3 intocados.
 
----
+## Sobre o relato do Mateus ("0 pendentes" e "apagou meu histórico")
 
-## Passo 2 — Fase C: "Meu Impacto" (a ideia melhorada)
+Nada foi apagado: os 4 envios dele estão registrados (13:59, 14:08, 14:08, 14:09) e os 3 arquivamentos por número inválido também. O que causou a confusão são duas palavras diferentes usadas para coisas diferentes na mesma tela:
 
-A sua ideia melhora se, em vez de um cardzinho perdido dentro da missão, virar **uma tela própria de retrospectiva pessoal**, com dois pontos de entrada bem visíveis.
+- **"Pendente"** na barra de filtros = só os que ele marcou "vou enviar depois" → ele tem **0**, então o filtro aparece vazio.
+- **"Não enviados"** = os que nunca foram tocados → ele tem **3**.
+- O cartão da missão e o painel do admin usam ainda um terceiro texto ("sem envio", "pendentes") para esse mesmo grupo.
 
-### Onde aparece
-1. **Faixa resumida (sempre à vista)** no topo de `/agitacao` e dentro de cada missão: uma linha só —
-   *"Você já se conectou com 47 pessoas · 12 hoje"* — clicável.
-2. **Tela cheia `/meu-impacto`** ao clicar, com tudo: cards, gráfico e botão de compartilhar.
+Some-se a isso que a atualização de vocabulário de status rodou às **14:47**, no meio da missão: quem estava com a tela aberta antes disso viu rótulos antigos e depois rótulos novos para os mesmos contatos — daí a sensação de "mudou meu histórico". Os dados em si foram convertidos corretamente, sem perda.
 
-### O número principal
-**Conexões = contatos adicionados por você + mensagens enviadas nas missões** (só `enviado`; nunca pendente, erro ou opt-out). É esse total que aparece como "Você já se conectou com X pessoas".
+## Plano de correção proposto
 
-### O que a tela mostra
-- 4 cards grandes: mensagens **hoje** / mensagens **no total**; contatos adicionados **hoje** / **no total**.
-- Gráfico de barras dos últimos 7 dias (mensagens + contatos por dia), pra dar sensação de ritmo.
-- Percentuais úteis: % da sua leva atual concluída e % das suas missões concluídas.
-- Uma frase de reconhecimento que muda por faixa de conexões (ex.: 10, 50, 100, 250) — o toque "retrospectiva Spotify".
-- Sequência de dias ativos (ofensiva), se houver dado suficiente.
+1. **Um único dicionário de palavras nas três telas** (agitador, cartão de missão, painel do admin), usando `src/lib/agitation-task-status.ts` como fonte única: "Não enviado", "Vou enviar depois", "Enviado", "Arquivado". Fim de "pendente/sem envio/pendentes" com significados diferentes.
+2. **Contadores explícitos na tela do agitador**: trocar a linha "X não enviado(s) · Y pendente(s) de envio" por "Enviados X de N · Não enviados Y · Vou enviar depois Z · Arquivados W", para nunca dar "0" sem explicação.
+3. **Aviso ao fechar a leva** deixar de dizer "pendentes" e passar a listar exatamente: "Você ainda tem 3 contatos não enviados. Fechar mesmo assim?" — e, se fechar, registrar isso.
+4. **Painel do admin — etiqueta honesta**: quando a leva é fechada com contatos intocados, mostrar "Concluída parcialmente (4 de 10)" em vez de só "Concluída", com a legenda das etiquetas visível na tela (tooltip/ajuda) explicando Lida / Em andamento / Fechou sem enviar.
+5. **Recuperar os contatos travados**: 8 contatos na conta "Sistema" e 9 na leva aberta do Alison; e 66 nunca distribuídos. Ação: liberar as levas paradas dessas contas (função já existente, que não mexe em arquivados) e redistribuir, deixando claro no painel quantos voltaram para o pool.
+6. **Investigar a conta "Sistema"** aparecendo como destinatária de missão — provavelmente não deveria receber notificação nem pegar contatos; se confirmar, excluí-la da lista de elegíveis.
 
-### Compartilhar como imagem (o ponto central)
-- Um bloco visual dedicado, formato **vertical 1080x1350** (bom pra status e grupo), com a identidade da campanha: punho, cor âmbar/roxo, nome do agitador, número grande de conexões, mini-gráfico e a frase de reconhecimento.
-- Botão **"Compartilhar minha conquista"**:
-  - onde o celular suporta, abre o menu nativo de compartilhamento já com a imagem anexada (vai direto pro WhatsApp);
-  - onde não suporta, baixa a imagem e abre o WhatsApp com um texto pronto ("Já me conectei com 47 pessoas na campanha…"), pra pessoa anexar.
-- Também um botão discreto "Baixar imagem".
-
-### Cuidados
-- Sem expor nome ou telefone de contato nenhum na imagem — só números agregados do próprio usuário (privacidade e LGPD).
-- Nada de número inflado: pendente, erro e opt-out não contam em lugar nenhum.
-
----
-
-## Passo 3 — Fase D: BI do admin
-Painel de acompanhamento por usuário (envios, conexões, % de conclusão, ranking amigável) e um resumo compartilhável em grupo, reaproveitando o mesmo gerador de imagem da Fase C. Detalho quando B e C estiverem no ar.
-
----
-
-## Detalhes técnicos
-- Passo 1: só frontend/apresentação, sobre contagens já disponíveis em `listMyMissions`.
-- Passo 2: uma função de servidor nova (`getMyImpactStats`) agregando `agitation_tasks` com status `enviado` por usuário e `contacts` criados pelo usuário, com cortes "hoje" e "últimos 7 dias"; nova rota `/meu-impacto`. A imagem é gerada no navegador (canvas/`html-to-image` carregado dinamicamente, sem quebrar SSR — mesmo padrão já usado no QR Code).
-- Sem migração de banco nos passos 1 e 2.
+### Detalhes técnicos
+- Arquivos: `src/lib/agitation-task-status.ts` (rótulos únicos), `src/routes/_authenticated/minhas-missoes.tsx` (contadores/confirmação), `src/routes/_authenticated/missoes-agitacao.$missionId.tsx` (etiqueta parcial + legenda), `src/lib/agitation-missions.functions.ts` (expor `awaiting`/`pending`/`sent` com nomes coerentes).
+- Sem mudança de schema; itens 5 e 6 usam `release_mission_pending` e a lista de elegíveis existentes.

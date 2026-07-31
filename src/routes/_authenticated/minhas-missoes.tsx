@@ -19,11 +19,13 @@ import { ImpactBanner } from "@/components/ImpactBanner";
 import {
   TASK_STATUS,
   TASK_STATUS_CLASS,
+  TASK_STATUS_FILTERS,
   TASK_STATUS_LABEL,
   isArchivedTaskStatus,
   taskStatusFilterKey,
   type TaskStatusFilter,
 } from "@/lib/agitation-task-status";
+
 import {
   listMyMissions,
   claimMissionBatch,
@@ -209,6 +211,8 @@ function MyMissionsPage() {
 function MissionSummaryCard({ block, onOpen }: { block: MissionBlock; onOpen: () => void }) {
   const total = block.tasks.length;
   const sent = block.tasks.filter((t) => t.status === TASK_STATUS.ENVIADO).length;
+  const later = block.tasks.filter((t) => t.status === TASK_STATUS.PENDENTE_ENVIO).length;
+  const notSent = block.tasks.filter((t) => t.status === TASK_STATUS.SEM_ACAO).length;
   const archived = block.tasks.filter((t) => isArchivedTaskStatus(t.status)).length;
   const percent = total > 0 ? Math.round((sent / total) * 100) : 0;
   const claimOpen = !!block.claim && !block.claim.completed_at;
@@ -236,9 +240,10 @@ function MissionSummaryCard({ block, onOpen }: { block: MissionBlock; onOpen: ()
       </div>
 
       <p className="mt-2 text-xs text-muted-foreground">
-        {total} contato(s) na sua leva · {sent} enviado(s)
-        {archived > 0 ? ` · ${archived} arquivado(s)` : ""}
+        Enviados {sent} de {total} · Não enviados {notSent} · Vou enviar depois {later} · Arquivados{" "}
+        {archived}
       </p>
+
 
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
@@ -421,9 +426,14 @@ function MissionBlockCard({
   async function onComplete() {
     if (!openClaim) return;
     if (pendingTasks.length > 0) {
-      if (!confirm(`Você ainda tem ${pendingTasks.length} pendente(s). Concluir mesmo assim?`))
+      if (
+        !confirm(
+          `Você ainda tem ${pendingTasks.length} contato(s) não enviado(s) nesta leva. Fechar mesmo assim?`,
+        )
+      )
         return;
     }
+
     setBusy(true);
     try {
       await completeFn({ data: { claim_id: openClaim.id } });
@@ -505,9 +515,9 @@ function MissionBlockCard({
           />
         )}
         <div className="text-xs text-muted-foreground mt-2">
-          {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
-          {pendingTasks.length} não enviado(s) · {notSentTasks.length} pendente(s) de envio
-          {archivedTasks.length > 0 ? ` · ${archivedTasks.length} arquivado(s)` : ""}
+          Enviados {sentTasks.length} de {block.tasks.length} · Não enviados{" "}
+          {pendingTasks.length} · Vou enviar depois {notSentTasks.length} · Arquivados{" "}
+          {archivedTasks.length}
         </div>
       </div>
 
@@ -518,10 +528,18 @@ function MissionBlockCard({
             {(
               [
                 { key: "todos" as const, label: "Todos", count: block.tasks.length - archivedTasks.length },
-                { key: "nao_enviados" as const, label: "Não enviados", count: pendingTasks.length },
-                { key: "pendente" as const, label: "Pendente", count: notSentTasks.length },
-                { key: "enviado" as const, label: "Enviado", count: sentTasks.length },
-                { key: "arquivados" as const, label: "Arquivados", count: archivedTasks.length },
+                ...TASK_STATUS_FILTERS.map((f) => ({
+                  key: f.key,
+                  label: f.label,
+                  count:
+                    f.key === "nao_enviados"
+                      ? pendingTasks.length
+                      : f.key === "pendente"
+                        ? notSentTasks.length
+                        : f.key === "enviado"
+                          ? sentTasks.length
+                          : archivedTasks.length,
+                })),
               ]
             ).map((f) => (
               <button
@@ -538,6 +556,7 @@ function MissionBlockCard({
               </button>
             ))}
           </div>
+
 
           {visibleTasks.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
