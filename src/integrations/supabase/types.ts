@@ -3159,12 +3159,10 @@ export type Database = {
             }
           }
       phone_last8: { Args: { input: string }; Returns: string }
-      release_mission_pending:
-        | { Args: { _mission_id: string }; Returns: undefined }
-        | {
-            Args: { _mission_id: string; _older_than_hours?: number }
-            Returns: undefined
-          }
+      release_mission_pending: {
+        Args: { _mission_id: string; _older_than_hours?: number }
+        Returns: undefined
+      }
       rescan_contact_duplicates: { Args: never; Returns: number }
       resolve_tracked_link: {
         Args: { _token: string }

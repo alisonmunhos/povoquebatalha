@@ -89,7 +89,10 @@ function runCta(n: Notification) {
       break;
     }
     case "mission": {
-      window.location.href = "/minhas-missoes";
+      const missionId = n.mission_id ?? String(p.mission_id ?? "");
+      window.location.href = missionId
+        ? `/minhas-missoes?mission=${encodeURIComponent(missionId)}`
+        : "/minhas-missoes";
       break;
     }
     default:
@@ -235,9 +238,9 @@ export function NotificationBell() {
     }
   }
 
-  function goToMission(missionId: string) {
+  async function goToMission(missionId: string) {
+    await navigate({ to: "/minhas-missoes", search: { mission: missionId } });
     setDetail(null);
-    navigate({ to: "/minhas-missoes", search: { mission: missionId } });
   }
 
   async function acceptMission() {
@@ -252,7 +255,7 @@ export function NotificationBell() {
         toast.success(`${r.task_ids.length} contato(s) atribuído(s) a você.`);
       }
       qc.invalidateQueries({ queryKey: ["my-missions"] });
-      goToMission(missionId);
+      await goToMission(missionId);
     } catch (e) {
       // Não redirecionar fingindo sucesso: mostrar o motivo real do bloqueio.
       toast.error(e instanceof Error ? e.message : "Não foi possível aceitar a missão agora.");
@@ -631,7 +634,7 @@ export function NotificationBell() {
                         <Button
                           size="lg"
                           className="w-full"
-                          onClick={() => detail.mission_id && goToMission(detail.mission_id)}
+                          onClick={() => detail.mission_id && void goToMission(detail.mission_id)}
                         >
                           Abrir minha missão ({briefing.mine_pending} pendente
                           {briefing.mine_pending === 1 ? "" : "s"})
@@ -654,7 +657,7 @@ export function NotificationBell() {
                         <Button
                           size="lg"
                           className="w-full"
-                          onClick={() => detail.mission_id && goToMission(detail.mission_id)}
+                          onClick={() => detail.mission_id && void goToMission(detail.mission_id)}
                         >
                           Ver missão
                         </Button>
