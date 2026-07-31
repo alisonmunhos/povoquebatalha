@@ -43,7 +43,6 @@ function TriagePage() {
   const total = meta.data?.total ?? 0;
   const restantes = Math.max(0, total - mantidos);
 
-
   // Falhas de gravação precisam ser visíveis — antes ficavam num botão oculto.
   useEffect(() => {
     if (!queue.error) return;
@@ -51,6 +50,13 @@ function TriagePage() {
     queue.clearError();
     void meta.refetch();
   }, [queue.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Arquivar tira o contato do segmento: recalcula o total para "Faltam" cair.
+  useEffect(() => {
+    if (queue.archived === 0) return;
+    void meta.refetch();
+  }, [queue.archived]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const commit = useCallback(
     (dir: SwipeDirection) => {
