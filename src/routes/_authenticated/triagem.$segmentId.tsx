@@ -4,9 +4,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, HelpCircle, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { getSegmentTriageMeta } from "@/lib/segment-triage.functions";
+import { getSegmentTriageMeta, resetSegmentTriage } from "@/lib/segment-triage.functions";
 import { useTriageQueue } from "@/hooks/use-triage-queue";
 import { useSwipeGesture, type SwipeDirection } from "@/hooks/use-swipe-gesture";
 import { ContactSwipeCard } from "@/components/swipe/ContactSwipeCard";
@@ -25,6 +25,8 @@ function TriagePage() {
   const { segmentId } = Route.useParams();
   const navigate = useNavigate();
   const metaFn = useServerFn(getSegmentTriageMeta);
+  const resetFn = useServerFn(resetSegmentTriage);
+
   const meta = useQuery({
     queryKey: ["segment-triage-meta", segmentId],
     queryFn: () => metaFn({ data: { segmentId } }),
@@ -33,6 +35,16 @@ function TriagePage() {
   const queue = useTriageQueue(segmentId);
   const [noteOpen, setNoteOpen] = useState(false);
   const [fichaOpen, setFichaOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  // Os números vêm do servidor (decisões salvas) — assim não há contagem dupla
+  // com as ações desta sessão. "Pular" nunca conta como triado: o contato volta
+  // para o fim da fila.
+  const mantidos = meta.data?.mantidos ?? 0;
+  const arquivados = meta.data?.arquivados ?? 0;
+  const pulados = meta.data?.pulados ?? 0;
+  const total = meta.data?.total ?? 0;
+  const restantes = Math.max(0, total - mantidos);
 
   // Falhas de gravação precisam ser visíveis — antes ficavam num botão oculto.
   useEffect(() => {
@@ -41,6 +53,15 @@ function TriagePage() {
     queue.clearError();
     void meta.refetch();
   }, [queue.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Depois de cada decisão, recalcula os contadores reais do servidor.
+  const acoes = queue.kept + queue.archived + queue.deferredCount;
+  useEffect(() => {
+    if (acoes === 0) return;
+    void meta.refetch();
+  }, [acoes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
 
   const commit = useCallback(
     (dir: SwipeDirection) => {
@@ -63,12 +84,28 @@ function TriagePage() {
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-black">{meta.data?.segment.nome ?? "Triagem"}</p>
           <p className="text-[11px] text-muted-foreground">
-            {(meta.data?.reviewed ?? 0) + queue.reviewed} triado(s)
-            {meta.data ? ` · ${meta.data.total} na lista` : ""}
-            {queue.deferredCount ? ` · ${queue.deferredCount} pulado(s)` : ""}
+            {meta.data ? `Faltam ${restantes}` : "Carregando…"}
+            {` · ${mantidos} mantido(s) · ${arquivados} arquivado(s)`}
+            {pulados ? ` · ${pulados} pulado(s)` : ""}
           </p>
+          {meta.data && total > 0 && (
+            <div className="mx-auto mt-1 h-1 w-32 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${Math.min(100, Math.round(((total - restantes) / total) * 100))}%` }}
+              />
+            </div>
+          )}
         </div>
-        <span className="w-9" />
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          aria-label="Como funciona a triagem"
+          className="rounded-md p-2 hover:bg-muted"
+        >
+          <HelpCircle className="h-5 w-5" />
+        </button>
+
       </header>
 
       <div className="relative min-h-0 flex-1 px-4 pt-4">
@@ -88,8 +125,10 @@ function TriagePage() {
               </div>
               <p className="text-lg font-black">Fila concluída</p>
               <p className="text-sm text-muted-foreground">
-                Você triou {queue.reviewed} contato(s) deste segmento. Se entrarem contatos novos, eles aparecem aqui.
+                {mantidos} mantido(s) e {arquivados} arquivado(s) neste segmento. Se entrarem contatos novos, eles
+                aparecem aqui.
               </p>
+
               <button
                 type="button"
                 onClick={() => navigate({ to: "/segmentos" })}
@@ -160,6 +199,60 @@ function TriagePage() {
       {fichaOpen && current && (
         <FichaOverlay contactId={current.id} contactNome={current.nome} onClose={() => setFichaOpen(false)} />
       )}
+
+      {helpOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setHelpOpen(false)}>
+          <div
+            className="w-full rounded-t-2xl bg-background p-5 pb-8 text-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-black">Como funciona a triagem</p>
+            <ul className="mt-3 space-y-2 text-muted-foreground">
+              <li>
+                <span className="font-bold text-foreground">Verde (manter)</span> — o contato continua na base ativa e
+                sai da fila. Conta como <span className="font-bold">mantido</span>.
+              </li>
+              <li>
+                <span className="font-bold text-foreground">Vermelho (arquivar)</span> — o contato sai da base ativa e
+                da lista do segmento. Conta como <span className="font-bold">arquivado</span>.
+              </li>
+              <li>
+                <span className="font-bold text-foreground">Pular</span> — decido depois: volta para o fim da fila e
+                <span className="font-bold"> não</span> conta como triado.
+              </li>
+              <li>
+                <span className="font-bold text-foreground">Faltam</span> — contatos ativos do segmento que ainda não
+                receberam verde nem vermelho.
+              </li>
+              <li>Se você desarquivar um contato depois, ele volta ao segmento e reaparece nesta fila.</li>
+            </ul>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirm("Recomeçar a triagem deste segmento? Suas decisões salvas aqui serão apagadas (nenhum contato é excluído ou desarquivado).")) return;
+                try {
+                  await resetFn({ data: { segmentId } });
+                  setHelpOpen(false);
+                  window.location.reload();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Não foi possível recomeçar a triagem.");
+                }
+              }}
+              className="mt-4 w-full rounded-xl border px-4 py-2.5 text-xs font-black"
+            >
+              Recomeçar triagem deste segmento
+            </button>
+            <button
+              type="button"
+              onClick={() => setHelpOpen(false)}
+              className="mt-2 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-punch"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }

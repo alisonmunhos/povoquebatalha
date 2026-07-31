@@ -1,35 +1,49 @@
-## Diagnóstico (verificado agora no banco e no código)
+## Diagnóstico
 
-1. **A triagem não guarda nada, por construção.** No `use-triage-queue`, "Manter" e "Pular" só existem na memória do navegador; nada vai ao banco. Ao sair da tela, o progresso é perdido e a fila recomeça do zero. Só "Arquivar" (botão vermelho) grava algo.
-2. **Erros do Swipe são invisíveis.** Na tela `/triagem/$segmentId`, quando uma ação falha, a mensagem é colocada em um botão escondido para leitores de tela (`sr-only`) — ninguém vê o aviso. A pessoa continua arrastando achando que salvou.
-3. **Segmento "Smed" (o "sede"): 757 contatos, ZERO arquivados, nenhuma data de arquivamento registrada.** Também não há registro de arquivamento no log de auditoria. Ou seja: nada foi gravado — não há o que reverter nem recuperar. Não é possível reconstruir quais contatos ela arquivou, porque a decisão nunca saiu do navegador dela.
-4. **Acesso:** o bloqueio por papel afeta somente quem é *só* agitador (é levado para /agitacao e nem `/segmentos` nem `/triagem/...` estão liberados). **Operador não é bloqueado pela rota**, mas o item "Segmentos" no menu aparece só para `admin` e `vrm` — então operador não encontra a tela. As permissões do banco (RLS) já permitem operador ler segmentos e arquivar contatos.
-5. **Segmentos "Alicerce" não excluem** porque a regra atual bloqueia exclusão quando existe campanha vinculada: "Alicerce" está em 2 campanhas em rascunho e "ALICERCE ENVIO 4" em 1 campanha cancelada.
-6. **Excluir segmento nunca apaga contatos** (confirmado: só a lista de IDs/filtro e os links de compartilhamento). Também não desfaz arquivamentos — arquivar age no contato, não no segmento.
+Conferi o banco agora:
 
-## Plano de correção
+- Tabela de decisões da triagem: **0 registros** (nenhum, em nenhum segmento).
+- No segmento "Smed": 3 contatos foram arquivados hoje às 19:53–19:57 (é por isso que "na lista" caiu de 757 para 754).
 
-### 1. Persistir as decisões da triagem (o ponto central)
-- Nova tabela `segment_triage_decisions` (segmento, contato, usuário, decisão `manter|arquivar|pular`, data), com permissões e RLS (staff gerencia; agitador vê/grava as próprias).
-- Servidor: `recordTriageDecision` e `undoTriageDecision`; a fila (`listSegmentTriageQueue`) passa a excluir contatos já decididos por aquele usuário e a contar o progresso real.
-- Resultado: sair e voltar retoma exatamente de onde parou; "Manter" e "Pular" deixam de ser perdidos.
+Ou seja: o arquivar está funcionando, mas nenhuma decisão foi gravada — daí "0 triado(s)". As permissões e a tabela estão corretas (RLS ativa, 5 políticas, função `private.is_member` existe), então a causa mais provável é a aba do preview ainda rodando o pacote antigo (foram exatamente esses os erros de "server function ID" que você recebeu antes). Primeiro passo do plano é confirmar isso com um teste real de gravação antes de mexer em qualquer regra.
 
-### 2. Tornar as falhas visíveis e o arquivamento confiável
-- Substituir o botão escondido por `toast` de erro real na tela de triagem.
-- Se arquivar falhar, o contato volta para o topo da fila (não é contado como triado) com aviso claro.
-- Botão vermelho continua sendo "arquivar contato" — mesma função única já usada na Gestão da Base e nas missões (`setContactArchived`), com registro em histórico.
+## Significado dos números (proposta)
 
-### 3. Acesso do operador
-- Incluir `operador` no item de menu "Segmentos" (`AppShell`), liberando também o Swipe (a rota já permite).
-- Sem mudança para agitador-only: continua restrito a /agitacao, /minhas-missoes, /meu-impacto — lá o "não quer receber"/"erro de número" segue como o caminho de arquivamento dele (mesma ação do vermelho no swipe).
+Hoje "triado" mistura conceitos. Proposta de vocabulário explícito, sem jargão:
 
-### 4. Excluir segmento com segurança
-- Ao excluir, em vez de bloquear: se as campanhas vinculadas estiverem em rascunho/cancelada, o vínculo é desfeito (campanha fica sem público) e o segmento é excluído, mostrando antes quais campanhas serão afetadas e quantas.
-- Campanhas em execução/agendadas continuam bloqueando, com mensagem explicando o porquê.
-- Reforçar na confirmação: "Isso remove apenas o segmento. Os contatos e os arquivamentos feitos no Swipe permanecem."
+| Termo na tela | O que conta |
+|---|---|
+| **Faltam triar** | contatos ativos do segmento que ainda não receberam verde nem vermelho |
+| **Mantidos** | cliques no verde |
+| **Arquivados** | cliques no vermelho |
+| **Pulados** | pulos ainda pendentes (voltam ao fim da fila; não contam como triado) |
 
-### 5. Sobre o segmento "sede"/Smed
-- Não há ações gravadas para reverter ou atualizar. Depois das correções acima, o trabalho passa a ser salvo em tempo real. Se quiser, eu deixo esse segmento pronto para retomada (nada a limpar, já está intacto: 757 contatos, nenhum arquivado).
+O cabeçalho passa a mostrar, em vez de "0 triado(s) · 754 na lista":
+
+```text
+Faltam 751 · 2 mantidos · 1 arquivado · 3 pulados
+```
+
+E a barra de progresso fina abaixo (mantidos+arquivados sobre o total original) dá a sensação de avanço. "Faltam" sempre diminui a cada verde/vermelho, nunca no pular.
+
+## O que muda
+
+1. **Contagens reais no servidor** (`getSegmentTriageMeta`): devolver `total` (ativos no segmento), `mantidos`, `arquivados` e `pulados` desse usuário — hoje só devolve um `reviewed` agregado.
+2. **Cabeçalho da triagem** (`triagem.$segmentId.tsx`): novo texto acima + barra de progresso, somando decisões salvas com as da sessão atual.
+3. **Legenda de ajuda**: um toque no cabeçalho abre um texto curto explicando verde = manter na base, vermelho = arquivar (sai da base ativa), pular = decido depois.
+4. **Tela de fila concluída**: passa a mostrar o resumo (X mantidos, Y arquivados) em vez de "triou N contatos".
+5. **Verificação da gravação**: teste ponta a ponta na tela real (um verde e um vermelho) confirmando que a decisão fica salva e que o contador sobe; se aparecer erro de permissão, corrijo a política na mesma leva.
+
+## Desarquivar: o que acontece hoje
+
+- **Segmento dinâmico**: o contato volta a entrar no segmento assim que deixa de estar arquivado (o filtro exclui arquivados).
+- **Segmento estático**: o ID continua na lista do segmento, então também volta.
+
+Em ambos os casos, porém, **ele não reaparece no swipe**, porque a decisão anterior continua gravada e a fila esconde quem já foi decidido. Correção proposta: ao desarquivar um contato, apagar as decisões de triagem dele (em todos os segmentos), para que volte naturalmente à fila. Complemento: botão "Recomeçar triagem deste segmento" no cabeçalho, que limpa suas decisões daquele segmento.
 
 ## Detalhes técnicos
-Arquivos afetados: nova migration `segment_triage_decisions`, `src/lib/segment-triage.functions.ts`, `src/hooks/use-triage-queue.ts`, `src/routes/_authenticated/triagem.$segmentId.tsx`, `src/lib/segments.functions.ts` (delete com desvínculo), `src/routes/_authenticated/segmentos.tsx` (confirmação), `src/components/AppShell.tsx` (papel operador). Nenhum dado de contato é apagado em nenhuma etapa.
+
+- `src/lib/segment-triage.functions.ts`: `getSegmentTriageMeta` agrega decisões por tipo (`manter`/`arquivar`/`pular`); nova função `resetSegmentTriage(segmentId)` que apaga as decisões do usuário.
+- `src/lib/contact-archive.server.ts` (usado por Gestão da Base e missões): ao desarquivar, remover linhas de `segment_triage_decisions` daquele contato. Nenhuma alteração no arquivamento em si.
+- `src/hooks/use-triage-queue.ts`: expor `keptCount`/`archivedCount` da sessão em vez de um `reviewed` único.
+- Sem migração de banco necessária; nada de exclusão de contatos.
