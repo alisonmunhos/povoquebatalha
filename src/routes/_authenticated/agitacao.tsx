@@ -151,12 +151,19 @@ function AgitacaoPage() {
           <h1 className="text-lg font-semibold">Agitação</h1>
         </div>
 
+        {/* Faixa de impacto pessoal */}
+        <ImpactBanner />
+
+        {/* Atalho grande para as missões */}
+        <MissionsShortcut />
+
         {/* KPIs — clicáveis, cada um aplica o filtro correspondente. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center">
           {kpis.map((k) => (
             <Kpi key={k.label} label={k.label} v={k.v} onClick={k.onClick} />
           ))}
         </div>
+
 
         {/* Busca */}
         <div className="relative">
