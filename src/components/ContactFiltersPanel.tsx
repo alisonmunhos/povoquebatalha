@@ -273,7 +273,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
 
       <Section icon={<User className="h-4 w-4" />} title="Quem é">
         <Field label="Tipo de contato" informativo>
-          <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} value={filters.tipos_contato ?? []} onChange={(v) => set("tipos_contato", v)} placeholder="Qualquer tipo" />
+          <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} {...sel("tipos_contato")} placeholder="Qualquer tipo" />
         </Field>
         <Field label="Nome social contém…" hint="Busca livre no campo nome social">
           <Input value={filters.nome_social ?? ""} onChange={(e) => set("nome_social", e.target.value || undefined)} placeholder="Ex.: Ana" />
