@@ -102,6 +102,8 @@ export default function ColumnFilterPopover(props: {
   const [arrayDraft, setArrayDraft] = useState<string[]>(() =>
     Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : [],
   );
+  const excludeKey = getColumnExcludeKey(columnKey);
+  const [mode, setMode] = useState<ColumnFilterMode>(() => getColumnFilterMode(columnKey, currentFilters));
 
   useEffect(() => {
     if (info?.uiType === "text") setTextDraft(typeof currentValue === "string" ? currentValue : "");
@@ -115,6 +117,7 @@ export default function ColumnFilterPopover(props: {
     }
     if (info?.uiType === "array" || info?.uiType === "tag") {
       setArrayDraft(Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : []);
+      setMode(getColumnFilterMode(columnKey, currentFilters));
     }
   }, [columnKey, JSON.stringify(currentValue)]);
 
@@ -125,7 +128,8 @@ export default function ColumnFilterPopover(props: {
     if (info!.uiType === "text") next = applyColumnFilter(next, columnKey, textDraft?.trim() ? textDraft.trim() : undefined);
     else if (info!.uiType === "textContains") next = applyColumnFilter(next, columnKey, textContainsDraft);
     else if (info!.uiType === "dateRange") next = applyColumnFilter(next, columnKey, dateRangeDraft);
-    else if (info!.uiType === "array" || info!.uiType === "tag") next = applyColumnFilter(next, columnKey, arrayDraft);
+    else if (info!.uiType === "array" || info!.uiType === "tag")
+      next = applyColumnFilter(next, columnKey, arrayDraft, mode);
     const encoded = encodeFilters(next);
     onApplyEncoded(encoded || undefined);
     onClose();
