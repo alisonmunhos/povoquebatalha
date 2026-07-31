@@ -932,20 +932,25 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => missionIdSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: mission, error } = await context.supabase
+    // O agitador não tem permissão de leitura direta na missão (só staff),
+    // então usamos acesso privilegiado após confirmar o usuário autenticado e
+    // lemos apenas dados da própria missão + as tarefas/levas dele.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: mission, error } = await supabaseAdmin
       .from("agitation_missions")
       .select("title, instructions, batch_size, cooldown_minutes, is_open, paused_at, archived_at")
       .eq("id", data.mission_id)
-      .single();
+      .maybeSingle();
     if (error || !mission) throw new Error("Missão não encontrada");
 
-    const { count } = await context.supabase
+    const { count } = await supabaseAdmin
       .from("agitation_tasks")
       .select("id", { count: "exact", head: true })
       .eq("mission_id", data.mission_id);
 
     // Tarefas que já são minhas nesta missão
-    const { data: myTasks } = await context.supabase
+    const { data: myTasks } = await supabaseAdmin
       .from("agitation_tasks")
       .select("id, status, completed_at")
       .eq("mission_id", data.mission_id)
@@ -956,7 +961,7 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
     const mine_not_sent = mine.filter((t) => t.status === "nao_enviado").length;
     const mine_pending = mine.filter((t) => !t.completed_at && t.status === "pending").length;
 
-    const { data: openClaim } = await context.supabase
+    const { data: openClaim } = await supabaseAdmin
       .from("agitation_mission_claims")
       .select("id")
       .eq("mission_id", data.mission_id)
@@ -965,7 +970,7 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
 
-    const { data: lastCompleted } = await context.supabase
+    const { data: lastCompleted } = await supabaseAdmin
       .from("agitation_mission_claims")
       .select("completed_at")
       .eq("mission_id", data.mission_id)
@@ -975,13 +980,14 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
 
-    const { count: available } = await context.supabase
+    const { count: available } = await supabaseAdmin
       .from("agitation_tasks")
       .select("id", { count: "exact", head: true })
       .eq("mission_id", data.mission_id)
       .is("assigned_user_id", null)
       .is("assigned_contact_id", null)
       .eq("status", "pending");
+
 
     const releases_at = lastCompleted?.completed_at
       ? new Date(
