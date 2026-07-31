@@ -80,14 +80,15 @@ export const getSegmentTriageMeta = createServerFn({ method: "POST" })
     let total = 0;
     if (seg.tipo === "estatico") {
       const ids = ((seg.member_ids as string[] | null) ?? []).filter(Boolean);
-      if (ids.length) {
-        const { count } = await context.supabase
+      for (const lote of chunkIds(ids)) {
+        const { count, error: cErr } = await context.supabase
           .from("contacts")
           .select("id", { count: "exact", head: true })
-          .in("id", ids)
+          .in("id", lote)
           .is("arquivado_at", null)
           .eq("is_system_user", false);
-        total = count ?? 0;
+        if (cErr) throw cErr;
+        total += count ?? 0;
       }
     } else {
       const filtro = (seg.filtro ?? {}) as CrmFilters;
