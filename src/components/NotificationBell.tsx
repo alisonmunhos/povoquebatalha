@@ -502,6 +502,17 @@ export function NotificationBell() {
                       {missionBriefingQ.isLoading && (
                         <p className="text-sm text-muted-foreground">Carregando briefing…</p>
                       )}
+                      {missionBriefingQ.isError && (
+                        <div className="space-y-2">
+                          <p className="text-sm text-destructive">
+                            Não conseguimos carregar o briefing desta missão agora.
+                          </p>
+                          <Button size="sm" variant="outline" onClick={() => missionBriefingQ.refetch()}>
+                            Tentar de novo
+                          </Button>
+                        </div>
+                      )}
+
                       {briefing && (
                         <div className="space-y-3">
                           <div>
