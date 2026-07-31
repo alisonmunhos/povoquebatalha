@@ -80,14 +80,17 @@ type LinkRow = {
   paused: boolean;
 };
 
+import { TASK_STATUS } from "@/lib/agitation-task-status";
+
 /** Estado real de cada contato dentro da missão, do ponto de vista do admin. */
 type TaskState = "sem_responsavel" | "parado" | "enviado" | "depois" | "erro" | "optout";
 
 function taskState(t: Task): TaskState {
   if (t.contact?.opt_out_at) return "optout";
-  if (t.status === "erro_numero") return "erro";
-  if (t.status === "concluido") return "enviado";
-  if (t.status === "nao_enviado") return "depois";
+  if (t.status === TASK_STATUS.ARQUIVADO_ERRO) return "erro";
+  if (t.status === TASK_STATUS.ARQUIVADO_OPTOUT) return "optout";
+  if (t.status === TASK_STATUS.ENVIADO) return "enviado";
+  if (t.status === TASK_STATUS.PENDENTE_ENVIO) return "depois";
   if (t.assigned_contact_id || t.assigned_user_id) return "parado";
   return "sem_responsavel";
 }
@@ -96,17 +99,17 @@ const STATE_LABEL: Record<TaskState, string> = {
   sem_responsavel: "Sem responsável",
   parado: "Atribuído e parado",
   enviado: "Enviado",
-  depois: "Vou enviar depois",
-  erro: "Erro de número",
-  optout: "Não quer receber",
+  depois: "Pendente de envio",
+  erro: "Arquivado — erro de número",
+  optout: "Arquivado — não quer receber",
 };
 
 const STATE_BADGE: Record<TaskState, string> = {
   sem_responsavel: "bg-muted text-muted-foreground",
   parado: "bg-sky-100 text-sky-800",
   enviado: "bg-emerald-100 text-emerald-800",
-  depois: "bg-amber-100 text-amber-900",
-  erro: "bg-slate-700 text-white",
+  depois: "bg-orange-500 text-white",
+  erro: "bg-rose-600 text-white",
   optout: "bg-rose-600 text-white",
 };
 
@@ -163,7 +166,7 @@ function MissionDetailsPanel() {
   }
 
   const availableForPool = tasks.filter(
-    (t) => taskState(t) === "sem_responsavel" && t.status === "pending",
+    (t) => taskState(t) === "sem_responsavel" && t.status === TASK_STATUS.SEM_ACAO,
   ).length;
 
   const assignedTaskIds = tasks.filter((t) => taskHasAssignment(t)).map((t) => t.id);

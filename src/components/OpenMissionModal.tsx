@@ -39,7 +39,8 @@ export function OpenMissionModal({
   const usersFn = useServerFn(listAgitadorUsers);
   const [batchSize, setBatchSize] = useState(defaultBatchSize);
   const [cooldownMinutes, setCooldownMinutes] = useState(defaultCooldown);
-  const [coordinatorPhone, setCoordinatorPhone] = useState("");
+  // Padrão da coordenação — editável em cada missão.
+  const [coordinatorPhone, setCoordinatorPhone] = useState("+5551995131811");
   const [completionMessage, setCompletionMessage] = useState(
     "Terminei minha leva da missão. Bora pra próxima!",
   );

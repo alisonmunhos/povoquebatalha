@@ -7,6 +7,10 @@
 // auth.users — ver migration 20260717160000 pra correção histórica disso.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+  TASK_STATUS,
+  ARCHIVED_TASK_STATUSES,
+} from "@/lib/agitation-task-status";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -383,7 +387,7 @@ export const listAgitationMissions = createServerFn({ method: "GET" })
       s.total++;
       const hasAssignment = !!(t.assigned_contact_id || t.assigned_user_id);
       if (hasAssignment) s.atribuidos++;
-      if (t.status === "concluido") s.concluidos++;
+      if (t.status === TASK_STATUS.ENVIADO) s.concluidos++;
       else if (!hasAssignment) s.pendentes++;
       stats.set(t.mission_id, s);
     }
@@ -491,8 +495,8 @@ export const getMissionDetail = createServerFn({ method: "GET" })
         pendentes: 0,
       };
       s.total++;
-      if (t.status === "concluido") s.concluidos++;
-      else if (t.status === "nao_enviado" || t.status === "erro_numero") s.nao_enviados++;
+      if (t.status === TASK_STATUS.ENVIADO) s.concluidos++;
+      else if (t.status !== TASK_STATUS.SEM_ACAO) s.nao_enviados++;
       else s.pendentes++;
       linkStats.set(t.assigned_contact_id, s);
     }
@@ -635,10 +639,12 @@ export const unassignMissionTask = createServerFn({ method: "POST" })
         assigned_user_id: null,
         claim_id: null,
         assigned_to_user_at: null,
-        status: "pending",
+        status: TASK_STATUS.SEM_ACAO,
       } as never)
       .eq("mission_id", data.mission_id)
-      .in("id", data.task_ids);
+      .in("id", data.task_ids)
+      // Trava de segurança: contato arquivado (erro/opt-out) nunca volta para a fila aqui.
+      .not("status", "in", `(${ARCHIVED_TASK_STATUSES.join(",")})`);
     if (error) throw error;
 
     const now = new Date().toISOString();
@@ -749,7 +755,7 @@ export const openMissionForSelfAssign = createServerFn({ method: "POST" })
       .eq("mission_id", data.mission_id)
       .is("assigned_user_id", null)
       .is("assigned_contact_id", null)
-      .eq("status", "pending");
+      .eq("status", TASK_STATUS.SEM_ACAO);
     if (!(available ?? 0)) throw new Error("Não há contatos disponíveis para auto-atribuição.");
 
     let eligibleIds = data.eligible_user_ids?.length
@@ -958,9 +964,9 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .eq("assigned_user_id", context.userId);
     const mine = myTasks ?? [];
     const mine_total = mine.length;
-    const mine_sent = mine.filter((t) => t.status === "concluido").length;
-    const mine_not_sent = mine.filter((t) => t.status === "nao_enviado").length;
-    const mine_pending = mine.filter((t) => !t.completed_at && t.status === "pending").length;
+    const mine_sent = mine.filter((t) => t.status === TASK_STATUS.ENVIADO).length;
+    const mine_not_sent = mine.filter((t) => t.status === TASK_STATUS.PENDENTE_ENVIO).length;
+    const mine_pending = mine.filter((t) => t.status === TASK_STATUS.SEM_ACAO).length;
 
     const { data: openClaim } = await supabaseAdmin
       .from("agitation_mission_claims")
@@ -990,7 +996,7 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .is("assigned_user_id", null)
       .is("assigned_contact_id", null)
-      .eq("status", "pending");
+      .eq("status", TASK_STATUS.SEM_ACAO);
 
 
     const releases_at = lastCompleted?.completed_at
@@ -1115,7 +1121,7 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .is("assigned_user_id", null)
       .is("assigned_contact_id", null)
-      .eq("status", "pending");
+      .eq("status", TASK_STATUS.SEM_ACAO);
 
     const now = Date.now();
     let releasesAt: string | null = null;
@@ -1241,8 +1247,8 @@ export const listMyMissions = createServerFn({ method: "GET" })
           claim: openClaim,
           released_claim_at: releasedClaim?.cancelled_at ?? null,
           tasks: mTasks,
-          pending: mTasks!.filter((t) => !t.completed_at && t.status === "pending").length,
-          concluded: mTasks!.filter((t) => t.status === "concluido" || !!t.completed_at).length,
+          pending: mTasks!.filter((t) => t.status === TASK_STATUS.SEM_ACAO).length,
+          concluded: mTasks!.filter((t) => t.status === TASK_STATUS.ENVIADO).length,
         };
       }),
 
@@ -1307,13 +1313,14 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
       .select("assigned_user_id, status, completed_at")
       .eq("mission_id", data.mission_id)
       .in("assigned_user_id", userIds);
-    const statsByUser = new Map<string, { assigned: number; sent: number; pending: number }>();
+    const statsByUser = new Map<string, { assigned: number; sent: number; pending: number; awaiting: number }>();
     (userTasks ?? []).forEach((t) => {
       if (!t.assigned_user_id) return;
-      const s = statsByUser.get(t.assigned_user_id) ?? { assigned: 0, sent: 0, pending: 0 };
+      const s = statsByUser.get(t.assigned_user_id) ?? { assigned: 0, sent: 0, pending: 0, awaiting: 0 };
       s.assigned += 1;
-      if (t.status === "concluido") s.sent += 1;
-      else if (t.status === "pending" && !t.completed_at) s.pending += 1;
+      if (t.status === TASK_STATUS.ENVIADO) s.sent += 1;
+      else if (t.status === TASK_STATUS.SEM_ACAO) s.pending += 1;
+      else if (t.status === TASK_STATUS.PENDENTE_ENVIO) s.awaiting += 1;
       statsByUser.set(t.assigned_user_id, s);
     });
 
@@ -1327,7 +1334,7 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
         cancelled_at: n.cancelled_at,
         claim: latestClaimByUser.get(n.user_id) ?? null,
         claims: claimsByUser.get(n.user_id) ?? [],
-        stats: statsByUser.get(n.user_id) ?? { assigned: 0, sent: 0, pending: 0 },
+        stats: statsByUser.get(n.user_id) ?? { assigned: 0, sent: 0, pending: 0, awaiting: 0 },
       })),
     };
 
@@ -1336,7 +1343,7 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
 // Marca uma task da MINHA leva como concluída ou não-enviada.
 const markTaskSchema = z.object({
   task_id: z.string().uuid(),
-  status: z.enum(["concluido", "nao_enviado", "erro_numero", "pending"]),
+  status: z.enum([TASK_STATUS.ENVIADO, TASK_STATUS.PENDENTE_ENVIO, TASK_STATUS.SEM_ACAO]),
 });
 export const markMyMissionTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1346,7 +1353,7 @@ export const markMyMissionTask = createServerFn({ method: "POST" })
       .from("agitation_tasks")
       .update({
         status: data.status,
-        completed_at: data.status === "concluido" ? new Date().toISOString() : null,
+        completed_at: data.status === TASK_STATUS.ENVIADO ? new Date().toISOString() : null,
       } as never)
       .eq("id", data.task_id)
       .eq("assigned_user_id", context.userId);
@@ -1401,7 +1408,7 @@ export const refuseMissionContact = createServerFn({ method: "POST" })
 
     await supabaseAdmin
       .from("agitation_tasks")
-      .update({ status: "nao_enviado", completed_at: null })
+      .update({ status: TASK_STATUS.ARQUIVADO_OPTOUT, completed_at: null })
       .eq("id", task.id);
 
     await supabaseAdmin.from("contact_audit_log").insert({
@@ -1428,21 +1435,19 @@ export const undoRefuseMissionContact = createServerFn({ method: "POST" })
     const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { error } = await supabaseAdmin
-      .from("contacts")
-      .update({
-        opt_out_at: null,
-        opt_out_motivo: null,
-        arquivado_at: null,
-        whatsapp_status: "desconhecido",
-        lifecycle_status: null,
-      })
-      .eq("id", task.contact_id);
-    if (error) throw new Error(error.message);
+    // Mesmo mecanismo usado pela Gestão da Base para desarquivar um contato.
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
+    await setContactArchived(supabaseAdmin as never, {
+      contactId: task.contact_id,
+      archived: false,
+      userId: context.userId,
+      auditAction: "unarchive",
+      auditChanges: { mission_id: task.mission_id, origem: "missao" },
+    });
 
     await supabaseAdmin
       .from("agitation_tasks")
-      .update({ status: "pending", completed_at: null })
+      .update({ status: TASK_STATUS.SEM_ACAO, completed_at: null })
       .eq("id", task.id);
 
     await supabaseAdmin.from("contact_audit_log").insert({
@@ -1481,7 +1486,7 @@ export const reportMissionContactError = createServerFn({ method: "POST" })
 
     await supabaseAdmin
       .from("agitation_tasks")
-      .update({ status: "erro_numero", completed_at: null })
+      .update({ status: TASK_STATUS.ARQUIVADO_ERRO, completed_at: null })
       .eq("id", task.id);
 
     await supabaseAdmin.from("contact_audit_log").insert({
@@ -1508,20 +1513,19 @@ export const undoMissionContactError = createServerFn({ method: "POST" })
     const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { error } = await supabaseAdmin
-      .from("contacts")
-      .update({
-        arquivado_at: null,
-        whatsapp_status: "desconhecido",
-        phone_status: null,
-        lifecycle_status: null,
-      })
-      .eq("id", task.contact_id);
-    if (error) throw new Error(error.message);
+    // Mesmo mecanismo usado pela Gestão da Base para desarquivar um contato.
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
+    await setContactArchived(supabaseAdmin as never, {
+      contactId: task.contact_id,
+      archived: false,
+      userId: context.userId,
+      auditAction: "unarchive",
+      auditChanges: { mission_id: task.mission_id, origem: "missao" },
+    });
 
     await supabaseAdmin
       .from("agitation_tasks")
-      .update({ status: "pending", completed_at: null })
+      .update({ status: TASK_STATUS.SEM_ACAO, completed_at: null })
       .eq("id", task.id);
 
     await supabaseAdmin.from("contact_audit_log").insert({

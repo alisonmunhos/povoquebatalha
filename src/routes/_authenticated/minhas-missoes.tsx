@@ -11,7 +11,16 @@ import {
   AlertTriangle,
   BellOff,
   PhoneOff,
+  RotateCcw,
 } from "lucide-react";
+import {
+  TASK_STATUS,
+  TASK_STATUS_CLASS,
+  TASK_STATUS_LABEL,
+  isArchivedTaskStatus,
+  taskStatusFilterKey,
+  type TaskStatusFilter,
+} from "@/lib/agitation-task-status";
 import {
   listMyMissions,
   claimMissionBatch,
@@ -206,23 +215,42 @@ function MissionBlockCard({
   });
 
   const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
-  // Recusas marcadas agora nesta sessão (feedback imediato antes do recarregamento).
-  const [refusedNow, setRefusedNow] = useState<Set<string>>(new Set());
-  // Erros marcados agora nesta sessão (feedback imediato antes do recarregamento).
-  const [erroredNow, setErroredNow] = useState<Set<string>>(new Set());
+  // Status marcados agora nesta sessão (feedback imediato antes do recarregamento).
+  const [localStatus, setLocalStatus] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<TaskStatusFilter | "todos">("todos");
 
-  const isRefused = (t: Task) => refusedNow.has(t.id) || !!t.contacts?.opt_out_at;
-  const isErrored = (t: Task) =>
-    !isRefused(t) && (erroredNow.has(t.id) || t.status === "erro_numero");
+  /** Status efetivo: o marcado agora nesta sessão ou o que veio do servidor. */
+  const statusOf = (t: Task): string => {
+    const local = localStatus[t.id];
+    if (local) return local;
+    if (!isArchivedTaskStatus(t.status) && t.contacts?.opt_out_at) {
+      return TASK_STATUS.ARQUIVADO_OPTOUT;
+    }
+    return t.status;
+  };
+  const setStatusNow = (taskId: string, status: string | null) =>
+    setLocalStatus((prev) => {
+      const next = { ...prev };
+      if (status) next[taskId] = status;
+      else delete next[taskId];
+      return next;
+    });
 
-  const pendingTasks = block.tasks.filter(
-    (t) => !t.completed_at && t.status === "pending" && !isRefused(t) && !isErrored(t),
-  );
-  const sentTasks = block.tasks.filter((t) => t.status === "concluido");
-  const refusedTasks = block.tasks.filter((t) => isRefused(t));
-  const erroredTasks = block.tasks.filter((t) => isErrored(t));
-  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado" && !isRefused(t));
+  const byFilter = (key: TaskStatusFilter) =>
+    block.tasks.filter((t) => taskStatusFilterKey(statusOf(t)) === key);
+  const pendingTasks = byFilter("nao_enviados");
+  const notSentTasks = byFilter("pendente");
+  const sentTasks = byFilter("enviado");
+  const archivedTasks = byFilter("arquivados");
+
+  // Arquivados só aparecem quando o filtro "Arquivados" está ativo.
+  const visibleTasks =
+    filter === "todos"
+      ? block.tasks.filter((t) => !isArchivedTaskStatus(statusOf(t)))
+      : byFilter(filter);
   const openClaim = block.claim;
+
+
 
 
   /** Abre o WhatsApp; NÃO marca nada — só coloca a tarefa em "aguardando confirmação". */
@@ -240,7 +268,8 @@ function MissionBlockCard({
     setAwaitingConfirm((prev) => new Set(prev).add(task.id));
   }
 
-  async function onMarkTask(task: Task, status: "concluido" | "nao_enviado") {
+  async function onMarkTask(task: Task, status: typeof TASK_STATUS.ENVIADO | typeof TASK_STATUS.PENDENTE_ENVIO) {
+    setStatusNow(task.id, status);
     try {
       await markFn({ data: { task_id: task.id, status } });
       setAwaitingConfirm((prev) => {
@@ -250,6 +279,7 @@ function MissionBlockCard({
       });
       onChanged();
     } catch (e) {
+      setStatusNow(task.id, null);
       toast.error(e instanceof Error ? e.message : "Erro ao marcar.");
     }
   }
@@ -257,7 +287,7 @@ function MissionBlockCard({
   /** "Deu erro": arquiva o contato e marca o número como inválido, com Desfazer. */
   async function onErrorTask(task: Task) {
     const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
-    setErroredNow((prev) => new Set(prev).add(task.id));
+    setStatusNow(task.id, TASK_STATUS.ARQUIVADO_ERRO);
     setAwaitingConfirm((prev) => {
       const next = new Set(prev);
       next.delete(task.id);
@@ -267,33 +297,11 @@ function MissionBlockCard({
       await errorFn({ data: { task_id: task.id } });
       toast.success(`${nome}: número marcado como inválido e cadastro arquivado.`, {
         duration: 8000,
-        action: {
-          label: "Desfazer",
-          onClick: () => {
-            void (async () => {
-              try {
-                await undoErrorFn({ data: { task_id: task.id } });
-                setErroredNow((prev) => {
-                  const next = new Set(prev);
-                  next.delete(task.id);
-                  return next;
-                });
-                toast.info(`${nome} voltou para a sua leva.`);
-                onChanged();
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
-              }
-            })();
-          },
-        },
+        action: { label: "Desfazer", onClick: () => void onUndoArchived(task) },
       });
       onChanged();
     } catch (e) {
-      setErroredNow((prev) => {
-        const next = new Set(prev);
-        next.delete(task.id);
-        return next;
-      });
+      setStatusNow(task.id, null);
       toast.error(e instanceof Error ? e.message : "Erro ao registrar.");
     }
   }
@@ -301,7 +309,7 @@ function MissionBlockCard({
   /** "Não quer receber": arquiva o contato na hora e oferece Desfazer. */
   async function onRefuseTask(task: Task) {
     const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
-    setRefusedNow((prev) => new Set(prev).add(task.id));
+    setStatusNow(task.id, TASK_STATUS.ARQUIVADO_OPTOUT);
     setAwaitingConfirm((prev) => {
       const next = new Set(prev);
       next.delete(task.id);
@@ -311,36 +319,33 @@ function MissionBlockCard({
       await refuseFn({ data: { task_id: task.id } });
       toast.success(`${nome} foi arquivado e não receberá mais mensagens.`, {
         duration: 8000,
-        action: {
-          label: "Desfazer",
-          onClick: () => {
-            void (async () => {
-              try {
-                await undoRefuseFn({ data: { task_id: task.id } });
-                setRefusedNow((prev) => {
-                  const next = new Set(prev);
-                  next.delete(task.id);
-                  return next;
-                });
-                toast.info(`${nome} voltou para a sua leva.`);
-                onChanged();
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
-              }
-            })();
-          },
-        },
+        action: { label: "Desfazer", onClick: () => void onUndoArchived(task) },
       });
       onChanged();
     } catch (e) {
-      setRefusedNow((prev) => {
-        const next = new Set(prev);
-        next.delete(task.id);
-        return next;
-      });
+      setStatusNow(task.id, null);
       toast.error(e instanceof Error ? e.message : "Erro ao registrar a recusa.");
     }
   }
+
+  /**
+   * Reverte um contato arquivado (erro de número ou "não quer receber").
+   * Usa o mesmo mecanismo de desarquivamento da Gestão da Base — um contato por vez.
+   */
+  async function onUndoArchived(task: Task) {
+    const nome = task.contacts?.nome_social?.trim() || task.contacts?.nome || "O contato";
+    const wasOptOut = statusOf(task) === TASK_STATUS.ARQUIVADO_OPTOUT;
+    try {
+      if (wasOptOut) await undoRefuseFn({ data: { task_id: task.id } });
+      else await undoErrorFn({ data: { task_id: task.id } });
+      setStatusNow(task.id, TASK_STATUS.SEM_ACAO);
+      toast.info(`${nome} foi desarquivado e voltou para a sua leva.`);
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao desfazer.");
+    }
+  }
+
 
   async function onComplete() {
     if (!openClaim) return;
@@ -430,111 +435,132 @@ function MissionBlockCard({
         )}
         <div className="text-xs text-muted-foreground mt-2">
           {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
-          {pendingTasks.length} pendente(s) · {notSentTasks.length} vou enviar depois
-          {erroredTasks.length > 0 ? ` · ${erroredTasks.length} com erro de número` : ""}
-          {refusedTasks.length > 0 ? ` · ${refusedTasks.length} não quer(em) receber` : ""}
+          {pendingTasks.length} não enviado(s) · {notSentTasks.length} pendente(s) de envio
+          {archivedTasks.length > 0 ? ` · ${archivedTasks.length} arquivado(s)` : ""}
         </div>
       </div>
 
       {block.tasks.length > 0 && (
-        <div className="divide-y">
-          {block.tasks.map((t) => {
-            const refused = isRefused(t);
-            const errored = isErrored(t);
-            const blocked = refused || errored;
-            const waiting = !blocked && awaitingConfirm.has(t.id);
-            const sent = !blocked && t.status === "concluido";
-            const notSent = !blocked && t.status === "nao_enviado";
-            return (
-              <div key={t.id} className="p-3 flex items-center gap-2 flex-wrap">
-                <div className="flex-1 min-w-[160px]">
-                  <div className="font-medium text-sm">
-                    {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {t.contacts?.phone_e164 ?? t.contacts?.phone_raw ?? "—"}
-                  </div>
-                  <span
-                    className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
-                      refused
-                        ? "bg-rose-600 text-white"
-                        : errored
-                          ? "bg-slate-700 text-white"
-                          : sent
-                            ? "bg-emerald-100 text-emerald-800"
-                            : notSent
-                              ? "bg-amber-100 text-amber-900"
-                              : waiting
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {refused
-                      ? "Não quer receber — arquivado"
-                      : errored
-                        ? "Número com erro — arquivado"
-                        : sent
-                          ? "Enviado"
-                          : notSent
-                            ? "Vou enviar depois"
-                            : waiting
-                              ? "Aguardando confirmação"
-                              : "Pendente"}
-                  </span>
-                </div>
+        <>
+          {/* Barra de filtro por situação */}
+          <div className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b bg-card/95 px-3 py-2 backdrop-blur">
+            {(
+              [
+                { key: "todos" as const, label: "Todos", count: block.tasks.length - archivedTasks.length },
+                { key: "nao_enviados" as const, label: "Não enviados", count: pendingTasks.length },
+                { key: "pendente" as const, label: "Pendente", count: notSentTasks.length },
+                { key: "enviado" as const, label: "Enviado", count: sentTasks.length },
+                { key: "arquivados" as const, label: "Arquivados", count: archivedTasks.length },
+              ]
+            ).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
+                  filter === f.key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                {f.label} ({f.count})
+              </button>
+            ))}
+          </div>
 
-                {!blocked && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant={sent || notSent ? "outline" : "default"}
-                      onClick={() => onOpenWhatsApp(t)}
-                    >
-                      <Send className="h-3.5 w-3.5 mr-1" />
-                      {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
-                    </Button>
-
-                    {!sent && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => onMarkTask(t, "concluido")}
+          {visibleTasks.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">
+              Nenhum contato nesta situação.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {visibleTasks.map((t) => {
+                const status = statusOf(t);
+                const archived = isArchivedTaskStatus(status);
+                const waiting = !archived && awaitingConfirm.has(t.id);
+                const sent = status === TASK_STATUS.ENVIADO;
+                const notSent = status === TASK_STATUS.PENDENTE_ENVIO;
+                return (
+                  <div key={t.id} className="p-3 flex items-center gap-2 flex-wrap">
+                    <div className="flex-1 min-w-[160px]">
+                      <div className="font-medium text-sm">
+                        {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {t.contacts?.phone_e164 ?? t.contacts?.phone_raw ?? "—"}
+                      </div>
+                      <span
+                        className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
+                          waiting ? "bg-amber-100 text-amber-800" : TASK_STATUS_CLASS[status]
+                        }`}
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
-                      </Button>
-                    )}
-                    {!notSent && (
+                        {waiting ? "Aguardando confirmação" : TASK_STATUS_LABEL[status]}
+                      </span>
+                    </div>
+
+                    {archived ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onMarkTask(t, "nao_enviado")}
+                        onClick={() => void onUndoArchived(t)}
                       >
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Vou enviar depois
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" /> Desfazer arquivamento
                       </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant={sent || notSent ? "outline" : "default"}
+                          onClick={() => onOpenWhatsApp(t)}
+                        >
+                          <Send className="h-3.5 w-3.5 mr-1" />
+                          {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
+                        </Button>
+
+                        {!sent && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => onMarkTask(t, TASK_STATUS.ENVIADO)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
+                          </Button>
+                        )}
+                        {!notSent && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onMarkTask(t, TASK_STATUS.PENDENTE_ENVIO)}
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Vou enviar depois
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-slate-400 text-slate-700 hover:bg-slate-100"
+                          onClick={() => void onErrorTask(t)}
+                        >
+                          <PhoneOff className="h-3.5 w-3.5 mr-1" /> Deu erro / não abriu
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                          onClick={() => void onRefuseTask(t)}
+                        >
+                          <BellOff className="h-3.5 w-3.5 mr-1" /> Não quer receber
+                        </Button>
+                      </>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-400 text-slate-700 hover:bg-slate-100"
-                      onClick={() => void onErrorTask(t)}
-                    >
-                      <PhoneOff className="h-3.5 w-3.5 mr-1" /> Deu erro / não abriu
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                      onClick={() => void onRefuseTask(t)}
-                    >
-                      <BellOff className="h-3.5 w-3.5 mr-1" /> Não quer receber
-                    </Button>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
+
 
 
       <div className="p-3 border-t bg-muted/30 flex flex-col gap-2">

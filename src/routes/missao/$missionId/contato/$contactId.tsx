@@ -58,12 +58,12 @@ type Task = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  concluido: "Concluído",
-  nao_enviado: "Não enviado",
+  enviado: "Enviado",
+  pendente_envio: "Pendente de envio",
 };
 const STATUS_BADGE: Record<string, string> = {
-  concluido: "bg-emerald-100 text-emerald-800",
-  nao_enviado: "bg-rose-100 text-rose-800",
+  enviado: "bg-emerald-100 text-emerald-800",
+  pendente_envio: "bg-orange-500 text-white",
 };
 
 function digitsFromPhone(c: Task["contact"]): string {
@@ -90,7 +90,7 @@ function ContactCard({
 }) {
   const [busy, setBusy] = useState(false);
 
-  async function mark(action: "concluido" | "nao_enviado", openWhatsapp: boolean) {
+  async function mark(action: "enviado" | "pendente_envio", openWhatsapp: boolean) {
     if (openWhatsapp) {
       const digits = digitsFromPhone(task.contact);
       if (!digits) return;
@@ -135,7 +135,7 @@ function ContactCard({
         <button
           type="button"
           disabled={busy}
-          onClick={() => mark("concluido", true)}
+          onClick={() => mark("enviado", true)}
           className="text-sm rounded-md bg-emerald-600 text-white px-3 py-1.5 hover:bg-emerald-700 disabled:opacity-60"
         >
           Enviar Mensagem
@@ -143,7 +143,7 @@ function ContactCard({
         <button
           type="button"
           disabled={busy}
-          onClick={() => mark("nao_enviado", false)}
+          onClick={() => mark("pendente_envio", false)}
           className="text-sm rounded-md border border-rose-300 text-rose-700 px-3 py-1.5 hover:bg-rose-50 disabled:opacity-60"
         >
           Não consegui enviar
@@ -222,7 +222,7 @@ function MissionExecutorPage() {
     );
   }
 
-  const pendentes = tasks.filter((t) => t.status !== "concluido").length;
+  const pendentes = tasks.filter((t) => t.status !== "enviado").length;
 
   return (
     <div className="min-h-screen bg-muted/20 p-4">
