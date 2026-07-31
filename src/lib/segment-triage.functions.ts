@@ -54,6 +54,26 @@ function chunkIds(ids: string[]): string[][] {
   return out;
 }
 
+// Tabela nova (decisões da triagem) ainda fora dos tipos gerados.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const decisions = (supabase: unknown) => (supabase as any).from("segment_triage_decisions");
+
+/** IDs já decididos por este usuário neste segmento (manter/arquivar). */
+async function decidedIds(
+  supabase: unknown,
+  segmentId: string,
+  userId: string,
+): Promise<Set<string>> {
+  const { data } = await decisions(supabase)
+    .select("contact_id,decision")
+    .eq("segment_id", segmentId)
+    .eq("user_id", userId)
+    .in("decision", ["manter", "arquivar"]);
+  return new Set(
+    ((data ?? []) as Array<{ contact_id: string }>).map((r) => r.contact_id),
+  );
+}
+
 /** Gera token URL-safe de 22 chars para o link de tarefa. */
 function genToken(): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
