@@ -15,6 +15,7 @@ import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2, PhoneCall, CheckCircle2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { MergeContactsModal } from "@/components/MergeContactsModal";
+import { BulkEditFieldModal } from "@/components/BulkEditFieldModal";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
