@@ -388,6 +388,14 @@ function MissionBlockCard({
             {block.mission.instructions}
           </p>
         )}
+        {!block.claim && block.released_claim_at && (
+          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+            Sua leva anterior foi liberada pela organização em{" "}
+            {new Date(block.released_claim_at).toLocaleString("pt-BR")}. Os contatos voltaram para a
+            fila e você pode pegar uma nova leva agora — sem tempo de espera.
+          </p>
+        )}
+
         {block.mission.media_path && (
           <MissionMediaBlock
             path={block.mission.media_path}
