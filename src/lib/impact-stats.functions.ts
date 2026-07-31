@@ -71,8 +71,10 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
         .eq("assigned_user_id", userId),
       supabaseAdmin
         .from("contact_source_events")
-        .select("contact_id, created_at, event_type, source_module")
+        .select("contact_id, created_at")
         .eq("source_user_id", userId)
+        .in("event_type", [...QUALIFYING_SOURCE_EVENTS])
+        .neq("source_module", "importacao")
         .order("created_at", { ascending: true })
         .limit(20000),
       supabaseAdmin
