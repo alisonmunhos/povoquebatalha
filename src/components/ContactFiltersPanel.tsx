@@ -162,6 +162,19 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
     onChange(next);
   };
 
+  /**
+   * Liga um filtro de lista ao par incluir/excluir. Passa `mode` + `onApply`
+   * para o MultiSelectFilter mostrar "Mostrar os marcados / Esconder os marcados".
+   */
+  const sel = (key: ExcludableFilterKey) => ({
+    value: getFilterValues(filters, key),
+    mode: getFilterMode(filters, key),
+    onApply: (values: string[], mode: FilterMode) =>
+      onChange(applyFilterSelection(filters, key, values, mode)),
+    onChange: (values: string[]) =>
+      onChange(applyFilterSelection(filters, key, values, getFilterMode(filters, key))),
+  });
+
   const opts = options ?? {
     cidades: [], bairros: [], ufs: [], profissoes: [], instituicoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
