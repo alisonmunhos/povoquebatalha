@@ -54,6 +54,26 @@ function chunkIds(ids: string[]): string[][] {
   return out;
 }
 
+// Tabela nova (decisões da triagem) ainda fora dos tipos gerados.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const decisions = (supabase: unknown) => (supabase as any).from("segment_triage_decisions");
+
+/** IDs já decididos por este usuário neste segmento (manter/arquivar). */
+async function decidedIds(
+  supabase: unknown,
+  segmentId: string,
+  userId: string,
+): Promise<Set<string>> {
+  const { data } = await decisions(supabase)
+    .select("contact_id,decision")
+    .eq("segment_id", segmentId)
+    .eq("user_id", userId)
+    .in("decision", ["manter", "arquivar"]);
+  return new Set(
+    ((data ?? []) as Array<{ contact_id: string }>).map((r) => r.contact_id),
+  );
+}
+
 /** Gera token URL-safe de 22 chars para o link de tarefa. */
 function genToken(): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -98,9 +118,16 @@ export const getSegmentTriageMeta = createServerFn({ method: "POST" })
       total = count ?? 0;
     }
 
+    const { count: reviewed } = await decisions(context.supabase)
+      .select("id", { count: "exact", head: true })
+      .eq("segment_id", data.segmentId)
+      .eq("user_id", context.userId)
+      .in("decision", ["manter", "arquivar"]);
+
     return {
       segment: { id: seg.id, nome: seg.nome, descricao: seg.descricao, tipo: seg.tipo as "dinamico" | "estatico" },
       total,
+      reviewed: reviewed ?? 0,
     };
   });
 
@@ -166,6 +193,13 @@ export const listSegmentTriageQueue = createServerFn({ method: "POST" })
       rows = (cs ?? []) as unknown as RawContact[];
     }
 
+    const hasMore = rows.length === data.pageSize;
+
+    // Contatos que este usuário já decidiu (manter/arquivar) saem da fila —
+    // é isso que faz o Swipe retomar de onde parou depois de sair da tela.
+    const jaDecididos = await decidedIds(context.supabase, data.segmentId, context.userId);
+    rows = rows.filter((r) => !jaDecididos.has(r.id));
+
     const ids = rows.map((r) => r.id);
     const tagsByContact = new Map<string, Array<{ id: string; nome: string; cor: string }>>();
     const lastNote = new Map<string, { note: string; created_at: string }>();
@@ -230,8 +264,53 @@ export const listSegmentTriageQueue = createServerFn({ method: "POST" })
     return {
       contacts,
       page: data.page,
-      hasMore: rows.length === data.pageSize,
+      hasMore,
     };
+  });
+
+// ============ Decisões da triagem (persistência) ============
+
+/** Grava a decisão do usuário para um contato dentro do segmento. */
+export const recordTriageDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        segmentId: z.string().uuid(),
+        contactId: z.string().uuid(),
+        decision: z.enum(["manter", "arquivar", "pular"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await decisions(context.supabase).upsert(
+      {
+        segment_id: data.segmentId,
+        contact_id: data.contactId,
+        user_id: context.userId,
+        decision: data.decision,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "segment_id,contact_id,user_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+/** Remove a decisão gravada (usado pelo botão Desfazer). */
+export const undoTriageDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ segmentId: z.string().uuid(), contactId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await decisions(context.supabase)
+      .delete()
+      .eq("segment_id", data.segmentId)
+      .eq("contact_id", data.contactId)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 // ============ Links de tarefa de triagem (compartilhar) ============

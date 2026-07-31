@@ -2642,6 +2642,51 @@ export type Database = {
           },
         ]
       }
+      segment_triage_decisions: {
+        Row: {
+          contact_id: string
+          created_at: string
+          decision: string
+          id: string
+          segment_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          decision: string
+          id?: string
+          segment_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          decision?: string
+          id?: string
+          segment_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "segment_triage_decisions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "segment_triage_decisions_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       segment_triage_shares: {
         Row: {
           created_at: string

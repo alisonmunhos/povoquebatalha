@@ -3,7 +3,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { getSegmentTriageMeta } from "@/lib/segment-triage.functions";
@@ -34,6 +34,14 @@ function TriagePage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [fichaOpen, setFichaOpen] = useState(false);
 
+  // Falhas de gravação precisam ser visíveis — antes ficavam num botão oculto.
+  useEffect(() => {
+    if (!queue.error) return;
+    toast.error(queue.error);
+    queue.clearError();
+    void meta.refetch();
+  }, [queue.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const commit = useCallback(
     (dir: SwipeDirection) => {
       const kind = dir === "left" ? "arquivar" : dir === "right" ? "manter" : "pular";
@@ -55,7 +63,7 @@ function TriagePage() {
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-black">{meta.data?.segment.nome ?? "Triagem"}</p>
           <p className="text-[11px] text-muted-foreground">
-            {queue.reviewed} triado(s)
+            {(meta.data?.reviewed ?? 0) + queue.reviewed} triado(s)
             {meta.data ? ` · ${meta.data.total} na lista` : ""}
             {queue.deferredCount ? ` · ${queue.deferredCount} pulado(s)` : ""}
           </p>
@@ -137,18 +145,6 @@ function TriagePage() {
         />
       </div>
 
-      {queue.error && (
-        <button
-          type="button"
-          onClick={() => {
-            toast.error(queue.error!);
-            queue.clearError();
-          }}
-          className="sr-only"
-        >
-          erro
-        </button>
-      )}
 
       {noteOpen && current && (
         <AddNoteSheet

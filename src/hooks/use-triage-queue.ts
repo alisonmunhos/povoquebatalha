@@ -5,7 +5,12 @@
 // - Histórico das últimas ações alimenta o botão Desfazer.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { listSegmentTriageQueue, type TriageContact } from "@/lib/segment-triage.functions";
+import {
+  listSegmentTriageQueue,
+  recordTriageDecision,
+  undoTriageDecision,
+  type TriageContact,
+} from "@/lib/segment-triage.functions";
 import { archiveContact } from "@/lib/contacts.functions";
 
 export type TriageActionKind = "arquivar" | "manter" | "pular";
@@ -20,6 +25,8 @@ const HISTORY_LIMIT = 20;
 export function useTriageQueue(segmentId: string) {
   const fetchPage = useServerFn(listSegmentTriageQueue);
   const archiveFn = useServerFn(archiveContact);
+  const recordFn = useServerFn(recordTriageDecision);
+  const undoFn = useServerFn(undoTriageDecision);
 
   const [queue, setQueue] = useState<TriageContact[]>([]);
   const [deferred, setDeferred] = useState<TriageContact[]>([]);
@@ -123,9 +130,25 @@ export function useTriageQueue(segmentId: string) {
       if (!c) return;
       setQueue((q) => q.slice(1));
 
+      // Volta o contato pro topo quando o servidor recusa a ação —
+      // nada de progresso fantasma.
+      const rollback = (msg: string) => {
+        setError(msg);
+        decided.current.delete(c.id);
+        setQueue((q) => [c, ...q.filter((x) => x.id !== c.id)]);
+        setDeferred((d) => d.filter((x) => x.id !== c.id));
+        setHistory((h) => h.filter((e) => e.contact.id !== c.id));
+        setExhausted(false);
+      };
+
       if (kind === "pular") {
         setDeferred((d) => [...d, c]);
         pushHistory({ contact: c, kind });
+        try {
+          await recordFn({ data: { segmentId, contactId: c.id, decision: "pular" } });
+        } catch (e) {
+          rollback(e instanceof Error ? e.message : "Não foi possível registrar o pulo.");
+        }
         return;
       }
 
@@ -137,11 +160,27 @@ export function useTriageQueue(segmentId: string) {
         try {
           await archiveFn({ data: { id: c.id, archived: true } });
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Não foi possível arquivar.");
+          setReviewed((n) => Math.max(0, n - 1));
+          rollback(e instanceof Error ? e.message : "Não foi possível arquivar este contato.");
+          return;
         }
       }
+
+      try {
+        await recordFn({ data: { segmentId, contactId: c.id, decision: kind } });
+      } catch (e) {
+        setReviewed((n) => Math.max(0, n - 1));
+        if (kind === "arquivar") {
+          try {
+            await archiveFn({ data: { id: c.id, archived: false } });
+          } catch {
+            /* mantém arquivado; o aviso abaixo explica que não foi registrado */
+          }
+        }
+        rollback(e instanceof Error ? e.message : "Não foi possível salvar sua decisão.");
+      }
     },
-    [archiveFn, pushHistory, queue],
+    [archiveFn, pushHistory, queue, recordFn, segmentId],
   );
 
   const undo = useCallback(async () => {
@@ -163,11 +202,16 @@ export function useTriageQueue(segmentId: string) {
         }
       }
     }
+    try {
+      await undoFn({ data: { segmentId, contactId: c.id } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível desfazer o registro.");
+    }
     seen.current.add(c.id);
     setQueue((q) => [c, ...q.filter((x) => x.id !== c.id)]);
     setExhausted(false);
     return entry;
-  }, [archiveFn, history]);
+  }, [archiveFn, history, segmentId, undoFn]);
 
   /** Atualiza o card atual em memória (ex.: depois de salvar uma observação). */
   const patchCurrent = useCallback((patch: Partial<TriageContact>) => {

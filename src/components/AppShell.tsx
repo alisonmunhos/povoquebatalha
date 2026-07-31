@@ -35,7 +35,7 @@ const groups: NavGroup[] = [
       { to: "/importar", label: "Importar", icon: Upload, roles: ["admin"] },
       { to: "/duplicidades", label: "Duplicidades", icon: Copy, roles: ["admin"] },
       { to: "/tags", label: "Tags", icon: Tags, roles: ["admin"] },
-      { to: "/segmentos", label: "Segmentos", icon: Filter, roles: ["admin", "vrm"] },
+      { to: "/segmentos", label: "Segmentos", icon: Filter, hint: "Listas de contatos + triagem por Swipe.", roles: ["admin", "operador", "vrm"] },
       { to: "/entrada-dados", label: "Entrada de Dados", icon: ClipboardList, hint: "Monte formulários públicos personalizados.", roles: ["admin"] },
     ],
   },

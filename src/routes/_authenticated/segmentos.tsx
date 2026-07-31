@@ -20,10 +20,19 @@ function SegmentsPage() {
   const [sharing, setSharing] = useState<{ id: string; nome: string } | null>(null);
 
   async function remove(id: string, nome: string) {
-    if (!confirm(`Excluir segmento "${nome}"?`)) return;
+    if (
+      !confirm(
+        `Excluir o segmento "${nome}"?\n\nIsso remove apenas a lista/segmento. Os contatos continuam na base e os arquivamentos feitos no Swipe permanecem.\nCampanhas em rascunho ou canceladas ligadas a ele ficam sem público.`,
+      )
+    )
+      return;
     try {
-      await delFn({ data: { id } });
-      toast.success("Segmento excluído");
+      const r = await delFn({ data: { id } });
+      toast.success(
+        r.desvinculadas?.length
+          ? `Segmento excluído. Campanha(s) sem público agora: ${r.desvinculadas.join(", ")}`
+          : "Segmento excluído. Os contatos continuam na base.",
+      );
       q.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível excluir o segmento");

@@ -45,26 +45,43 @@ export const upsertSegment = createServerFn({ method: "POST" })
     return { id: ins.id };
   });
 
+// Campanhas nesses estados travam a exclusão (estão no ar). As demais só perdem
+// o vínculo de público — a campanha continua existindo, sem segmento.
+const CAMPANHA_ESTADOS_TRAVA = ["scheduled", "running", "paused"] as const;
+
 export const deleteSegment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: usadas } = await context.supabase
+    const { data: vinculadas } = await context.supabase
       .from("campaigns")
-      .select("nome")
-      .eq("segment_id", data.id)
-      .limit(5);
+      .select("id,nome,status")
+      .eq("segment_id", data.id);
 
-    if (usadas?.length) {
-      const nomes = usadas.map((c: { nome: string }) => c.nome).join(", ");
+    const travadas = (vinculadas ?? []).filter((c: { status: string }) =>
+      (CAMPANHA_ESTADOS_TRAVA as readonly string[]).includes(c.status),
+    );
+    if (travadas.length) {
+      const nomes = travadas.map((c: { nome: string }) => c.nome).join(", ");
       throw new Error(
-        `Este segmento está sendo usado em ${usadas.length} campanha(s) (${nomes}). Exclua ou troque o público dessas campanhas antes de remover o segmento.`,
+        `Este segmento está em ${travadas.length} campanha(s) agendada(s)/em envio (${nomes}). Pause ou cancele essas campanhas antes de remover o segmento.`,
       );
+    }
+
+    const desvinculadas = (vinculadas ?? []).map((c: { nome: string }) => c.nome);
+    if (desvinculadas.length) {
+      const { error: upErr } = await context.supabase
+        .from("campaigns")
+        .update({ segment_id: null })
+        .eq("segment_id", data.id);
+      if (upErr) throw upErr;
     }
 
     const { error } = await context.supabase.from("segments").delete().eq("id", data.id);
     if (error) throw error;
-    return { ok: true as const };
+    // Excluir o segmento não toca nos contatos nem desfaz arquivamentos: apaga
+    // apenas a lista/filtro, os links de tarefa e o histórico de triagem dele.
+    return { ok: true as const, desvinculadas };
   });
 
 
