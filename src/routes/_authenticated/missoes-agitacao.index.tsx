@@ -58,6 +58,9 @@ function MissoesAgitacaoIndex() {
             <option value="all">Mostrar: Todas</option>
           </select>
         </div>
+      </div>
+
+
 
       <p className="text-sm text-muted-foreground">
         Crie uma missão selecionando contatos na Gestão da Base (&quot;Criar Missão&quot;). Na tela
