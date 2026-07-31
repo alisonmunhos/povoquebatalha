@@ -241,6 +241,15 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
 }
 
 // Monta phone_raw (DDD+assinante, sem "+55") a partir do que parsePhoneBR já resolveu, no formato que fixContactsPhoneDdd grava.
+/** Traduz erros técnicos do banco em texto compreensível para o operador. */
+function friendlyDbError(message: string): string {
+  const notNull = /null value in column "([^"]+)"/.exec(message);
+  if (notNull) return `Campo obrigatório ausente: ${notNull[1]}`;
+  if (/duplicate key/i.test(message)) return "Registro duplicado no banco";
+  if (/invalid input value for enum/i.test(message)) return `Valor não aceito para um dos campos (${message})`;
+  return message;
+}
+
 function resolvedPhoneDigits(phone: ParsedPhone, insertNono: boolean): string | null {
   const e164 = phone.phone_e164;
   if (!e164) return null;
