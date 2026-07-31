@@ -197,6 +197,60 @@ function TriagePage() {
       {fichaOpen && current && (
         <FichaOverlay contactId={current.id} contactNome={current.nome} onClose={() => setFichaOpen(false)} />
       )}
+
+      {helpOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setHelpOpen(false)}>
+          <div
+            className="w-full rounded-t-2xl bg-background p-5 pb-8 text-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-black">Como funciona a triagem</p>
+            <ul className="mt-3 space-y-2 text-muted-foreground">
+              <li>
+                <span className="font-bold text-foreground">Verde (manter)</span> — o contato continua na base ativa e
+                sai da fila. Conta como <span className="font-bold">mantido</span>.
+              </li>
+              <li>
+                <span className="font-bold text-foreground">Vermelho (arquivar)</span> — o contato sai da base ativa e
+                da lista do segmento. Conta como <span className="font-bold">arquivado</span>.
+              </li>
+              <li>
+                <span className="font-bold text-foreground">Pular</span> — decido depois: volta para o fim da fila e
+                <span className="font-bold"> não</span> conta como triado.
+              </li>
+              <li>
+                <span className="font-bold text-foreground">Faltam</span> — contatos ativos do segmento que ainda não
+                receberam verde nem vermelho.
+              </li>
+              <li>Se você desarquivar um contato depois, ele volta ao segmento e reaparece nesta fila.</li>
+            </ul>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirm("Recomeçar a triagem deste segmento? Suas decisões salvas aqui serão apagadas (nenhum contato é excluído ou desarquivado).")) return;
+                try {
+                  await resetFn({ data: { segmentId } });
+                  setHelpOpen(false);
+                  window.location.reload();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Não foi possível recomeçar a triagem.");
+                }
+              }}
+              className="mt-4 w-full rounded-xl border px-4 py-2.5 text-xs font-black"
+            >
+              Recomeçar triagem deste segmento
+            </button>
+            <button
+              type="button"
+              onClick={() => setHelpOpen(false)}
+              className="mt-2 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-punch"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
