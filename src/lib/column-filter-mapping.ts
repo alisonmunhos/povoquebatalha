@@ -33,6 +33,50 @@ export type ColumnFilterInfo =
 export type TextContainsFilterValue = { contains: string; empty: boolean };
 export type DateRangeFilterValue = { from: string; to: string; quick: string };
 
+/** Modo de um filtro de lista: incluir os marcados ou excluir os marcados. */
+export type ColumnFilterMode = "include" | "exclude";
+
+/**
+ * Colunas que aceitam exclusão ("exceto"). A chave é o campo de filtro usado
+ * quando o modo é "excluir". Colunas fora deste mapa só aceitam inclusão.
+ */
+const EXCLUDE_KEY_BY_COLUMN: Record<string, keyof CrmFilters> = {
+  tags: "tag_ids_excluir",
+  cidade: "cidades_excluir",
+  bairro: "bairros_excluir",
+  uf: "ufs_excluir",
+  profissao: "profissoes_excluir",
+  instituicao: "instituicoes_excluir",
+  tipo_contato: "tipos_contato_excluir",
+  movimento_social_nome: "movimentos_sociais_excluir",
+  quem_indicou: "quem_indicou_excluir",
+  zona_eleitoral: "zona_eleitoral_excluir",
+  como_conheceu: "como_conheceu_excluir",
+  formas_ajuda_outro: "formas_ajuda_outro_excluir",
+  origem: "origens_excluir",
+  faixa_etaria: "faixas_etarias_excluir",
+  lifecycle_status: "lifecycle_statuses_excluir",
+  phone_status: "phone_statuses_excluir",
+  whatsapp_status: "whatsapp_statuses_excluir",
+  formas_ajuda: "formas_ajuda_excluir",
+  disponibilidade: "disponibilidade_excluir",
+};
+
+/** Chave de exclusão da coluna (ou null quando a coluna não suporta "exceto"). */
+export function getColumnExcludeKey(columnKey: string): keyof CrmFilters | null {
+  const info = resolveFilterField(columnKey);
+  if (!info || (info.uiType !== "array" && info.uiType !== "tag")) return null;
+  return EXCLUDE_KEY_BY_COLUMN[columnKey] ?? null;
+}
+
+/** Modo atual do filtro da coluna (exclusão só quando há valores marcados nela). */
+export function getColumnFilterMode(columnKey: string, filters: CrmFilters): ColumnFilterMode {
+  const key = getColumnExcludeKey(columnKey);
+  if (!key) return "include";
+  const arr = (filters as Record<string, unknown>)[key as string];
+  return Array.isArray(arr) && arr.length ? "exclude" : "include";
+}
+
 function labelsToOptions(m: Record<string, string>): { value: string; label: string }[] {
   return Object.keys(m).map((k) => ({ value: k, label: m[k] }));
 }
@@ -263,6 +307,11 @@ export function getColumnFilterValue(columnKey: string, filters: CrmFilters): un
 
   const raw = (filters as Record<string, unknown>)[info.filterKey as string];
   if (info.uiType === "array" || info.uiType === "tag") {
+    const excludeKey = getColumnExcludeKey(columnKey);
+    if (excludeKey) {
+      const exc = (filters as Record<string, unknown>)[excludeKey as string];
+      if (Array.isArray(exc) && exc.length) return exc;
+    }
     if (Array.isArray(raw) && raw.length) return raw;
     return (
       legacyArrayValue(columnKey, filters) ??
@@ -313,7 +362,12 @@ function clearLegacyTextFilter(next: Record<string, unknown>, columnKey: string)
   if (key) delete next[key];
 }
 
-export function applyColumnFilter(current: CrmFilters, column: string, payload: unknown): CrmFilters {
+export function applyColumnFilter(
+  current: CrmFilters,
+  column: string,
+  payload: unknown,
+  mode: ColumnFilterMode = "include",
+): CrmFilters {
   const info = resolveFilterField(column);
   if (!info) return current;
   const next = { ...current } as Record<string, unknown>;
@@ -333,7 +387,13 @@ export function applyColumnFilter(current: CrmFilters, column: string, payload: 
     next[info.filterKey as string] = String(payload ?? "").trim() || undefined;
   } else if (info.uiType === "array" || info.uiType === "tag") {
     const arr = Array.isArray(payload) ? payload : payload == null ? [] : [payload];
-    next[info.filterKey as string] = arr.length ? arr : undefined;
+    const excludeKey = getColumnExcludeKey(column);
+    const useExclude = mode === "exclude" && !!excludeKey;
+    // Inclusão e exclusão são exclusivas entre si na mesma coluna.
+    if (excludeKey) next[excludeKey as string] = undefined;
+    next[info.filterKey as string] = undefined;
+    const targetKey = useExclude ? (excludeKey as string) : (info.filterKey as string);
+    next[targetKey] = arr.length ? arr : undefined;
   }
   return next as CrmFilters;
 }
@@ -352,6 +412,8 @@ export function clearColumnFilter(current: CrmFilters, column: string): CrmFilte
   } else {
     delete next[info.filterKey as string];
   }
+  const excludeKey = getColumnExcludeKey(column);
+  if (excludeKey) delete next[excludeKey as string];
   clearLegacyBooleanFilter(next, column);
   clearLegacyTextFilter(next, column);
   return next as CrmFilters;

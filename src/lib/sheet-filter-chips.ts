@@ -5,6 +5,7 @@ import { LIFECYCLE_LABEL } from "@/lib/phone-labels";
 import {
   clearColumnFilter,
   getColumnFilterValue,
+  getColumnFilterMode,
   isColumnFilterActive,
   resolveFilterField,
   type DateRangeFilterValue,
@@ -83,10 +84,13 @@ function formatBrDate(iso: string): string {
 export function buildSheetFilterChips(cols: string[], filters: CrmFilters): SheetFilterChip[] {
   return cols
     .filter((col) => isColumnFilterActive(col, filters))
-    .map((col) => ({
-      id: col,
-      label: `${columnLabel(col)}: ${summarizeFilterValue(col, getColumnFilterValue(col, filters))}`,
-    }));
+    .map((col) => {
+      const prefix = getColumnFilterMode(col, filters) === "exclude" ? "exceto " : "";
+      return {
+        id: col,
+        label: `${columnLabel(col)}: ${prefix}${summarizeFilterValue(col, getColumnFilterValue(col, filters))}`,
+      };
+    });
 }
 
 export function hasActiveSheetFilters(cols: string[], filters: CrmFilters): boolean {

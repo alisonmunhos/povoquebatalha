@@ -209,6 +209,21 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Somente ativos"
           />
         </Field>
+        <Field
+          label="Usuários do sistema"
+          hint="Usuários com login (equipe, agitadores) também são contatos. Use 'Esconder usuários' para ver só a base de apoiadores."
+        >
+          <SingleSelectFilter
+            options={[
+              { value: "todos", label: "Todos (contatos e usuários)" },
+              { value: "sim", label: "Somente usuários do sistema" },
+              { value: "nao", label: "Esconder usuários do sistema" },
+            ]}
+            value={filters.is_system_user ?? "todos"}
+            onChange={(v) => set("is_system_user", v === "sim" || v === "nao" ? v : undefined)}
+            placeholder="Todos (contatos e usuários)"
+          />
+        </Field>
         <Field label="Tags">
           <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
         </Field>

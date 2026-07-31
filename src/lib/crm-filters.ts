@@ -84,6 +84,29 @@ export const crmFilterSchema = z.object({
   tag_ids: z.array(z.string().uuid()).optional(),
   segment_id: z.string().uuid().optional(),
 
+  // Exclusões ("exceto"): removem contatos que casam com os valores marcados.
+  // Sempre aplicadas DEPOIS dos filtros de inclusão.
+  tag_ids_excluir: z.array(z.string()).optional(),
+  cidades_excluir: z.array(z.string()).optional(),
+  bairros_excluir: z.array(z.string()).optional(),
+  ufs_excluir: z.array(z.string()).optional(),
+  profissoes_excluir: z.array(z.string()).optional(),
+  instituicoes_excluir: z.array(z.string()).optional(),
+  tipos_contato_excluir: z.array(z.string()).optional(),
+  movimentos_sociais_excluir: z.array(z.string()).optional(),
+  quem_indicou_excluir: z.array(z.string()).optional(),
+  rede_social_excluir: z.array(z.string()).optional(),
+  zona_eleitoral_excluir: z.array(z.string()).optional(),
+  como_conheceu_excluir: z.array(z.string()).optional(),
+  formas_ajuda_outro_excluir: z.array(z.string()).optional(),
+  origens_excluir: z.array(z.string()).optional(),
+  faixas_etarias_excluir: z.array(z.string()).optional(),
+  lifecycle_statuses_excluir: z.array(z.string()).optional(),
+  phone_statuses_excluir: z.array(z.string()).optional(),
+  whatsapp_statuses_excluir: z.array(z.string()).optional(),
+  formas_ajuda_excluir: z.array(z.string()).optional(),
+  disponibilidade_excluir: z.array(z.string()).optional(),
+
   // Comunicação
   // Comunicação
   apto_envio: z.enum(["sim", "nao"]).optional(),
@@ -321,6 +344,63 @@ function applyBooleanColumnFilter<T extends {
   }
   return q.or(clauses.join(","));
 }
+
+/**
+ * Exclusão em coluna de texto: remove quem casa (exato, sem acento de caixa)
+ * com qualquer valor marcado. Contatos com a coluna vazia continuam na lista,
+ * a não ser que "(Não informado)" também esteja marcado para exclusão.
+ */
+function applyExcludeTextArrayFilter<T extends {
+  or: (v: string) => T;
+  not: (col: string, op: string, v: unknown) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  if (empty) q = q.not(col, "is", null);
+  for (const v of values) {
+    q = q.or(`${col}.is.null,${col}.not.ilike.${quoteOrValue(v)}`);
+  }
+  return q;
+}
+
+/** Exclusão em coluna enum/valor fechado (origem, status, faixa etária…). */
+function applyExcludeEnumArrayFilter<T extends {
+  or: (v: string) => T;
+  not: (col: string, op: string, v: unknown) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  if (empty) q = q.not(col, "is", null);
+  if (values.length) {
+    const list = values.map((v) => quoteOrValue(v)).join(",");
+    q = q.or(`${col}.is.null,${col}.not.in.(${list})`);
+  }
+  return q;
+}
+
+/**
+ * Exclusão em coluna de lista (jsonb): remove quem tem QUALQUER uma das
+ * opções marcadas. As colunas são NOT NULL com default `[]`, então o
+ * encadeamento de `not.cs` é seguro.
+ */
+function applyExcludeJsonbArrayFilter<T extends {
+  not: (col: string, op: string, v: unknown) => T;
+  or: (v: string) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  if (empty) q = q.not(`${col}->0`, "is", null);
+  for (const slug of values) {
+    const variants =
+      col === "formas_ajuda" && slug === "panfletagem_banquinha"
+        ? ["panfletagem_banquinha", "panfletagem"]
+        : [slug];
+    for (const v of variants) q = q.not(col, "cs", `["${v.replace(/"/g, "")}"]`);
+  }
+  return q;
+}
+
+
 
 /** Texto contém + opcional (Vazio) em uma coluna. */
 function applyTextContainsEmptyFilter<T extends {
@@ -656,6 +736,30 @@ export function applyCrmFilters<T extends {
     }
   }
 
+  // ===== Exclusões ("exceto") — sempre depois das inclusões =====
+  q = applyExcludeTextArrayFilter(q, "cidade", f.cidades_excluir);
+  q = applyExcludeTextArrayFilter(q, "bairro", f.bairros_excluir);
+  q = applyExcludeTextArrayFilter(q, "profissao", f.profissoes_excluir);
+  q = applyExcludeTextArrayFilter(q, "instituicao", f.instituicoes_excluir);
+  q = applyExcludeTextArrayFilter(q, "movimento_social_nome", f.movimentos_sociais_excluir);
+  q = applyExcludeTextArrayFilter(q, "quem_indicou", f.quem_indicou_excluir);
+  q = applyExcludeTextArrayFilter(q, "rede_social", f.rede_social_excluir);
+  q = applyExcludeTextArrayFilter(q, "zona_eleitoral", f.zona_eleitoral_excluir);
+  q = applyExcludeTextArrayFilter(q, "como_conheceu", f.como_conheceu_excluir);
+  q = applyExcludeTextArrayFilter(q, "formas_ajuda_outro", f.formas_ajuda_outro_excluir);
+  q = applyExcludeTextArrayFilter(q, "tipo_contato", f.tipos_contato_excluir);
+  if (f.ufs_excluir?.length) {
+    const upper = f.ufs_excluir.map((u) => (u === EMPTY_FILTER_TOKEN ? u : u.toUpperCase()));
+    q = applyExcludeEnumArrayFilter(q, "uf", upper);
+  }
+  q = applyExcludeEnumArrayFilter(q, "origem", f.origens_excluir);
+  q = applyExcludeEnumArrayFilter(q, "faixa_etaria", f.faixas_etarias_excluir);
+  q = applyExcludeEnumArrayFilter(q, "lifecycle_status", f.lifecycle_statuses_excluir);
+  q = applyExcludeEnumArrayFilter(q, "phone_status", f.phone_statuses_excluir);
+  q = applyExcludeEnumArrayFilter(q, "whatsapp_status", f.whatsapp_statuses_excluir);
+  q = applyExcludeJsonbArrayFilter(q, "formas_ajuda", f.formas_ajuda_excluir);
+  q = applyExcludeJsonbArrayFilter(q, "disponibilidade", f.disponibilidade_excluir);
+
   return q;
 }
 
@@ -696,6 +800,25 @@ export async function resolveRelationalFilterIds(
     if (noMatch) return EMPTY_RELATIONAL;
     if (ids?.length) allowedIds = ids;
   }
+
+  // Exclusão de tags: "todos, exceto quem tem estas tags".
+  if (f.tag_ids_excluir?.length) {
+    const { values: excludeTagIds, empty: excludeUntagged } = splitEmptyToken(f.tag_ids_excluir);
+    if (excludeTagIds.length) {
+      const rels = await distinctContactIds(() =>
+        sb.from("contact_tags").select("contact_id").in("tag_id", excludeTagIds),
+      );
+      for (const id of rels) excludeIds.add(id);
+    }
+    if (excludeUntagged) {
+      // Excluir "sem tag" = manter só quem tem alguma tag.
+      const tagged = await distinctContactIds(() => sb.from("contact_tags").select("contact_id"));
+      if (!tagged.length) return EMPTY_RELATIONAL;
+      intersect(tagged);
+    }
+  }
+
+
 
   const idsForCampaign = (campaignId: string, statuses?: string[]) =>
     distinctContactIds(() => {

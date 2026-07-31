@@ -7,8 +7,12 @@ import type { CrmFilters } from "@/lib/crm-filters";
 import {
   resolveFilterField,
   getColumnFilterValue,
+  getColumnFilterMode,
+  getColumnExcludeKey,
   applyColumnFilter,
   clearColumnFilter,
+  EMPTY_FILTER_TOKEN,
+  type ColumnFilterMode,
   type TextContainsFilterValue,
   type DateRangeFilterValue,
 } from "@/lib/column-filter-mapping";
@@ -98,6 +102,8 @@ export default function ColumnFilterPopover(props: {
   const [arrayDraft, setArrayDraft] = useState<string[]>(() =>
     Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : [],
   );
+  const excludeKey = getColumnExcludeKey(columnKey);
+  const [mode, setMode] = useState<ColumnFilterMode>(() => getColumnFilterMode(columnKey, currentFilters));
 
   useEffect(() => {
     if (info?.uiType === "text") setTextDraft(typeof currentValue === "string" ? currentValue : "");
@@ -111,6 +117,7 @@ export default function ColumnFilterPopover(props: {
     }
     if (info?.uiType === "array" || info?.uiType === "tag") {
       setArrayDraft(Array.isArray(currentValue) ? currentValue : currentValue ? [String(currentValue)] : []);
+      setMode(getColumnFilterMode(columnKey, currentFilters));
     }
   }, [columnKey, JSON.stringify(currentValue)]);
 
@@ -121,7 +128,8 @@ export default function ColumnFilterPopover(props: {
     if (info!.uiType === "text") next = applyColumnFilter(next, columnKey, textDraft?.trim() ? textDraft.trim() : undefined);
     else if (info!.uiType === "textContains") next = applyColumnFilter(next, columnKey, textContainsDraft);
     else if (info!.uiType === "dateRange") next = applyColumnFilter(next, columnKey, dateRangeDraft);
-    else if (info!.uiType === "array" || info!.uiType === "tag") next = applyColumnFilter(next, columnKey, arrayDraft);
+    else if (info!.uiType === "array" || info!.uiType === "tag")
+      next = applyColumnFilter(next, columnKey, arrayDraft, mode);
     const encoded = encodeFilters(next);
     onApplyEncoded(encoded || undefined);
     onClose();
@@ -136,6 +144,18 @@ export default function ColumnFilterPopover(props: {
 
   const columnLabel = getCatalogField(columnKey)?.defaultLabel ?? columnKey;
   const isListFilter = info.uiType === "array" || info.uiType === "tag";
+
+  // Colunas Sim/Não: ganham atalho para incluir também quem não respondeu.
+  const optionValues = availableOptions.map((o) => o.value).sort().join("|");
+  const isBooleanColumn = optionValues === "false|true" || optionValues === "nao|sim";
+  const naoValue = availableOptions.find((o) => o.value === "false" || o.value === "nao")?.value;
+
+  function markNaoPlusEmpty() {
+    if (!naoValue) return;
+    setMode("include");
+    setArrayDraft([naoValue, EMPTY_FILTER_TOKEN]);
+  }
+
 
   return (
     <div
@@ -190,15 +210,46 @@ export default function ColumnFilterPopover(props: {
         )}
 
         {isListFilter && (
-          <CheckboxListFilterPanel
-            options={availableOptions}
-            selected={arrayDraft}
-            onChange={setArrayDraft}
-            loading={needsServerOptions && optionsQ.isLoading}
-            searchPlaceholder={`Buscar em ${columnLabel.toLowerCase()}…`}
-            emptyCount={emptyCount}
-            maxHeight="fill"
-          />
+          <div className="flex flex-col min-h-0 h-full">
+            {excludeKey ? (
+              <div className="shrink-0 mb-2 flex items-center gap-1 text-[11px]">
+                <button
+                  type="button"
+                  className={`rounded px-2 py-1 border ${mode === "include" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground"}`}
+                  onClick={() => setMode("include")}
+                >
+                  Mostrar só os marcados
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-2 py-1 border ${mode === "exclude" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground"}`}
+                  onClick={() => setMode("exclude")}
+                >
+                  Esconder os marcados
+                </button>
+              </div>
+            ) : null}
+
+            {isBooleanColumn && naoValue ? (
+              <button
+                type="button"
+                className="shrink-0 mb-2 text-[11px] text-primary hover:underline text-left"
+                onClick={markNaoPlusEmpty}
+              >
+                Marcar “Não” + “Não informado”
+              </button>
+            ) : null}
+
+            <CheckboxListFilterPanel
+              options={availableOptions}
+              selected={arrayDraft}
+              onChange={setArrayDraft}
+              loading={needsServerOptions && optionsQ.isLoading}
+              searchPlaceholder={`Buscar em ${columnLabel.toLowerCase()}…`}
+              emptyCount={emptyCount}
+              maxHeight="fill"
+            />
+          </div>
         )}
       </div>
 
