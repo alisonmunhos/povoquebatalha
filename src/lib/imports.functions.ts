@@ -678,6 +678,13 @@ export const commitImport = createServerFn({ method: "POST" })
             continue;
           }
         }
+        // "nome" é obrigatório no banco (NOT NULL, sem valor padrão): sem nome
+        // não há como inserir, então a linha vira erro com texto claro.
+        if (!p.nome || !p.nome.trim()) {
+          await sb.from("import_rows").update({ status: "erro", erro: "Nome ausente — campo obrigatório" }).eq("id", row.id);
+          erros++;
+          continue;
+        }
         const obsText = (ex.observacoes ?? []).join("\n") || null;
         const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
