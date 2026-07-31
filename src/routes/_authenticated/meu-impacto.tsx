@@ -31,6 +31,7 @@ function MyImpactPage() {
   const q = useQuery({ queryKey: ["my-impact"], queryFn: () => statsFn(), retry: 1 });
   const shareRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<"share" | "download" | null>(null);
+  const [variant, setVariant] = useState<"total" | "day">("total");
 
   async function withBlob(kind: "share" | "download") {
     if (!shareRef.current || !q.data) return;
@@ -43,7 +44,11 @@ function MyImpactPage() {
         toast.success("Imagem salva no seu aparelho.");
         return;
       }
-      const text = `Já me conectei com ${q.data.connections.total} pessoas na campanha do Povo que Batalha! 💪`;
+      const total = variant === "total" ? q.data.connections.total : q.data.connections.today;
+      const text =
+        variant === "total"
+          ? `Já me conectei com ${total} pessoas na campanha do Povo que Batalha! 💪`
+          : `Hoje eu me conectei com ${total} pessoas na campanha do Povo que Batalha! 💪`;
       const r = await sharePng({ blob, filename, text });
       if (r === "downloaded") {
         toast.info("Imagem baixada. Anexe no WhatsApp que já abrimos pra você.");
@@ -179,6 +184,25 @@ function MyImpactPage() {
         <p className="text-xs text-muted-foreground">
           Gera uma imagem com os seus números — sem mostrar nome ou telefone de ninguém da base.
         </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button
+            size="sm"
+            variant={variant === "total" ? "default" : "outline"}
+            onClick={() => setVariant("total")}
+          >
+            Conquista geral
+          </Button>
+          <Button
+            size="sm"
+            variant={variant === "day" ? "default" : "outline"}
+            onClick={() => setVariant("day")}
+          >
+            Conquista de hoje
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/minha-semana">Conquista da semana</Link>
+          </Button>
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button size="lg" className="flex-1" disabled={busy !== null} onClick={() => void withBlob("share")}>
             {busy === "share" ? (
@@ -186,7 +210,7 @@ function MyImpactPage() {
             ) : (
               <Share2 className="mr-2 h-4 w-4" />
             )}
-            Compartilhar minha conquista
+            {variant === "total" ? "Compartilhar minha conquista" : "Compartilhar o dia de hoje"}
           </Button>
           <Button
             size="lg"
@@ -206,8 +230,9 @@ function MyImpactPage() {
 
       {/* Card de compartilhamento renderizado fora da tela, no tamanho real. */}
       <div aria-hidden className="pointer-events-none fixed left-[-4000px] top-0 opacity-0">
-        <ImpactShareCard stats={s} innerRef={shareRef} />
+        <ImpactShareCard stats={s} innerRef={shareRef} variant={variant} />
       </div>
+
     </div>
   );
 }

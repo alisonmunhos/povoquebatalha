@@ -306,7 +306,13 @@ export function NotificationBell() {
 
   const isMissionDetail = detail?.kind === "mission";
   const isUserApprovalDetail = detail?.kind === "user_approval";
+  const isWeeklyDetail = detail?.kind === "weekly_impact";
   const briefing = missionBriefingQ.data;
+
+  async function goToMyWeek() {
+    setDetail(null);
+    await navigate({ to: "/minha-semana" });
+  }
 
   return (
     <>
@@ -450,6 +456,11 @@ export function NotificationBell() {
                               APROVAÇÃO
                             </span>
                           )}
+                          {n.kind === "weekly_impact" && (
+                            <span className="text-[10px] font-bold tracking-wide rounded-full bg-[#7B4B94] text-white px-1.5 py-0.5 shrink-0">
+                              SEMANA
+                            </span>
+                          )}
                           {n.title}
                         </div>
                         {isUnread && <span className="h-2 w-2 rounded-full bg-accent shrink-0" />}
@@ -487,6 +498,11 @@ export function NotificationBell() {
                 {isUserApprovalDetail && (
                   <span className="text-[10px] font-bold tracking-wide rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 shrink-0">
                     APROVAÇÃO
+                  </span>
+                )}
+                {isWeeklyDetail && (
+                  <span className="text-[10px] font-bold tracking-wide rounded-full bg-[#7B4B94] text-white px-2 py-0.5 shrink-0">
+                    SEMANA
                   </span>
                 )}
                 <div className="font-semibold text-sm truncate">{detail.title}</div>
@@ -707,10 +723,25 @@ export function NotificationBell() {
                         Agora não
                       </Button>
                     </div>
+                  ) : isWeeklyDetail ? (
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="lg"
+                        className="w-full text-white hover:opacity-90"
+                        style={{ backgroundColor: "#7B4B94" }}
+                        onClick={() => void goToMyWeek()}
+                      >
+                        Ver e compartilhar minha semana
+                      </Button>
+                      <Button size="lg" variant="ghost" className="w-full" onClick={() => setDetail(null)}>
+                        Fechar
+                      </Button>
+                    </div>
                   ) : isUserApprovalDetail ? (
                     <Button size="lg" variant="outline" className="w-full" onClick={() => setDetail(null)}>
                       Fechar
                     </Button>
+
                   ) : (
                     detail.cta_label &&
                     detail.cta_kind &&
