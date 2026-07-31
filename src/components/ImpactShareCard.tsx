@@ -1,6 +1,6 @@
 // Card visual 1080x1350 para compartilhar no WhatsApp (status/grupo).
 // Só números agregados do próprio usuário — nenhum dado de contato aparece aqui.
-import fistImg from "@/assets/fist-alert.png";
+import fistAsset from "@/assets/fist-alert.png.asset.json";
 import { milestoneFor } from "@/lib/impact-milestones";
 import type { ImpactStats } from "@/lib/impact-stats.functions";
 
@@ -62,7 +62,7 @@ export function ImpactShareCard({
           </p>
           <p className="max-w-[620px] text-3xl italic text-[#F0AA04]">{milestone.phrase}</p>
         </div>
-        <img src={fistImg} alt="" style={{ width: 220, height: 220 }} className="object-contain" />
+        <img src={fistAsset.url} alt="" style={{ width: 220, height: 220 }} className="object-contain" />
       </div>
     </div>
   );
