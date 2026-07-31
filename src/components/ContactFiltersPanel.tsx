@@ -261,13 +261,13 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
 
       <Section icon={<MapPin className="h-4 w-4" />} title="Onde está">
         <Field label="UF">
-          <MultiSelectFilter options={opts.ufs} value={filters.ufs ?? []} onChange={(v) => set("ufs", v)} placeholder="Qualquer UF" />
+          <MultiSelectFilter options={opts.ufs} {...sel("ufs")} placeholder="Qualquer UF" />
         </Field>
         <Field label="Cidade">
-          <MultiSelectFilter options={opts.cidades} value={filters.cidades ?? []} onChange={(v) => set("cidades", v)} placeholder="Qualquer cidade" />
+          <MultiSelectFilter options={opts.cidades} {...sel("cidades")} placeholder="Qualquer cidade" />
         </Field>
         <Field label="Bairro" hint={filters.cidades?.length ? "Mostrando só bairros da(s) cidade(s) selecionada(s)." : undefined}>
-          <MultiSelectFilter options={opts.bairros} value={filters.bairros ?? []} onChange={(v) => set("bairros", v)} placeholder="Qualquer bairro" />
+          <MultiSelectFilter options={opts.bairros} {...sel("bairros")} placeholder="Qualquer bairro" />
         </Field>
       </Section>
 
