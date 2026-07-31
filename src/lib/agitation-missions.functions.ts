@@ -678,8 +678,9 @@ export const pauseMission = createServerFn({ method: "POST" })
     // Libera tasks/claims + cancela notificações pendentes da missão.
     const { error: relErr } = await context.supabase.rpc(
       "release_mission_pending" as never,
-      { _mission_id: data.mission_id } as never,
+      { _mission_id: data.mission_id, _older_than_hours: 0 } as never,
     );
+
     if (relErr) throw relErr;
     return { ok: true as const };
   });
@@ -967,6 +968,7 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .eq("user_id", context.userId)
       .is("completed_at", null)
+      .is("cancelled_at", null)
       .limit(1)
       .maybeSingle();
 
@@ -976,9 +978,11 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .eq("user_id", context.userId)
       .not("completed_at", "is", null)
+      .is("cancelled_at", null)
       .order("completed_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
 
     const { count: available } = await supabaseAdmin
       .from("agitation_tasks")
@@ -1088,6 +1092,7 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .eq("user_id", context.userId)
       .not("completed_at", "is", null)
+      .is("cancelled_at", null)
       .order("completed_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -1098,8 +1103,10 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .eq("user_id", context.userId)
       .is("completed_at", null)
+      .is("cancelled_at", null)
       .limit(1)
       .maybeSingle();
+
 
     const { count: available } = await context.supabase
       .from("agitation_tasks")
@@ -1190,14 +1197,14 @@ export const listMyMissions = createServerFn({ method: "GET" })
     );
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
-      .select("id, mission_id, completed_at, claimed_at")
+      .select("id, mission_id, completed_at, cancelled_at, claimed_at")
       .eq("user_id", context.userId)
       .in("mission_id", missionsFiltered.map((m) => m.id));
 
 
     const claimsByMission = new Map<
       string,
-      { id: string; completed_at: string | null; claimed_at: string }[]
+      { id: string; completed_at: string | null; cancelled_at: string | null; claimed_at: string }[]
     >();
     (claims ?? []).forEach((c) => {
       const arr = claimsByMission.get(c.mission_id) ?? [];
@@ -1215,15 +1222,24 @@ export const listMyMissions = createServerFn({ method: "GET" })
     return {
       missions: missionsFiltered.map((m) => {
         const mTasks = tasksByMission.get(m.id) ?? [];
-        const openClaim = (claimsByMission.get(m.id) ?? []).find((c) => !c.completed_at) ?? null;
+        const mClaims = claimsByMission.get(m.id) ?? [];
+        const openClaim = mClaims.find((c) => !c.completed_at && !c.cancelled_at) ?? null;
+        // Leva liberada pela organização: sinaliza pro agitador em vez de sumir sem explicação.
+        const releasedClaim = openClaim
+          ? null
+          : (mClaims
+              .filter((c) => !!c.cancelled_at && !c.completed_at)
+              .sort((a, b) => (a.cancelled_at! > b.cancelled_at! ? -1 : 1))[0] ?? null);
         return {
           mission: m,
           claim: openClaim,
+          released_claim_at: releasedClaim?.cancelled_at ?? null,
           tasks: mTasks,
           pending: mTasks!.filter((t) => !t.completed_at && t.status === "pending").length,
           concluded: mTasks!.filter((t) => t.status === "concluido" || !!t.completed_at).length,
         };
       }),
+
     };
   });
 
@@ -1248,7 +1264,7 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
 
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
-      .select("id, user_id, task_count, completed_at, claimed_at")
+      .select("id, user_id, task_count, completed_at, cancelled_at, claimed_at")
       .eq("mission_id", data.mission_id)
       .in("user_id", userIds)
       .order("claimed_at", { ascending: true });
@@ -1260,7 +1276,12 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
     });
     const latestClaimByUser = new Map<
       string,
-      { task_count: number; completed_at: string | null; claimed_at: string }
+      {
+        task_count: number;
+        completed_at: string | null;
+        cancelled_at: string | null;
+        claimed_at: string;
+      }
     >();
     (claims ?? []).forEach((c) => {
       const cur = latestClaimByUser.get(c.user_id);
@@ -1268,9 +1289,26 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
         latestClaimByUser.set(c.user_id, {
           task_count: c.task_count,
           completed_at: c.completed_at,
+          cancelled_at: c.cancelled_at,
           claimed_at: c.claimed_at,
         });
       }
+    });
+
+    // Envios reais (não "leva fechada"): fonte da verdade para o painel do admin.
+    const { data: userTasks } = await context.supabase
+      .from("agitation_tasks")
+      .select("assigned_user_id, status, completed_at")
+      .eq("mission_id", data.mission_id)
+      .in("assigned_user_id", userIds);
+    const statsByUser = new Map<string, { assigned: number; sent: number; pending: number }>();
+    (userTasks ?? []).forEach((t) => {
+      if (!t.assigned_user_id) return;
+      const s = statsByUser.get(t.assigned_user_id) ?? { assigned: 0, sent: 0, pending: 0 };
+      s.assigned += 1;
+      if (t.status === "concluido") s.sent += 1;
+      else if (t.status === "pending" && !t.completed_at) s.pending += 1;
+      statsByUser.set(t.assigned_user_id, s);
     });
 
     return {
@@ -1283,8 +1321,10 @@ export const getMissionRecipientsPanel = createServerFn({ method: "GET" })
         cancelled_at: n.cancelled_at,
         claim: latestClaimByUser.get(n.user_id) ?? null,
         claims: claimsByUser.get(n.user_id) ?? [],
+        stats: statsByUser.get(n.user_id) ?? { assigned: 0, sent: 0, pending: 0 },
       })),
     };
+
   });
 
 // Marca uma task da MINHA leva como concluída ou não-enviada.

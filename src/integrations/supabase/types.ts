@@ -129,6 +129,8 @@ export type Database = {
       }
       agitation_mission_claims: {
         Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
           claimed_at: string
           completed_at: string | null
           id: string
@@ -137,6 +139,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           claimed_at?: string
           completed_at?: string | null
           id?: string
@@ -145,6 +149,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           claimed_at?: string
           completed_at?: string | null
           id?: string
@@ -3153,10 +3159,12 @@ export type Database = {
             }
           }
       phone_last8: { Args: { input: string }; Returns: string }
-      release_mission_pending: {
-        Args: { _mission_id: string }
-        Returns: undefined
-      }
+      release_mission_pending:
+        | { Args: { _mission_id: string }; Returns: undefined }
+        | {
+            Args: { _mission_id: string; _older_than_hours?: number }
+            Returns: undefined
+          }
       rescan_contact_duplicates: { Args: never; Returns: number }
       resolve_tracked_link: {
         Args: { _token: string }

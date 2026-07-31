@@ -402,15 +402,20 @@ function MissionDetailsPanel() {
             {(recipientsQ.data?.recipients ?? []).map((r) => {
               const isCancelled = !!r.cancelled_at;
               const claim = r.claim;
+              const stats = r.stats ?? { assigned: 0, sent: 0, pending: 0 };
               const status = isCancelled
                 ? { label: "Cancelada", className: "bg-rose-100 text-rose-800" }
                 : claim?.completed_at
-                  ? { label: "Concluída", className: "bg-emerald-100 text-emerald-800" }
-                  : claim
-                    ? { label: "Em andamento", className: "bg-amber-100 text-amber-800" }
-                    : r.read_at
-                      ? { label: "Lida", className: "bg-blue-100 text-blue-800" }
-                      : { label: "Não lida", className: "bg-muted text-muted-foreground" };
+                  ? stats.sent > 0
+                    ? { label: "Concluída", className: "bg-emerald-100 text-emerald-800" }
+                    : { label: "Fechou sem enviar", className: "bg-orange-100 text-orange-800" }
+                  : claim?.cancelled_at
+                    ? { label: "Liberada pela organização", className: "bg-slate-200 text-slate-800" }
+                    : claim
+                      ? { label: "Em andamento", className: "bg-amber-100 text-amber-800" }
+                      : r.read_at
+                        ? { label: "Lida", className: "bg-blue-100 text-blue-800" }
+                        : { label: "Não lida", className: "bg-muted text-muted-foreground" };
               return (
                 <div key={r.notif_id} className="flex items-center gap-3 p-3 text-sm flex-wrap">
                   <div className="flex-1 min-w-[160px]">
@@ -418,10 +423,13 @@ function MissionDetailsPanel() {
                     <div className="text-xs text-muted-foreground">
                       Notificada em {new Date(r.notified_at).toLocaleString("pt-BR")}
                       {r.read_at && ` · lida em ${new Date(r.read_at).toLocaleString("pt-BR")}`}
-                      {claim &&
-                        ` · ${claim.task_count} contato(s)${claim.completed_at ? ` · concluída em ${new Date(claim.completed_at).toLocaleString("pt-BR")}` : ""}`}
+                      {stats.assigned > 0 &&
+                        ` · ${stats.sent} de ${stats.assigned} enviado(s)${stats.pending > 0 ? ` · ${stats.pending} sem envio` : ""}`}
+                      {claim?.cancelled_at &&
+                        ` · leva liberada em ${new Date(claim.cancelled_at).toLocaleString("pt-BR")}`}
                     </div>
                   </div>
+
                   <span className={`text-xs rounded-full px-2 py-0.5 ${status.className}`}>
                     {status.label}
                   </span>
