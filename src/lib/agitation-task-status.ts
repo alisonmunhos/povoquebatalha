@@ -60,12 +60,17 @@ export const TASK_STATUS_CLASS: Record<string, string> = {
 
 export type TaskStatusFilter = "nao_enviados" | "pendente" | "enviado" | "arquivados";
 
+/**
+ * Rótulos únicos usados na tela do agitador, no cartão da missão e no painel do
+ * admin — para a mesma coisa nunca ter dois nomes diferentes.
+ */
 export const TASK_STATUS_FILTERS: { key: TaskStatusFilter; label: string }[] = [
   { key: "nao_enviados", label: "Não enviados" },
-  { key: "pendente", label: "Pendente" },
-  { key: "enviado", label: "Enviado" },
+  { key: "pendente", label: "Vou enviar depois" },
+  { key: "enviado", label: "Enviados" },
   { key: "arquivados", label: "Arquivados" },
 ];
+
 
 export function taskStatusFilterKey(status: string | null | undefined): TaskStatusFilter {
   if (isArchivedTaskStatus(status)) return "arquivados";
