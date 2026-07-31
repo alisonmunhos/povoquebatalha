@@ -322,10 +322,10 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
 
       <Section icon={<Users className="h-4 w-4" />} title="Como pode ajudar">
         <Field label="Formas de ajuda">
-          <MultiSelectFilter options={opts.formas_ajuda} value={filters.formas_ajuda ?? []} onChange={(v) => set("formas_ajuda", v)} placeholder="Todas as formas" />
+          <MultiSelectFilter options={opts.formas_ajuda} {...sel("formas_ajuda")} placeholder="Todas as formas" />
         </Field>
         <Field label="Disponibilidade" informativo>
-          <MultiSelectFilter options={opts.disponibilidade} value={filters.disponibilidade ?? []} onChange={(v) => set("disponibilidade", v)} placeholder="Qualquer dia/período" />
+          <MultiSelectFilter options={opts.disponibilidade} {...sel("disponibilidade")} placeholder="Qualquer dia/período" />
         </Field>
       </Section>
 
