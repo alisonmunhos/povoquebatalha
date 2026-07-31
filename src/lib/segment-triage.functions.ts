@@ -118,9 +118,16 @@ export const getSegmentTriageMeta = createServerFn({ method: "POST" })
       total = count ?? 0;
     }
 
+    const { count: reviewed } = await decisions(context.supabase)
+      .select("id", { count: "exact", head: true })
+      .eq("segment_id", data.segmentId)
+      .eq("user_id", context.userId)
+      .in("decision", ["manter", "arquivar"]);
+
     return {
       segment: { id: seg.id, nome: seg.nome, descricao: seg.descricao, tipo: seg.tipo as "dinamico" | "estatico" },
       total,
+      reviewed: reviewed ?? 0,
     };
   });
 
