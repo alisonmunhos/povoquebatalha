@@ -279,10 +279,10 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
           <Input value={filters.nome_social ?? ""} onChange={(e) => set("nome_social", e.target.value || undefined)} placeholder="Ex.: Ana" />
         </Field>
         <Field label="Profissão" hint="Respostas já cadastradas. Digite no menu para achar; marque quantas quiser.">
-          <MultiSelectFilter options={opts.profissoes} value={filters.profissoes ?? []} onChange={(v) => set("profissoes", v)} placeholder="Qualquer profissão" />
+          <MultiSelectFilter options={opts.profissoes} {...sel("profissoes")} placeholder="Qualquer profissão" />
         </Field>
         <Field label="Onde trabalha" hint="Respostas já cadastradas no campo instituição/local de trabalho.">
-          <MultiSelectFilter options={opts.instituicoes} value={filters.instituicoes ?? []} onChange={(v) => set("instituicoes", v)} placeholder="Qualquer local" />
+          <MultiSelectFilter options={opts.instituicoes} {...sel("instituicoes")} placeholder="Qualquer local" />
         </Field>
         <Field label="Coletivo Alicerce" informativo>
           <SingleSelectFilter
