@@ -241,6 +241,15 @@ function suggestMapping(headers: string[]): Record<string, FieldKey> {
 }
 
 // Monta phone_raw (DDD+assinante, sem "+55") a partir do que parsePhoneBR já resolveu, no formato que fixContactsPhoneDdd grava.
+/** Traduz erros técnicos do banco em texto compreensível para o operador. */
+function friendlyDbError(message: string): string {
+  const notNull = /null value in column "([^"]+)"/.exec(message);
+  if (notNull) return `Campo obrigatório ausente: ${notNull[1]}`;
+  if (/duplicate key/i.test(message)) return "Registro duplicado no banco";
+  if (/invalid input value for enum/i.test(message)) return `Valor não aceito para um dos campos (${message})`;
+  return message;
+}
+
 function resolvedPhoneDigits(phone: ParsedPhone, insertNono: boolean): string | null {
   const e164 = phone.phone_e164;
   if (!e164) return null;
@@ -678,6 +687,13 @@ export const commitImport = createServerFn({ method: "POST" })
             continue;
           }
         }
+        // "nome" é obrigatório no banco (NOT NULL, sem valor padrão): sem nome
+        // não há como inserir, então a linha vira erro com texto claro.
+        if (!p.nome || !p.nome.trim()) {
+          await sb.from("import_rows").update({ status: "erro", erro: "Nome ausente — campo obrigatório" }).eq("id", row.id);
+          erros++;
+          continue;
+        }
         const obsText = (ex.observacoes ?? []).join("\n") || null;
         const rawJson = ex.raw && Object.keys(ex.raw).length ? ex.raw : null;
         const payload: Record<string, unknown> = {
@@ -699,8 +715,10 @@ export const commitImport = createServerFn({ method: "POST" })
           uf: ex.uf ?? null,
           origem_detalhe: ex.origem_detalhe ?? null,
           coletivo_alicerce: ex.coletivo_alicerce ?? null,
-          consentimento_lgpd: ex.consentimento_lgpd ?? null,
-          consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? null,
+          // Colunas NOT NULL no banco: nunca enviar null (o default só vale
+          // quando a coluna é omitida). Sem informação na planilha = false.
+          consentimento_lgpd: ex.consentimento_lgpd ?? false,
+          consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? false,
           participa_movimento_social:
             ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
@@ -836,7 +854,7 @@ export const commitImport = createServerFn({ method: "POST" })
 
         const { data: ins, error: insErr } = await sb.from("contacts").insert(payload as never).select("id").single();
         if (insErr) {
-          await sb.from("import_rows").update({ status: "erro", erro: insErr.message }).eq("id", row.id);
+          await sb.from("import_rows").update({ status: "erro", erro: friendlyDbError(insErr.message) }).eq("id", row.id);
           erros++;
           continue;
         }
