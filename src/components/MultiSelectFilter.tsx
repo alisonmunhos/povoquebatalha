@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import type { FilterMode } from "@/lib/filter-exclusion";
 
 export type MultiOption = {
   value: string;
