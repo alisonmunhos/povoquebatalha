@@ -198,10 +198,11 @@ export function MultiSelectFilter({
       <span className="truncate">
         {value.length === 0 ? (
           <span className="text-muted-foreground">{placeholder}</span>
-        ) : value.length <= 2 ? (
-          selectedLabels.join(", ")
         ) : (
-          `${value.length} selecionados`
+          <>
+            {mode === "exclude" && <span className="text-destructive font-medium">exceto </span>}
+            {value.length <= 2 ? selectedLabels.join(", ") : `${value.length} selecionados`}
+          </>
         )}
       </span>
       <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -211,7 +212,7 @@ export function MultiSelectFilter({
             tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation();
-              onChange([]);
+              clearAll();
             }}
             className="text-muted-foreground hover:text-foreground"
             aria-label="Limpar"
