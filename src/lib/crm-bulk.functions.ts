@@ -254,7 +254,7 @@ export const bulkUpdateField = createServerFn({ method: "POST" })
     // Consentimentos: só permite marcar como verdadeiro em massa (revogação é individual).
     if (column.startsWith("consentimento_")) {
       if (value !== true) {
-        throw new Error("Consentimentos só podem ser marcados como "Sim" em massa. Para revogar, edite a ficha individual.");
+        throw new Error('Consentimentos só podem ser marcados como "Sim" em massa. Para revogar, edite a ficha individual.');
       }
       parsedValue = true;
     } else if (field.responseType === "yes_no") {
