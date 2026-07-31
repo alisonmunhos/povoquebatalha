@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
+import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, bulkUpdateField, exportContactsCsv } from "@/lib/crm-bulk.functions";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
