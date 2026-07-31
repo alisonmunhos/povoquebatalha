@@ -193,6 +193,13 @@ export const listSegmentTriageQueue = createServerFn({ method: "POST" })
       rows = (cs ?? []) as unknown as RawContact[];
     }
 
+    const hasMore = rows.length === data.pageSize;
+
+    // Contatos que este usuário já decidiu (manter/arquivar) saem da fila —
+    // é isso que faz o Swipe retomar de onde parou depois de sair da tela.
+    const jaDecididos = await decidedIds(context.supabase, data.segmentId, context.userId);
+    rows = rows.filter((r) => !jaDecididos.has(r.id));
+
     const ids = rows.map((r) => r.id);
     const tagsByContact = new Map<string, Array<{ id: string; nome: string; cor: string }>>();
     const lastNote = new Map<string, { note: string; created_at: string }>();
