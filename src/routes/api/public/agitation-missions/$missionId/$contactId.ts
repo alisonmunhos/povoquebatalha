@@ -13,7 +13,7 @@ const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/
 
 const markSchema = z.object({
   task_id: z.string().uuid(),
-  action: z.enum(["concluido", "nao_enviado"]).default("concluido"),
+  action: z.enum(["enviado", "pendente_envio"]).default("enviado"),
 });
 
 export const Route = createFileRoute("/api/public/agitation-missions/$missionId/$contactId")({
