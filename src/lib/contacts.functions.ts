@@ -285,16 +285,14 @@ export const archiveContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    await context.supabase
-      .from("contacts")
-      .update({ arquivado_at: data.archived ? new Date().toISOString() : null })
-      .eq("id", data.id);
-    await context.supabase.from("contact_audit_log").insert({
-      contact_id: data.id,
-      user_id: context.userId,
-      action: data.archived ? "archive" : "unarchive",
+    // Mecanismo único de arquivar/desarquivar — o mesmo usado pelo "Desfazer"
+    // dentro da tela da missão de agitação.
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
+    return await setContactArchived(context.supabase as never, {
+      contactId: data.id,
+      archived: data.archived,
+      userId: context.userId,
     });
-    return { ok: true as const };
   });
 
 // =========== EXCLUSÃO DEFINITIVA (só admin) ===========
