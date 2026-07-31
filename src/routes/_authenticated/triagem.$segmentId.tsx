@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, HelpCircle, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { getSegmentTriageMeta } from "@/lib/segment-triage.functions";
+import { getSegmentTriageMeta, resetSegmentTriage } from "@/lib/segment-triage.functions";
 import { useTriageQueue } from "@/hooks/use-triage-queue";
 import { useSwipeGesture, type SwipeDirection } from "@/hooks/use-swipe-gesture";
 import { ContactSwipeCard } from "@/components/swipe/ContactSwipeCard";
@@ -25,6 +25,8 @@ function TriagePage() {
   const { segmentId } = Route.useParams();
   const navigate = useNavigate();
   const metaFn = useServerFn(getSegmentTriageMeta);
+  const resetFn = useServerFn(resetSegmentTriage);
+
   const meta = useQuery({
     queryKey: ["segment-triage-meta", segmentId],
     queryFn: () => metaFn({ data: { segmentId } }),
