@@ -145,6 +145,18 @@ export default function ColumnFilterPopover(props: {
   const columnLabel = getCatalogField(columnKey)?.defaultLabel ?? columnKey;
   const isListFilter = info.uiType === "array" || info.uiType === "tag";
 
+  // Colunas Sim/Não: ganham atalho para incluir também quem não respondeu.
+  const optionValues = availableOptions.map((o) => o.value).sort().join("|");
+  const isBooleanColumn = optionValues === "false|true" || optionValues === "nao|sim";
+  const naoValue = availableOptions.find((o) => o.value === "false" || o.value === "nao")?.value;
+
+  function markNaoPlusEmpty() {
+    if (!naoValue) return;
+    setMode("include");
+    setArrayDraft([naoValue, EMPTY_FILTER_TOKEN]);
+  }
+
+
   return (
     <div
       className={`column-filter-popover flex flex-col bg-card h-full max-h-full ${
