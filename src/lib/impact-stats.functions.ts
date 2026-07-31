@@ -99,13 +99,15 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
       event_type: string | null;
       source_module: string | null;
     };
+    const qualifying = new Set<string>(QUALIFYING_SOURCE_EVENTS as readonly string[]);
     const firstSeen = new Map<string, string>();
     for (const ev of (eventsRes.data ?? []) as EventRow[]) {
       if (!ev.contact_id) continue;
       if (ev.source_module === "importacao") continue;
-      if (!QUALIFYING_SOURCE_EVENTS.includes((ev.event_type ?? "") as never)) continue;
+      if (!qualifying.has(ev.event_type ?? "")) continue;
       if (!firstSeen.has(ev.contact_id)) firstSeen.set(ev.contact_id, ev.created_at);
     }
+
 
     const messagesByDay = new Map<string, number>();
     for (const t of sentTasks) {
