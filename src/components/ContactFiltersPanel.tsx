@@ -301,22 +301,22 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
           />
         </Field>
         <Field label="Movimento social" informativo hint="Respostas já cadastradas no nome do movimento.">
-          <MultiSelectFilter options={opts.movimentos_sociais} value={filters.movimentos_sociais ?? []} onChange={(v) => set("movimentos_sociais", v)} placeholder="Qualquer movimento" />
+          <MultiSelectFilter options={opts.movimentos_sociais} {...sel("movimentos_sociais")} placeholder="Qualquer movimento" />
         </Field>
         <Field label="Faixa etária" informativo>
-          <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} value={filters.faixas_etarias ?? []} onChange={(v) => set("faixas_etarias", v)} placeholder="Qualquer faixa" />
+          <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} {...sel("faixas_etarias")} placeholder="Qualquer faixa" />
         </Field>
         <Field label="Rede social" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.rede_social} value={filters.rede_social_values ?? []} onChange={(v) => set("rede_social_values", v)} placeholder="Qualquer rede" />
+          <MultiSelectFilter options={opts.rede_social} {...sel("rede_social_values")} placeholder="Qualquer rede" />
         </Field>
         <Field label="Quem indicou" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.quem_indicou} value={filters.quem_indicou_values ?? []} onChange={(v) => set("quem_indicou_values", v)} placeholder="Qualquer indicação" />
+          <MultiSelectFilter options={opts.quem_indicou} {...sel("quem_indicou_values")} placeholder="Qualquer indicação" />
         </Field>
         <Field label="Zona eleitoral / local de votação" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.zona_eleitoral} value={filters.zona_eleitoral_values ?? []} onChange={(v) => set("zona_eleitoral_values", v)} placeholder="Qualquer zona/local" />
+          <MultiSelectFilter options={opts.zona_eleitoral} {...sel("zona_eleitoral_values")} placeholder="Qualquer zona/local" />
         </Field>
         <Field label="Como conheceu a campanha" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.como_conheceu} value={filters.como_conheceu_values ?? []} onChange={(v) => set("como_conheceu_values", v)} placeholder="Qualquer resposta" />
+          <MultiSelectFilter options={opts.como_conheceu} {...sel("como_conheceu_values")} placeholder="Qualquer resposta" />
         </Field>
       </Section>
 
