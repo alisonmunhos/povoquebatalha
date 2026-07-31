@@ -35,11 +35,12 @@ function TriagePage() {
   const [fichaOpen, setFichaOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  // Contadores explícitos: decisões já salvas + as desta sessão.
-  // "Pular" nunca conta como triado — o contato volta para o fim da fila.
-  const mantidos = (meta.data?.mantidos ?? 0) + queue.kept;
-  const arquivados = (meta.data?.arquivados ?? 0) + queue.archived;
-  const pulados = Math.max(meta.data?.pulados ?? 0, queue.deferredCount);
+  // Os números vêm do servidor (decisões salvas) — assim não há contagem dupla
+  // com as ações desta sessão. "Pular" nunca conta como triado: o contato volta
+  // para o fim da fila.
+  const mantidos = meta.data?.mantidos ?? 0;
+  const arquivados = meta.data?.arquivados ?? 0;
+  const pulados = meta.data?.pulados ?? 0;
   const total = meta.data?.total ?? 0;
   const restantes = Math.max(0, total - mantidos);
 
@@ -51,11 +52,13 @@ function TriagePage() {
     void meta.refetch();
   }, [queue.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Arquivar tira o contato do segmento: recalcula o total para "Faltam" cair.
+  // Depois de cada decisão, recalcula os contadores reais do servidor.
+  const acoes = queue.kept + queue.archived + queue.deferredCount;
   useEffect(() => {
-    if (queue.archived === 0) return;
+    if (acoes === 0) return;
     void meta.refetch();
-  }, [queue.archived]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [acoes]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
 
   const commit = useCallback(
