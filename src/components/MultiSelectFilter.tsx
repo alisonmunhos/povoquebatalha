@@ -23,6 +23,10 @@ type Props = {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
+  /** Quando informado junto de onApply, habilita o modo "esconder os marcados". */
+  mode?: FilterMode;
+  /** Aplica seleção + modo de uma só vez (usado quando o campo aceita "exceto"). */
+  onApply?: (values: string[], mode: FilterMode) => void;
 };
 
 export function MultiSelectFilter({
@@ -33,15 +37,22 @@ export function MultiSelectFilter({
   emptyText = "Sem opções.",
   disabled,
   className,
+  mode,
+  onApply,
 }: Props) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>(value);
+  const excludable = !!onApply && !!mode;
+  const [draftMode, setDraftMode] = useState<FilterMode>(mode ?? "include");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Sincroniza o rascunho apenas ao abrir, para não sobrescrever a edição em andamento.
   useEffect(() => {
-    if (open) setDraft(value);
+    if (open) {
+      setDraft(value);
+      setDraftMode(mode ?? "include");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
