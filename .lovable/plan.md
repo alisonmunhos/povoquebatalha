@@ -1,39 +1,38 @@
-Não há registro no histórico de uma **edição em lote de valores de campos** na Gestão da Base. O que foi construído até agora são **ações em massa** sobre a seleção: aplicar/remover tag, arquivar/desarquivar, opt-out, alterar status de lifecycle, exportar CSV e salvar como segmento. A edição de campo único (profissão, consentimento, etc.) só existe no modo planilha/BI (`/contatos-bi`) ou dentro da ficha individual de cada contato.
+## Diagnóstico (confirmado no banco)
 
-A seguir, proponho a implementação de **"Editar campo em comum"** na barra de ações em massa da tela `/contatos`.
+Consultei as linhas das últimas importações. O erro é sempre o mesmo, em 990 linhas:
 
-### Objetivo
-Permitir que o usuário aplique filtros, selecione um ou vários contatos e defina o mesmo valor para campos que não sejam identificadores exclusivos (nome, telefone, e-mail). Exemplos: profissão, instituição, coletivo_alicerce, consentimento_whatsapp, consentimento_lgpd, formas_ajuda, disponibilidade, participa_movimento_social, movimento_social_nome, faixa_etaria, rede_social, zona_eleitoral, como_conheceu, observações.
+```text
+null value in column "consentimento_lgpd" of relation "contacts" violates not-null constraint
+```
 
-### Escopo e restrições
-- Campos bloqueados para edição em massa: `nome`, `nome_social`, `email`, `phone_raw`, `email_secundario`, `phone_secundario_raw`, `cep`, `endereco`, `numero`, `complemento`, `bairro`, `referencia`, `cidade`, `uf`, `arquivado_at`, `opt_out_at`, `lifecycle_status`, `phone_status`.
-- Campos liberados: booleanos, multiselect, enum e textos simples de perfil/campanha (exceto endereço e identificadores).
-- Validação: consentimentos só podem ser `true` em massa; não será permitido revogar consentimento em lote (evita acidente LGPD).
-- Auditoria: cada contato atualizado recebe uma linha em `contact_audit_log` com `action: 'bulk_update_field'`, campos alterados e usuário responsável.
-- Segurança: função de servidor autenticada, reutiliza `requireSupabaseAuth` e RLS; verifica se o campo está no catálogo e não é bloqueado.
-- UX: confirmação com a contagem exata de contatos afetados antes de salvar.
+Motivo: na tabela `contacts`, as colunas `consentimento_lgpd` e `consentimento_dados_sensiveis` são **NOT NULL com default `false`**. Mas o `commitImport` (`src/lib/imports.functions.ts`, linhas 702-703) envia explicitamente `null` quando a planilha não tem essas colunas. Enviar `null` explícito ignora o default e o banco rejeita a linha.
 
-### Mudanças propostas
+Por isso a prévia mostra tudo "válido" (a validação só olha nome/telefone) e depois **todas** as linhas novas falham. Os "4 atualizados/4 duplicidades" passaram porque o caminho de duplicidade forte usa `UPDATE` (que só preenche campos vazios e nunca grava `null`), então escapa da restrição.
 
-1. **Backend — `src/lib/crm-bulk.functions.ts`**
-   - Adicionar `bulkUpdateField`: recebe `ids`, `fieldKey` e `value`; valida campo contra `FORM_FIELD_CATALOG`; executa `UPDATE` em `contacts` para os IDs selecionados; grava auditoria em `contact_audit_log`; retorna `{ updated, skipped }`.
-   - Reutilizar `getCatalogField` e validar tipo do `value` conforme `responseType` (yes_no, multiple_choice, short_text, etc.).
+Também existe o risco relacionado em `nome` (NOT NULL sem default): com a estratégia "importar tudo", uma linha sem nome gera o mesmo tipo de falha.
 
-2. **Backend — `src/lib/contact-rules.ts` (ou novo helper)**
-   - Criar lista de chaves permitidas para edição em massa, extraída do catálogo, excluindo identificadores e campos sensíveis.
+## Correção proposta
 
-3. **Frontend — `src/routes/_authenticated/contatos.index.tsx`**
-   - Adicionar botão **"Editar campo em comum"** na barra de ações em massa.
-   - Abrir modal com duas etapas: (a) escolher campo (select com apenas campos permitidos), (b) informar o valor (input, checkbox, select de opções ou multi-select conforme o tipo do campo).
-   - Mostrar contador de contatos selecionados e solicitar confirmação antes de aplicar.
-   - Atualizar a lista após sucesso (`refetch`) e limpar seleção.
+1. **`src/lib/imports.functions.ts` — payload de inserção**
+   - `consentimento_lgpd: ex.consentimento_lgpd ?? false`
+   - `consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? false`
+   - Garantir que `nome` nunca vá nulo no insert: se não houver nome, marcar a linha como erro com mensagem clara ("Nome ausente") em vez de tentar inserir.
+   - Revisar os demais campos do payload contra as colunas NOT NULL (`origem`, `consentimento_whatsapp`, `disponibilidade`, `formas_ajuda`) — hoje já vão preenchidos, só confirmar.
 
-4. **Componente novo — `src/components/BulkEditFieldModal.tsx`**
-   - Receber `open`, `contactIds`, `onClose`, `onApplied`.
-   - Renderizar o campo de valor de forma dinâmica de acordo com o catálogo: boolean → checkbox/toggle; multiple_choice → multi-select; enum → select; short_text → input.
-   - Exibir mensagens de ajuda do catálogo e validar antes de confirmar.
+2. **Mensagem de erro mais compreensível**
+   - Ao gravar `erro` em `import_rows`, traduzir violações de `not-null` para um texto em português ("Campo obrigatório ausente: X") em vez do erro técnico do banco, mantendo o original em detalhes.
 
-5. **Testes e validação**
-   - Rodar `tsgo` para garantir tipos.
-   - Testar na preview: filtrar 3 contatos, aplicar `profissao = "Professor"`, verificar se persistiu e se a auditoria foi registrada.
-   - Verificar se campos bloqueados não aparecem no select.
+3. **Reprocessar sem retrabalho**
+   - Após o ajuste, as importações antigas ficam com status `confirmed` e 495 erros. Vou orientar a refazer o upload do arquivo (as linhas com erro não criaram contatos, então não há duplicidade). Se preferir, posso adicionar um botão "Tentar novamente as linhas com erro" reaproveitando a prévia já salva — diga se quer isso nesta rodada.
+
+## Validação
+
+- Rodar typecheck.
+- Importar novamente o mesmo arquivo na preview e confirmar contadores: criados > 0 e erros = 0 (exceto linhas realmente sem nome/telefone).
+- Conferir no banco que os contatos criados ficam com `consentimento_lgpd = false` quando a planilha não informa.
+
+## Cuidados
+
+- Nenhum dado existente é alterado; a mudança afeta apenas novas inserções.
+- Definir consentimento como `false` (e não `true`) preserva a regra de LGPD: consentimento só é positivo quando o arquivo informa.
