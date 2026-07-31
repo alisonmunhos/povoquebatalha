@@ -161,6 +161,15 @@ export const FORM_FIELD_CATALOG: FormCatalogField[] = [
     key: "como_conheceu", responseType: "short_text", targetColumns: ["como_conheceu"], filterKind: "text",
     defaultLabel: "Como você conheceu a campanha?",
   },
+  {
+    key: "tipo_contato", responseType: "short_text", targetColumns: ["tipo_contato"], filterKind: "text",
+    defaultLabel: "Tipo de contato",
+    defaultHelpText: "Ex.: Eleitor, Apoiador, Militante, Liderança, Imprensa",
+  },
+  {
+    key: "observacoes", responseType: "short_text", targetColumns: ["observacoes"], filterKind: "text",
+    defaultLabel: "Observações",
+  },
 ];
 
 export function getCatalogField(key: string): FormCatalogField | undefined {
