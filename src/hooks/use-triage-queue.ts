@@ -102,7 +102,9 @@ export function useTriageQueue(segmentId: string) {
     setQueue([]);
     setDeferred([]);
     setHistory([]);
-    setReviewed(0);
+    setKept(0);
+    setArchived(0);
+
     setExhausted(false);
     setLoading(true);
     decided.current = new Set();
@@ -155,14 +157,20 @@ export function useTriageQueue(segmentId: string) {
       }
 
       decided.current.add(c.id);
-      setReviewed((n) => n + 1);
+      const bump = (delta: number) =>
+        kind === "arquivar"
+          ? setArchived((n: number) => Math.max(0, n + delta))
+          : setKept((n: number) => Math.max(0, n + delta));
+      bump(1);
+
       pushHistory({ contact: c, kind });
 
       if (kind === "arquivar") {
         try {
           await archiveFn({ data: { id: c.id, archived: true } });
         } catch (e) {
-          setReviewed((n) => Math.max(0, n - 1));
+          bump(-1);
+
           rollback(e instanceof Error ? e.message : "Não foi possível arquivar este contato.");
           return;
         }
@@ -171,7 +179,8 @@ export function useTriageQueue(segmentId: string) {
       try {
         await recordFn({ data: { segmentId, contactId: c.id, decision: kind } });
       } catch (e) {
-        setReviewed((n) => Math.max(0, n - 1));
+        bump(-1);
+
         if (kind === "arquivar") {
           try {
             await archiveFn({ data: { id: c.id, archived: false } });
@@ -195,7 +204,9 @@ export function useTriageQueue(segmentId: string) {
       setDeferred((d) => d.filter((x) => x.id !== c.id));
     } else {
       decided.current.delete(c.id);
-      setReviewed((n) => Math.max(0, n - 1));
+      if (entry.kind === "arquivar") setArchived((n: number) => Math.max(0, n - 1));
+      else setKept((n: number) => Math.max(0, n - 1));
+
       if (entry.kind === "arquivar") {
         try {
           await archiveFn({ data: { id: c.id, archived: false } });
@@ -225,7 +236,10 @@ export function useTriageQueue(segmentId: string) {
     next,
     queue,
     deferredCount: deferred.length,
-    reviewed,
+    kept,
+    archived,
+    reviewed: kept + archived,
+
     loading,
     error,
     exhausted: exhausted && queue.length === 0,
