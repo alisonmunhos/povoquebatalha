@@ -540,6 +540,16 @@ function Contatos() {
 
             <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
 
+            {/* Editar campo em comum */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Editar campo</span>
+              <Button size="sm" variant="secondary" onClick={() => setBulkEditOpen(true)}>
+                Editar campo em comum
+              </Button>
+            </div>
+
+            <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
+
             {/* Ações */}
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Ações</span>
