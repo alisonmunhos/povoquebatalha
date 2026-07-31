@@ -1435,17 +1435,15 @@ export const undoRefuseMissionContact = createServerFn({ method: "POST" })
     const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { error } = await supabaseAdmin
-      .from("contacts")
-      .update({
-        opt_out_at: null,
-        opt_out_motivo: null,
-        arquivado_at: null,
-        whatsapp_status: "desconhecido",
-        lifecycle_status: null,
-      })
-      .eq("id", task.contact_id);
-    if (error) throw new Error(error.message);
+    // Mesmo mecanismo usado pela Gestão da Base para desarquivar um contato.
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
+    await setContactArchived(supabaseAdmin as never, {
+      contactId: task.contact_id,
+      archived: false,
+      userId: context.userId,
+      auditAction: "unarchive",
+      auditChanges: { mission_id: task.mission_id, origem: "missao" },
+    });
 
     await supabaseAdmin
       .from("agitation_tasks")
@@ -1515,16 +1513,15 @@ export const undoMissionContactError = createServerFn({ method: "POST" })
     const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { error } = await supabaseAdmin
-      .from("contacts")
-      .update({
-        arquivado_at: null,
-        whatsapp_status: "desconhecido",
-        phone_status: null,
-        lifecycle_status: null,
-      })
-      .eq("id", task.contact_id);
-    if (error) throw new Error(error.message);
+    // Mesmo mecanismo usado pela Gestão da Base para desarquivar um contato.
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
+    await setContactArchived(supabaseAdmin as never, {
+      contactId: task.contact_id,
+      archived: false,
+      userId: context.userId,
+      auditAction: "unarchive",
+      auditChanges: { mission_id: task.mission_id, origem: "missao" },
+    });
 
     await supabaseAdmin
       .from("agitation_tasks")
