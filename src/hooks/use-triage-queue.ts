@@ -5,7 +5,12 @@
 // - Histórico das últimas ações alimenta o botão Desfazer.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { listSegmentTriageQueue, type TriageContact } from "@/lib/segment-triage.functions";
+import {
+  listSegmentTriageQueue,
+  recordTriageDecision,
+  undoTriageDecision,
+  type TriageContact,
+} from "@/lib/segment-triage.functions";
 import { archiveContact } from "@/lib/contacts.functions";
 
 export type TriageActionKind = "arquivar" | "manter" | "pular";
@@ -20,6 +25,8 @@ const HISTORY_LIMIT = 20;
 export function useTriageQueue(segmentId: string) {
   const fetchPage = useServerFn(listSegmentTriageQueue);
   const archiveFn = useServerFn(archiveContact);
+  const recordFn = useServerFn(recordTriageDecision);
+  const undoFn = useServerFn(undoTriageDecision);
 
   const [queue, setQueue] = useState<TriageContact[]>([]);
   const [deferred, setDeferred] = useState<TriageContact[]>([]);
