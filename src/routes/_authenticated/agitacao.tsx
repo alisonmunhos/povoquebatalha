@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
+import { listMyMissions } from "@/lib/agitation-missions.functions";
+import { ImpactBanner } from "@/components/ImpactBanner";
 import { Input } from "@/components/ui/input";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
@@ -133,18 +135,14 @@ function AgitacaoPage() {
   const kpis = useMemo(() => {
     const total = stats?.total ?? 0;
     const naoAbordado = counts?.nao_abordado ?? 0;
-    const confirmado = counts?.confirmado ?? 0;
-    const semResposta = counts?.sem_resposta ?? 0;
-    const pediuAtualizacao = counts?.pediu_atualizacao ?? 0;
-    // 4 KPIs úteis pro agitador; admin ganha o mesmo (a base geral aparece em /contatos).
+    // Só dois quadrados: "Confirmados" e "Sem resposta" seguem acessíveis pelos chips de filtro.
     return [
       { label: isAdminLike ? "Meus captados" : "Meus contatos", v: total, onClick: () => clearFilters() },
       { label: "Ainda não abordados", v: naoAbordado, onClick: () => setOnlyStatus("nao_abordado") },
-      { label: "Confirmados", v: confirmado, onClick: () => setOnlyStatus("confirmado") },
-      { label: "Sem resposta", v: semResposta + pediuAtualizacao, onClick: () => { setSearch(""); setFieldStatus(["sem_resposta", "pediu_atualizacao"]); } },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats?.total, counts?.nao_abordado, counts?.confirmado, counts?.sem_resposta, counts?.pediu_atualizacao, isAdminLike]);
+  }, [stats?.total, counts?.nao_abordado, isAdminLike]);
+
 
 
   return (
@@ -155,12 +153,19 @@ function AgitacaoPage() {
           <h1 className="text-lg font-semibold">Agitação</h1>
         </div>
 
+        {/* Faixa de impacto pessoal */}
+        <ImpactBanner />
+
+        {/* Atalho grande para as missões */}
+        <MissionsShortcut />
+
         {/* KPIs — clicáveis, cada um aplica o filtro correspondente. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center">
           {kpis.map((k) => (
             <Kpi key={k.label} label={k.label} v={k.v} onClick={k.onClick} />
           ))}
         </div>
+
 
         {/* Busca */}
         <div className="relative">
@@ -448,6 +453,39 @@ function AgitacaoDetailSheet({
         </div>
       </aside>
     </>
+  );
+}
+
+/** Retângulo roxo de destaque com o número de missões em aberto. */
+function MissionsShortcut() {
+  const listFn = useServerFn(listMyMissions);
+  const q = useQuery({
+    queryKey: ["my-missions"],
+    queryFn: () => listFn(),
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const open = (q.data?.missions ?? []).length;
+
+  return (
+    <Link
+      to="/minhas-missoes"
+      className="block w-full rounded-xl bg-[var(--purple-500)] px-4 py-4 text-left text-white shadow-punch transition hover:brightness-110"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="font-display text-xl leading-none">Suas missões</div>
+          <div className="mt-1 text-xs text-white/80">
+            {q.isLoading
+              ? "Carregando…"
+              : open === 0
+                ? "Nenhuma missão em aberto agora"
+                : `${open} missão(ões) em aberto — toque para abrir`}
+          </div>
+        </div>
+        <span className="font-display text-4xl leading-none">{open}</span>
+      </div>
+    </Link>
   );
 }
 

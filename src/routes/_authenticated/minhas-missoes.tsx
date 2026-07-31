@@ -12,7 +12,10 @@ import {
   BellOff,
   PhoneOff,
   RotateCcw,
+  ArrowLeft,
+  ChevronRight,
 } from "lucide-react";
+import { ImpactBanner } from "@/components/ImpactBanner";
 import {
   TASK_STATUS,
   TASK_STATUS_CLASS,
@@ -119,6 +122,7 @@ function digitsFromPhone(c: ContactShape | null): string {
 function MyMissionsPage() {
   const listFn = useServerFn(listMyMissions);
   const qc = useQueryClient();
+  const navigate = Route.useNavigate();
   const { mission: focusMissionId } = Route.useSearch();
   const q = useQuery({
     queryKey: ["my-missions"],
@@ -141,21 +145,44 @@ function MyMissionsPage() {
     );
   }
   const missions = (q.data?.missions ?? []) as MissionBlock[];
-  const focusedMissionMissing = !!focusMissionId && !missions.some((m) => m.mission.id === focusMissionId);
+  const focused = focusMissionId ? missions.find((m) => m.mission.id === focusMissionId) : undefined;
+  const focusedMissionMissing = !!focusMissionId && !focused;
 
   function refetchAll() {
     qc.invalidateQueries({ queryKey: ["my-missions"] });
     qc.invalidateQueries({ queryKey: ["mission-cooldown"] });
+    qc.invalidateQueries({ queryKey: ["my-impact"] });
+  }
+
+  const openMission = (id: string) => void navigate({ search: { mission: id } });
+  const backToList = () => void navigate({ search: {} });
+
+  // Uma missão em foco: mostra só ela, com caminho claro de volta.
+  if (focused) {
+    return (
+      <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-4">
+        <button
+          type="button"
+          onClick={backToList}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Todas as minhas missões
+        </button>
+        <MissionBlockCard block={focused} onChanged={refetchAll} focused />
+      </div>
+    );
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-4">
       <div>
         <h1 className="font-display text-2xl">Minhas missões</h1>
         <p className="text-sm text-muted-foreground">
-          Suas levas ativas de agitação. Envie no WhatsApp e marque o resultado.
+          Toque em uma missão para ver seus contatos, enviar no WhatsApp e marcar o resultado.
         </p>
       </div>
+
+      <ImpactBanner />
 
       {missions.length === 0 && (
         <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
@@ -169,17 +196,61 @@ function MyMissionsPage() {
         </div>
       )}
 
-      {missions.map((m) => (
-        <MissionBlockCard
-          key={m.mission.id}
-          block={m}
-          onChanged={refetchAll}
-          focused={focusMissionId === m.mission.id}
-        />
-      ))}
+      <div className="space-y-3">
+        {missions.map((m) => (
+          <MissionSummaryCard key={m.mission.id} block={m} onOpen={() => openMission(m.mission.id)} />
+        ))}
+      </div>
     </div>
   );
 }
+
+/** Cartão resumido: uma missão por cartão, com progresso e situação da leva. */
+function MissionSummaryCard({ block, onOpen }: { block: MissionBlock; onOpen: () => void }) {
+  const total = block.tasks.length;
+  const sent = block.tasks.filter((t) => t.status === TASK_STATUS.ENVIADO).length;
+  const archived = block.tasks.filter((t) => isArchivedTaskStatus(t.status)).length;
+  const percent = total > 0 ? Math.round((sent / total) * 100) : 0;
+  const claimOpen = !!block.claim && !block.claim.completed_at;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-xl border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-primary/5"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="font-display text-lg leading-tight">{block.mission.title}</h2>
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
+          {block.mission.paused_at && (
+            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] text-rose-800">
+              INTERROMPIDA
+            </span>
+          )}
+          {claimOpen && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-900">
+              Ainda não concluída
+            </span>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        {total} contato(s) na sua leva · {sent} enviado(s)
+        {archived > 0 ? ` · ${archived} arquivado(s)` : ""}
+      </p>
+
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+
+      <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
+        Abrir missão <ChevronRight className="h-4 w-4" />
+      </span>
+    </button>
+  );
+}
+
 
 function MissionBlockCard({
   block,

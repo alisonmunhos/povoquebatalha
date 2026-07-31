@@ -32,6 +32,7 @@ import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/t
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
 import { Route as AuthenticatedRelacionamentoRouteImport } from './routes/_authenticated/relacionamento'
 import { Route as AuthenticatedMinhasMissoesRouteImport } from './routes/_authenticated/minhas-missoes'
+import { Route as AuthenticatedMeuImpactoRouteImport } from './routes/_authenticated/meu-impacto'
 import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
@@ -201,6 +202,11 @@ const AuthenticatedMinhasMissoesRoute =
     path: '/minhas-missoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMeuImpactoRoute = AuthenticatedMeuImpactoRouteImport.update({
+  id: '/meu-impacto',
+  path: '/meu-impacto',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMensagensRoute = AuthenticatedMensagensRouteImport.update({
   id: '/mensagens',
   path: '/mensagens',
@@ -516,6 +522,7 @@ export interface FileRoutesByFullPath {
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
+  '/meu-impacto': typeof AuthenticatedMeuImpactoRoute
   '/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
@@ -591,6 +598,7 @@ export interface FileRoutesByTo {
   '/links': typeof AuthenticatedLinksRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
+  '/meu-impacto': typeof AuthenticatedMeuImpactoRoute
   '/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
@@ -669,6 +677,7 @@ export interface FileRoutesById {
   '/_authenticated/links': typeof AuthenticatedLinksRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
+  '/_authenticated/meu-impacto': typeof AuthenticatedMeuImpactoRoute
   '/_authenticated/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/_authenticated/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
@@ -747,6 +756,7 @@ export interface FileRouteTypes {
     | '/links'
     | '/mapa'
     | '/mensagens'
+    | '/meu-impacto'
     | '/minhas-missoes'
     | '/relacionamento'
     | '/segmentos'
@@ -822,6 +832,7 @@ export interface FileRouteTypes {
     | '/links'
     | '/mapa'
     | '/mensagens'
+    | '/meu-impacto'
     | '/minhas-missoes'
     | '/relacionamento'
     | '/segmentos'
@@ -899,6 +910,7 @@ export interface FileRouteTypes {
     | '/_authenticated/links'
     | '/_authenticated/mapa'
     | '/_authenticated/mensagens'
+    | '/_authenticated/meu-impacto'
     | '/_authenticated/minhas-missoes'
     | '/_authenticated/relacionamento'
     | '/_authenticated/segmentos'
@@ -1150,6 +1162,13 @@ declare module '@tanstack/react-router' {
       path: '/minhas-missoes'
       fullPath: '/minhas-missoes'
       preLoaderRoute: typeof AuthenticatedMinhasMissoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/meu-impacto': {
+      id: '/_authenticated/meu-impacto'
+      path: '/meu-impacto'
+      fullPath: '/meu-impacto'
+      preLoaderRoute: typeof AuthenticatedMeuImpactoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/mensagens': {
@@ -1565,6 +1584,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
+  AuthenticatedMeuImpactoRoute: typeof AuthenticatedMeuImpactoRoute
   AuthenticatedMinhasMissoesRoute: typeof AuthenticatedMinhasMissoesRoute
   AuthenticatedRelacionamentoRoute: typeof AuthenticatedRelacionamentoRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
@@ -1599,6 +1619,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
+  AuthenticatedMeuImpactoRoute: AuthenticatedMeuImpactoRoute,
   AuthenticatedMinhasMissoesRoute: AuthenticatedMinhasMissoesRoute,
   AuthenticatedRelacionamentoRoute: AuthenticatedRelacionamentoRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
@@ -1698,13 +1719,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
