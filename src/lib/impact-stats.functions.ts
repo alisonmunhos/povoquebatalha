@@ -95,20 +95,13 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
 
     // Contatos adicionados: um por contato, na primeira vez que ele apareceu por este usuário.
     // Só conta captação real — importação em massa e atualizações de ficha não entram.
-    type EventRow = {
-      contact_id: string | null;
-      created_at: string;
-      event_type: string | null;
-      source_module: string | null;
-    };
-    const qualifying = new Set<string>(QUALIFYING_SOURCE_EVENTS as readonly string[]);
+    type EventRow = { contact_id: string | null; created_at: string };
     const firstSeen = new Map<string, string>();
     for (const ev of (eventsRes.data ?? []) as EventRow[]) {
       if (!ev.contact_id) continue;
-      if (ev.source_module === "importacao") continue;
-      if (!qualifying.has(ev.event_type ?? "")) continue;
       if (!firstSeen.has(ev.contact_id)) firstSeen.set(ev.contact_id, ev.created_at);
     }
+
 
 
     const messagesByDay = new Map<string, number>();
