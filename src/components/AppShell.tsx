@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
-  MessageCircle, Menu, X, Zap, ClipboardList, Calendar,
+  MessageCircle, Menu, X, Zap, ClipboardList, Calendar, BarChart3,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
