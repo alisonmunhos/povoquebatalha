@@ -110,11 +110,29 @@ function digitsFromPhone(c: ContactShape | null): string {
 function MyMissionsPage() {
   const listFn = useServerFn(listMyMissions);
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["my-missions"], queryFn: () => listFn() });
   const { mission: focusMissionId } = Route.useSearch();
+  const q = useQuery({
+    queryKey: ["my-missions"],
+    queryFn: () => listFn(),
+    retry: 1,
+  });
 
   if (q.isLoading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+  if (q.isError) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium">Não foi possível abrir suas missões.</p>
+          <p className="mt-1 text-muted-foreground">Tente novamente. Sua leva continua salva.</p>
+          <Button className="mt-3" variant="outline" onClick={() => void q.refetch()}>
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
   const missions = (q.data?.missions ?? []) as MissionBlock[];
+  const focusedMissionMissing = !!focusMissionId && !missions.some((m) => m.mission.id === focusMissionId);
 
   function refetchAll() {
     qc.invalidateQueries({ queryKey: ["my-missions"] });
@@ -133,6 +151,12 @@ function MyMissionsPage() {
       {missions.length === 0 && (
         <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
           Nenhuma missão ativa no momento.
+        </div>
+      )}
+
+      {focusedMissionMissing && missions.length > 0 && (
+        <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          A missão escolhida não está disponível para esta conta. As demais missões continuam abaixo.
         </div>
       )}
 
@@ -160,7 +184,8 @@ function MissionBlockCard({
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (focused && cardRef.current) {
-      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      cardRef.current.scrollIntoView({ behavior: "auto", block: "start" });
+      cardRef.current.focus({ preventScroll: true });
     }
   }, [focused]);
   const cooldownFn = useServerFn(getMissionCooldownStatus);
@@ -370,6 +395,7 @@ function MissionBlockCard({
   return (
     <div
       ref={cardRef}
+      tabIndex={focused ? -1 : undefined}
       className={`rounded-xl border bg-card overflow-hidden ${
         focused ? "ring-2 ring-primary" : ""
       }`}

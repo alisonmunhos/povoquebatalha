@@ -1079,14 +1079,15 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => missionIdSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: mission } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: mission } = await supabaseAdmin
       .from("agitation_missions")
       .select("cooldown_minutes, is_open, paused_at, batch_size")
       .eq("id", data.mission_id)
       .single();
     if (!mission) throw new Error("Missão não encontrada");
 
-    const { data: lastCompleted } = await context.supabase
+    const { data: lastCompleted } = await supabaseAdmin
       .from("agitation_mission_claims")
       .select("completed_at")
       .eq("mission_id", data.mission_id)
@@ -1097,7 +1098,7 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
 
-    const { data: openClaim } = await context.supabase
+    const { data: openClaim } = await supabaseAdmin
       .from("agitation_mission_claims")
       .select("id")
       .eq("mission_id", data.mission_id)
@@ -1108,7 +1109,7 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
       .maybeSingle();
 
 
-    const { count: available } = await context.supabase
+    const { count: available } = await supabaseAdmin
       .from("agitation_tasks")
       .select("id", { count: "exact", head: true })
       .eq("mission_id", data.mission_id)
@@ -1159,22 +1160,25 @@ export const getMissionCooldownStatus = createServerFn({ method: "GET" })
 export const listMyMissions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: tasks } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tasks, error: tasksError } = await supabaseAdmin
       .from("agitation_tasks")
       .select(
         "id, status, mission_id, claim_id, completed_at, contacts!agitation_tasks_contact_id_fkey(id,nome,nome_social,phone_e164,phone_raw,opt_out_at,arquivado_at)",
       )
       .eq("assigned_user_id", context.userId);
+    if (tasksError) throw new Error("Não foi possível carregar os contatos das suas missões.");
 
     // Também inclui missões abertas em que fui notificado, mesmo sem tasks atribuídas ainda,
     // pra permitir o primeiro "pegar lote".
-    const { data: notifs } = await context.supabase
+    const { data: notifs, error: notifsError } = await supabaseAdmin
       .from("notifications")
       .select("mission_id")
       .eq("user_id", context.userId)
       .eq("kind", "mission")
       .is("cancelled_at", null)
       .not("mission_id", "is", null);
+    if (notifsError) throw new Error("Não foi possível carregar suas missões notificadas.");
 
     const missionIds = Array.from(
       new Set([
@@ -1183,23 +1187,25 @@ export const listMyMissions = createServerFn({ method: "GET" })
       ]),
     );
     if (!missionIds.length) return { missions: [] };
-    const { data: missions } = await context.supabase
+    const { data: missions, error: missionsError } = await supabaseAdmin
       .from("agitation_missions")
       .select(
         "id, title, message_template, instructions, coordinator_phone, whatsapp_message_template, cooldown_minutes, batch_size, is_open, paused_at, archived_at, media_path, media_mime, media_filename",
       )
       .in("id", missionIds);
+    if (missionsError) throw new Error("Não foi possível carregar os dados das suas missões.");
     const missionIdsWithTasks = new Set((tasks ?? []).map((t) => t.mission_id));
     const missionsFiltered = (missions ?? []).filter(
       (m) =>
         missionIdsWithTasks.has(m.id) ||
         (m.is_open && !m.paused_at && !m.archived_at),
     );
-    const { data: claims } = await context.supabase
+    const { data: claims, error: claimsError } = await supabaseAdmin
       .from("agitation_mission_claims")
       .select("id, mission_id, completed_at, cancelled_at, claimed_at")
       .eq("user_id", context.userId)
       .in("mission_id", missionsFiltered.map((m) => m.id));
+    if (claimsError) throw new Error("Não foi possível carregar suas levas.");
 
 
     const claimsByMission = new Map<
