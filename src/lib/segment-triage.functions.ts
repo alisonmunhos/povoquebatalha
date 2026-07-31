@@ -39,7 +39,20 @@ type RawContact = {
   uf: string | null;
   coletivo_alicerce: boolean | null;
   observacoes: string | null;
+  created_at?: string | null;
 };
+
+/**
+ * Segmentos estáticos podem ter centenas de IDs. Mandar tudo num único `.in()`
+ * estoura o tamanho da URL/cabeçalho e a consulta falha — por isso vai em lotes.
+ */
+const ID_CHUNK = 100;
+
+function chunkIds(ids: string[]): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) out.push(ids.slice(i, i + ID_CHUNK));
+  return out;
+}
 
 /** Gera token URL-safe de 22 chars para o link de tarefa. */
 function genToken(): string {
