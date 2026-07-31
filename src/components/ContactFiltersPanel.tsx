@@ -5,6 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { MultiSelectFilter, SingleSelectFilter, type MultiOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
+import {
+  applyFilterSelection,
+  getFilterMode,
+  getFilterValues,
+  type ExcludableFilterKey,
+  type FilterMode,
+} from "@/lib/filter-exclusion";
 import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import { listSystemUserOptions } from "@/lib/users.functions";
 import { cn } from "@/lib/utils";
