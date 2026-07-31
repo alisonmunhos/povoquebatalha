@@ -801,6 +801,25 @@ export async function resolveRelationalFilterIds(
     if (ids?.length) allowedIds = ids;
   }
 
+  // Exclusão de tags: "todos, exceto quem tem estas tags".
+  if (f.tag_ids_excluir?.length) {
+    const { values: excludeTagIds, empty: excludeUntagged } = splitEmptyToken(f.tag_ids_excluir);
+    if (excludeTagIds.length) {
+      const rels = await distinctContactIds(() =>
+        sb.from("contact_tags").select("contact_id").in("tag_id", excludeTagIds),
+      );
+      for (const id of rels) excludeIds.add(id);
+    }
+    if (excludeUntagged) {
+      // Excluir "sem tag" = manter só quem tem alguma tag.
+      const tagged = await distinctContactIds(() => sb.from("contact_tags").select("contact_id"));
+      if (!tagged.length) return EMPTY_RELATIONAL;
+      intersect(tagged);
+    }
+  }
+
+
+
   const idsForCampaign = (campaignId: string, statuses?: string[]) =>
     distinctContactIds(() => {
       let qr = sb.from("campaign_recipients").select("contact_id").eq("campaign_id", campaignId);
