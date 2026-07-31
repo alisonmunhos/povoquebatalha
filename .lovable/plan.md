@@ -1,58 +1,36 @@
-## Diagnóstico (confirmado no banco)
+## Diagnóstico confirmado
 
-Missão afetada: **Convite plenaria** (`f02f228a…`).
+Há três falhas combinadas:
 
-Três agitadores pegaram leva hoje:
+1. O banco ainda mantém **duas versões** de `release_mission_pending`. A versão antiga, com 1 parâmetro, continua liberando **todas** as tarefas pendentes e marcando levas abertas como concluídas. A interface pode continuar chamando justamente essa versão.
+2. A nova leva do Ezequiel foi aceita às 15:25 e registrou `task_count = 10`, porém hoje possui **zero tarefas vinculadas**; os 10 contatos voltaram para o conjunto de 240 disponíveis. A leva ficou aberta, mas vazia — por isso “Abrir minha missão” não encontra nada.
+3. O briefing usa leitura protegida no servidor, mas “Minhas missões” ainda depende de consultas incompatíveis com as permissões do agitador. A navegação chega à rota, porém a missão pode não ser reconstruída corretamente. Além disso, o parâmetro `?mission=` hoje serve apenas para rolar a tela, não garante a abertura/restauração da missão.
 
-| Agitador | Pegou leva | "Concluiu" | Contatos marcados |
-|---|---|---|---|
-| Diego Masiero | 14:28 | 14:50:14.904 | 0 |
-| Alison Munhos | 14:44 | 14:50:14.904 | 0 |
-| Ezequiel Viapiana | 14:46 | 14:50:14.904 | 0 |
+## Plano de correção
 
-O horário de conclusão é **idêntico ao milissegundo** nos três: nenhum deles clicou em "concluí". Foi uma ação em massa às 14:50 — a função do banco `release_mission_pending` (botão do painel do admin que "libera atribuições paradas").
+### 1. Corrigir definitivamente o banco
+- Remover a assinatura antiga `release_mission_pending(uuid)`.
+- Manter uma única função segura, com idade mínima, que nunca conclui uma leva automaticamente.
+- Tornar o aceite atômico: só criar a leva se ao menos um contato for realmente atribuído; `task_count` será a contagem real, nunca uma estimativa.
+- Tornar “Avisar que concluí” a única ação normal que define `completed_at`; tarefas ainda pendentes não serão falsamente marcadas como enviadas.
 
-Essa função faz duas coisas ao mesmo tempo:
+### 2. Reparar a missão atual sem recriá-la
+- Reatribuir 10 contatos disponíveis à leva aberta do Ezequiel, preservando a leva já aceita.
+- Recalcular `task_count` a partir dos vínculos reais.
+- Não apagar contatos, envios ou resultados existentes.
 
-1. **Desatribui todas as tarefas pendentes** da missão (`assigned_user_id = NULL`, `claim_id = NULL`) — inclusive as de levas recém-pegas e ainda intactas. Hoje a missão tem 240 tarefas pendentes, todas sem responsável.
-2. **Marca todas as levas abertas como concluídas** (`completed_at = now()`).
+### 3. Unificar a leitura da experiência do agitador
+- Fazer `listMyMissions` retornar missão, leva aberta e tarefas do próprio usuário por uma única função protegida no servidor.
+- Considerar uma missão “aberta para o usuário” enquanto houver uma leva não concluída e não cancelada.
+- Se existir uma leva aberta inconsistente/vazia, reparar automaticamente com contatos disponíveis ou retornar um estado claro, sem cooldown e sem falso “concluído”.
 
-Consequências exatas do que o usuário relatou:
+### 4. Garantir abertura pelos dois botões
+- “Aceitar missão”: aceitar, validar que contatos foram atribuídos, atualizar os dados e navegar para `/minhas-missoes?mission=<id>`.
+- “Abrir minha missão”: navegar diretamente sem tentar aceitar novamente.
+- Na tela de destino, usar `mission` para localizar, expandir e focar a missão correta; manter isso funcionando ao voltar à notificação ou recarregar a página.
+- Fechar o modal somente depois que a navegação for iniciada, evitando clique sem efeito.
 
-- **"Ver missão" não abre nada**: a tela do agitador lista as tarefas com `assigned_user_id = eu`. Como a função apagou a atribuição, a leva ficou vazia.
-- **Cooldown sem ter enviado**: o cooldown é calculado a partir do último `completed_at` da leva. Como a função marcou 14:50 como conclusão, os três entraram em 1 hora de espera imediatamente.
-- **Painel do admin diz que Ezequiel concluiu**: o painel lê exatamente esse `completed_at`, sem olhar se alguma mensagem foi de fato marcada.
-
-Nenhum dado real de envio foi perdido — as 5 marcações "não enviado" da Marina continuam lá. O que existe é registro falso de conclusão.
-
-## Correções propostas
-
-### 1. Reparar a missão atual (sem refazer)
-
-Migration que apaga as três levas fantasma de hoje (Diego, Alison, Ezequiel — conclusão forçada às 14:50 e zero contatos marcados). Efeito: cooldown zerado, os três podem pegar leva na hora, painel do admin deixa de mostrar conclusão falsa. As 240 tarefas seguem disponíveis.
-
-### 2. Corrigir a função de liberação (causa raiz)
-
-Reescrever `release_mission_pending` para:
-
-- **Não** encostar em levas abertas que ainda estão dentro de um prazo razoável de trabalho. Só libera tarefas de levas abertas **antigas** (parâmetro de idade, padrão 24h) ou de levas já concluídas.
-- Nunca marcar leva como concluída para "destravar cooldown". Em vez disso, levas liberadas passam a ser **canceladas** (nova coluna `cancelled_at`), o que zera o cooldown sem inventar conclusão.
-- Cooldown e contagens passam a considerar apenas levas concluídas de verdade (`completed_at` e não cancelada).
-
-### 3. Confiabilidade do painel do admin
-
-- Coluna de leva mostra três estados distintos: **Em andamento**, **Concluída (N enviados)**, **Liberada pelo admin** — nunca "concluída" sem envio.
-- O número exibido passa a vir da contagem real de tarefas com status `concluido`/`nao_enviado`/`erro_numero`, não do `task_count` da leva.
-- Botão de liberação com confirmação explícita informando quantos agitadores e quantos contatos serão afetados.
-
-### 4. Confiabilidade da tela do agitador
-
-- Se a leva do agitador foi liberada pelo admin, a tela mostra aviso claro ("Sua leva foi liberada pela organização — pegue uma nova") em vez de tela vazia ou cooldown silencioso.
-- "Ver missão" com zero tarefas atribuídas passa a cair na ação "Pegar nova leva" quando há contatos disponíveis, em vez de abrir tela vazia.
-
-## Detalhes técnicos
-
-- Migration: `agitation_mission_claims.cancelled_at timestamptz`; reescrita de `release_mission_pending(_mission_id uuid, _older_than_hours int default 24)`; DELETE pontual das 3 levas fantasma da missão `f02f228a…`.
-- `src/lib/agitation-missions.functions.ts`: filtrar `cancelled_at is null` em `getMissionNotificationBriefing`, `getMissionCooldownStatus`, `listMyMissions`; em `getMissionRecipientsPanel` derivar contagens reais por `agitation_tasks`.
-- `src/routes/_authenticated/missoes-agitacao.$missionId.tsx` e `minhas-missoes.tsx`: estados e textos novos.
-- Nenhum dado de contato é apagado.
+### 5. Confiabilidade e validação
+- Painel do admin passa a usar contagens reais de tarefas vinculadas e resultados registrados, não apenas `task_count` ou `completed_at`.
+- Testar os fluxos: primeiro aceite, reabertura pela notificação, reabertura por “Minhas missões”, recarregamento, conclusão manual e tentativa de pegar nova leva.
+- Confirmar no banco que uma leva aberta conserva seus contatos e só recebe `completed_at` após confirmação explícita do usuário.
