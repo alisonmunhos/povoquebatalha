@@ -69,13 +69,43 @@ export function MultiSelectFilter({
   }
 
   function apply() {
-    onChange(draft);
+    if (onApply) onApply(draft, draftMode);
+    else onChange(draft);
     setOpen(false);
+  }
+
+  function clearAll() {
+    if (onApply) onApply([], mode ?? "include");
+    else onChange([]);
   }
 
   const panel = (
     <Command shouldFilter>
       <CommandInput ref={inputRef} placeholder="Buscar…" />
+      {excludable && (
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
+          <button
+            type="button"
+            onClick={() => setDraftMode("include")}
+            className={cn(
+              "rounded px-2 py-1 border",
+              draftMode === "include" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+            )}
+          >
+            Mostrar os marcados
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraftMode("exclude")}
+            className={cn(
+              "rounded px-2 py-1 border",
+              draftMode === "exclude" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+            )}
+          >
+            Esconder os marcados
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b text-xs">
         <span className="text-muted-foreground">
           {draft.length > 0 ? `${draft.length} selecionado(s)` : "Nenhum selecionado"}
