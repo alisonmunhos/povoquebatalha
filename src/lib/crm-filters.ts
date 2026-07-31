@@ -345,6 +345,63 @@ function applyBooleanColumnFilter<T extends {
   return q.or(clauses.join(","));
 }
 
+/**
+ * Exclusão em coluna de texto: remove quem casa (exato, sem acento de caixa)
+ * com qualquer valor marcado. Contatos com a coluna vazia continuam na lista,
+ * a não ser que "(Não informado)" também esteja marcado para exclusão.
+ */
+function applyExcludeTextArrayFilter<T extends {
+  or: (v: string) => T;
+  not: (col: string, op: string, v: unknown) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  if (empty) q = q.not(col, "is", null);
+  for (const v of values) {
+    q = q.or(`${col}.is.null,${col}.not.ilike.${quoteOrValue(v)}`);
+  }
+  return q;
+}
+
+/** Exclusão em coluna enum/valor fechado (origem, status, faixa etária…). */
+function applyExcludeEnumArrayFilter<T extends {
+  or: (v: string) => T;
+  not: (col: string, op: string, v: unknown) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  if (empty) q = q.not(col, "is", null);
+  if (values.length) {
+    const list = values.map((v) => quoteOrValue(v)).join(",");
+    q = q.or(`${col}.is.null,${col}.not.in.(${list})`);
+  }
+  return q;
+}
+
+/**
+ * Exclusão em coluna de lista (jsonb): remove quem tem QUALQUER uma das
+ * opções marcadas. As colunas são NOT NULL com default `[]`, então o
+ * encadeamento de `not.cs` é seguro.
+ */
+function applyExcludeJsonbArrayFilter<T extends {
+  not: (col: string, op: string, v: unknown) => T;
+  or: (v: string) => T;
+}>(q: T, col: string, arr: string[] | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  if (empty) q = q.not(`${col}->0`, "is", null);
+  for (const slug of values) {
+    const variants =
+      col === "formas_ajuda" && slug === "panfletagem_banquinha"
+        ? ["panfletagem_banquinha", "panfletagem"]
+        : [slug];
+    for (const v of variants) q = q.not(col, "cs", `["${v.replace(/"/g, "")}"]`);
+  }
+  return q;
+}
+
+
+
 /** Texto contém + opcional (Vazio) em uma coluna. */
 function applyTextContainsEmptyFilter<T extends {
   or: (v: string) => T;
