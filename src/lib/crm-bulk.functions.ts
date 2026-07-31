@@ -249,6 +249,7 @@ export const bulkUpdateField = createServerFn({ method: "POST" })
     }
 
     const column = field.targetColumns[0];
+    const JSONB_COLUMNS = new Set(["formas_ajuda", "disponibilidade"]);
     let parsedValue: unknown = value;
 
     // Consentimentos: só permite marcar como verdadeiro em massa (revogação é individual).
@@ -257,29 +258,35 @@ export const bulkUpdateField = createServerFn({ method: "POST" })
         throw new Error('Consentimentos só podem ser marcados como "Sim" em massa. Para revogar, edite a ficha individual.');
       }
       parsedValue = true;
+    } else if (JSONB_COLUMNS.has(column)) {
+      // múltipla escolha armazenada como jsonb (formas_ajuda, disponibilidade)
+      const arr = Array.isArray(value) ? value : value === null || value === undefined || value === "" ? [] : [value];
+      if (!arr.every((v) => typeof v === "string")) {
+        throw new Error(`O campo "${field.defaultLabel}" exige uma lista de opções`);
+      }
+      const allowed = new Set(field.options?.map((o) => o.value) ?? []);
+      if (arr.some((v) => !allowed.has(v))) {
+        throw new Error(`Uma ou mais opções escolhidas não são válidas para "${field.defaultLabel}"`);
+      }
+      parsedValue = arr.length === 0 ? null : arr;
     } else if (field.responseType === "yes_no") {
       if (typeof value !== "boolean") throw new Error(`O campo "${field.defaultLabel}" exige Sim ou Não`);
       parsedValue = value;
     } else if (field.responseType === "multiple_choice") {
-      if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
-        throw new Error(`O campo "${field.defaultLabel}" exige uma lista de opções`);
+      // faixa_etaria: text, mas responseType multiple_choice → tratamos como única escolha
+      const v = Array.isArray(value) ? value[0] : value;
+      if (v !== null && v !== undefined && v !== "" && typeof v !== "string") {
+        throw new Error(`O campo "${field.defaultLabel}" exige uma opção válida`);
       }
       const allowed = new Set(field.options?.map((o) => o.value) ?? []);
-      if (value.some((v) => !allowed.has(v))) {
-        throw new Error(`Uma ou mais opções escolhidas não são válidas para "${field.defaultLabel}"`);
-      }
-      parsedValue = value;
-    } else if (field.responseType === "enum") {
-      if (typeof value !== "string") throw new Error(`O campo "${field.defaultLabel}" exige uma opção`);
-      const allowed = new Set(field.options?.map((o) => o.value) ?? []);
-      if (!allowed.has(value)) {
+      if (v && !allowed.has(v)) {
         throw new Error(`Opção inválida para "${field.defaultLabel}"`);
       }
-      parsedValue = value;
+      parsedValue = v === "" || v === null || v === undefined ? null : v;
     } else if (field.responseType === "short_text") {
       if (typeof value !== "string") throw new Error(`O campo "${field.defaultLabel}" exige um texto`);
-      parsedValue = value.trim();
-      if (parsedValue.length > 2000) {
+      parsedValue = value.trim() || null;
+      if (typeof parsedValue === "string" && parsedValue.length > 2000) {
         throw new Error(`Texto muito longo para "${field.defaultLabel}" (máx. 2000 caracteres)`);
       }
     } else {
