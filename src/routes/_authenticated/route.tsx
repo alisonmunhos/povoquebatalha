@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_authenticated")({
 // Agitador-only users must stay under /agitacao — exceção: a ficha de um
 // contato específico (/contatos/$id), pra abrir "Ficha completa" a partir da
 // própria lista de captados. A lista inteira (/contatos) continua bloqueada.
-const AGITADOR_ALLOWED_PREFIXES = ["/agitacao", "/minhas-missoes"];
+const AGITADOR_ALLOWED_PREFIXES = ["/agitacao", "/minhas-missoes", "/meu-impacto"];
 const CONTACT_DETAIL_RE = /^\/contatos\/[0-9a-f-]{36}$/i;
 
 function AuthenticatedShell() {
