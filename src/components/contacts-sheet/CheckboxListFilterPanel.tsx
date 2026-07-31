@@ -33,7 +33,7 @@ export default function CheckboxListFilterPanel({
   selected,
   onChange,
   showEmpty = true,
-  emptyLabel = "(Vazio) — sem valor preenchido",
+  emptyLabel = "Não informado / não respondeu",
   emptyCount,
   loading = false,
   searchPlaceholder = "Buscar na lista…",
