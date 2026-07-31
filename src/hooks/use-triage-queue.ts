@@ -32,9 +32,11 @@ export function useTriageQueue(segmentId: string) {
   const [deferred, setDeferred] = useState<TriageContact[]>([]);
   const [history, setHistory] = useState<TriageHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reviewed, setReviewed] = useState(0);
+  const [kept, setKept] = useState(0);
+  const [archived, setArchived] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(false);
+
 
   const decided = useRef<Set<string>>(new Set());
   const seen = useRef<Set<string>>(new Set());
