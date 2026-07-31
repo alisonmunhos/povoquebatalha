@@ -64,6 +64,7 @@ function Contatos() {
   const archBulkFn = useServerFn(bulkArchive);
   const optBulkFn = useServerFn(bulkOptOut);
   const lifecycleBulkFn = useServerFn(bulkSetLifecycle);
+  const bulkFieldFn = useServerFn(bulkUpdateField);
   const exportFn = useServerFn(exportContactsCsv);
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
