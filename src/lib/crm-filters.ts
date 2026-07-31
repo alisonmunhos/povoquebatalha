@@ -736,6 +736,30 @@ export function applyCrmFilters<T extends {
     }
   }
 
+  // ===== Exclusões ("exceto") — sempre depois das inclusões =====
+  q = applyExcludeTextArrayFilter(q, "cidade", f.cidades_excluir);
+  q = applyExcludeTextArrayFilter(q, "bairro", f.bairros_excluir);
+  q = applyExcludeTextArrayFilter(q, "profissao", f.profissoes_excluir);
+  q = applyExcludeTextArrayFilter(q, "instituicao", f.instituicoes_excluir);
+  q = applyExcludeTextArrayFilter(q, "movimento_social_nome", f.movimentos_sociais_excluir);
+  q = applyExcludeTextArrayFilter(q, "quem_indicou", f.quem_indicou_excluir);
+  q = applyExcludeTextArrayFilter(q, "rede_social", f.rede_social_excluir);
+  q = applyExcludeTextArrayFilter(q, "zona_eleitoral", f.zona_eleitoral_excluir);
+  q = applyExcludeTextArrayFilter(q, "como_conheceu", f.como_conheceu_excluir);
+  q = applyExcludeTextArrayFilter(q, "formas_ajuda_outro", f.formas_ajuda_outro_excluir);
+  q = applyExcludeTextArrayFilter(q, "tipo_contato", f.tipos_contato_excluir);
+  if (f.ufs_excluir?.length) {
+    const upper = f.ufs_excluir.map((u) => (u === EMPTY_FILTER_TOKEN ? u : u.toUpperCase()));
+    q = applyExcludeEnumArrayFilter(q, "uf", upper);
+  }
+  q = applyExcludeEnumArrayFilter(q, "origem", f.origens_excluir);
+  q = applyExcludeEnumArrayFilter(q, "faixa_etaria", f.faixas_etarias_excluir);
+  q = applyExcludeEnumArrayFilter(q, "lifecycle_status", f.lifecycle_statuses_excluir);
+  q = applyExcludeEnumArrayFilter(q, "phone_status", f.phone_statuses_excluir);
+  q = applyExcludeEnumArrayFilter(q, "whatsapp_status", f.whatsapp_statuses_excluir);
+  q = applyExcludeJsonbArrayFilter(q, "formas_ajuda", f.formas_ajuda_excluir);
+  q = applyExcludeJsonbArrayFilter(q, "disponibilidade", f.disponibilidade_excluir);
+
   return q;
 }
 
