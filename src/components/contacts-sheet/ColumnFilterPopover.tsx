@@ -210,15 +210,46 @@ export default function ColumnFilterPopover(props: {
         )}
 
         {isListFilter && (
-          <CheckboxListFilterPanel
-            options={availableOptions}
-            selected={arrayDraft}
-            onChange={setArrayDraft}
-            loading={needsServerOptions && optionsQ.isLoading}
-            searchPlaceholder={`Buscar em ${columnLabel.toLowerCase()}…`}
-            emptyCount={emptyCount}
-            maxHeight="fill"
-          />
+          <div className="flex flex-col min-h-0 h-full">
+            {excludeKey ? (
+              <div className="shrink-0 mb-2 flex items-center gap-1 text-[11px]">
+                <button
+                  type="button"
+                  className={`rounded px-2 py-1 border ${mode === "include" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground"}`}
+                  onClick={() => setMode("include")}
+                >
+                  Mostrar só os marcados
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-2 py-1 border ${mode === "exclude" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground"}`}
+                  onClick={() => setMode("exclude")}
+                >
+                  Esconder os marcados
+                </button>
+              </div>
+            ) : null}
+
+            {isBooleanColumn && naoValue ? (
+              <button
+                type="button"
+                className="shrink-0 mb-2 text-[11px] text-primary hover:underline text-left"
+                onClick={markNaoPlusEmpty}
+              >
+                Marcar “Não” + “Não informado”
+              </button>
+            ) : null}
+
+            <CheckboxListFilterPanel
+              options={availableOptions}
+              selected={arrayDraft}
+              onChange={setArrayDraft}
+              loading={needsServerOptions && optionsQ.isLoading}
+              searchPlaceholder={`Buscar em ${columnLabel.toLowerCase()}…`}
+              emptyCount={emptyCount}
+              maxHeight="fill"
+            />
+          </div>
         )}
       </div>
 
