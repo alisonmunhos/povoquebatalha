@@ -805,6 +805,12 @@ function Contatos() {
         />
       )}
       <PhoneReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} onDone={() => { q.refetch(); countsQ.refetch(); }} />
+      <BulkEditFieldModal
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        contactIds={[...selected]}
+        onApplied={() => { clearSel(); q.refetch(); }}
+      />
     </div>
     </TooltipProvider>
   );
