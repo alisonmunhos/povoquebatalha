@@ -305,7 +305,12 @@ export const resolveSegmentTriageShare = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ token: z.string().trim().min(8).max(64) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await shares(context.supabase)
+    // O usuário logado não pode listar links de outras pessoas (RLS restrita ao
+    // criador/admin). A leitura pelo token exato é feita com acesso privilegiado,
+    // e nunca devolve o token nem dados do segmento sem checar a permissão do
+    // usuário logo abaixo.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await shares(supabaseAdmin)
       .select("id,segment_id,is_active,expires_at,use_count")
       .eq("token", data.token)
       .maybeSingle();
@@ -316,6 +321,7 @@ export const resolveSegmentTriageShare = createServerFn({ method: "POST" })
       return { ok: false as const, reason: "expirado" as const };
     }
 
+    // Acesso ao segmento continua valendo pela RLS do usuário autenticado.
     const { data: seg } = await context.supabase
       .from("segments")
       .select("id,nome")
@@ -323,7 +329,7 @@ export const resolveSegmentTriageShare = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!seg) return { ok: false as const, reason: "sem_acesso" as const };
 
-    await shares(context.supabase)
+    await shares(supabaseAdmin)
       .update({ use_count: (row.use_count ?? 0) + 1 })
       .eq("id", row.id);
 
