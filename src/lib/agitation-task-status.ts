@@ -39,11 +39,12 @@ export function isArchivedTaskStatus(status: string | null | undefined): boolean
 
 export const TASK_STATUS_LABEL: Record<string, string> = {
   [TASK_STATUS.SEM_ACAO]: "Não enviado",
-  [TASK_STATUS.PENDENTE_ENVIO]: "Pendente de envio",
+  [TASK_STATUS.PENDENTE_ENVIO]: "Vou enviar depois",
   [TASK_STATUS.ENVIADO]: "Enviado",
   [TASK_STATUS.ARQUIVADO_ERRO]: "Arquivado — número com erro",
   [TASK_STATUS.ARQUIVADO_OPTOUT]: "Arquivado — não quer receber",
 };
+
 
 /**
  * Cores: "Pendente de envio" usa laranja sólido, um tom claramente diferente do
