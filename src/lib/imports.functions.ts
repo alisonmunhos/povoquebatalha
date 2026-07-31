@@ -706,8 +706,10 @@ export const commitImport = createServerFn({ method: "POST" })
           uf: ex.uf ?? null,
           origem_detalhe: ex.origem_detalhe ?? null,
           coletivo_alicerce: ex.coletivo_alicerce ?? null,
-          consentimento_lgpd: ex.consentimento_lgpd ?? null,
-          consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? null,
+          // Colunas NOT NULL no banco: nunca enviar null (o default só vale
+          // quando a coluna é omitida). Sem informação na planilha = false.
+          consentimento_lgpd: ex.consentimento_lgpd ?? false,
+          consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? false,
           participa_movimento_social:
             ex.participa_movimento_social ?? (ex.movimento_social_nome ? true : null),
           movimento_social_nome: ex.movimento_social_nome ?? null,
