@@ -4,6 +4,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { TASK_STATUS } from "@/lib/agitation-task-status";
+import { buildWeekStat, weekWindows, QUALIFYING_SOURCE_EVENTS } from "@/lib/impact-week";
 
 const TZ = "America/Sao_Paulo";
 
@@ -30,6 +31,17 @@ function lastNDayKeys(n: number): string[] {
   return keys;
 }
 
+export type WeekStat = {
+  startKey: string;
+  endKey: string;
+  rangeLabel: string;
+  messages: number;
+  contacts: number;
+  connections: number;
+  daily: Array<{ day: string; label: string; messages: number; contacts: number }>;
+  activeDays: number;
+};
+
 export type ImpactStats = {
   displayName: string;
   connections: { total: number; today: number };
@@ -39,6 +51,8 @@ export type ImpactStats = {
   daily: Array<{ day: string; label: string; messages: number; contacts: number }>;
   streakDays: number;
   since: string | null;
+  /** Semana em curso, semana fechada e a anterior a ela (para comparação). */
+  weeks: { current: WeekStat; closed: WeekStat; beforeClosed: WeekStat };
 };
 
 export const getMyImpactStats = createServerFn({ method: "GET" })
@@ -59,6 +73,8 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
         .from("contact_source_events")
         .select("contact_id, created_at")
         .eq("source_user_id", userId)
+        .in("event_type", [...QUALIFYING_SOURCE_EVENTS])
+        .neq("source_module", "importacao")
         .order("created_at", { ascending: true })
         .limit(20000),
       supabaseAdmin
@@ -78,11 +94,15 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
     const sentTasks = tasks.filter((t) => t.status === TASK_STATUS.ENVIADO);
 
     // Contatos adicionados: um por contato, na primeira vez que ele apareceu por este usuário.
+    // Só conta captação real — importação em massa e atualizações de ficha não entram.
+    type EventRow = { contact_id: string | null; created_at: string };
     const firstSeen = new Map<string, string>();
-    for (const ev of (eventsRes.data ?? []) as Array<{ contact_id: string | null; created_at: string }>) {
+    for (const ev of (eventsRes.data ?? []) as EventRow[]) {
       if (!ev.contact_id) continue;
       if (!firstSeen.has(ev.contact_id)) firstSeen.set(ev.contact_id, ev.created_at);
     }
+
+
 
     const messagesByDay = new Map<string, number>();
     for (const t of sentTasks) {
@@ -94,6 +114,7 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
       const k = dayKey(iso);
       if (k) contactsByDay.set(k, (contactsByDay.get(k) ?? 0) + 1);
     }
+
 
     const messagesTotal = sentTasks.length;
     const messagesToday = todayKey ? (messagesByDay.get(todayKey) ?? 0) : 0;
@@ -129,6 +150,8 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
 
     const firstIso = [...firstSeen.values()][0] ?? null;
 
+    const win = weekWindows(new Date());
+
     return {
       displayName: (profileRes.data?.full_name ?? "").trim(),
       connections: { total: messagesTotal + contactsTotal, today: messagesToday + contactsToday },
@@ -144,5 +167,10 @@ export const getMyImpactStats = createServerFn({ method: "GET" })
       daily,
       streakDays,
       since: firstIso,
+      weeks: {
+        current: buildWeekStat(win.currentStart, messagesByDay, contactsByDay),
+        closed: buildWeekStat(win.closedStart, messagesByDay, contactsByDay),
+        beforeClosed: buildWeekStat(win.beforeClosedStart, messagesByDay, contactsByDay),
+      },
     };
   });

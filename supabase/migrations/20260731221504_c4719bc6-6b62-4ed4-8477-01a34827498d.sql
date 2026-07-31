@@ -1,0 +1,2 @@
+ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_kind_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_kind_check CHECK (kind = ANY (ARRAY['info'::text, 'mission'::text, 'custom'::text, 'wa_me'::text, 'link'::text, 'calendar'::text, 'user_approval'::text, 'event'::text, 'weekly_impact'::text]));

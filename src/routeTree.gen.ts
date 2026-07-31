@@ -32,6 +32,7 @@ import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/t
 import { Route as AuthenticatedSegmentosRouteImport } from './routes/_authenticated/segmentos'
 import { Route as AuthenticatedRelacionamentoRouteImport } from './routes/_authenticated/relacionamento'
 import { Route as AuthenticatedMinhasMissoesRouteImport } from './routes/_authenticated/minhas-missoes'
+import { Route as AuthenticatedMinhaSemanaRouteImport } from './routes/_authenticated/minha-semana'
 import { Route as AuthenticatedMeuImpactoRouteImport } from './routes/_authenticated/meu-impacto'
 import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
@@ -67,6 +68,7 @@ import { Route as ApiPublicPushVapidRouteImport } from './routes/api/public/push
 import { Route as ApiPublicPushUnsubscribeRouteImport } from './routes/api/public/push/unsubscribe'
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
 import { Route as ApiPublicLegalPagesSlugRouteImport } from './routes/api/public/legal-pages/$slug'
+import { Route as ApiPublicJobsWeeklyImpactRouteImport } from './routes/api/public/jobs/weekly-impact'
 import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/api/public/jobs/process-campaign-queue'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
@@ -200,6 +202,12 @@ const AuthenticatedMinhasMissoesRoute =
   AuthenticatedMinhasMissoesRouteImport.update({
     id: '/minhas-missoes',
     path: '/minhas-missoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMinhaSemanaRoute =
+  AuthenticatedMinhaSemanaRouteImport.update({
+    id: '/minha-semana',
+    path: '/minha-semana',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedMeuImpactoRoute = AuthenticatedMeuImpactoRouteImport.update({
@@ -395,6 +403,12 @@ const ApiPublicLegalPagesSlugRoute = ApiPublicLegalPagesSlugRouteImport.update({
   path: '/api/public/legal-pages/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsWeeklyImpactRoute =
+  ApiPublicJobsWeeklyImpactRouteImport.update({
+    id: '/api/public/jobs/weekly-impact',
+    path: '/api/public/jobs/weekly-impact',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsProcessCampaignQueueRoute =
   ApiPublicJobsProcessCampaignQueueRouteImport.update({
     id: '/api/public/jobs/process-campaign-queue',
@@ -523,6 +537,7 @@ export interface FileRoutesByFullPath {
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
   '/meu-impacto': typeof AuthenticatedMeuImpactoRoute
+  '/minha-semana': typeof AuthenticatedMinhaSemanaRoute
   '/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
@@ -558,6 +573,7 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
   '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
@@ -599,6 +615,7 @@ export interface FileRoutesByTo {
   '/mapa': typeof AuthenticatedMapaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
   '/meu-impacto': typeof AuthenticatedMeuImpactoRoute
+  '/minha-semana': typeof AuthenticatedMinhaSemanaRoute
   '/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/segmentos': typeof AuthenticatedSegmentosRoute
@@ -634,6 +651,7 @@ export interface FileRoutesByTo {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
   '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
@@ -678,6 +696,7 @@ export interface FileRoutesById {
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
   '/_authenticated/meu-impacto': typeof AuthenticatedMeuImpactoRoute
+  '/_authenticated/minha-semana': typeof AuthenticatedMinhaSemanaRoute
   '/_authenticated/minhas-missoes': typeof AuthenticatedMinhasMissoesRoute
   '/_authenticated/relacionamento': typeof AuthenticatedRelacionamentoRoute
   '/_authenticated/segmentos': typeof AuthenticatedSegmentosRoute
@@ -713,6 +732,7 @@ export interface FileRoutesById {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
   '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
@@ -757,6 +777,7 @@ export interface FileRouteTypes {
     | '/mapa'
     | '/mensagens'
     | '/meu-impacto'
+    | '/minha-semana'
     | '/minhas-missoes'
     | '/relacionamento'
     | '/segmentos'
@@ -792,6 +813,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/jobs/weekly-impact'
     | '/api/public/legal-pages/$slug'
     | '/api/public/push/subscribe'
     | '/api/public/push/unsubscribe'
@@ -833,6 +855,7 @@ export interface FileRouteTypes {
     | '/mapa'
     | '/mensagens'
     | '/meu-impacto'
+    | '/minha-semana'
     | '/minhas-missoes'
     | '/relacionamento'
     | '/segmentos'
@@ -868,6 +891,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/jobs/weekly-impact'
     | '/api/public/legal-pages/$slug'
     | '/api/public/push/subscribe'
     | '/api/public/push/unsubscribe'
@@ -911,6 +935,7 @@ export interface FileRouteTypes {
     | '/_authenticated/mapa'
     | '/_authenticated/mensagens'
     | '/_authenticated/meu-impacto'
+    | '/_authenticated/minha-semana'
     | '/_authenticated/minhas-missoes'
     | '/_authenticated/relacionamento'
     | '/_authenticated/segmentos'
@@ -946,6 +971,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/jobs/weekly-impact'
     | '/api/public/legal-pages/$slug'
     | '/api/public/push/subscribe'
     | '/api/public/push/unsubscribe'
@@ -990,6 +1016,7 @@ export interface RootRouteChildren {
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
   ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
+  ApiPublicJobsWeeklyImpactRoute: typeof ApiPublicJobsWeeklyImpactRoute
   ApiPublicLegalPagesSlugRoute: typeof ApiPublicLegalPagesSlugRoute
   ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
   ApiPublicPushUnsubscribeRoute: typeof ApiPublicPushUnsubscribeRoute
@@ -1162,6 +1189,13 @@ declare module '@tanstack/react-router' {
       path: '/minhas-missoes'
       fullPath: '/minhas-missoes'
       preLoaderRoute: typeof AuthenticatedMinhasMissoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/minha-semana': {
+      id: '/_authenticated/minha-semana'
+      path: '/minha-semana'
+      fullPath: '/minha-semana'
+      preLoaderRoute: typeof AuthenticatedMinhaSemanaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/meu-impacto': {
@@ -1409,6 +1443,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLegalPagesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/weekly-impact': {
+      id: '/api/public/jobs/weekly-impact'
+      path: '/api/public/jobs/weekly-impact'
+      fullPath: '/api/public/jobs/weekly-impact'
+      preLoaderRoute: typeof ApiPublicJobsWeeklyImpactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/process-campaign-queue': {
       id: '/api/public/jobs/process-campaign-queue'
       path: '/api/public/jobs/process-campaign-queue'
@@ -1585,6 +1626,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
   AuthenticatedMeuImpactoRoute: typeof AuthenticatedMeuImpactoRoute
+  AuthenticatedMinhaSemanaRoute: typeof AuthenticatedMinhaSemanaRoute
   AuthenticatedMinhasMissoesRoute: typeof AuthenticatedMinhasMissoesRoute
   AuthenticatedRelacionamentoRoute: typeof AuthenticatedRelacionamentoRoute
   AuthenticatedSegmentosRoute: typeof AuthenticatedSegmentosRoute
@@ -1620,6 +1662,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
   AuthenticatedMeuImpactoRoute: AuthenticatedMeuImpactoRoute,
+  AuthenticatedMinhaSemanaRoute: AuthenticatedMinhaSemanaRoute,
   AuthenticatedMinhasMissoesRoute: AuthenticatedMinhasMissoesRoute,
   AuthenticatedRelacionamentoRoute: AuthenticatedRelacionamentoRoute,
   AuthenticatedSegmentosRoute: AuthenticatedSegmentosRoute,
@@ -1703,6 +1746,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
   ApiPublicJobsProcessCampaignQueueRoute:
     ApiPublicJobsProcessCampaignQueueRoute,
+  ApiPublicJobsWeeklyImpactRoute: ApiPublicJobsWeeklyImpactRoute,
   ApiPublicLegalPagesSlugRoute: ApiPublicLegalPagesSlugRoute,
   ApiPublicPushSubscribeRoute: ApiPublicPushSubscribeRoute,
   ApiPublicPushUnsubscribeRoute: ApiPublicPushUnsubscribeRoute,
