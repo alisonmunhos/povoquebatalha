@@ -1,38 +1,53 @@
-## Diagnóstico (confirmado no banco)
+## Diagnóstico (verificado agora no banco e no código)
 
-Consultei as linhas das últimas importações. O erro é sempre o mesmo, em 990 linhas:
+**1. Alicerce — o problema é real e é de dado, não de filtro**
+Na base ativa: 97 contatos marcados "Sim", 222 marcados "Não" e **2.930 sem resposta** (coluna vazia). Ou seja: filtrar "Não" hoje traz 222 pessoas, porque a esmagadora maioria nunca respondeu. O motor já sabe filtrar vazio (existe a opção "(Vazio) — sem valor preenchido" no menu da coluna, com contagem), mas o rótulo é técnico e não deixa claro que "não é do Alicerce" ≠ "não respondeu". Falta também um atalho para "Não + não informado" de uma vez.
 
-```text
-null value in column "consentimento_lgpd" of relation "contacts" violates not-null constraint
-```
+**2. Filtros de exclusão (NÃO) não existem**
+Hoje todo filtro de lista é "tem pelo menos uma das opções marcadas" (OU). Não há nenhuma forma de dizer "todos, exceto quem tem a tag X". O motor já tem a infraestrutura pronta para isso: existe uma lista interna de IDs a excluir (usada em "não recebeu campanha", "não recebeu missão"), que só precisa ser alimentada por tags/valores escolhidos.
 
-Motivo: na tabela `contacts`, as colunas `consentimento_lgpd` e `consentimento_dados_sensiveis` são **NOT NULL com default `false`**. Mas o `commitImport` (`src/lib/imports.functions.ts`, linhas 702-703) envia explicitamente `null` quando a planilha não tem essas colunas. Enviar `null` explícito ignora o default e o banco rejeita a linha.
+**3. Filtrar usuários do sistema não está disponível na tela**
+O filtro `is_system_user` já existe e funciona no motor (e há 30 usuários na base), mas **não tem nenhum controle na interface** — nem no painel de filtros, nem no menu de coluna. Por isso é impossível hoje pedir "quem marcou uma forma de ajuda, exceto usuários".
 
-Por isso a prévia mostra tudo "válido" (a validação só olha nome/telefone) e depois **todas** as linhas novas falham. Os "4 atualizados/4 duplicidades" passaram porque o caminho de duplicidade forte usa `UPDATE` (que só preenche campos vazios e nunca grava `null`), então escapa da restrição.
+Nada disso exige mudança de banco nem de dados existentes.
 
-Também existe o risco relacionado em `nome` (NOT NULL sem default): com a estratégia "importar tudo", uma linha sem nome gera o mesmo tipo de falha.
+## O que será feito
 
-## Correção proposta
+### Passo 1 — Alicerce e outros campos Sim/Não mais claros (baixo risco, só apresentação)
+- Renomear a opção vazia nesses campos para **"Não informado / não respondeu"**, com a contagem real ao lado (2.930).
+- Adicionar, no menu da coluna, um atalho **"Marcar Não + Não informado"** para o caso mais comum ("quem não é do Alicerce").
+- Mesmo tratamento em: participa de movimento social, consentimentos e demais campos Sim/Não.
 
-1. **`src/lib/imports.functions.ts` — payload de inserção**
-   - `consentimento_lgpd: ex.consentimento_lgpd ?? false`
-   - `consentimento_dados_sensiveis: ex.consentimento_dados_sensiveis ?? false`
-   - Garantir que `nome` nunca vá nulo no insert: se não houver nome, marcar a linha como erro com mensagem clara ("Nome ausente") em vez de tentar inserir.
-   - Revisar os demais campos do payload contra as colunas NOT NULL (`origem`, `consentimento_whatsapp`, `disponibilidade`, `formas_ajuda`) — hoje já vão preenchidos, só confirmar.
+### Passo 2 — Filtros de exclusão ("exceto")
+No menu de cada coluna de lista, um seletor de modo com duas opções:
+- **Contém alguma das marcadas** (comportamento atual, padrão);
+- **Não contém nenhuma das marcadas** (novo).
 
-2. **Mensagem de erro mais compreensível**
-   - Ao gravar `erro` em `import_rows`, traduzir violações de `not-null` para um texto em português ("Campo obrigatório ausente: X") em vez do erro técnico do banco, mantendo o original em detalhes.
+Aplicado a: **tags** (prioridade), cidades, bairros, UF, profissão, instituição, formas de ajuda, disponibilidade, origem, status do ciclo, movimento social, como conheceu.
 
-3. **Reprocessar sem retrabalho**
-   - Após o ajuste, as importações antigas ficam com status `confirmed` e 495 erros. Vou orientar a refazer o upload do arquivo (as linhas com erro não criaram contatos, então não há duplicidade). Se preferir, posso adicionar um botão "Tentar novamente as linhas com erro" reaproveitando a prévia já salva — diga se quer isso nesta rodada.
+Comportamentos definidos para não gerar resultado confuso:
+- Exclusão é aplicada **depois** dos filtros de inclusão (ex.: "tem tag Apoiador" + "exceto tag Descadastrado").
+- Excluir uma tag remove o contato mesmo que ele tenha outras tags marcadas na inclusão — é isso que resolve o caso que você descreveu.
+- Marcar "Não informado" no modo excluir significa "só quem tem algum valor preenchido".
+- Os chips de filtros ativos no topo mostram exclusões em cor/prefixo diferente (ex.: "sem tag: Descadastrado") e podem ser removidos individualmente.
 
-## Validação
+### Passo 3 — Filtro de usuários do sistema
+- Novo filtro visível **"Usuários do sistema"** com três estados: *Todos (padrão)* · *Somente usuários* · *Esconder usuários*.
+- Fica no painel de filtros (bloco Origem/Cadastro) e também como chip rápido no topo da Gestão da Base, para combinar com qualquer outro filtro ("forma de ajuda X, escondendo usuários").
+- Padrão continua **Todos**, para não mudar silenciosamente nenhuma contagem que você já usa hoje.
 
-- Rodar typecheck.
-- Importar novamente o mesmo arquivo na preview e confirmar contadores: criados > 0 e erros = 0 (exceto linhas realmente sem nome/telefone).
-- Conferir no banco que os contatos criados ficam com `consentimento_lgpd = false` quando a planilha não informa.
+### Passo 4 — Consistência em todos os consumidores dos filtros
+Os novos parâmetros entram no mesmo motor central de filtros, então valem automaticamente para: lista da Gestão da Base, contadores/facetas, exportação CSV, seleção em massa (tags, edição de campo em comum, arquivar), criação de segmentos e a planilha de BI. Assim não aparece divergência entre "o que a tela mostra" e "o que a ação em massa afeta".
 
-## Cuidados
+## Segurança e não-regressão
+- Somente **adição** de parâmetros opcionais de filtro; nenhum filtro atual muda de comportamento ou de valor padrão.
+- Sem migration, sem alteração de dados, sem mexer em RLS.
+- Links e visões salvas antigas continuam válidos (parâmetros novos ausentes = comportamento atual).
+- Validação ao final: conferir na tela que "Não + Não informado" em Alicerce soma 3.152, que excluir uma tag reduz o total esperado, e que "esconder usuários" reduz exatamente 30 contatos na base ativa.
 
-- Nenhum dado existente é alterado; a mudança afeta apenas novas inserções.
-- Definir consentimento como `false` (e não `true`) preserva a regra de LGPD: consentimento só é positivo quando o arquivo informa.
+## Detalhes técnicos
+- `src/lib/crm-filters.ts`: novas chaves `*_excluir` (arrays) e `tag_ids_excluir`; aplicação via `.not(col,'in',...)` para colunas escalares e via `excludeIds` para tags; `is_system_user` já suportado.
+- `src/lib/column-filter-mapping.ts`: mapear coluna → chave de exclusão; leitura/limpeza dos dois modos.
+- `src/components/contacts-sheet/CheckboxListFilterPanel.tsx` e `ColumnFilterPopover.tsx`: seletor incluir/excluir + atalho Sim/Não/Não informado.
+- `src/components/ContactFiltersPanel.tsx` + `ActiveFiltersChips.tsx` / `sheet-filter-chips.ts`: controle de usuários do sistema e chips de exclusão.
+- `src/lib/crm-filter-options.functions.ts`: contagem de usuários do sistema para exibir no controle.
