@@ -296,11 +296,13 @@ export const bulkUpdateField = createServerFn({ method: "POST" })
     // Buscar valores anteriores para auditoria.
     const { data: previousRows, error: prevError } = await context.supabase
       .from("contacts")
-      .select(`id, ${column}`)
+      .select("id," + column)
       .in("id", ids);
     if (prevError) throw new Error(`Falha ao buscar valores atuais: ${prevError.message}`);
 
-    const prevMap = new Map((previousRows ?? []).map((r) => [r.id, (r as Record<string, unknown>)[column]]));
+    const prevMap = new Map(
+      ((previousRows ?? []) as { id: string }[]).map((r) => [r.id, (r as unknown as Record<string, unknown>)[column]]),
+    );
 
     const { error: updError } = await context.supabase
       .from("contacts")
