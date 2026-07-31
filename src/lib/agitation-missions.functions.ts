@@ -1196,14 +1196,14 @@ export const listMyMissions = createServerFn({ method: "GET" })
     );
     const { data: claims } = await context.supabase
       .from("agitation_mission_claims")
-      .select("id, mission_id, completed_at, claimed_at")
+      .select("id, mission_id, completed_at, cancelled_at, claimed_at")
       .eq("user_id", context.userId)
       .in("mission_id", missionsFiltered.map((m) => m.id));
 
 
     const claimsByMission = new Map<
       string,
-      { id: string; completed_at: string | null; claimed_at: string }[]
+      { id: string; completed_at: string | null; cancelled_at: string | null; claimed_at: string }[]
     >();
     (claims ?? []).forEach((c) => {
       const arr = claimsByMission.get(c.mission_id) ?? [];
@@ -1221,15 +1221,24 @@ export const listMyMissions = createServerFn({ method: "GET" })
     return {
       missions: missionsFiltered.map((m) => {
         const mTasks = tasksByMission.get(m.id) ?? [];
-        const openClaim = (claimsByMission.get(m.id) ?? []).find((c) => !c.completed_at) ?? null;
+        const mClaims = claimsByMission.get(m.id) ?? [];
+        const openClaim = mClaims.find((c) => !c.completed_at && !c.cancelled_at) ?? null;
+        // Leva liberada pela organização: sinaliza pro agitador em vez de sumir sem explicação.
+        const releasedClaim = openClaim
+          ? null
+          : (mClaims
+              .filter((c) => !!c.cancelled_at && !c.completed_at)
+              .sort((a, b) => (a.cancelled_at! > b.cancelled_at! ? -1 : 1))[0] ?? null);
         return {
           mission: m,
           claim: openClaim,
+          released_claim_at: releasedClaim?.cancelled_at ?? null,
           tasks: mTasks,
           pending: mTasks!.filter((t) => !t.completed_at && t.status === "pending").length,
           concluded: mTasks!.filter((t) => t.status === "concluido" || !!t.completed_at).length,
         };
       }),
+
     };
   });
 
