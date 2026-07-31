@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, exportContactsCsv } from "@/lib/crm-bulk.functions";
+import { listContactsRich, idsByFilter, bulkApplyTag, bulkArchive, bulkOptOut, bulkSetLifecycle, bulkUpdateField, exportContactsCsv } from "@/lib/crm-bulk.functions";
 import { getContactFilterOptions } from "@/lib/crm-filter-options.functions";
 import { upsertSegment, listSegments } from "@/lib/segments.functions";
 import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/contacts.functions";
@@ -15,6 +15,7 @@ import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2, PhoneCall, CheckCircle2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { MergeContactsModal } from "@/components/MergeContactsModal";
+import { BulkEditFieldModal } from "@/components/BulkEditFieldModal";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ function Contatos() {
   const archBulkFn = useServerFn(bulkArchive);
   const optBulkFn = useServerFn(bulkOptOut);
   const lifecycleBulkFn = useServerFn(bulkSetLifecycle);
+  const bulkFieldFn = useServerFn(bulkUpdateField);
   const exportFn = useServerFn(exportContactsCsv);
   const optFn = useServerFn(setOptOut);
   const archFn = useServerFn(archiveContact);
@@ -100,6 +102,7 @@ function Contatos() {
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
   const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
   const [missaoDlg, setMissaoDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
 
   // Opções dinâmicas dos filtros — bairros dependem da(s) cidade(s) selecionada(s)
   const cidadesSelecionadas = useMemo(() => filters.cidades ?? [], [filters.cidades]);
@@ -537,6 +540,16 @@ function Contatos() {
 
             <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
 
+            {/* Editar campo em comum */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-wide opacity-70">Editar campo</span>
+              <Button size="sm" variant="secondary" onClick={() => setBulkEditOpen(true)}>
+                Editar campo em comum
+              </Button>
+            </div>
+
+            <div className="hidden h-6 w-px bg-primary-foreground/30 sm:block" />
+
             {/* Ações */}
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="text-xs uppercase tracking-wide opacity-70">Ações</span>
@@ -792,6 +805,12 @@ function Contatos() {
         />
       )}
       <PhoneReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} onDone={() => { q.refetch(); countsQ.refetch(); }} />
+      <BulkEditFieldModal
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        contactIds={[...selected]}
+        onApplied={() => { clearSel(); q.refetch(); }}
+      />
     </div>
     </TooltipProvider>
   );
