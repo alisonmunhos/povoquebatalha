@@ -301,7 +301,7 @@ export const bulkUpdateField = createServerFn({ method: "POST" })
     if (prevError) throw new Error(`Falha ao buscar valores atuais: ${prevError.message}`);
 
     const prevMap = new Map(
-      ((previousRows ?? []) as { id: string }[]).map((r) => [r.id, (r as unknown as Record<string, unknown>)[column]]),
+      ((previousRows ?? []) as unknown as { id: string }[]).map((r) => [r.id, (r as unknown as Record<string, unknown>)[column]]),
     );
 
     const { error: updError } = await context.supabase
