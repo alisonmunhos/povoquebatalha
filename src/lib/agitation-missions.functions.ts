@@ -678,8 +678,9 @@ export const pauseMission = createServerFn({ method: "POST" })
     // Libera tasks/claims + cancela notificações pendentes da missão.
     const { error: relErr } = await context.supabase.rpc(
       "release_mission_pending" as never,
-      { _mission_id: data.mission_id } as never,
+      { _mission_id: data.mission_id, _older_than_hours: 0 } as never,
     );
+
     if (relErr) throw relErr;
     return { ok: true as const };
   });
