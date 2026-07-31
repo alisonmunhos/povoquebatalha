@@ -169,6 +169,30 @@ export function getCatalogField(key: string): FormCatalogField | undefined {
 
 export const CORE_CATALOG_FIELDS = FORM_FIELD_CATALOG.filter((f) => f.core);
 
+// Campos que podem ser editados em massa na Gestão da Base. Exclui identificadores
+// exclusivos (nome, e-mail, telefone), endereço completo e status controlados por
+// outras ações (arquivado, opt-out, lifecycle, phone_status, whatsapp_status).
+export const BULK_EDITABLE_FIELD_KEYS: string[] = [
+  "profissao",
+  "instituicao",
+  "tipo_contato",
+  "coletivo_alicerce",
+  "participa_movimento_social",
+  "movimento_social_nome",
+  "formas_ajuda",
+  "formas_ajuda_outro",
+  "disponibilidade",
+  "quem_indicou",
+  "rede_social",
+  "zona_eleitoral",
+  "como_conheceu",
+  "faixa_etaria",
+  "observacoes",
+  "consentimento_whatsapp",
+  "consentimento_lgpd",
+  "consentimento_dados_sensiveis",
+];
+
 // Os 2 formulários fixos usam slug "-fixo" internamente (pra não colidir com as rotas
 // estáticas antigas /api/public/forms/recadastro|inscrever.ts, mantidas até serem
 // validadas e removidas) — mas a URL pública de verdade é a rota fixa de sempre.
