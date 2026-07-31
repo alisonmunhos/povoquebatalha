@@ -426,111 +426,132 @@ function MissionBlockCard({
         )}
         <div className="text-xs text-muted-foreground mt-2">
           {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
-          {pendingTasks.length} pendente(s) · {notSentTasks.length} vou enviar depois
-          {erroredTasks.length > 0 ? ` · ${erroredTasks.length} com erro de número` : ""}
-          {refusedTasks.length > 0 ? ` · ${refusedTasks.length} não quer(em) receber` : ""}
+          {pendingTasks.length} não enviado(s) · {notSentTasks.length} pendente(s) de envio
+          {archivedTasks.length > 0 ? ` · ${archivedTasks.length} arquivado(s)` : ""}
         </div>
       </div>
 
       {block.tasks.length > 0 && (
-        <div className="divide-y">
-          {block.tasks.map((t) => {
-            const refused = isRefused(t);
-            const errored = isErrored(t);
-            const blocked = refused || errored;
-            const waiting = !blocked && awaitingConfirm.has(t.id);
-            const sent = !blocked && t.status === "concluido";
-            const notSent = !blocked && t.status === "nao_enviado";
-            return (
-              <div key={t.id} className="p-3 flex items-center gap-2 flex-wrap">
-                <div className="flex-1 min-w-[160px]">
-                  <div className="font-medium text-sm">
-                    {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {t.contacts?.phone_e164 ?? t.contacts?.phone_raw ?? "—"}
-                  </div>
-                  <span
-                    className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
-                      refused
-                        ? "bg-rose-600 text-white"
-                        : errored
-                          ? "bg-slate-700 text-white"
-                          : sent
-                            ? "bg-emerald-100 text-emerald-800"
-                            : notSent
-                              ? "bg-amber-100 text-amber-900"
-                              : waiting
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {refused
-                      ? "Não quer receber — arquivado"
-                      : errored
-                        ? "Número com erro — arquivado"
-                        : sent
-                          ? "Enviado"
-                          : notSent
-                            ? "Vou enviar depois"
-                            : waiting
-                              ? "Aguardando confirmação"
-                              : "Pendente"}
-                  </span>
-                </div>
+        <>
+          {/* Barra de filtro por situação */}
+          <div className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b bg-card/95 px-3 py-2 backdrop-blur">
+            {(
+              [
+                { key: "todos" as const, label: "Todos", count: block.tasks.length - archivedTasks.length },
+                { key: "nao_enviados" as const, label: "Não enviados", count: pendingTasks.length },
+                { key: "pendente" as const, label: "Pendente", count: notSentTasks.length },
+                { key: "enviado" as const, label: "Enviado", count: sentTasks.length },
+                { key: "arquivados" as const, label: "Arquivados", count: archivedTasks.length },
+              ]
+            ).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
+                  filter === f.key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                {f.label} ({f.count})
+              </button>
+            ))}
+          </div>
 
-                {!blocked && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant={sent || notSent ? "outline" : "default"}
-                      onClick={() => onOpenWhatsApp(t)}
-                    >
-                      <Send className="h-3.5 w-3.5 mr-1" />
-                      {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
-                    </Button>
-
-                    {!sent && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => onMarkTask(t, "concluido")}
+          {visibleTasks.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">
+              Nenhum contato nesta situação.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {visibleTasks.map((t) => {
+                const status = statusOf(t);
+                const archived = isArchivedTaskStatus(status);
+                const waiting = !archived && awaitingConfirm.has(t.id);
+                const sent = status === TASK_STATUS.ENVIADO;
+                const notSent = status === TASK_STATUS.PENDENTE_ENVIO;
+                return (
+                  <div key={t.id} className="p-3 flex items-center gap-2 flex-wrap">
+                    <div className="flex-1 min-w-[160px]">
+                      <div className="font-medium text-sm">
+                        {t.contacts?.nome_social?.trim() || t.contacts?.nome || "(sem nome)"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {t.contacts?.phone_e164 ?? t.contacts?.phone_raw ?? "—"}
+                      </div>
+                      <span
+                        className={`mt-1 inline-block text-[11px] rounded-full px-2 py-0.5 ${
+                          waiting ? "bg-amber-100 text-amber-800" : TASK_STATUS_CLASS[status]
+                        }`}
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
-                      </Button>
-                    )}
-                    {!notSent && (
+                        {waiting ? "Aguardando confirmação" : TASK_STATUS_LABEL[status]}
+                      </span>
+                    </div>
+
+                    {archived ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onMarkTask(t, "nao_enviado")}
+                        onClick={() => void onUndoArchived(t)}
                       >
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Vou enviar depois
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" /> Desfazer arquivamento
                       </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant={sent || notSent ? "outline" : "default"}
+                          onClick={() => onOpenWhatsApp(t)}
+                        >
+                          <Send className="h-3.5 w-3.5 mr-1" />
+                          {sent || notSent ? "Abrir WhatsApp" : "Enviar"}
+                        </Button>
+
+                        {!sent && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => onMarkTask(t, TASK_STATUS.ENVIADO)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Enviei
+                          </Button>
+                        )}
+                        {!notSent && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onMarkTask(t, TASK_STATUS.PENDENTE_ENVIO)}
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Vou enviar depois
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-slate-400 text-slate-700 hover:bg-slate-100"
+                          onClick={() => void onErrorTask(t)}
+                        >
+                          <PhoneOff className="h-3.5 w-3.5 mr-1" /> Deu erro / não abriu
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                          onClick={() => void onRefuseTask(t)}
+                        >
+                          <BellOff className="h-3.5 w-3.5 mr-1" /> Não quer receber
+                        </Button>
+                      </>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-400 text-slate-700 hover:bg-slate-100"
-                      onClick={() => void onErrorTask(t)}
-                    >
-                      <PhoneOff className="h-3.5 w-3.5 mr-1" /> Deu erro / não abriu
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                      onClick={() => void onRefuseTask(t)}
-                    >
-                      <BellOff className="h-3.5 w-3.5 mr-1" /> Não quer receber
-                    </Button>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
+
 
 
       <div className="p-3 border-t bg-muted/30 flex flex-col gap-2">
