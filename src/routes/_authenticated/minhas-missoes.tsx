@@ -423,9 +423,14 @@ function MissionBlockCard({
   async function onComplete() {
     if (!openClaim) return;
     if (pendingTasks.length > 0) {
-      if (!confirm(`Você ainda tem ${pendingTasks.length} pendente(s). Concluir mesmo assim?`))
+      if (
+        !confirm(
+          `Você ainda tem ${pendingTasks.length} contato(s) não enviado(s) nesta leva. Fechar mesmo assim?`,
+        )
+      )
         return;
     }
+
     setBusy(true);
     try {
       await completeFn({ data: { claim_id: openClaim.id } });
