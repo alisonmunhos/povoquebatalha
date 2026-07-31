@@ -124,6 +124,50 @@ export const listContactsSheet = createServerFn({ method: "POST" })
       if (ids?.length) allowedIds = ids;
     }
 
+    // Exclusão de tags ("exceto quem tem estas tags")
+    if (filters.tag_ids_excluir?.length) {
+      const { values: excludeTagIds, empty: excludeUntagged } = splitEmptyToken(filters.tag_ids_excluir);
+      const sb = context.supabase as never as {
+        from: (t: string) => { select: (c: string) => unknown };
+      };
+      if (excludeUntagged) {
+        const tagged = await fetchAllPaged<{ contact_id: string }>(() =>
+          (sb.from("contact_tags").select("contact_id") as never),
+        );
+        const taggedIds = Array.from(new Set(tagged.map((r) => r.contact_id).filter(Boolean)));
+        if (!taggedIds.length) return { rows: [], total: 0, page, pageSize: data.pageSize };
+        const taggedSet = new Set(taggedIds);
+        allowedIds = allowedIds ? allowedIds.filter((id) => taggedSet.has(id)) : taggedIds;
+      }
+      if (excludeTagIds.length) {
+        const rels = await fetchAllPaged<{ contact_id: string }>(() =>
+          ((sb.from("contact_tags").select("contact_id") as { in: (c: string, v: unknown[]) => unknown }).in(
+            "tag_id",
+            excludeTagIds,
+          ) as never),
+        );
+        const excludeSet = new Set(rels.map((r) => r.contact_id).filter(Boolean));
+        if (excludeSet.size) {
+          if (allowedIds) allowedIds = allowedIds.filter((id) => !excludeSet.has(id));
+          else {
+            const all = await fetchAllPaged<{ id: string }>(() =>
+              (buildBaseIdQuery() as never),
+            );
+            allowedIds = all.map((r) => r.id).filter((id) => !excludeSet.has(id));
+          }
+        }
+      }
+      if (allowedIds && !allowedIds.length) return { rows: [], total: 0, page, pageSize: data.pageSize };
+    }
+
+    function buildBaseIdQuery() {
+      let q = context.supabase.from("contacts").select("id");
+      q = applyCrmFilters(q as never, filters) as never;
+      return q;
+    }
+
+
+
     function buildQuery(cols: string, withCount: boolean) {
       let q = withCount
         ? context.supabase.from("contacts").select(cols, { count: "exact" })
