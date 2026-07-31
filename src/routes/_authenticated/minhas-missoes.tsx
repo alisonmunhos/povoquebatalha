@@ -505,9 +505,9 @@ function MissionBlockCard({
           />
         )}
         <div className="text-xs text-muted-foreground mt-2">
-          {block.tasks.length} contato(s) na sua leva · {sentTasks.length} enviado(s) ·{" "}
-          {pendingTasks.length} não enviado(s) · {notSentTasks.length} pendente(s) de envio
-          {archivedTasks.length > 0 ? ` · ${archivedTasks.length} arquivado(s)` : ""}
+          Enviados {sentTasks.length} de {block.tasks.length} · Não enviados{" "}
+          {pendingTasks.length} · Vou enviar depois {notSentTasks.length} · Arquivados{" "}
+          {archivedTasks.length}
         </div>
       </div>
 
@@ -518,10 +518,18 @@ function MissionBlockCard({
             {(
               [
                 { key: "todos" as const, label: "Todos", count: block.tasks.length - archivedTasks.length },
-                { key: "nao_enviados" as const, label: "Não enviados", count: pendingTasks.length },
-                { key: "pendente" as const, label: "Pendente", count: notSentTasks.length },
-                { key: "enviado" as const, label: "Enviado", count: sentTasks.length },
-                { key: "arquivados" as const, label: "Arquivados", count: archivedTasks.length },
+                ...TASK_STATUS_FILTERS.map((f) => ({
+                  key: f.key,
+                  label: f.label,
+                  count:
+                    f.key === "nao_enviados"
+                      ? pendingTasks.length
+                      : f.key === "pendente"
+                        ? notSentTasks.length
+                        : f.key === "enviado"
+                          ? sentTasks.length
+                          : archivedTasks.length,
+                })),
               ]
             ).map((f) => (
               <button
@@ -538,6 +546,7 @@ function MissionBlockCard({
               </button>
             ))}
           </div>
+
 
           {visibleTasks.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
