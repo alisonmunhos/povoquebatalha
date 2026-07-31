@@ -206,23 +206,42 @@ function MissionBlockCard({
   });
 
   const [awaitingConfirm, setAwaitingConfirm] = useState<Set<string>>(new Set());
-  // Recusas marcadas agora nesta sessão (feedback imediato antes do recarregamento).
-  const [refusedNow, setRefusedNow] = useState<Set<string>>(new Set());
-  // Erros marcados agora nesta sessão (feedback imediato antes do recarregamento).
-  const [erroredNow, setErroredNow] = useState<Set<string>>(new Set());
+  // Status marcados agora nesta sessão (feedback imediato antes do recarregamento).
+  const [localStatus, setLocalStatus] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<TaskStatusFilter | "todos">("todos");
 
-  const isRefused = (t: Task) => refusedNow.has(t.id) || !!t.contacts?.opt_out_at;
-  const isErrored = (t: Task) =>
-    !isRefused(t) && (erroredNow.has(t.id) || t.status === "erro_numero");
+  /** Status efetivo: o marcado agora nesta sessão ou o que veio do servidor. */
+  const statusOf = (t: Task): string => {
+    const local = localStatus[t.id];
+    if (local) return local;
+    if (!isArchivedTaskStatus(t.status) && t.contacts?.opt_out_at) {
+      return TASK_STATUS.ARQUIVADO_OPTOUT;
+    }
+    return t.status;
+  };
+  const setStatusNow = (taskId: string, status: string | null) =>
+    setLocalStatus((prev) => {
+      const next = { ...prev };
+      if (status) next[taskId] = status;
+      else delete next[taskId];
+      return next;
+    });
 
-  const pendingTasks = block.tasks.filter(
-    (t) => !t.completed_at && t.status === "pending" && !isRefused(t) && !isErrored(t),
-  );
-  const sentTasks = block.tasks.filter((t) => t.status === "concluido");
-  const refusedTasks = block.tasks.filter((t) => isRefused(t));
-  const erroredTasks = block.tasks.filter((t) => isErrored(t));
-  const notSentTasks = block.tasks.filter((t) => t.status === "nao_enviado" && !isRefused(t));
+  const byFilter = (key: TaskStatusFilter) =>
+    block.tasks.filter((t) => taskStatusFilterKey(statusOf(t)) === key);
+  const pendingTasks = byFilter("nao_enviados");
+  const notSentTasks = byFilter("pendente");
+  const sentTasks = byFilter("enviado");
+  const archivedTasks = byFilter("arquivados");
+
+  // Arquivados só aparecem quando o filtro "Arquivados" está ativo.
+  const visibleTasks =
+    filter === "todos"
+      ? block.tasks.filter((t) => !isArchivedTaskStatus(statusOf(t)))
+      : byFilter(filter);
   const openClaim = block.claim;
+
+
 
 
   /** Abre o WhatsApp; NÃO marca nada — só coloca a tarefa em "aguardando confirmação". */
