@@ -244,17 +244,17 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Todos (contatos e usuários)"
           />
         </Field>
-        <Field label="Tags">
-          <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
+        <Field label="Tags" hint="Dentro do menu você pode escolher entre mostrar só os marcados ou esconder os marcados (exceto).">
+          <MultiSelectFilter options={opts.tags} {...sel("tag_ids")} placeholder="Todas as tags" />
         </Field>
         <Field label="Situação do cadastro" hint="Progresso do recadastro + marcações manuais (bloqueado, precisa revisão). Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
-          <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
+          <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} {...sel("lifecycle_statuses")} placeholder="Qualquer" />
         </Field>
         <Field label="Status do número" hint="Qualidade técnica do telefone. 'Falta DDD' = precisa completar o código de área.">
-          <MultiSelectFilter options={withCounts(PHONE_STATUS, facets?.phone)} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(PHONE_STATUS, facets?.phone)} {...sel("phone_statuses")} placeholder="Qualquer status" />
         </Field>
         <Field label="Confirmado no WhatsApp?" hint="Preenchido só após você rodar 'Verificar no WhatsApp'.">
-          <MultiSelectFilter options={withCounts(WPP_STATUS, facets?.whatsapp)} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(WPP_STATUS, facets?.whatsapp)} {...sel("whatsapp_statuses")} placeholder="Qualquer status" />
         </Field>
       </Section>
 
