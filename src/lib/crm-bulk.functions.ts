@@ -225,6 +225,105 @@ export const bulkSetLifecycle = createServerFn({ method: "POST" })
     return { ok: true as const, affected: data.ids.length };
   });
 
+// ===== Edição em massa de um campo de perfil (catálogo) =====
+export const bulkUpdateField = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    idsInput.extend({
+      fieldKey: z.string(),
+      value: z.any(),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { ids, fieldKey, value } = data;
+
+    if (!BULK_EDITABLE_FIELD_KEYS.includes(fieldKey)) {
+      throw new Error(`Campo "${fieldKey}" não pode ser editado em massa`);
+    }
+
+    const field = getCatalogField(fieldKey);
+    if (!field) throw new Error(`Campo desconhecido: ${fieldKey}`);
+
+    if (field.targetColumns.length !== 1) {
+      throw new Error(`Campo "${fieldKey}" mapeia para várias colunas — não é elegível para edição em massa`);
+    }
+
+    const column = field.targetColumns[0];
+    let parsedValue: unknown = value;
+
+    // Consentimentos: só permite marcar como verdadeiro em massa (revogação é individual).
+    if (column.startsWith("consentimento_")) {
+      if (value !== true) {
+        throw new Error("Consentimentos só podem ser marcados como "Sim" em massa. Para revogar, edite a ficha individual.");
+      }
+      parsedValue = true;
+    } else if (field.responseType === "yes_no") {
+      if (typeof value !== "boolean") throw new Error(`O campo "${field.defaultLabel}" exige Sim ou Não`);
+      parsedValue = value;
+    } else if (field.responseType === "multiple_choice") {
+      if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
+        throw new Error(`O campo "${field.defaultLabel}" exige uma lista de opções`);
+      }
+      const allowed = new Set(field.options?.map((o) => o.value) ?? []);
+      if (value.some((v) => !allowed.has(v))) {
+        throw new Error(`Uma ou mais opções escolhidas não são válidas para "${field.defaultLabel}"`);
+      }
+      parsedValue = value;
+    } else if (field.responseType === "enum") {
+      if (typeof value !== "string") throw new Error(`O campo "${field.defaultLabel}" exige uma opção`);
+      const allowed = new Set(field.options?.map((o) => o.value) ?? []);
+      if (!allowed.has(value)) {
+        throw new Error(`Opção inválida para "${field.defaultLabel}"`);
+      }
+      parsedValue = value;
+    } else if (field.responseType === "short_text") {
+      if (typeof value !== "string") throw new Error(`O campo "${field.defaultLabel}" exige um texto`);
+      parsedValue = value.trim();
+      if (parsedValue.length > 2000) {
+        throw new Error(`Texto muito longo para "${field.defaultLabel}" (máx. 2000 caracteres)`);
+      }
+    } else {
+      throw new Error(`Tipo de campo "${field.responseType}" não suportado para edição em massa`);
+    }
+
+    // Buscar valores anteriores para auditoria.
+    const { data: previousRows, error: prevError } = await context.supabase
+      .from("contacts")
+      .select(`id, ${column}`)
+      .in("id", ids);
+    if (prevError) throw new Error(`Falha ao buscar valores atuais: ${prevError.message}`);
+
+    const prevMap = new Map((previousRows ?? []).map((r) => [r.id, (r as Record<string, unknown>)[column]]));
+
+    const { error: updError } = await context.supabase
+      .from("contacts")
+      .update({ [column]: parsedValue === "" ? null : parsedValue } as never)
+      .in("id", ids);
+    if (updError) throw new Error(`Falha ao atualizar: ${updError.message}`);
+
+    // Auditoria: só registra para quem de fato teve alteração.
+    const auditRows = ids
+      .filter((id) => JSON.stringify(prevMap.get(id) ?? null) !== JSON.stringify(parsedValue === "" ? null : parsedValue))
+      .map((id) => ({
+        contact_id: id,
+        user_id: context.userId,
+        action: "bulk_update_field" as const,
+        changes: {
+          [column]: { from: prevMap.get(id) ?? null, to: parsedValue === "" ? null : parsedValue },
+        } as never,
+      }));
+
+    if (auditRows.length) {
+      const { error: auditError } = await context.supabase.from("contact_audit_log").insert(auditRows);
+      if (auditError) {
+        // Não falha a operação, mas loga o erro para depuração.
+        console.error("Erro ao gravar auditoria de edição em massa:", auditError);
+      }
+    }
+
+    return { ok: true as const, affected: ids.length, changed: auditRows.length, field: column };
+  });
+
 // ===== Exportação CSV (UTF-8 com BOM) =====
 // ⚠️ Ao adicionar um campo novo na ficha de contato, sempre volte aqui também:
 //   (4) incluir a coluna aqui (CSV_COLS + select) com um cabeçalho reconhecido
