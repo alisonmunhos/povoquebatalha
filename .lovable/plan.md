@@ -1,62 +1,58 @@
-## Confirmação
+## Diagnóstico (confirmado no banco)
 
-Verifiquei no banco: o evento `plenaria-de-lancamento-da-pre-candidatura-de-karen-santos-a-deputada-estadual-pe` ("Plenária de Lançamento: Karen Santos") está vinculado ao formulário **"ENTRE PARA NOSSA BASE!"** (`seja-um-apoiador-a-da-campanha-do-povo-que-batalha-copia`, ativo, modo por seções) — exatamente o formulário que analisei. Todas as correções abaixo se aplicam a ele.
+Missão afetada: **Convite plenaria** (`f02f228a…`).
 
-Observação importante: as correções são no **motor de formulários por seções** (`PublicFormRenderer` + rotas públicas), então valem para este evento e para qualquer outro formulário seccionado — sem precisar refazer nada por evento.
+Três agitadores pegaram leva hoje:
 
-## Diagnóstico
+| Agitador | Pegou leva | "Concluiu" | Contatos marcados |
+|---|---|---|---|
+| Diego Masiero | 14:28 | 14:50:14.904 | 0 |
+| Alison Munhos | 14:44 | 14:50:14.904 | 0 |
+| Ezequiel Viapiana | 14:46 | 14:50:14.904 | 0 |
 
-Caminho atual do formulário do evento:
+O horário de conclusão é **idêntico ao milissegundo** nos três: nenhum deles clicou em "concluí". Foi uma ação em massa às 14:50 — a função do banco `release_mission_pending` (botão do painel do admin que "libera atribuições paradas").
 
-```text
-1 SEU CADASTRO  ->  2 VAMOS CONTINUAR?  --(ramificação)-->
-   QUERO SER UM APOIADOR      -> SEU PERFIL DE APOIADOR(A)
-   QUERO RECEBER INFORMAÇÕES  -> VOCÊ VAI RECEBER NOSSAS ATUALIZAÇÕES!
-   SOU DO COLETIVO ALICERCE   -> E AÍ, COMPA! (criação de conta)
-```
+Essa função faz duas coisas ao mesmo tempo:
 
-### 1. Voltar é frágil
-- A seta de voltar só existe enquanto o histórico está dentro do mesmo componente. Depois da tela "Presença confirmada", o formulário é remontado do zero e o caminho de volta se perde.
-- O painel sobreposto empurra um estado no histórico do navegador a cada etapa, mas isso não está sincronizado com a seta da tela — dá para sair da página sem querer.
-- Na etapa de criação de conta não há como voltar para corrigir nome/e-mail/telefone.
+1. **Desatribui todas as tarefas pendentes** da missão (`assigned_user_id = NULL`, `claim_id = NULL`) — inclusive as de levas recém-pegas e ainda intactas. Hoje a missão tem 240 tarefas pendentes, todas sem responsável.
+2. **Marca todas as levas abertas como concluídas** (`completed_at = now()`).
 
-### 2. Clicar na opção não avança
-"VAMOS CONTINUAR?" tem só uma pergunta de escolha única, mas exige dois toques: escolher e depois "Continuar".
+Consequências exatas do que o usuário relatou:
 
-### 3. Lentidão (causa localizada no código)
-A cada "Continuar", o endpoint de progresso executa em sequência: busca do formulário, busca da seção, busca de todas as perguntas, normalização de telefone, resolução de identidade (até 4 consultas), atualização do contato, apagar+inserir respostas, **geocodificação por HTTP externo**, **reconfirmação de presença no evento a cada etapa** (5 operações) e **envio de notificações push para a equipe**, mais 2 consultas só para saber se a pessoa já tem conta. São ~15 idas ao banco + 1 chamada externa + push, por etapa. Presença e notificação só precisam acontecer uma vez; geocodificação nunca precisa bloquear a resposta. Ao continuar após a confirmação, o formulário inteiro ainda é baixado de novo com a tela mostrando só "Carregando…".
+- **"Ver missão" não abre nada**: a tela do agitador lista as tarefas com `assigned_user_id = eu`. Como a função apagou a atribuição, a leva ficou vazia.
+- **Cooldown sem ter enviado**: o cooldown é calculado a partir do último `completed_at` da leva. Como a função marcou 14:50 como conclusão, os três entraram em 1 hora de espera imediatamente.
+- **Painel do admin diz que Ezequiel concluiu**: o painel lê exatamente esse `completed_at`, sem olhar se alguma mensagem foi de fato marcada.
 
----
+Nenhum dado real de envio foi perdido — as 5 marcações "não enviado" da Marina continuam lá. O que existe é registro falso de conclusão.
 
-## Plano de correção
+## Correções propostas
 
-### A. Navegação
-- Histórico de etapas mantido fora do renderizador, para que continuar após a confirmação preserve o caminho.
-- Seta de voltar sempre visível a partir da 2ª etapa; na 1ª, fecha o painel e volta para a página do evento.
-- "Voltar" do celular unificado com a seta (um único controle), sem risco de sair da página.
-- Voltar também permitido na etapa de criação de conta.
+### 1. Reparar a missão atual (sem refazer)
 
-### B. Avanço ao clicar na opção
-- Quando a seção tiver **apenas uma pergunta de escolha única obrigatória** (caso de "VAMOS CONTINUAR?"), tocar na opção avança automaticamente, com destaque de seleção antes da troca de tela.
-- Demais seções seguem com o botão "Continuar".
-- O botão continua disponível como alternativa acessível; o avanço automático fica bloqueado durante o envio (evita duplo toque).
+Migration que apaga as três levas fantasma de hoje (Diego, Alison, Ezequiel — conclusão forçada às 14:50 e zero contatos marcados). Efeito: cooldown zerado, os três podem pegar leva na hora, painel do admin deixa de mostrar conclusão falsa. As 240 tarefas seguem disponíveis.
 
-### C. Desempenho
-- Confirmar presença no evento apenas na primeira etapa, não em todas.
-- Notificações à equipe e geocodificação deixam de bloquear a resposta.
-- Remover as consultas extras de "já tem conta", reaproveitando o resultado do salvamento.
-- Não rebaixar o formulário inteiro ao continuar após a confirmação.
-- Estado de carregamento visível no botão/opção, para a espera não parecer travamento.
+### 2. Corrigir a função de liberação (causa raiz)
 
-### Detalhes técnicos
-- `src/components/PublicFormRenderer.tsx`: pilha de etapas controlável por props, auto-avanço em seções de escolha única, estados de carregamento.
-- `src/components/StepOverlay.tsx`: controle único de histórico do navegador.
-- `src/routes/evento.$slug.tsx`: manter o formulário montado entre "presença confirmada" e a continuação.
-- `src/routes/api/public/forms/$slug/section-progress.ts`: RSVP só quando ainda não confirmado; remover consultas extras; responder antes de tarefas complementares.
-- `src/lib/public-form-contact.server.ts`: geocodificação sem bloquear a resposta.
+Reescrever `release_mission_pending` para:
 
-### Cuidados
-- Nenhuma mudança no banco; nenhum dado alterado.
-- O fluxo "Não poderei ir" e as telas configuráveis do evento permanecem iguais.
-- Auto-avanço só em seções de escolha única.
-- Teste em: `https://povoquebatalha.lovable.app/evento/plenaria-de-lancamento-da-pre-candidatura-de-karen-santos-a-deputada-estadual-pe`
+- **Não** encostar em levas abertas que ainda estão dentro de um prazo razoável de trabalho. Só libera tarefas de levas abertas **antigas** (parâmetro de idade, padrão 24h) ou de levas já concluídas.
+- Nunca marcar leva como concluída para "destravar cooldown". Em vez disso, levas liberadas passam a ser **canceladas** (nova coluna `cancelled_at`), o que zera o cooldown sem inventar conclusão.
+- Cooldown e contagens passam a considerar apenas levas concluídas de verdade (`completed_at` e não cancelada).
+
+### 3. Confiabilidade do painel do admin
+
+- Coluna de leva mostra três estados distintos: **Em andamento**, **Concluída (N enviados)**, **Liberada pelo admin** — nunca "concluída" sem envio.
+- O número exibido passa a vir da contagem real de tarefas com status `concluido`/`nao_enviado`/`erro_numero`, não do `task_count` da leva.
+- Botão de liberação com confirmação explícita informando quantos agitadores e quantos contatos serão afetados.
+
+### 4. Confiabilidade da tela do agitador
+
+- Se a leva do agitador foi liberada pelo admin, a tela mostra aviso claro ("Sua leva foi liberada pela organização — pegue uma nova") em vez de tela vazia ou cooldown silencioso.
+- "Ver missão" com zero tarefas atribuídas passa a cair na ação "Pegar nova leva" quando há contatos disponíveis, em vez de abrir tela vazia.
+
+## Detalhes técnicos
+
+- Migration: `agitation_mission_claims.cancelled_at timestamptz`; reescrita de `release_mission_pending(_mission_id uuid, _older_than_hours int default 24)`; DELETE pontual das 3 levas fantasma da missão `f02f228a…`.
+- `src/lib/agitation-missions.functions.ts`: filtrar `cancelled_at is null` em `getMissionNotificationBriefing`, `getMissionCooldownStatus`, `listMyMissions`; em `getMissionRecipientsPanel` derivar contagens reais por `agitation_tasks`.
+- `src/routes/_authenticated/missoes-agitacao.$missionId.tsx` e `minhas-missoes.tsx`: estados e textos novos.
+- Nenhum dado de contato é apagado.
