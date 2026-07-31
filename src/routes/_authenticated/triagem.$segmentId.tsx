@@ -137,18 +137,6 @@ function TriagePage() {
         />
       </div>
 
-      {queue.error && (
-        <button
-          type="button"
-          onClick={() => {
-            toast.error(queue.error!);
-            queue.clearError();
-          }}
-          className="sr-only"
-        >
-          erro
-        </button>
-      )}
 
       {noteOpen && current && (
         <AddNoteSheet
