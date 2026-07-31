@@ -102,6 +102,7 @@ function Contatos() {
   const [saveDlg, setSaveDlg] = useState<{ open: boolean; nome: string; descricao: string; tipo: "dinamico" | "estatico" }>({ open: false, nome: "", descricao: "", tipo: "dinamico" });
   const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
   const [missaoDlg, setMissaoDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
 
   // Opções dinâmicas dos filtros — bairros dependem da(s) cidade(s) selecionada(s)
   const cidadesSelecionadas = useMemo(() => filters.cidades ?? [], [filters.cidades]);
