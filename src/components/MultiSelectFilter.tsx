@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import type { FilterMode } from "@/lib/filter-exclusion";
 
 export type MultiOption = {
   value: string;
@@ -23,6 +24,10 @@ type Props = {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
+  /** Quando informado junto de onApply, habilita o modo "esconder os marcados". */
+  mode?: FilterMode;
+  /** Aplica seleção + modo de uma só vez (usado quando o campo aceita "exceto"). */
+  onApply?: (values: string[], mode: FilterMode) => void;
 };
 
 export function MultiSelectFilter({
@@ -33,15 +38,22 @@ export function MultiSelectFilter({
   emptyText = "Sem opções.",
   disabled,
   className,
+  mode,
+  onApply,
 }: Props) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>(value);
+  const excludable = !!onApply && !!mode;
+  const [draftMode, setDraftMode] = useState<FilterMode>(mode ?? "include");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Sincroniza o rascunho apenas ao abrir, para não sobrescrever a edição em andamento.
   useEffect(() => {
-    if (open) setDraft(value);
+    if (open) {
+      setDraft(value);
+      setDraftMode(mode ?? "include");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -57,13 +69,43 @@ export function MultiSelectFilter({
   }
 
   function apply() {
-    onChange(draft);
+    if (onApply) onApply(draft, draftMode);
+    else onChange(draft);
     setOpen(false);
+  }
+
+  function clearAll() {
+    if (onApply) onApply([], mode ?? "include");
+    else onChange([]);
   }
 
   const panel = (
     <Command shouldFilter>
       <CommandInput ref={inputRef} placeholder="Buscar…" />
+      {excludable && (
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
+          <button
+            type="button"
+            onClick={() => setDraftMode("include")}
+            className={cn(
+              "rounded px-2 py-1 border",
+              draftMode === "include" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+            )}
+          >
+            Mostrar os marcados
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraftMode("exclude")}
+            className={cn(
+              "rounded px-2 py-1 border",
+              draftMode === "exclude" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+            )}
+          >
+            Esconder os marcados
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b text-xs">
         <span className="text-muted-foreground">
           {draft.length > 0 ? `${draft.length} selecionado(s)` : "Nenhum selecionado"}
@@ -156,10 +198,11 @@ export function MultiSelectFilter({
       <span className="truncate">
         {value.length === 0 ? (
           <span className="text-muted-foreground">{placeholder}</span>
-        ) : value.length <= 2 ? (
-          selectedLabels.join(", ")
         ) : (
-          `${value.length} selecionados`
+          <>
+            {mode === "exclude" && <span className="text-destructive font-medium">exceto </span>}
+            {value.length <= 2 ? selectedLabels.join(", ") : `${value.length} selecionados`}
+          </>
         )}
       </span>
       <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -169,7 +212,7 @@ export function MultiSelectFilter({
             tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation();
-              onChange([]);
+              clearAll();
             }}
             className="text-muted-foreground hover:text-foreground"
             aria-label="Limpar"

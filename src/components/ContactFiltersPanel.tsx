@@ -5,6 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { MultiSelectFilter, SingleSelectFilter, type MultiOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
+import {
+  applyFilterSelection,
+  getFilterMode,
+  getFilterValues,
+  type ExcludableFilterKey,
+  type FilterMode,
+} from "@/lib/filter-exclusion";
 import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import { listSystemUserOptions } from "@/lib/users.functions";
 import { cn } from "@/lib/utils";
@@ -162,6 +169,19 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
     onChange(next);
   };
 
+  /**
+   * Liga um filtro de lista ao par incluir/excluir. Passa `mode` + `onApply`
+   * para o MultiSelectFilter mostrar "Mostrar os marcados / Esconder os marcados".
+   */
+  const sel = (key: ExcludableFilterKey) => ({
+    value: getFilterValues(filters, key),
+    mode: getFilterMode(filters, key),
+    onApply: (values: string[], mode: FilterMode) =>
+      onChange(applyFilterSelection(filters, key, values, mode)),
+    onChange: (values: string[]) =>
+      onChange(applyFilterSelection(filters, key, values, getFilterMode(filters, key))),
+  });
+
   const opts = options ?? {
     cidades: [], bairros: [], ufs: [], profissoes: [], instituicoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
@@ -224,45 +244,45 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Todos (contatos e usuários)"
           />
         </Field>
-        <Field label="Tags">
-          <MultiSelectFilter options={opts.tags} value={filters.tag_ids ?? []} onChange={(v) => set("tag_ids", v)} placeholder="Todas as tags" />
+        <Field label="Tags" hint="Dentro do menu você pode escolher entre mostrar só os marcados ou esconder os marcados (exceto).">
+          <MultiSelectFilter options={opts.tags} {...sel("tag_ids")} placeholder="Todas as tags" />
         </Field>
         <Field label="Situação do cadastro" hint="Progresso do recadastro + marcações manuais (bloqueado, precisa revisão). Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
-          <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} value={filters.lifecycle_statuses ?? []} onChange={(v) => set("lifecycle_statuses", v)} placeholder="Qualquer" />
+          <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} {...sel("lifecycle_statuses")} placeholder="Qualquer" />
         </Field>
         <Field label="Status do número" hint="Qualidade técnica do telefone. 'Falta DDD' = precisa completar o código de área.">
-          <MultiSelectFilter options={withCounts(PHONE_STATUS, facets?.phone)} value={filters.phone_statuses ?? []} onChange={(v) => set("phone_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(PHONE_STATUS, facets?.phone)} {...sel("phone_statuses")} placeholder="Qualquer status" />
         </Field>
         <Field label="Confirmado no WhatsApp?" hint="Preenchido só após você rodar 'Verificar no WhatsApp'.">
-          <MultiSelectFilter options={withCounts(WPP_STATUS, facets?.whatsapp)} value={filters.whatsapp_statuses ?? []} onChange={(v) => set("whatsapp_statuses", v)} placeholder="Qualquer status" />
+          <MultiSelectFilter options={withCounts(WPP_STATUS, facets?.whatsapp)} {...sel("whatsapp_statuses")} placeholder="Qualquer status" />
         </Field>
       </Section>
 
 
       <Section icon={<MapPin className="h-4 w-4" />} title="Onde está">
         <Field label="UF">
-          <MultiSelectFilter options={opts.ufs} value={filters.ufs ?? []} onChange={(v) => set("ufs", v)} placeholder="Qualquer UF" />
+          <MultiSelectFilter options={opts.ufs} {...sel("ufs")} placeholder="Qualquer UF" />
         </Field>
         <Field label="Cidade">
-          <MultiSelectFilter options={opts.cidades} value={filters.cidades ?? []} onChange={(v) => set("cidades", v)} placeholder="Qualquer cidade" />
+          <MultiSelectFilter options={opts.cidades} {...sel("cidades")} placeholder="Qualquer cidade" />
         </Field>
         <Field label="Bairro" hint={filters.cidades?.length ? "Mostrando só bairros da(s) cidade(s) selecionada(s)." : undefined}>
-          <MultiSelectFilter options={opts.bairros} value={filters.bairros ?? []} onChange={(v) => set("bairros", v)} placeholder="Qualquer bairro" />
+          <MultiSelectFilter options={opts.bairros} {...sel("bairros")} placeholder="Qualquer bairro" />
         </Field>
       </Section>
 
       <Section icon={<User className="h-4 w-4" />} title="Quem é">
         <Field label="Tipo de contato" informativo>
-          <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} value={filters.tipos_contato ?? []} onChange={(v) => set("tipos_contato", v)} placeholder="Qualquer tipo" />
+          <MultiSelectFilter options={mergeLabels(opts.tipos_contato, TIPO_CONTATO)} {...sel("tipos_contato")} placeholder="Qualquer tipo" />
         </Field>
         <Field label="Nome social contém…" hint="Busca livre no campo nome social">
           <Input value={filters.nome_social ?? ""} onChange={(e) => set("nome_social", e.target.value || undefined)} placeholder="Ex.: Ana" />
         </Field>
         <Field label="Profissão" hint="Respostas já cadastradas. Digite no menu para achar; marque quantas quiser.">
-          <MultiSelectFilter options={opts.profissoes} value={filters.profissoes ?? []} onChange={(v) => set("profissoes", v)} placeholder="Qualquer profissão" />
+          <MultiSelectFilter options={opts.profissoes} {...sel("profissoes")} placeholder="Qualquer profissão" />
         </Field>
         <Field label="Onde trabalha" hint="Respostas já cadastradas no campo instituição/local de trabalho.">
-          <MultiSelectFilter options={opts.instituicoes} value={filters.instituicoes ?? []} onChange={(v) => set("instituicoes", v)} placeholder="Qualquer local" />
+          <MultiSelectFilter options={opts.instituicoes} {...sel("instituicoes")} placeholder="Qualquer local" />
         </Field>
         <Field label="Coletivo Alicerce" informativo>
           <SingleSelectFilter
@@ -281,31 +301,31 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
           />
         </Field>
         <Field label="Movimento social" informativo hint="Respostas já cadastradas no nome do movimento.">
-          <MultiSelectFilter options={opts.movimentos_sociais} value={filters.movimentos_sociais ?? []} onChange={(v) => set("movimentos_sociais", v)} placeholder="Qualquer movimento" />
+          <MultiSelectFilter options={opts.movimentos_sociais} {...sel("movimentos_sociais")} placeholder="Qualquer movimento" />
         </Field>
         <Field label="Faixa etária" informativo>
-          <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} value={filters.faixas_etarias ?? []} onChange={(v) => set("faixas_etarias", v)} placeholder="Qualquer faixa" />
+          <MultiSelectFilter options={mergeLabels(opts.faixa_etaria, FAIXA_ETARIA)} {...sel("faixas_etarias")} placeholder="Qualquer faixa" />
         </Field>
         <Field label="Rede social" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.rede_social} value={filters.rede_social_values ?? []} onChange={(v) => set("rede_social_values", v)} placeholder="Qualquer rede" />
+          <MultiSelectFilter options={opts.rede_social} {...sel("rede_social_values")} placeholder="Qualquer rede" />
         </Field>
         <Field label="Quem indicou" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.quem_indicou} value={filters.quem_indicou_values ?? []} onChange={(v) => set("quem_indicou_values", v)} placeholder="Qualquer indicação" />
+          <MultiSelectFilter options={opts.quem_indicou} {...sel("quem_indicou_values")} placeholder="Qualquer indicação" />
         </Field>
         <Field label="Zona eleitoral / local de votação" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.zona_eleitoral} value={filters.zona_eleitoral_values ?? []} onChange={(v) => set("zona_eleitoral_values", v)} placeholder="Qualquer zona/local" />
+          <MultiSelectFilter options={opts.zona_eleitoral} {...sel("zona_eleitoral_values")} placeholder="Qualquer zona/local" />
         </Field>
         <Field label="Como conheceu a campanha" informativo hint="Respostas já cadastradas.">
-          <MultiSelectFilter options={opts.como_conheceu} value={filters.como_conheceu_values ?? []} onChange={(v) => set("como_conheceu_values", v)} placeholder="Qualquer resposta" />
+          <MultiSelectFilter options={opts.como_conheceu} {...sel("como_conheceu_values")} placeholder="Qualquer resposta" />
         </Field>
       </Section>
 
       <Section icon={<Users className="h-4 w-4" />} title="Como pode ajudar">
         <Field label="Formas de ajuda">
-          <MultiSelectFilter options={opts.formas_ajuda} value={filters.formas_ajuda ?? []} onChange={(v) => set("formas_ajuda", v)} placeholder="Todas as formas" />
+          <MultiSelectFilter options={opts.formas_ajuda} {...sel("formas_ajuda")} placeholder="Todas as formas" />
         </Field>
         <Field label="Disponibilidade" informativo>
-          <MultiSelectFilter options={opts.disponibilidade} value={filters.disponibilidade ?? []} onChange={(v) => set("disponibilidade", v)} placeholder="Qualquer dia/período" />
+          <MultiSelectFilter options={opts.disponibilidade} {...sel("disponibilidade")} placeholder="Qualquer dia/período" />
         </Field>
       </Section>
 
