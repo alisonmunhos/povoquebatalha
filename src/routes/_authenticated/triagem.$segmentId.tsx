@@ -123,8 +123,10 @@ function TriagePage() {
               </div>
               <p className="text-lg font-black">Fila concluída</p>
               <p className="text-sm text-muted-foreground">
-                Você triou {queue.reviewed} contato(s) deste segmento. Se entrarem contatos novos, eles aparecem aqui.
+                {mantidos} mantido(s) e {arquivados} arquivado(s) neste segmento. Se entrarem contatos novos, eles
+                aparecem aqui.
               </p>
+
               <button
                 type="button"
                 onClick={() => navigate({ to: "/segmentos" })}
