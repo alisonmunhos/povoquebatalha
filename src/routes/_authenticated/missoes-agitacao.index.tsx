@@ -41,16 +41,27 @@ function MissoesAgitacaoIndex() {
           <Megaphone className="h-5 w-5" />
           <h1 className="text-xl font-semibold">Missões de Agitação</h1>
         </div>
-        <select
-          value={visibility}
-          onChange={(e) => setVisibility(e.target.value as VisibilityFilter)}
-          className="text-sm h-9 rounded-md border px-3 bg-background"
-        >
-          <option value="active">Mostrar: Ativas</option>
-          <option value="archived">Mostrar: Arquivadas</option>
-          <option value="all">Mostrar: Todas</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/missoes-agitacao/desempenho"
+            className="text-sm h-9 inline-flex items-center rounded-md border px-3 hover:bg-muted/60"
+          >
+            Ver desempenho
+          </Link>
+          <select
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value as VisibilityFilter)}
+            className="text-sm h-9 rounded-md border px-3 bg-background"
+          >
+            <option value="active">Mostrar: Ativas</option>
+            <option value="archived">Mostrar: Arquivadas</option>
+            <option value="all">Mostrar: Todas</option>
+          </select>
+        </div>
       </div>
+
+
+
       <p className="text-sm text-muted-foreground">
         Crie uma missão selecionando contatos na Gestão da Base (&quot;Criar Missão&quot;). Na tela
         de detalhe, distribua por link público, por agitador com conta ou por auto-atribuição.

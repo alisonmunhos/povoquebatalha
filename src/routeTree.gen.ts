@@ -56,6 +56,7 @@ import { Route as ApiPublicBootstrapAdminRouteImport } from './routes/api/public
 import { Route as AuthenticatedUsuariosPapeisRouteImport } from './routes/_authenticated/usuarios.papeis'
 import { Route as AuthenticatedTriagemSegmentIdRouteImport } from './routes/_authenticated/triagem.$segmentId'
 import { Route as AuthenticatedTriagemTarefaTokenRouteImport } from './routes/_authenticated/triagem-tarefa.$token'
+import { Route as AuthenticatedMissoesAgitacaoDesempenhoRouteImport } from './routes/_authenticated/missoes-agitacao.desempenho'
 import { Route as AuthenticatedMissoesAgitacaoMissionIdRouteImport } from './routes/_authenticated/missoes-agitacao.$missionId'
 import { Route as AuthenticatedEntradaDadosIdRouteImport } from './routes/_authenticated/entrada-dados.$id'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
@@ -336,6 +337,12 @@ const AuthenticatedTriagemTarefaTokenRoute =
     path: '/triagem-tarefa/$token',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMissoesAgitacaoDesempenhoRoute =
+  AuthenticatedMissoesAgitacaoDesempenhoRouteImport.update({
+    id: '/missoes-agitacao/desempenho',
+    path: '/missoes-agitacao/desempenho',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMissoesAgitacaoMissionIdRoute =
   AuthenticatedMissoesAgitacaoMissionIdRouteImport.update({
     id: '/missoes-agitacao/$missionId',
@@ -555,6 +562,7 @@ export interface FileRoutesByFullPath {
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
+  '/missoes-agitacao/desempenho': typeof AuthenticatedMissoesAgitacaoDesempenhoRoute
   '/triagem-tarefa/$token': typeof AuthenticatedTriagemTarefaTokenRoute
   '/triagem/$segmentId': typeof AuthenticatedTriagemSegmentIdRoute
   '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
@@ -633,6 +641,7 @@ export interface FileRoutesByTo {
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
+  '/missoes-agitacao/desempenho': typeof AuthenticatedMissoesAgitacaoDesempenhoRoute
   '/triagem-tarefa/$token': typeof AuthenticatedTriagemTarefaTokenRoute
   '/triagem/$segmentId': typeof AuthenticatedTriagemSegmentIdRoute
   '/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
@@ -714,6 +723,7 @@ export interface FileRoutesById {
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/_authenticated/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/_authenticated/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
+  '/_authenticated/missoes-agitacao/desempenho': typeof AuthenticatedMissoesAgitacaoDesempenhoRoute
   '/_authenticated/triagem-tarefa/$token': typeof AuthenticatedTriagemTarefaTokenRoute
   '/_authenticated/triagem/$segmentId': typeof AuthenticatedTriagemSegmentIdRoute
   '/_authenticated/usuarios/papeis': typeof AuthenticatedUsuariosPapeisRoute
@@ -795,6 +805,7 @@ export interface FileRouteTypes {
     | '/contatos/$id'
     | '/entrada-dados/$id'
     | '/missoes-agitacao/$missionId'
+    | '/missoes-agitacao/desempenho'
     | '/triagem-tarefa/$token'
     | '/triagem/$segmentId'
     | '/usuarios/papeis'
@@ -873,6 +884,7 @@ export interface FileRouteTypes {
     | '/contatos/$id'
     | '/entrada-dados/$id'
     | '/missoes-agitacao/$missionId'
+    | '/missoes-agitacao/desempenho'
     | '/triagem-tarefa/$token'
     | '/triagem/$segmentId'
     | '/usuarios/papeis'
@@ -953,6 +965,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contatos/$id'
     | '/_authenticated/entrada-dados/$id'
     | '/_authenticated/missoes-agitacao/$missionId'
+    | '/_authenticated/missoes-agitacao/desempenho'
     | '/_authenticated/triagem-tarefa/$token'
     | '/_authenticated/triagem/$segmentId'
     | '/_authenticated/usuarios/papeis'
@@ -1359,6 +1372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTriagemTarefaTokenRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/missoes-agitacao/desempenho': {
+      id: '/_authenticated/missoes-agitacao/desempenho'
+      path: '/missoes-agitacao/desempenho'
+      fullPath: '/missoes-agitacao/desempenho'
+      preLoaderRoute: typeof AuthenticatedMissoesAgitacaoDesempenhoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/missoes-agitacao/$missionId': {
       id: '/_authenticated/missoes-agitacao/$missionId'
       path: '/missoes-agitacao/$missionId'
@@ -1638,6 +1658,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
   AuthenticatedEntradaDadosIdRoute: typeof AuthenticatedEntradaDadosIdRoute
   AuthenticatedMissoesAgitacaoMissionIdRoute: typeof AuthenticatedMissoesAgitacaoMissionIdRoute
+  AuthenticatedMissoesAgitacaoDesempenhoRoute: typeof AuthenticatedMissoesAgitacaoDesempenhoRoute
   AuthenticatedTriagemTarefaTokenRoute: typeof AuthenticatedTriagemTarefaTokenRoute
   AuthenticatedTriagemSegmentIdRoute: typeof AuthenticatedTriagemSegmentIdRoute
   AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
@@ -1675,6 +1696,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEntradaDadosIdRoute: AuthenticatedEntradaDadosIdRoute,
   AuthenticatedMissoesAgitacaoMissionIdRoute:
     AuthenticatedMissoesAgitacaoMissionIdRoute,
+  AuthenticatedMissoesAgitacaoDesempenhoRoute:
+    AuthenticatedMissoesAgitacaoDesempenhoRoute,
   AuthenticatedTriagemTarefaTokenRoute: AuthenticatedTriagemTarefaTokenRoute,
   AuthenticatedTriagemSegmentIdRoute: AuthenticatedTriagemSegmentIdRoute,
   AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,

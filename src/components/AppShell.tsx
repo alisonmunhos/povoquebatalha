@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
-  MessageCircle, Menu, X, Zap, ClipboardList, Calendar,
+  MessageCircle, Menu, X, Zap, ClipboardList, Calendar, BarChart3,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +45,8 @@ const groups: NavGroup[] = [
       { to: "/territorio", label: "Território", icon: Compass, hint: "Ação de campo + mapa geral da base.", roles: ["admin", "operador", "vrm"] },
       { to: "/agitacao", label: "Agitação", icon: Zap, hint: "Captação rápida por WhatsApp.", roles: ["admin", "operador", "vrm", "comunicacao", "leitor", "agitador"] },
       { to: "/missoes-agitacao", label: "Missões de Agitação", icon: Megaphone, hint: "Atribua pacotes de contatos a um responsável, com link exclusivo de envio.", roles: ["admin"] },
+      { to: "/missoes-agitacao/desempenho", label: "Desempenho das Missões", icon: BarChart3, hint: "Acompanhe envios, taxa de conclusão e ranking de agitadores.", roles: ["admin"] },
+
       { to: "/agitacao-notificacoes", label: "Central de Notificações", icon: Megaphone, hint: "Envie avisos ao vivo pra equipe (aparece no sino do punho).", roles: ["admin", "operador"] },
 
     ],

@@ -1,38 +1,29 @@
-## 1. Por que você não vê os filtros de exclusão
+## Objetivo
 
-Conferi o código. A funcionalidade existe, mas **só em um lugar** — e não é o lugar onde você está olhando:
+Criar uma tela de acompanhamento (somente leitura) para o admin ver como as Missões de Agitação estão andando: quem está enviando, quem travou, e a taxa de conclusão por missão. Nada nessa tela altera tarefas, levas, atribuições ou status — risco zero para o que já funciona hoje.
 
-- **Backend pronto e completo**: `src/lib/crm-filters.ts` tem 21 chaves `*_excluir` (tags, cidade, bairro, UF, profissão, formas de ajuda, disponibilidade, origem, status de telefone etc.) com a lógica de exclusão aplicada nas consultas.
-- **Interface existe apenas na planilha `/contatos-bi`**: o botão "Esconder os marcados" está em `ColumnFilterPopover.tsx`, componente usado só por aquela tela.
-- **Gestão da Base (`/contatos`) não tem o botão**: essa tela usa `ContactFiltersPanel` e `ColumnFilterHeader`, e nenhum dos dois oferece o modo "exceto". Ou seja: o motor está lá, mas sem controle na tela onde você trabalha.
+## O que o admin vai ver
 
-O filtro de usuários (Todos / Somente usuários / Esconder usuários) **está** na Gestão da Base — esse já funciona.
+Nova tela **Desempenho** dentro de Missões de Agitação (`/missoes-agitacao/desempenho`), com link no topo da lista de missões.
 
-### O que fazer
-1. Adicionar no painel de filtros da Gestão da Base, em cada filtro de múltipla escolha, o mesmo par de modos já existente na planilha: **"Mostrar os marcados"** / **"Esconder os marcados"**.
-2. Mesmo controle nos filtros de cabeçalho de coluna (`ColumnFilterHeader`), reaproveitando `getColumnExcludeKey`.
-3. Chips de filtro ativo mostrando "exceto ..." (a lógica de rótulo já existe em `sheet-filter-chips.ts`; usar a mesma na tela de contatos).
-4. Como filtros já vivem na URL nessa tela, as chaves `*_excluir` passam a ser compartilháveis e sobrevivem à exportação.
+1. **Resumo geral** (cards): total de contatos em missões, enviados, "vou enviar depois", não enviados, arquivados, e taxa de conclusão em %.
+2. **Ranking de agitadores**: uma linha por responsável (agitador com conta ou link avulso), com atribuídos, enviados, vou enviar depois, não enviados, arquivados, % de conclusão e data da última ação. Ordenável por enviados ou por % de conclusão.
+3. **Por missão**: uma linha por missão com os mesmos números, barra de progresso, marcadores de Pausada / Arquivada / Auto-atribuição e link para o detalhe da missão já existente.
+4. **Filtros**: período (7 / 30 / 90 dias / tudo), e missões ativas / arquivadas / todas — reusando o mesmo vocabulário de status já centralizado.
 
-Risco baixo: nada muda no motor de consulta, só se expõe na interface um caminho que já está testado na planilha.
-
-## 2. A Fase D ainda faz sentido? Sim — e não ameaça o que funciona
-
-Depois das atualizações de hoje (vocabulário `sem_acao` / `pendente_envio` / `enviado` / `arquivado_erro` / `arquivado_optout`, levas com cancelamento, etiqueta "Concluída parcialmente"), a Fase D fica **mais fácil**, não mais arriscada: os status que ela precisa ler já estão padronizados em `agitation-task-status.ts`.
-
-Ajustes na Fase D por causa do que mudou:
-- Usar exclusivamente os status novos, sem nenhuma tradução própria — o painel lê a mesma fonte que a tela do agitador.
-- Considerar levas canceladas/liberadas como não-conclusão, para não repetir o problema de "concluiu sem enviar".
-- Nada de escrita: é tela de leitura agregada. Não altera tarefa, leva, arquivamento nem notificação.
-
-**Recomendação de ordem**: fazer o item 1 (filtros "exceto" na Gestão da Base) primeiro, porque é um recurso que você já esperava ter e é isolado; a Fase D depois.
+Estados claros: "Carregando…", "Nenhuma missão neste período" e explicação curta de cada coluna via tooltip.
 
 ## Detalhes técnicos
 
-- Item 1: `src/components/ContactFiltersPanel.tsx` e `src/components/ColumnFilterHeader.tsx` ganham modo include/exclude por filtro; reaproveitam `getColumnExcludeKey` e `CrmFilters` sem alterar `crm-filters.ts`; rótulos via helper compartilhado de chips. Sem migration.
-- Fase D: rota nova de leitura, agregação em `agitation-missions.functions.ts` sobre `agitation_tasks` + `agitation_mission_claims`, reaproveitando `TASK_STATUS` e `share-image.ts`. Sem migration, sem escrita.
+- Novo arquivo `src/lib/agitation-performance.functions.ts` com um único server fn `getMissionsPerformance` (`createServerFn({ method: "GET" })` + `.middleware([requireSupabaseAuth])`), validado com Zod (`{ visibility, days }`).
+  - Lê `agitation_missions` (id, title, created_at, paused_at, archived_at, is_open) e `agitation_tasks` (mission_id, status, assigned_user_id, assigned_contact_id, assigned_at, created_at) via `context.supabase` (RLS aplicada).
+  - Nomes: `contacts.nome` para links avulsos; `profiles.full_name` para agitadores com conta, carregado com `supabaseAdmin` importado **dentro** do handler, apenas para resolver nomes — mesmo padrão já usado em `getMissionDetail`.
+  - Agregação em memória usando `TASK_STATUS` / `taskStatusFilterKey` de `src/lib/agitation-task-status.ts`, sem criar um segundo dicionário de status.
+- Nova rota `src/routes/_authenticated/missoes-agitacao.desempenho.tsx` → `createFileRoute("/_authenticated/missoes-agitacao/desempenho")`, com `head()` próprio. Dados via `useServerFn` + `useQuery` (não em loader).
+- Componentes de apresentação em `src/components/mission-performance/` (cards de resumo, tabela de ranking, tabela por missão) para manter os arquivos pequenos e reutilizáveis.
+- Link "Ver desempenho" no cabeçalho de `missoes-agitacao.index.tsx`; item de menu apenas para `admin` no `AppShell`, seguindo o padrão atual.
+- Sem migrations, sem alteração de schema, sem escrita no banco. `tsgo` no final.
 
-## Cuidados
+## Fora do escopo desta etapa
 
-- Consentimentos e campos sensíveis não entram no modo "exceto" de forma diferente do que já existe hoje — o comportamento de leitura é o mesmo.
-- A planilha `/contatos-bi` continua exatamente como está; nenhum componente dela é reescrito.
+Desarquivar em lote, contador de duplicidades no painel, liberação dos contatos travados da missão "Convite Plenária PPB" e as decisões pendentes sobre arquivados/usuários no total da base — ficam para um passo seguinte.
