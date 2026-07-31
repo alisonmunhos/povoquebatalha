@@ -152,7 +152,7 @@ function MyWeekPage() {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={week.daily} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={10} interval={0} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="messages" name="Mensagens" fill="#7B4B94" radius={[4, 4, 0, 0]} />
