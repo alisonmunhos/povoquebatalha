@@ -456,6 +456,39 @@ function AgitacaoDetailSheet({
   );
 }
 
+/** Retângulo roxo de destaque com o número de missões em aberto. */
+function MissionsShortcut() {
+  const listFn = useServerFn(listMyMissions);
+  const q = useQuery({
+    queryKey: ["my-missions"],
+    queryFn: () => listFn(),
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const open = (q.data?.missions ?? []).length;
+
+  return (
+    <Link
+      to="/minhas-missoes"
+      className="block w-full rounded-xl bg-[var(--purple-500)] px-4 py-4 text-left text-white shadow-punch transition hover:brightness-110"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="font-display text-xl leading-none">Suas missões</div>
+          <div className="mt-1 text-xs text-white/80">
+            {q.isLoading
+              ? "Carregando…"
+              : open === 0
+                ? "Nenhuma missão em aberto agora"
+                : `${open} missão(ões) em aberto — toque para abrir`}
+          </div>
+        </div>
+        <span className="font-display text-4xl leading-none">{open}</span>
+      </div>
+    </Link>
+  );
+}
+
 function Kpi({ label, v, onClick }: { label: string; v: number; onClick?: () => void }) {
   const base = "rounded-lg border bg-card p-2 text-left transition-colors";
   const cls = onClick ? `${base} hover:border-primary/40 hover:bg-primary/5 cursor-pointer w-full` : base;
