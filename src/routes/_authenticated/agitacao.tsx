@@ -133,18 +133,14 @@ function AgitacaoPage() {
   const kpis = useMemo(() => {
     const total = stats?.total ?? 0;
     const naoAbordado = counts?.nao_abordado ?? 0;
-    const confirmado = counts?.confirmado ?? 0;
-    const semResposta = counts?.sem_resposta ?? 0;
-    const pediuAtualizacao = counts?.pediu_atualizacao ?? 0;
-    // 4 KPIs úteis pro agitador; admin ganha o mesmo (a base geral aparece em /contatos).
+    // Só dois quadrados: "Confirmados" e "Sem resposta" seguem acessíveis pelos chips de filtro.
     return [
       { label: isAdminLike ? "Meus captados" : "Meus contatos", v: total, onClick: () => clearFilters() },
       { label: "Ainda não abordados", v: naoAbordado, onClick: () => setOnlyStatus("nao_abordado") },
-      { label: "Confirmados", v: confirmado, onClick: () => setOnlyStatus("confirmado") },
-      { label: "Sem resposta", v: semResposta + pediuAtualizacao, onClick: () => { setSearch(""); setFieldStatus(["sem_resposta", "pediu_atualizacao"]); } },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats?.total, counts?.nao_abordado, counts?.confirmado, counts?.sem_resposta, counts?.pediu_atualizacao, isAdminLike]);
+  }, [stats?.total, counts?.nao_abordado, isAdminLike]);
+
 
 
   return (
