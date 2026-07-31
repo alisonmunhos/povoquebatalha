@@ -967,6 +967,7 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .eq("user_id", context.userId)
       .is("completed_at", null)
+      .is("cancelled_at", null)
       .limit(1)
       .maybeSingle();
 
@@ -976,9 +977,11 @@ export const getMissionNotificationBriefing = createServerFn({ method: "GET" })
       .eq("mission_id", data.mission_id)
       .eq("user_id", context.userId)
       .not("completed_at", "is", null)
+      .is("cancelled_at", null)
       .order("completed_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
 
     const { count: available } = await supabaseAdmin
       .from("agitation_tasks")
