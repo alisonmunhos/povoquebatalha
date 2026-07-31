@@ -39,7 +39,20 @@ type RawContact = {
   uf: string | null;
   coletivo_alicerce: boolean | null;
   observacoes: string | null;
+  created_at?: string | null;
 };
+
+/**
+ * Segmentos estáticos podem ter centenas de IDs. Mandar tudo num único `.in()`
+ * estoura o tamanho da URL/cabeçalho e a consulta falha — por isso vai em lotes.
+ */
+const ID_CHUNK = 100;
+
+function chunkIds(ids: string[]): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) out.push(ids.slice(i, i + ID_CHUNK));
+  return out;
+}
 
 /** Gera token URL-safe de 22 chars para o link de tarefa. */
 function genToken(): string {
@@ -67,14 +80,15 @@ export const getSegmentTriageMeta = createServerFn({ method: "POST" })
     let total = 0;
     if (seg.tipo === "estatico") {
       const ids = ((seg.member_ids as string[] | null) ?? []).filter(Boolean);
-      if (ids.length) {
-        const { count } = await context.supabase
+      for (const lote of chunkIds(ids)) {
+        const { count, error: cErr } = await context.supabase
           .from("contacts")
           .select("id", { count: "exact", head: true })
-          .in("id", ids)
+          .in("id", lote)
           .is("arquivado_at", null)
           .eq("is_system_user", false);
-        total = count ?? 0;
+        if (cErr) throw cErr;
+        total += count ?? 0;
       }
     } else {
       const filtro = (seg.filtro ?? {}) as CrmFilters;
@@ -120,19 +134,24 @@ export const listSegmentTriageQueue = createServerFn({ method: "POST" })
     let rows: RawContact[] = [];
     if (seg.tipo === "estatico") {
       const ids = ((seg.member_ids as string[] | null) ?? []).filter(Boolean);
-      if (ids.length) {
+      const all: RawContact[] = [];
+      for (const lote of chunkIds(ids)) {
         const { data: cs, error } = await context.supabase
           .from("contacts")
           .select(CONTACT_COLS)
-          .in("id", ids)
+          .in("id", lote)
           .is("arquivado_at", null)
-          .eq("is_system_user", false)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: true })
-          .range(from, to);
+          .eq("is_system_user", false);
         if (error) throw error;
-        rows = (cs ?? []) as unknown as RawContact[];
+        all.push(...((cs ?? []) as unknown as RawContact[]));
       }
+      all.sort((a, b) => {
+        const ca = a.created_at ?? "";
+        const cb = b.created_at ?? "";
+        if (ca !== cb) return ca < cb ? 1 : -1;
+        return a.id < b.id ? -1 : 1;
+      });
+      rows = all.slice(from, to + 1);
     } else {
       const filtro = (seg.filtro ?? {}) as CrmFilters;
       let q = context.supabase.from("contacts").select(CONTACT_COLS);
