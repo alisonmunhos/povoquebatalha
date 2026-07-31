@@ -496,7 +496,7 @@ export const getMissionDetail = createServerFn({ method: "GET" })
       };
       s.total++;
       if (t.status === TASK_STATUS.ENVIADO) s.concluidos++;
-      else if (t.status === "nao_enviado" || t.status === "erro_numero") s.nao_enviados++;
+      else if (t.status !== TASK_STATUS.SEM_ACAO) s.nao_enviados++;
       else s.pendentes++;
       linkStats.set(t.assigned_contact_id, s);
     }
