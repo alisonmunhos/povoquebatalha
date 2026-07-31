@@ -84,6 +84,29 @@ export const crmFilterSchema = z.object({
   tag_ids: z.array(z.string().uuid()).optional(),
   segment_id: z.string().uuid().optional(),
 
+  // Exclusões ("exceto"): removem contatos que casam com os valores marcados.
+  // Sempre aplicadas DEPOIS dos filtros de inclusão.
+  tag_ids_excluir: z.array(z.string()).optional(),
+  cidades_excluir: z.array(z.string()).optional(),
+  bairros_excluir: z.array(z.string()).optional(),
+  ufs_excluir: z.array(z.string()).optional(),
+  profissoes_excluir: z.array(z.string()).optional(),
+  instituicoes_excluir: z.array(z.string()).optional(),
+  tipos_contato_excluir: z.array(z.string()).optional(),
+  movimentos_sociais_excluir: z.array(z.string()).optional(),
+  quem_indicou_excluir: z.array(z.string()).optional(),
+  rede_social_excluir: z.array(z.string()).optional(),
+  zona_eleitoral_excluir: z.array(z.string()).optional(),
+  como_conheceu_excluir: z.array(z.string()).optional(),
+  formas_ajuda_outro_excluir: z.array(z.string()).optional(),
+  origens_excluir: z.array(z.string()).optional(),
+  faixas_etarias_excluir: z.array(z.string()).optional(),
+  lifecycle_statuses_excluir: z.array(z.string()).optional(),
+  phone_statuses_excluir: z.array(z.string()).optional(),
+  whatsapp_statuses_excluir: z.array(z.string()).optional(),
+  formas_ajuda_excluir: z.array(z.string()).optional(),
+  disponibilidade_excluir: z.array(z.string()).optional(),
+
   // Comunicação
   // Comunicação
   apto_envio: z.enum(["sim", "nao"]).optional(),
