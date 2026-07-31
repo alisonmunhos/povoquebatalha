@@ -362,7 +362,12 @@ function clearLegacyTextFilter(next: Record<string, unknown>, columnKey: string)
   if (key) delete next[key];
 }
 
-export function applyColumnFilter(current: CrmFilters, column: string, payload: unknown): CrmFilters {
+export function applyColumnFilter(
+  current: CrmFilters,
+  column: string,
+  payload: unknown,
+  mode: ColumnFilterMode = "include",
+): CrmFilters {
   const info = resolveFilterField(column);
   if (!info) return current;
   const next = { ...current } as Record<string, unknown>;
@@ -382,7 +387,13 @@ export function applyColumnFilter(current: CrmFilters, column: string, payload: 
     next[info.filterKey as string] = String(payload ?? "").trim() || undefined;
   } else if (info.uiType === "array" || info.uiType === "tag") {
     const arr = Array.isArray(payload) ? payload : payload == null ? [] : [payload];
-    next[info.filterKey as string] = arr.length ? arr : undefined;
+    const excludeKey = getColumnExcludeKey(column);
+    const useExclude = mode === "exclude" && !!excludeKey;
+    // Inclusão e exclusão são exclusivas entre si na mesma coluna.
+    if (excludeKey) next[excludeKey as string] = undefined;
+    next[info.filterKey as string] = undefined;
+    const targetKey = useExclude ? (excludeKey as string) : (info.filterKey as string);
+    next[targetKey] = arr.length ? arr : undefined;
   }
   return next as CrmFilters;
 }
@@ -401,6 +412,8 @@ export function clearColumnFilter(current: CrmFilters, column: string): CrmFilte
   } else {
     delete next[info.filterKey as string];
   }
+  const excludeKey = getColumnExcludeKey(column);
+  if (excludeKey) delete next[excludeKey as string];
   clearLegacyBooleanFilter(next, column);
   clearLegacyTextFilter(next, column);
   return next as CrmFilters;
