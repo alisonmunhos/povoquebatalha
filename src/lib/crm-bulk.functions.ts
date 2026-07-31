@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getCatalogField, BULK_EDITABLE_FIELD_KEYS } from "@/lib/form-field-catalog";
 import {
   crmFilterSchema,
   applyCrmFilters,
