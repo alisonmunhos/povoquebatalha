@@ -134,19 +134,24 @@ export const listSegmentTriageQueue = createServerFn({ method: "POST" })
     let rows: RawContact[] = [];
     if (seg.tipo === "estatico") {
       const ids = ((seg.member_ids as string[] | null) ?? []).filter(Boolean);
-      if (ids.length) {
+      const all: RawContact[] = [];
+      for (const lote of chunkIds(ids)) {
         const { data: cs, error } = await context.supabase
           .from("contacts")
           .select(CONTACT_COLS)
-          .in("id", ids)
+          .in("id", lote)
           .is("arquivado_at", null)
-          .eq("is_system_user", false)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: true })
-          .range(from, to);
+          .eq("is_system_user", false);
         if (error) throw error;
-        rows = (cs ?? []) as unknown as RawContact[];
+        all.push(...((cs ?? []) as unknown as RawContact[]));
       }
+      all.sort((a, b) => {
+        const ca = a.created_at ?? "";
+        const cb = b.created_at ?? "";
+        if (ca !== cb) return ca < cb ? 1 : -1;
+        return a.id < b.id ? -1 : 1;
+      });
+      rows = all.slice(from, to + 1);
     } else {
       const filtro = (seg.filtro ?? {}) as CrmFilters;
       let q = context.supabase.from("contacts").select(CONTACT_COLS);
