@@ -264,8 +264,53 @@ export const listSegmentTriageQueue = createServerFn({ method: "POST" })
     return {
       contacts,
       page: data.page,
-      hasMore: rows.length === data.pageSize,
+      hasMore,
     };
+  });
+
+// ============ Decisões da triagem (persistência) ============
+
+/** Grava a decisão do usuário para um contato dentro do segmento. */
+export const recordTriageDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        segmentId: z.string().uuid(),
+        contactId: z.string().uuid(),
+        decision: z.enum(["manter", "arquivar", "pular"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await decisions(context.supabase).upsert(
+      {
+        segment_id: data.segmentId,
+        contact_id: data.contactId,
+        user_id: context.userId,
+        decision: data.decision,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "segment_id,contact_id,user_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+/** Remove a decisão gravada (usado pelo botão Desfazer). */
+export const undoTriageDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ segmentId: z.string().uuid(), contactId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await decisions(context.supabase)
+      .delete()
+      .eq("segment_id", data.segmentId)
+      .eq("contact_id", data.contactId)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 // ============ Links de tarefa de triagem (compartilhar) ============
