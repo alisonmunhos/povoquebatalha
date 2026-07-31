@@ -34,6 +34,14 @@ function TriagePage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [fichaOpen, setFichaOpen] = useState(false);
 
+  // Falhas de gravação precisam ser visíveis — antes ficavam num botão oculto.
+  useEffect(() => {
+    if (!queue.error) return;
+    toast.error(queue.error);
+    queue.clearError();
+    void meta.refetch();
+  }, [queue.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const commit = useCallback(
     (dir: SwipeDirection) => {
       const kind = dir === "left" ? "arquivar" : dir === "right" ? "manter" : "pular";
