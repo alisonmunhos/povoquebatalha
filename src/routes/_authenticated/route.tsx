@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useAuth, useRoles } from "@/hooks/use-auth";
+import { isAgitadorOnlyRoles, isAgitacaoPath } from "@/hooks/use-agitador-mode";
 import { Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated")({
