@@ -8,13 +8,17 @@ import { toast } from "sonner";
 import { Download, Loader2, Share2, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { AgitacaoNav } from "@/components/AgitacaoNav";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { getMyImpactStats } from "@/lib/impact-stats.functions";
-import { weekMilestoneFor } from "@/lib/impact-milestones";
+import { getMyImpactStats, getImpactStatsForUser } from "@/lib/impact-stats.functions";
+import { weekMilestoneFor, resolveMilestone } from "@/lib/impact-milestones";
 import { ImpactShareCard } from "@/components/ImpactShareCard";
 import { elementToPngBlob, downloadBlob, sharePng } from "@/lib/share-image";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/minha-semana")({
+  // ?userId= permite que a equipe veja a MESMA tela de outra pessoa.
+  validateSearch: (search: Record<string, unknown>) => ({
+    userId: typeof search["userId"] === "string" ? (search["userId"] as string) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Minha semana — Povo que Batalha" },
@@ -30,8 +34,15 @@ export const Route = createFileRoute("/_authenticated/minha-semana")({
 type Scope = "closed" | "current";
 
 function MyWeekPage() {
-  const statsFn = useServerFn(getMyImpactStats);
-  const q = useQuery({ queryKey: ["my-impact"], queryFn: () => statsFn(), retry: 1 });
+  const { userId } = Route.useSearch();
+  const mineFn = useServerFn(getMyImpactStats);
+  const otherFn = useServerFn(getImpactStatsForUser);
+  const q = useQuery({
+    queryKey: ["my-impact", userId ?? "me"],
+    queryFn: () => (userId ? otherFn({ data: { userId } }) : mineFn()),
+    retry: 1,
+  });
+
   const shareRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<"share" | "download" | null>(null);
   const [scope, setScope] = useState<Scope>("closed");
