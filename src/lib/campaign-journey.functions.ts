@@ -10,6 +10,8 @@ const journeySchema = z.object({
   days: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(0)]).default(30),
 });
 
+export type CampaignDay = { day: string; label: string; mensagens: number; cadastros: number };
+
 export type CampaignJourney = {
   /** Cadastros por formulário público (recadastro + inscrição). */
   cadastrosFormulario: number;
@@ -23,7 +25,10 @@ export type CampaignJourney = {
   conexoes: number;
   /** Quantos importados existem no período — só como referência, fora da conta. */
   importadosIgnorados: number;
+  /** Últimos 7 dias (para o mini-gráfico do cartão). */
+  daily: CampaignDay[];
 };
+
 
 export const getCampaignJourney = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
