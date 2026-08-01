@@ -7,11 +7,16 @@ import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
 import {
   applyFilterSelection,
+  applyFilterSides,
+  getExcludeValues,
   getFilterMode,
   getFilterValues,
+  getIncludeValues,
   type ExcludableFilterKey,
   type FilterMode,
 } from "@/lib/filter-exclusion";
+import { getMatchMode, type MatchMode } from "@/lib/filter-match-mode";
+
 import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import { listSystemUserOptions } from "@/lib/users.functions";
 import { cn } from "@/lib/utils";
@@ -182,6 +187,30 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
       onChange(applyFilterSelection(filters, key, values, getFilterMode(filters, key))),
   });
 
+  /**
+   * Campos em que a pessoa pode ter vários valores (tags, formas de ajuda,
+   * missões, eventos): menu completo com abas Mostrar/Esconder e combinação
+   * "Qualquer uma / Todas / Somente essas".
+   */
+  const selFull = (key: ExcludableFilterKey) => ({
+    value: getIncludeValues(filters, key),
+    excludeValue: getExcludeValues(filters, key),
+    matchMode: getMatchMode(filters, key),
+    onApplyFull: (p: { include: string[]; exclude: string[]; mode: MatchMode }) =>
+      onChange(applyFilterSides(filters, key, p.include, p.exclude, p.mode)),
+    onChange: (values: string[]) =>
+      onChange(
+        applyFilterSides(
+          filters,
+          key,
+          values,
+          getExcludeValues(filters, key),
+          getMatchMode(filters, key),
+        ),
+      ),
+  });
+
+
   const opts = options ?? {
     cidades: [], bairros: [], ufs: [], profissoes: [], instituicoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
@@ -244,8 +273,9 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Todos (contatos e usuários)"
           />
         </Field>
-        <Field label="Tags" hint="Dentro do menu você pode escolher entre mostrar só os marcados ou esconder os marcados (exceto).">
-          <MultiSelectFilter options={opts.tags} {...sel("tag_ids")} placeholder="Todas as tags" />
+        <Field label="Tags" hint="No menu você escolhe: mostrar quem tem qualquer uma, todas, ou somente as marcadas. A aba 'Esconder' remove quem tem as tags marcadas ali — pode usar as duas juntas.">
+          <MultiSelectFilter options={opts.tags} {...selFull("tag_ids")} placeholder="Todas as tags" />
+
         </Field>
         <Field label="Situação do cadastro" hint="Progresso do recadastro + marcações manuais (bloqueado, precisa revisão). Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
           <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} {...sel("lifecycle_statuses")} placeholder="Qualquer" />
@@ -321,11 +351,12 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
       </Section>
 
       <Section icon={<Users className="h-4 w-4" />} title="Como pode ajudar">
-        <Field label="Formas de ajuda">
-          <MultiSelectFilter options={opts.formas_ajuda} {...sel("formas_ajuda")} placeholder="Todas as formas" />
+        <Field label="Formas de ajuda" hint="No menu: qualquer uma, todas, ou somente as marcadas. A aba 'Esconder' remove quem tem as opções marcadas ali.">
+          <MultiSelectFilter options={opts.formas_ajuda} {...selFull("formas_ajuda")} placeholder="Todas as formas" />
         </Field>
         <Field label="Disponibilidade" informativo>
-          <MultiSelectFilter options={opts.disponibilidade} {...sel("disponibilidade")} placeholder="Qualquer dia/período" />
+          <MultiSelectFilter options={opts.disponibilidade} {...selFull("disponibilidade")} placeholder="Qualquer dia/período" />
+
         </Field>
       </Section>
 
@@ -403,8 +434,39 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Missão específica" hint="Opcional: limita o filtro acima a uma missão.">
-          <SingleSelectFilter options={opts.missoes ?? []} value={filters.missao_id} onChange={(v) => set("missao_id", v)} placeholder="Qualquer missão" />
+        <Field
+          label="Missões específicas"
+          hint="Pode marcar várias. 'Qualquer uma' = recebeu de pelo menos uma; 'Todas' = recebeu de todas as marcadas. A aba 'Esconder' remove quem já recebeu daquelas missões."
+        >
+          <MultiSelectFilter options={opts.missoes ?? []} {...selFull("missao_ids")} placeholder="Qualquer missão" />
+        </Field>
+        <Field
+          label="Quantas missões diferentes já recebeu"
+          hint="Exemplo: mínimo 2 mostra quem já recebeu mensagem de duas ou mais missões."
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Mínimo"
+              value={filters.missoes_recebidas_min ?? ""}
+              onChange={(e) =>
+                set("missoes_recebidas_min", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Máximo"
+              value={filters.missoes_recebidas_max ?? ""}
+              onChange={(e) =>
+                set("missoes_recebidas_max", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+          </div>
         </Field>
         <Field label="Presença em evento">
           <SingleSelectFilter
@@ -418,9 +480,41 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Evento específico" hint="Opcional: limita o filtro de presença a um evento.">
-          <SingleSelectFilter options={opts.eventos ?? []} value={filters.evento_id} onChange={(v) => set("evento_id", v)} placeholder="Qualquer evento" />
+        <Field
+          label="Eventos específicos"
+          hint="Pode marcar vários. 'Todas' = confirmou presença em todos os eventos marcados."
+        >
+          <MultiSelectFilter options={opts.eventos ?? []} {...selFull("evento_ids")} placeholder="Qualquer evento" />
         </Field>
+        <Field
+          label="Em quantos eventos confirmou presença"
+          hint="Exemplo: mínimo 2 mostra quem confirmou em dois ou mais eventos."
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Mínimo"
+              value={filters.eventos_confirmados_min ?? ""}
+              onChange={(e) =>
+                set("eventos_confirmados_min", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Máximo"
+              value={filters.eventos_confirmados_max ?? ""}
+              onChange={(e) =>
+                set("eventos_confirmados_max", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+          </div>
+        </Field>
+
         <Field label="Já respondeu alguma mensagem" hint="Teve pelo menos uma resposta recebida no WhatsApp.">
           <SingleSelectFilter
             options={SIM_NAO}

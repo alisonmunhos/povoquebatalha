@@ -1,8 +1,13 @@
 // src/lib/filter-exclusion.ts
-// Fonte única do par "incluir os marcados" / "esconder os marcados" (exceto)
+// Fonte única do par "mostrar os marcados" / "esconder os marcados" (exceto)
 // usado nos filtros da Gestão da Base. O motor de consulta (crm-filters.ts)
 // já entende as chaves *_excluir; aqui só mapeamos o que a interface oferece.
+//
+// IMPORTANTE: desde a revisão dos filtros combináveis, incluir e excluir podem
+// coexistir no mesmo campo — é assim que se pergunta "tem as tags 4 a 13, mas
+// não tem a tag 2".
 import type { CrmFilters } from "@/lib/crm-filters";
+import { getModeKey, supportsMatchMode, type MatchMode } from "@/lib/filter-match-mode";
 
 export type FilterMode = "include" | "exclude";
 
@@ -27,6 +32,8 @@ export const EXCLUDE_KEY_BY_FILTER = {
   whatsapp_statuses: "whatsapp_statuses_excluir",
   formas_ajuda: "formas_ajuda_excluir",
   disponibilidade: "disponibilidade_excluir",
+  missao_ids: "missao_ids_excluir",
+  evento_ids: "evento_ids_excluir",
 } as const satisfies Partial<Record<keyof CrmFilters, keyof CrmFilters>>;
 
 /** Chaves de filtro que aceitam o modo "exceto". */
@@ -36,38 +43,81 @@ export function getExcludeKey(key: ExcludableFilterKey): keyof CrmFilters {
   return EXCLUDE_KEY_BY_FILTER[key];
 }
 
-function readArray(filters: CrmFilters, key: keyof CrmFilters): string[] {
+function readArray(filters: CrmFilters, key: keyof CrmFilters | string): string[] {
   const v = (filters as Record<string, unknown>)[key as string];
   return Array.isArray(v) ? (v as string[]) : [];
 }
 
+/** Valores marcados para MOSTRAR. */
+export function getIncludeValues(filters: CrmFilters, key: ExcludableFilterKey): string[] {
+  return readArray(filters, key);
+}
+
+/** Valores marcados para ESCONDER. */
+export function getExcludeValues(filters: CrmFilters, key: ExcludableFilterKey): string[] {
+  return readArray(filters, getExcludeKey(key));
+}
+
+/**
+ * Grava os dois lados de uma só vez (mostrar + esconder + modo).
+ * Chaves vazias são removidas, para a URL e as visões salvas ficarem limpas.
+ */
+export function applyFilterSides(
+  filters: CrmFilters,
+  key: ExcludableFilterKey,
+  include: string[],
+  exclude: string[],
+  mode: MatchMode = "qualquer",
+): CrmFilters {
+  const next = { ...filters } as Record<string, unknown>;
+  const excludeKey = getExcludeKey(key) as string;
+
+  if (include.length) next[key as string] = include;
+  else delete next[key as string];
+
+  if (exclude.length) next[excludeKey] = exclude;
+  else delete next[excludeKey];
+
+  if (supportsMatchMode(key)) {
+    const modeKey = getModeKey(key);
+    if (include.length && mode !== "qualquer") next[modeKey] = mode;
+    else delete next[modeKey];
+  }
+
+  return next as CrmFilters;
+}
+
+/** Limpa completamente um campo (mostrar, esconder e modo). */
+export function clearFilterField(filters: CrmFilters, key: ExcludableFilterKey): CrmFilters {
+  return applyFilterSides(filters, key, [], [], "qualquer");
+}
+
+// ————————————————————————————————————————————————————————————————
+// Compatibilidade com o formato antigo (um lado por vez). Ainda usado pela
+// planilha BI e por visões salvas anteriores.
+// ————————————————————————————————————————————————————————————————
+
 /** Modo ativo: "exclude" apenas quando a chave de exclusão tem valores marcados. */
 export function getFilterMode(filters: CrmFilters, key: ExcludableFilterKey): FilterMode {
-  return readArray(filters, getExcludeKey(key)).length > 0 ? "exclude" : "include";
+  return getExcludeValues(filters, key).length > 0 && !getIncludeValues(filters, key).length
+    ? "exclude"
+    : "include";
 }
 
 /** Valores marcados hoje, vindos do lado ativo (incluir ou excluir). */
 export function getFilterValues(filters: CrmFilters, key: ExcludableFilterKey): string[] {
-  const excluded = readArray(filters, getExcludeKey(key));
-  return excluded.length > 0 ? excluded : readArray(filters, key);
+  const included = getIncludeValues(filters, key);
+  return included.length > 0 ? included : getExcludeValues(filters, key);
 }
 
-/**
- * Grava a seleção no lado certo e limpa o outro — nunca deixa incluir e excluir
- * ativos ao mesmo tempo no mesmo campo.
- */
+/** Grava a seleção em um único lado, limpando o outro (comportamento legado). */
 export function applyFilterSelection(
   filters: CrmFilters,
   key: ExcludableFilterKey,
   values: string[],
   mode: FilterMode,
 ): CrmFilters {
-  const next = { ...filters } as Record<string, unknown>;
-  const excludeKey = getExcludeKey(key) as string;
-  delete next[key as string];
-  delete next[excludeKey];
-  if (values.length > 0) {
-    next[mode === "exclude" ? excludeKey : (key as string)] = values;
-  }
-  return next as CrmFilters;
+  return mode === "exclude"
+    ? applyFilterSides(filters, key, [], values, "qualquer")
+    : applyFilterSides(filters, key, values, [], "qualquer");
 }

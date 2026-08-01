@@ -7,6 +7,15 @@ import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/li
 
 type Chip = { key: string; label: string; onRemove: () => void };
 
+/** Prefixo curto do modo de combinação, para o chip explicar o que está valendo. */
+function modePrefix(mode: string | undefined): string {
+  if (mode === "todos") return "Todas — ";
+  if (mode === "somente") return "Somente — ";
+  return "";
+}
+
+
+
 
 export function ActiveFiltersChips({
   filters,
@@ -56,7 +65,23 @@ export function ActiveFiltersChips({
     chips.push({ key: "ms-txt", label: `Movimento contém: ${filters.movimento_social_contains}`, onRemove: remove("movimento_social_contains") });
 
   // Participação
-  for (const v of filters.formas_ajuda ?? []) chips.push({ key: `fa-${v}`, label: `Ajuda: ${v}`, onRemove: removeFromArr("formas_ajuda", v) });
+  for (const v of filters.formas_ajuda ?? [])
+    chips.push({
+      key: `fa-${v}`,
+      label: `${modePrefix(filters.formas_ajuda_modo)}Ajuda: ${v}`,
+      onRemove: removeFromArr("formas_ajuda", v),
+    });
+  for (const v of filters.formas_ajuda_excluir ?? [])
+    chips.push({ key: `fa-x-${v}`, label: `Sem a ajuda: ${v}`, onRemove: removeFromArr("formas_ajuda_excluir", v) });
+  for (const v of filters.disponibilidade ?? [])
+    chips.push({
+      key: `dp-${v}`,
+      label: `${modePrefix(filters.disponibilidade_modo)}Disponível: ${v}`,
+      onRemove: removeFromArr("disponibilidade", v),
+    });
+  for (const v of filters.disponibilidade_excluir ?? [])
+    chips.push({ key: `dp-x-${v}`, label: `Sem disponibilidade: ${v}`, onRemove: removeFromArr("disponibilidade_excluir", v) });
+
   for (const ch of filters.capture_channels ?? []) {
     const label = ch === "formulario_publico" ? "Formulário público" : ch === "captacao_atribuida" ? "Captação atribuída" : ch;
     chips.push({ key: `ch-${ch}`, label: `Canal: ${label}`, onRemove: removeFromArr("capture_channels", ch) });
@@ -77,14 +102,47 @@ export function ActiveFiltersChips({
             : "Recebeu missão: não",
       onRemove: remove("missao_recebida"),
     });
+  for (const v of filters.missao_ids ?? [])
+    chips.push({
+      key: `mis-${v}`,
+      label: `${modePrefix(filters.missao_ids_modo)}Missão: ${findLabel(options?.missoes, v)}`,
+      onRemove: removeFromArr("missao_ids", v),
+    });
+  for (const v of filters.missao_ids_excluir ?? [])
+    chips.push({
+      key: `mis-x-${v}`,
+      label: `Sem a missão: ${findLabel(options?.missoes, v)}`,
+      onRemove: removeFromArr("missao_ids_excluir", v),
+    });
   if (filters.missao_id)
     chips.push({ key: "mis-id", label: `Missão: ${findLabel(options?.missoes, filters.missao_id)}`, onRemove: remove("missao_id") });
+  if (filters.missoes_recebidas_min != null)
+    chips.push({ key: "mis-min", label: `Missões recebidas: ${filters.missoes_recebidas_min} ou mais`, onRemove: remove("missoes_recebidas_min") });
+  if (filters.missoes_recebidas_max != null)
+    chips.push({ key: "mis-max", label: `Missões recebidas: até ${filters.missoes_recebidas_max}`, onRemove: remove("missoes_recebidas_max") });
   if (filters.evento_rsvp) {
     const l = filters.evento_rsvp === "sim" ? "confirmou" : filters.evento_rsvp === "recusou" ? "recusou" : "não confirmou";
     chips.push({ key: "ev", label: `Evento: ${l}`, onRemove: remove("evento_rsvp") });
   }
+  for (const v of filters.evento_ids ?? [])
+    chips.push({
+      key: `ev-${v}`,
+      label: `${modePrefix(filters.evento_ids_modo)}Evento: ${findLabel(options?.eventos, v)}`,
+      onRemove: removeFromArr("evento_ids", v),
+    });
+  for (const v of filters.evento_ids_excluir ?? [])
+    chips.push({
+      key: `ev-x-${v}`,
+      label: `Sem o evento: ${findLabel(options?.eventos, v)}`,
+      onRemove: removeFromArr("evento_ids_excluir", v),
+    });
   if (filters.evento_id)
     chips.push({ key: "ev-id", label: `Evento: ${findLabel(options?.eventos, filters.evento_id)}`, onRemove: remove("evento_id") });
+  if (filters.eventos_confirmados_min != null)
+    chips.push({ key: "ev-min", label: `Eventos confirmados: ${filters.eventos_confirmados_min} ou mais`, onRemove: remove("eventos_confirmados_min") });
+  if (filters.eventos_confirmados_max != null)
+    chips.push({ key: "ev-max", label: `Eventos confirmados: até ${filters.eventos_confirmados_max}`, onRemove: remove("eventos_confirmados_max") });
+
   if (filters.respondeu_mensagem)
     chips.push({ key: "resp", label: `Já respondeu: ${filters.respondeu_mensagem === "sim" ? "sim" : "não"}`, onRemove: remove("respondeu_mensagem") });
   for (const v of filters.captured_by_user_ids ?? []) {
@@ -96,7 +154,19 @@ export function ActiveFiltersChips({
   }
   for (const v of filters.origens ?? []) chips.push({ key: `or-${v}`, label: `Origem: ${v}`, onRemove: removeFromArr("origens", v) });
   for (const v of filters.origem_detalhes ?? []) chips.push({ key: `od-${v}`, label: `Detalhe: ${v}`, onRemove: removeFromArr("origem_detalhes", v) });
-  for (const id of filters.tag_ids ?? []) chips.push({ key: `tag-${id}`, label: `Tag: ${findLabel(options?.tags, id)}`, onRemove: removeFromArr("tag_ids", id) });
+  for (const id of filters.tag_ids ?? [])
+    chips.push({
+      key: `tag-${id}`,
+      label: `${modePrefix(filters.tag_ids_modo)}Tag: ${findLabel(options?.tags, id)}`,
+      onRemove: removeFromArr("tag_ids", id),
+    });
+  for (const id of filters.tag_ids_excluir ?? [])
+    chips.push({
+      key: `tag-x-${id}`,
+      label: `Sem a tag: ${findLabel(options?.tags, id)}`,
+      onRemove: removeFromArr("tag_ids_excluir", id),
+    });
+
 
   // Comunicação
   if (filters.consent) chips.push({ key: "cs", label: `Consentimento WhatsApp: ${filters.consent}`, onRemove: remove("consent") });
