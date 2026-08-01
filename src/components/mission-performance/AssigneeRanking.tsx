@@ -69,11 +69,11 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                     {r.ultima_acao ? new Date(r.ultima_acao).toLocaleDateString("pt-BR") : "—"}
                   </td>
                   <td className="p-2 text-right">
-                    {r.tipo === "conta" ? (
+                    {r.userId ? (
                       <span className="flex justify-end gap-2">
                         <Link
                           to="/meu-impacto"
-                          search={{ userId: r.refId }}
+                          search={{ userId: r.userId }}
                           target="_blank"
                           className="text-xs font-medium text-primary underline-offset-2 hover:underline"
                           title="Abre a mesma tela que essa pessoa vê no app."
@@ -82,7 +82,7 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                         </Link>
                         <Link
                           to="/minha-semana"
-                          search={{ userId: r.refId }}
+                          search={{ userId: r.userId }}
                           target="_blank"
                           className="text-xs font-medium text-primary underline-offset-2 hover:underline"
                           title="Abre a tela da semana dessa pessoa."
@@ -91,10 +91,14 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                         </Link>
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground" title="Sem conta no app.">
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title="Essa pessoa não tem cadastro no app, então não existe jornada para abrir."
+                      >
                         —
                       </span>
                     )}
+
                   </td>
                 </tr>
               ))}
