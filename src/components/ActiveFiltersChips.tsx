@@ -7,6 +7,15 @@ import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, WHATSAPP_STATUS_LABEL } from "@/li
 
 type Chip = { key: string; label: string; onRemove: () => void };
 
+/** Prefixo curto do modo de combinação, para o chip explicar o que está valendo. */
+function modePrefix(mode: string | undefined): string {
+  if (mode === "todos") return "Todas — ";
+  if (mode === "somente") return "Somente — ";
+  return "";
+}
+
+
+
 
 export function ActiveFiltersChips({
   filters,
