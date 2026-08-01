@@ -1,6 +1,10 @@
 // Faixa de topo do painel do admin: a jornada da campanha toda somada.
 import { Users, Send, Flame } from "lucide-react";
 import type { CampaignJourney } from "@/lib/campaign-journey.functions";
+import { CampaignShareCard, CAMPAIGN_CARD_BG } from "@/components/CampaignShareCard";
+import { ShareImageActions } from "@/components/share/ShareImageActions";
+import { resolveCampaignMilestone } from "@/lib/campaign-milestones";
+import { SITE_URL } from "@/lib/site-meta";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -11,12 +15,21 @@ export function CampaignJourneyPanel({
   data: CampaignJourney;
   periodoLabel: string;
 }) {
+  const milestone = resolveCampaignMilestone(data.conexoes);
+  const shareText = [
+    `Jornada da Campanha do Povo que Batalha · ${periodoLabel}`,
+    `${nf.format(data.conexoes)} conexões · ${nf.format(data.mensagens)} mensagens enviadas em missões · ${nf.format(data.cadastros)} cadastros novos`,
+    milestone.phrase,
+    SITE_URL,
+  ].join("\n");
+
   return (
     <section className="rounded-lg border-2 bg-card p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Jornada da campanha</h2>
         <span className="text-xs text-muted-foreground">{periodoLabel}</span>
       </div>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="rounded-md border p-3">
@@ -52,6 +65,24 @@ export function CampaignJourneyPanel({
         no período). Contam apenas quem chegou por formulário público ou foi cadastrado no botão
         adicionar.
       </p>
+
+      <div className="border-t pt-3 space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Cartão da campanha para compartilhar em grupos e redes. Só números somados — nenhum dado
+          de contato aparece na imagem.
+        </p>
+        <ShareImageActions
+          card={(ref) => (
+            <CampaignShareCard data={data} periodoLabel={periodoLabel} innerRef={ref} />
+          )}
+          shareText={shareText}
+          filename="jornada-da-campanha-povo-que-batalha.png"
+          backgroundColor={CAMPAIGN_CARD_BG}
+          shareLabel="Compartilhar cartão da campanha"
+          preview
+        />
+      </div>
     </section>
+
   );
 }
