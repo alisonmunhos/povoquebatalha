@@ -65,7 +65,23 @@ export function ActiveFiltersChips({
     chips.push({ key: "ms-txt", label: `Movimento contém: ${filters.movimento_social_contains}`, onRemove: remove("movimento_social_contains") });
 
   // Participação
-  for (const v of filters.formas_ajuda ?? []) chips.push({ key: `fa-${v}`, label: `Ajuda: ${v}`, onRemove: removeFromArr("formas_ajuda", v) });
+  for (const v of filters.formas_ajuda ?? [])
+    chips.push({
+      key: `fa-${v}`,
+      label: `${modePrefix(filters.formas_ajuda_modo)}Ajuda: ${v}`,
+      onRemove: removeFromArr("formas_ajuda", v),
+    });
+  for (const v of filters.formas_ajuda_excluir ?? [])
+    chips.push({ key: `fa-x-${v}`, label: `Sem a ajuda: ${v}`, onRemove: removeFromArr("formas_ajuda_excluir", v) });
+  for (const v of filters.disponibilidade ?? [])
+    chips.push({
+      key: `dp-${v}`,
+      label: `${modePrefix(filters.disponibilidade_modo)}Disponível: ${v}`,
+      onRemove: removeFromArr("disponibilidade", v),
+    });
+  for (const v of filters.disponibilidade_excluir ?? [])
+    chips.push({ key: `dp-x-${v}`, label: `Sem disponibilidade: ${v}`, onRemove: removeFromArr("disponibilidade_excluir", v) });
+
   for (const ch of filters.capture_channels ?? []) {
     const label = ch === "formulario_publico" ? "Formulário público" : ch === "captacao_atribuida" ? "Captação atribuída" : ch;
     chips.push({ key: `ch-${ch}`, label: `Canal: ${label}`, onRemove: removeFromArr("capture_channels", ch) });
