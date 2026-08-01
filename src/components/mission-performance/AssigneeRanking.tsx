@@ -4,16 +4,34 @@ import { Link } from "@tanstack/react-router";
 import type { AssigneePerformance } from "@/lib/agitation-performance.functions";
 import { conclusionRate } from "./PerformanceSummary";
 
-type SortKey = "enviados" | "conclusao";
+type SortKey = "conexoes" | "enviados" | "cadastros" | "conclusao";
+
+/** Mensagem pronta para mandar a jornada da pessoa pelo WhatsApp. */
+function journeyMessage(r: AssigneePerformance): string {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const primeiro = r.nome.split(" ")[0] ?? r.nome;
+  return [
+    `Olá, ${primeiro}! Olha o tamanho da sua jornada no Povo que Batalha:`,
+    `• ${r.conexoes} ${r.conexoes === 1 ? "conexão" : "conexões"}`,
+    `• ${r.enviados} ${r.enviados === 1 ? "mensagem enviada" : "mensagens enviadas"}`,
+    `• ${r.cadastros} ${r.cadastros === 1 ? "cadastro" : "cadastros"}`,
+    "",
+    `Veja e compartilhe a sua: ${origin}/meu-impacto`,
+  ].join("\n");
+}
 
 export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
-  const [sort, setSort] = useState<SortKey>("enviados");
+  const [sort, setSort] = useState<SortKey>("conexoes");
+  const [hideEmpty, setHideEmpty] = useState(false);
 
-  const sorted = [...rows].sort((a, b) =>
-    sort === "enviados"
-      ? b.enviados - a.enviados || b.total - a.total
-      : conclusionRate(b) - conclusionRate(a) || b.enviados - a.enviados,
-  );
+  const visible = hideEmpty ? rows.filter((r) => r.conexoes > 0 || r.atribuidos > 0) : rows;
+  const sorted = [...visible].sort((a, b) => {
+    if (sort === "conexoes") return b.conexoes - a.conexoes || b.enviados - a.enviados;
+    if (sort === "cadastros") return b.cadastros - a.cadastros || b.conexoes - a.conexoes;
+    if (sort === "enviados") return b.enviados - a.enviados || b.total - a.total;
+    return conclusionRate(b) - conclusionRate(a) || b.enviados - a.enviados;
+  });
+
 
 
   return (
