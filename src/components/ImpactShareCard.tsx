@@ -35,8 +35,13 @@ export function ImpactShareCard({
         ? stats.connections.today
         : theWeek.connections;
 
-  const milestone =
+  const rawMilestone =
     variant === "week" ? weekMilestoneFor(theWeek.connections) : milestoneFor(stats.connections.total);
+  // Textos sempre com o número REAL da pessoa; badge com o limiar cruzado ("Nome · 50+").
+  const milestone = resolveMilestone(
+    rawMilestone,
+    variant === "week" ? theWeek.connections : stats.connections.total,
+  );
 
   const headline =
     variant === "total"
@@ -44,6 +49,7 @@ export function ImpactShareCard({
       : variant === "day"
         ? "Hoje eu me conectei com"
         : "Nesta semana eu me conectei com";
+
 
   const unitWord = variant === "total" ? "conexões" : "pessoas";
 
