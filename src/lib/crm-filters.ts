@@ -481,7 +481,10 @@ export function applyCrmFilters<T extends {
   if (f.instituicoes?.length) q = applyExactIlikeArrayFilter(q, "instituicao", f.instituicoes);
   else if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
   if (typeof f.coletivo_alicerce === "boolean" && !f.coletivo_alicerce_values?.length) {
-    q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
+    // "Não" precisa incluir quem nunca respondeu (campo vazio) — mesmo padrão
+    // já usado em "Bloqueado" e "Apto para envio".
+    if (f.coletivo_alicerce) q = q.eq("coletivo_alicerce", true);
+    else q = q.or("coletivo_alicerce.is.null,coletivo_alicerce.eq.false");
   }
   if (f.coletivo_alicerce_values?.length) {
     q = applyBooleanColumnFilter(q, "coletivo_alicerce", f.coletivo_alicerce_values, { true: true, false: false });
