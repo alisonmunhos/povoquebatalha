@@ -75,10 +75,18 @@ export function MultiSelectFilter({
   // Sincroniza o rascunho apenas ao abrir, para não sobrescrever a edição em andamento.
   useEffect(() => {
     if (open) {
-      setDraft(value);
-      setDraftExclude(excludeValue ?? []);
+      const savedMode = matchMode ?? "qualquer";
+      // No modo "nenhuma destas" as opções ficam guardadas no lado de exclusão,
+      // mas aparecem marcadas na aba "Mostrar" para o usuário editar ali mesmo.
+      if (savedMode === "nenhuma") {
+        setDraft(excludeValue ?? []);
+        setDraftExclude([]);
+      } else {
+        setDraft(value);
+        setDraftExclude(excludeValue ?? []);
+      }
       setDraftMode(mode ?? "include");
-      setDraftMatch(matchMode ?? "qualquer");
+      setDraftMatch(savedMode);
       setTab("mostrar");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,16 +102,39 @@ export function MultiSelectFilter({
   const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? v;
   const selectedLabels = value.map(labelOf);
   const hiddenCount = excludeValue?.length ?? 0;
+  const noneMode = advanced && draftMatch === "nenhuma";
+  const overlap = draft.filter((v) => draftExclude.includes(v));
 
   function toggle(v: string) {
     const next = new Set(activeSet);
     if (next.has(v)) next.delete(v);
     else next.add(v);
-    setActiveList([...next]);
+    // Um item nunca pode ficar nos dois lados: marcar em um lado desmarca no outro.
+    if (advanced && tab === "esconder") {
+      setDraftExclude([...next]);
+      setDraft(draft.filter((x) => x !== v));
+    } else {
+      setDraft([...next]);
+      setDraftExclude(draftExclude.filter((x) => x !== v));
+    }
+  }
+
+  function fixOverlap() {
+    setDraftExclude(draftExclude.filter((v) => !draft.includes(v)));
   }
 
   function apply() {
     if (onApplyFull) {
+      if (draftMatch === "nenhuma") {
+        // "Nenhuma destas": tudo o que foi marcado vira exclusão; nada de inclusão.
+        onApplyFull({
+          include: [],
+          exclude: [...new Set([...draft, ...draftExclude])],
+          mode: "nenhuma",
+        });
+        setOpen(false);
+        return;
+      }
       // "Somente essas" = tem as marcadas e nada além: as demais opções entram
       // automaticamente no lado de exclusão.
       const includeSet = new Set(draft);
@@ -113,7 +144,7 @@ export function MultiSelectFilter({
           : [];
       onApplyFull({
         include: draft,
-        exclude: [...new Set([...draftExclude, ...autoExclude])],
+        exclude: [...new Set([...draftExclude.filter((v) => !includeSet.has(v)), ...autoExclude])],
         mode: draftMatch,
       });
     } else if (onApply) {
