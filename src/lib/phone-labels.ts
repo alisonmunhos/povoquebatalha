@@ -20,17 +20,18 @@ export const PHONE_STATUS_BADGE: Record<string, string> = {
 };
 
 export const LIFECYCLE_LABEL: Record<string, string> = {
-  importado_aguardando_recadastro: "Só importado (sem cadastro)",
+  importado_aguardando_recadastro: "Importado (sem cadastro)",
   link_enviado: "Link enviado",
   recadastro_iniciado: "Cadastro iniciado",
   recadastro_concluido: "Cadastro completo",
   nao_respondeu: "Não respondeu",
-  telefone_invalido: "Marcado telefone inválido (manual)",
-  precisa_revisao: "Precisa revisão (manual)",
-  duplicado_possivel: "Possível duplicado (manual)",
-  duplicado_mesclado: "Mesclado",
-  nao_enviar: "Bloqueado (não enviar)",
+  telefone_invalido: "Telefone inválido",
+  precisa_revisao: "Precisa revisão",
+  duplicado_possivel: "Possível duplicado",
+  duplicado_mesclado: "Mesclado em outro contato",
+  nao_enviar: "Não enviar",
 };
+
 
 export const WHATSAPP_STATUS_LABEL: Record<string, string> = {
   desconhecido: "Não verificado",
