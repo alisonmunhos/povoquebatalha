@@ -148,10 +148,8 @@ function AgitacaoPage() {
   return (
     <div className="min-h-dvh bg-muted/20">
       <div className="max-w-3xl mx-auto p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-semibold">Agitação</h1>
-        </div>
+        <AgitacaoNav title="Agitação" hideBack />
+
 
         {/* Faixa de impacto pessoal */}
         <ImpactBanner />
