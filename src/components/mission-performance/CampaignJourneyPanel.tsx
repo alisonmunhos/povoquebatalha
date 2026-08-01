@@ -65,6 +65,24 @@ export function CampaignJourneyPanel({
         no período). Contam apenas quem chegou por formulário público ou foi cadastrado no botão
         adicionar.
       </p>
+
+      <div className="border-t pt-3 space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Cartão da campanha para compartilhar em grupos e redes. Só números somados — nenhum dado
+          de contato aparece na imagem.
+        </p>
+        <ShareImageActions
+          card={(ref) => (
+            <CampaignShareCard data={data} periodoLabel={periodoLabel} innerRef={ref} />
+          )}
+          shareText={shareText}
+          filename="jornada-da-campanha-povo-que-batalha.png"
+          backgroundColor={CAMPAIGN_CARD_BG}
+          shareLabel="Compartilhar cartão da campanha"
+          preview
+        />
+      </div>
     </section>
+
   );
 }
