@@ -1,29 +1,42 @@
-## Parte 1 — Ícone nos cartões "Minha Jornada"
+## Diagnóstico (confirmado no banco)
 
-Aprovando a versão em anexo (`opcao-c-icone-do-celular.png`), farei:
+O cartão do faylon mostra **3 conexões (0 mensagens + 3 cadastros)**, mas o correto é **8**.
 
-- Publicar essa imagem como asset do projeto (`app-icon-squircle.png`) e usá-la em `src/components/ImpactShareCard.tsx` no lugar do `fist-mark-transparent.png` atual, que estava cortando o pulso.
-- Exibir como selo do app: quadradinho arredondado (como no celular), tamanho controlado, posicionado entre o headline e o gráfico, mantendo o efeito de burst atrás.
-- Aplicar nas 3 variações do cartão (geral, do dia, da semana).
-- Remover o asset antigo `fist-mark-transparent.png` se não houver outro uso.
+Consulta ao banco:
 
-## Parte 2 — Jornada dos responsáveis atribuídos por link
+- faylon tem **5 tarefas com status "enviado"**, todas atribuídas ao **contato** dele (`assigned_contact_id`), nenhuma ao usuário (`assigned_user_id`).
+- O cálculo da jornada (`src/lib/impact-stats.server.ts`) conta mensagens **somente** por `assigned_user_id`. Por isso aparece 0 mensagens.
+- Os 3 cadastros estão certos: 3 contatos captados por ele (eventos `contato_criado`/`cadastro_completo` fora de importação, já sem duplicar o mesmo contato).
 
-Diagnóstico confirmado por consulta ao banco: as tarefas de faylon, Iago, Ezequiel, Betina, Tzusy e Matheus Bertolo foram atribuídas ao **contato** (`assigned_contact_id`), não ao usuário. Todos eles **têm conta**, ligada por `profiles.contact_id`. A tela de desempenho só monta o link da jornada quando existe `assigned_user_id`, por isso aparece "—" mesmo com 100% de envios.
+Ou seja: a tela de desempenho já foi corrigida para ligar contato → usuário, mas a **jornada não recebeu a mesma correção**. Afetados hoje: **faylon (5), Iago Cunha (5), Ezequiel (2), Matheus Bertolo (1), Betina (1), Tzusy (1)** — todos aparecem com 0 mensagens na jornada.
 
-Correção:
+Também confirmei que a atribuição de cadastro sempre usa o usuário (`source_user_id`); não há evento órfão ligado só ao contato. E que 35 das 117 tarefas "enviado" não têm data de conclusão preenchida — o cálculo já usa a data de atualização como reserva, então o gráfico dos 7 dias não quebra, mas conta a data da última alteração.
 
-- Em `src/lib/agitation-performance.functions.ts`, ao montar a lista de responsáveis, resolver o `userId` também pelo caminho contato → `profiles.contact_id`.
-- Consolidar linhas duplicadas do mesmo responsável (hoje Diego Masiero aparece duas vezes: uma por conta, uma por link), somando atribuídos/enviados.
-- `AssigneeRanking.tsx` passa a exibir o botão "Ver jornada" para esses casos; quem realmente não tem conta continua com "—" e um tooltip explicando que a pessoa não tem cadastro no app.
+## Correção
 
-## Detalhes técnicos
+**1. Jornada passa a contar as mensagens atribuídas por link** (`impact-stats.server.ts`)
+- Buscar o `contact_id` do perfil do usuário e somar as tarefas com `assigned_contact_id = contact_id`, além das já contadas por `assigned_user_id`.
+- Remover duplicatas por id de tarefa (uma tarefa nunca conta duas vezes).
+- Isso corrige de uma vez: cartão geral, cartão do dia, cartão da semana, gráfico dos 7 dias, ofensiva (dias seguidos), faixa da jornada na tela de Agitação e a notificação de sábado — todos usam esse mesmo cálculo.
 
-- A jornada já conta as tarefas autodeclaradas como enviadas (`impact-stats.server.ts` usa `agitation_tasks.status = 'enviado'`), então os números da jornada vão bater com o ranking — não há mudança de regra de cálculo.
-- Nenhuma migration necessária; a mudança é de leitura/apresentação.
-- Sem alterações em RLS, dados ou rotas públicas.
+**2. Regra única de "conexões"**
+- Deixar explícito no código, num único lugar comentado, que conexão = mensagem enviada em missão (autodeclarada) + contato adicionado pela pessoa, sem repetir o mesmo contato.
+- A tela de desempenho passa a usar exatamente a mesma resolução contato → usuário que a jornada, para os dois números nunca divergirem.
+
+**3. Clareza do período (evita a sensação de número errado)**
+- Na tela de desempenho, o filtro de período (7/30/90 dias) limita cadastros e missões, enquanto o cartão da jornada é sempre o total desde o começo. Vou rotular as colunas como "no período selecionado" e avisar, ao abrir "Mandar jornada", que o cartão mostra o total geral. Assim a diferença fica compreensível em vez de parecer inconsistência.
+
+**4. Transparência no próprio cartão/jornada**
+- Manter o rodapé com a quebra "X mensagens · Y cadastros" (já existe) e garantir que a soma sempre feche com o número grande de conexões — inclusive no singular/plural.
+
+## Qualidade e segurança das informações (verificação)
+
+- A jornada de outra pessoa (`?userId=`) só carrega depois de checagem de papel no servidor (admin/vrm/operador); usuário comum só vê a própria. Vou reconferir esse caminho e manter assim.
+- Nada nesta mudança escreve no banco: é só leitura e apresentação. Sem migration, sem alteração de permissões, sem mexer em rotas públicas.
+- Usuários com acesso revogado continuam fora do ranking; contatos marcados como usuários internos continuam fora da contagem de cadastros.
 
 ## Onde testar
 
-- `/missoes-agitacao/desempenho` → coluna Jornada dos 6 responsáveis citados.
-- `/meu-impacto` e `/minha-semana` → novo selo do app nos cartões de compartilhamento.
+- `/meu-impacto` e `/minha-semana` com `?userId=` do faylon: deve mostrar **8 conexões (5 mensagens · 3 cadastros)**.
+- `/missoes-agitacao/desempenho`: coluna Conexões dos 6 nomes citados deve bater com o cartão (considerando o período selecionado).
+- `/agitacao` com um desses usuários: faixa da jornada com o número novo.

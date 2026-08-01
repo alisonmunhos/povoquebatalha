@@ -35,12 +35,26 @@ export async function computeImpactStats(userId: string): Promise<ImpactStats> {
   const todayKey = dayKey(new Date().toISOString());
   const window7 = lastNDayKeys(7);
 
-  const [profileRes, tasksRes, eventsRes, claimsRes] = await Promise.all([
-    supabaseAdmin.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+  // Perfil primeiro: o contato ligado ao login é o que permite contar também as
+  // tarefas que foram atribuídas por link (assigned_contact_id).
+  const profileRes = await supabaseAdmin
+    .from("profiles")
+    .select("full_name, contact_id")
+    .eq("id", userId)
+    .maybeSingle();
+  const linkedContactId = profileRes.data?.contact_id ?? null;
+
+  const [tasksRes, linkTasksRes, eventsRes, claimsRes] = await Promise.all([
     supabaseAdmin
       .from("agitation_tasks")
       .select("id, status, completed_at, updated_at, claim_id")
       .eq("assigned_user_id", userId),
+    linkedContactId
+      ? supabaseAdmin
+          .from("agitation_tasks")
+          .select("id, status, completed_at, updated_at, claim_id")
+          .eq("assigned_contact_id", linkedContactId)
+      : Promise.resolve({ data: [] as unknown[] }),
     supabaseAdmin
       .from("contact_source_events")
       .select("contact_id, created_at")
@@ -62,7 +76,20 @@ export async function computeImpactStats(userId: string): Promise<ImpactStats> {
     updated_at: string | null;
     claim_id: string | null;
   };
-  const tasks = (tasksRes.data ?? []) as TaskRow[];
+  // REGRA ÚNICA DE "CONEXÕES" (usada no cartão, na faixa da Agitação e na
+  // notificação de sábado): conexões = mensagens enviadas em missão
+  // (autodeclaradas pela pessoa) + contatos adicionados por ela, sem repetir o
+  // mesmo contato. As tarefas contam tanto quando foram atribuídas ao login
+  // (assigned_user_id) quanto quando vieram por link para o contato dela
+  // (assigned_contact_id) — cada tarefa entra uma única vez.
+  const byId = new Map<string, TaskRow>();
+  for (const t of [
+    ...((tasksRes.data ?? []) as TaskRow[]),
+    ...((linkTasksRes.data ?? []) as TaskRow[]),
+  ]) {
+    byId.set(t.id, t);
+  }
+  const tasks = [...byId.values()];
   const sentTasks = tasks.filter((t) => t.status === TASK_STATUS.ENVIADO);
 
   // Contatos adicionados: um por contato, na primeira vez que ele apareceu por este usuário.

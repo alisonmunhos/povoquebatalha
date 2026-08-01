@@ -65,7 +65,9 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
 
       <p className="text-xs text-muted-foreground">
         A jornada soma mensagens enviadas nas missões + cadastros feitos pela pessoa. Por isso
-        aparecem aqui todos os usuários, mesmo quem nunca recebeu missão.
+        aparecem aqui todos os usuários, mesmo quem nunca recebeu missão. Os números desta tabela
+        respeitam o período escolhido acima; o cartão de "Mandar jornada" mostra sempre o total
+        desde o começo, por isso os valores podem ser diferentes.
       </p>
 
       {sorted.length === 0 ? (
@@ -76,10 +78,14 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
                 <th className="text-left p-2">Responsável</th>
-                <th className="text-right p-2" title="Mensagens enviadas + cadastros feitos.">Conexões</th>
+                <th className="text-right p-2" title="Mensagens enviadas + cadastros feitos, dentro do período selecionado acima.">
+                  Conexões<span className="font-normal"> (período)</span>
+                </th>
                 <th className="text-right p-2" title="Contatos atribuídos a essa pessoa.">Atribuídos</th>
                 <th className="text-right p-2" title="Confirmou o envio.">Enviados</th>
-                <th className="text-right p-2" title="Contatos cadastrados por essa pessoa no período.">Cadastros</th>
+                <th className="text-right p-2" title="Contatos cadastrados por essa pessoa dentro do período selecionado.">
+                  Cadastros<span className="font-normal"> (período)</span>
+                </th>
                 <th className="text-right p-2" title="Marcou para enviar depois.">Depois</th>
                 <th className="text-right p-2" title="Ainda não agiu.">Não enviados</th>
                 <th className="text-right p-2" title="Número com erro ou não quer receber.">Arquivados</th>
