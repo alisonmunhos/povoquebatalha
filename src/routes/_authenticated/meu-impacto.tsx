@@ -76,7 +76,9 @@ function MyImpactPage() {
         <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
           <Sparkles className="h-3.5 w-3.5" /> {milestone.badge}
         </p>
-        <p className="mt-3 text-sm italic text-muted-foreground">{milestone.phrase}</p>
+        <p className="mt-3 text-base font-semibold">{milestone.headline}</p>
+        <p className="mt-1 text-sm italic text-muted-foreground">{milestone.phrase}</p>
+
 
         {next && (
           <div className="mt-4 text-left">
