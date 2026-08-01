@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { BarChart3, ArrowLeft } from "lucide-react";
 import { getMissionsPerformance } from "@/lib/agitation-performance.functions";
+import { getCampaignJourney } from "@/lib/campaign-journey.functions";
+import { CampaignJourneyPanel } from "@/components/mission-performance/CampaignJourneyPanel";
 import { PerformanceSummary } from "@/components/mission-performance/PerformanceSummary";
 import { AssigneeRanking } from "@/components/mission-performance/AssigneeRanking";
 import { MissionBreakdown } from "@/components/mission-performance/MissionBreakdown";
