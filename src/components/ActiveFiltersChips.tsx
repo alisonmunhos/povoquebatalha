@@ -138,7 +138,19 @@ export function ActiveFiltersChips({
   }
   for (const v of filters.origens ?? []) chips.push({ key: `or-${v}`, label: `Origem: ${v}`, onRemove: removeFromArr("origens", v) });
   for (const v of filters.origem_detalhes ?? []) chips.push({ key: `od-${v}`, label: `Detalhe: ${v}`, onRemove: removeFromArr("origem_detalhes", v) });
-  for (const id of filters.tag_ids ?? []) chips.push({ key: `tag-${id}`, label: `Tag: ${findLabel(options?.tags, id)}`, onRemove: removeFromArr("tag_ids", id) });
+  for (const id of filters.tag_ids ?? [])
+    chips.push({
+      key: `tag-${id}`,
+      label: `${modePrefix(filters.tag_ids_modo)}Tag: ${findLabel(options?.tags, id)}`,
+      onRemove: removeFromArr("tag_ids", id),
+    });
+  for (const id of filters.tag_ids_excluir ?? [])
+    chips.push({
+      key: `tag-x-${id}`,
+      label: `Sem a tag: ${findLabel(options?.tags, id)}`,
+      onRemove: removeFromArr("tag_ids_excluir", id),
+    });
+
 
   // Comunicação
   if (filters.consent) chips.push({ key: "cs", label: `Consentimento WhatsApp: ${filters.consent}`, onRemove: remove("consent") });
