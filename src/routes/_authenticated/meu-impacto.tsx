@@ -29,36 +29,8 @@ export const Route = createFileRoute("/_authenticated/meu-impacto")({
 function MyImpactPage() {
   const statsFn = useServerFn(getMyImpactStats);
   const q = useQuery({ queryKey: ["my-impact"], queryFn: () => statsFn(), retry: 1 });
-  const shareRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<"share" | "download" | null>(null);
   const [variant, setVariant] = useState<"total" | "day">("total");
 
-  async function withBlob(kind: "share" | "download") {
-    if (!shareRef.current || !q.data) return;
-    setBusy(kind);
-    try {
-      const blob = await elementToPngBlob(shareRef.current);
-      const filename = "meu-impacto-povo-que-batalha.png";
-      if (kind === "download") {
-        downloadBlob(blob, filename);
-        toast.success("Imagem salva no seu aparelho.");
-        return;
-      }
-      const total = variant === "total" ? q.data.connections.total : q.data.connections.today;
-      const text =
-        variant === "total"
-          ? `Já me conectei com ${total} pessoas na campanha do Povo que Batalha! 💪`
-          : `Hoje eu me conectei com ${total} pessoas na campanha do Povo que Batalha! 💪`;
-      const r = await sharePng({ blob, filename, text });
-      if (r === "downloaded") {
-        toast.info("Imagem baixada. Anexe no WhatsApp que já abrimos pra você.");
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível gerar a imagem.");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   if (q.isLoading) {
     return (
