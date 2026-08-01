@@ -1498,6 +1498,9 @@ export const reportMissionContactError = createServerFn({ method: "POST" })
       contactId: task.contact_id,
       archived: true,
       userId: context.userId,
+      // Erro de número também bloqueia envios futuros (arquivar + não enviar),
+      // como "Não quer receber" — a diferença é só o motivo registrado.
+      optOut: true,
       invalidPhone: true,
       motivo: `Número não abriu o WhatsApp (missão: ${missionTitle})`,
       auditAction: "erro_numero_missao",
