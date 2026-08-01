@@ -196,35 +196,18 @@ function MyImpactPage() {
             <Link to="/minha-semana">Conquista da semana</Link>
           </Button>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button size="lg" className="flex-1" disabled={busy !== null} onClick={() => void withBlob("share")}>
-            {busy === "share" ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Share2 className="mr-2 h-4 w-4" />
-            )}
-            {variant === "total" ? "Compartilhar minha conquista" : "Compartilhar o dia de hoje"}
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            disabled={busy !== null}
-            onClick={() => void withBlob("download")}
-          >
-            {busy === "download" ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            Baixar imagem
-          </Button>
-        </div>
+        <ShareCardActions
+          stats={s}
+          variant={variant}
+          shareLabel={variant === "total" ? "Compartilhar minha conquista" : "Compartilhar o dia de hoje"}
+          shareText={
+            variant === "total"
+              ? `Já me conectei com ${s.connections.total} pessoas na campanha do Povo que Batalha! 💪`
+              : `Hoje eu me conectei com ${s.connections.today} pessoas na campanha do Povo que Batalha! 💪`
+          }
+        />
       </section>
 
-      {/* Card de compartilhamento renderizado fora da tela, no tamanho real. */}
-      <div aria-hidden className="pointer-events-none fixed left-[-4000px] top-0 opacity-0">
-        <ImpactShareCard stats={s} innerRef={shareRef} variant={variant} />
-      </div>
 
     </div>
   );
