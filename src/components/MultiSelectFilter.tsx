@@ -80,7 +80,9 @@ export function MultiSelectFilter({
   }
 
   const panel = (
-    <Command shouldFilter>
+    // Altura em coluna: a lista rola por dentro e o rodapé com "Aplicar"
+    // fica sempre visível, mesmo quando o menu abre no rodapé da tela.
+    <Command shouldFilter className="flex flex-col max-h-full min-h-0">
       <CommandInput ref={inputRef} placeholder="Buscar…" />
       {excludable && (
         <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
@@ -118,7 +120,7 @@ export function MultiSelectFilter({
           Selecionar todos
         </button>
       </div>
-      <CommandList className={cn(isMobile && "max-h-[50vh]")}>
+      <CommandList className={cn("flex-1 min-h-0", isMobile ? "max-h-[50vh]" : "max-h-none")}>
         <CommandEmpty>{emptyText}</CommandEmpty>
         <CommandGroup>
           {options.map((o) => {
@@ -158,7 +160,7 @@ export function MultiSelectFilter({
           })}
         </CommandGroup>
       </CommandList>
-      <div className="flex items-center gap-2 border-t bg-card px-2 py-2">
+      <div className="shrink-0 flex items-center gap-2 border-t bg-card px-2 py-2">
         <button
           type="button"
           onClick={apply}
@@ -245,8 +247,10 @@ export function MultiSelectFilter({
     <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
-        className="p-0 w-[280px]"
+        className="p-0 w-[280px] flex flex-col overflow-hidden max-h-[min(70vh,var(--radix-popover-content-available-height))]"
         align="start"
+        collisionPadding={16}
+        avoidCollisions
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
