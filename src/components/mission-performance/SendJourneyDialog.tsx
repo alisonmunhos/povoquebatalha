@@ -57,7 +57,8 @@ export function SendJourneyDialog({
           <DialogTitle>Mandar jornada de {nome}</DialogTitle>
           <DialogDescription>
             Compartilhe a imagem do desempenho geral junto com a legenda. No celular, o botão
-            abaixo abre direto o WhatsApp com a imagem anexada.
+            abaixo abre direto o WhatsApp com a imagem anexada. Atenção: o cartão mostra o total
+            desde o começo, não o período escolhido na tabela.
           </DialogDescription>
         </DialogHeader>
 
