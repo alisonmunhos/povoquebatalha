@@ -66,7 +66,7 @@ function MyImpactPage() {
   }
 
   const s = q.data;
-  const milestone = milestoneFor(s.connections.total);
+  const milestone = resolveMilestone(milestoneFor(s.connections.total), s.connections.total);
   const next = nextMilestone(s.connections.total);
   const claimPercent =
     s.missions.openClaimTotal > 0
