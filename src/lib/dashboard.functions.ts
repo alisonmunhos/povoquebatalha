@@ -9,16 +9,38 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     since.setDate(since.getDate() - 7);
     const sinceIso = since.toISOString();
 
-    // Escopo único: todo indicador de pessoas exclui arquivados e usuários do sistema.
+    // Escopo único do "Total da base": contatos ativos (não arquivados).
+    // Usuário do sistema também é um contato e conta junto, por decisão do projeto.
     const base = () =>
-      supabase.from("contacts").select("*", { count: "exact", head: true })
-        .is("arquivado_at", null).eq("is_system_user", false);
+      supabase
+        .from("contacts")
+        .select("*", { count: "exact", head: true })
+        .is("arquivado_at", null);
 
-    const [total, novosSemana, comConsent, optOut, campanhas, enviadasSemana, semGeo, comGeo, campDraft, campRunning] = await Promise.all([
+    // Contagens que precisam ver a base inteira (inclusive arquivados).
+    const all = () => supabase.from("contacts").select("*", { count: "exact", head: true });
+
+    const nowIso = new Date().toISOString();
+
+    const [
+      total,
+      novosSemana,
+      comConsent,
+      optOut,
+      arquivados,
+      campanhas,
+      enviadasSemana,
+      semGeo,
+      comGeo,
+      campDraft,
+      campRunning,
+      dupRevisar,
+    ] = await Promise.all([
       base(),
       base().gte("created_at", sinceIso),
       base().eq("consentimento_whatsapp", true).is("opt_out_at", null),
-      base().not("opt_out_at", "is", null),
+      all().not("opt_out_at", "is", null),
+      all().not("arquivado_at", "is", null),
       supabase.from("campaigns").select("*", { count: "exact", head: true }),
       supabase.from("campaign_recipients").select("*", { count: "exact", head: true })
         .gte("sent_at", sinceIso).in("status", ["sent", "delivered", "read"]),
@@ -26,7 +48,13 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       base().not("latitude", "is", null),
       supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "draft"),
       supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "running"),
+      supabase
+        .from("contact_duplicates")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`),
     ]);
+
 
 
     return {
