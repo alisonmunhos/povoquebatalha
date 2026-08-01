@@ -146,7 +146,7 @@ export const crmFilterSchema = z.object({
   missao_id: z.string().uuid().optional(),
   missao_ids: z.array(z.string().uuid()).optional(),
   missao_ids_excluir: z.array(z.string().uuid()).optional(),
-  missao_ids_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  missao_ids_modo: z.enum(["qualquer", "todos", "somente", "nenhuma"]).optional(),
   /** Quantas missões diferentes o contato já recebeu mensagem (envio confirmado). */
   missoes_recebidas_min: z.coerce.number().int().min(0).optional(),
   missoes_recebidas_max: z.coerce.number().int().min(0).optional(),
@@ -154,16 +154,16 @@ export const crmFilterSchema = z.object({
   evento_id: z.string().uuid().optional(),
   evento_ids: z.array(z.string().uuid()).optional(),
   evento_ids_excluir: z.array(z.string().uuid()).optional(),
-  evento_ids_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  evento_ids_modo: z.enum(["qualquer", "todos", "somente", "nenhuma"]).optional(),
   eventos_confirmados_min: z.coerce.number().int().min(0).optional(),
   eventos_confirmados_max: z.coerce.number().int().min(0).optional(),
   tracking_form_ids: z.array(z.string().uuid()).optional(),
   respondeu_mensagem: z.enum(["sim", "nao"]).optional(),
 
   // Modos de combinação dos filtros de lista (ver src/lib/filter-match-mode.ts)
-  tag_ids_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
-  formas_ajuda_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
-  disponibilidade_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  tag_ids_modo: z.enum(["qualquer", "todos", "somente", "nenhuma"]).optional(),
+  formas_ajuda_modo: z.enum(["qualquer", "todos", "somente", "nenhuma"]).optional(),
+  disponibilidade_modo: z.enum(["qualquer", "todos", "somente", "nenhuma"]).optional(),
 
   // Filtros usados pela planilha BI (contatos-bi)
   formas_ajuda_outro: z.string().trim().optional(),
