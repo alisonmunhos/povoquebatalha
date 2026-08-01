@@ -4,6 +4,7 @@
 //   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
 import { normalizeSearchTerm } from "./contact-rules";
+import { TASK_STATUS } from "./agitation-task-status";
 
 /** Sentinela para "célula vazia" dentro de filtros de array (tags, disponibilidade, etc.). */
 export const EMPTY_FILTER_TOKEN = "__EMPTY__";
@@ -141,7 +142,7 @@ export const crmFilterSchema = z.object({
   nao_recebeu_template_id: z.string().uuid().optional(),
 
   // Histórico — missões de agitação, eventos, formulários e respostas
-  missao_recebida: z.enum(["sim", "nao"]).optional(),
+  missao_recebida: z.enum(["sim", "nao", "atribuido"]).optional(),
   missao_id: z.string().uuid().optional(),
   evento_rsvp: z.enum(["sim", "nao", "recusou"]).optional(),
   evento_id: z.string().uuid().optional(),
@@ -481,7 +482,10 @@ export function applyCrmFilters<T extends {
   if (f.instituicoes?.length) q = applyExactIlikeArrayFilter(q, "instituicao", f.instituicoes);
   else if (f.instituicao) q = q.ilike("instituicao", `%${safe(f.instituicao)}%`);
   if (typeof f.coletivo_alicerce === "boolean" && !f.coletivo_alicerce_values?.length) {
-    q = q.eq("coletivo_alicerce", f.coletivo_alicerce);
+    // "Não" precisa incluir quem nunca respondeu (campo vazio) — mesmo padrão
+    // já usado em "Bloqueado" e "Apto para envio".
+    if (f.coletivo_alicerce) q = q.eq("coletivo_alicerce", true);
+    else q = q.or("coletivo_alicerce.is.null,coletivo_alicerce.eq.false");
   }
   if (f.coletivo_alicerce_values?.length) {
     q = applyBooleanColumnFilter(q, "coletivo_alicerce", f.coletivo_alicerce_values, { true: true, false: false });
@@ -830,9 +834,22 @@ export async function resolveRelationalFilterIds(
     distinctContactIds(() =>
       sb.from("automation_deliveries").select("contact_id").eq("template_id", templateId).eq("status", "sent"),
     );
+  // "Recebeu mensagem de missão" = tarefa marcada como ENVIADA pelo agitador.
+  // (Antes procurava o status antigo "concluido", que não existe mais no banco —
+  // por isso o filtro nunca devolvia ninguém.)
   const idsForMission = () =>
     distinctContactIds(() => {
-      let qr = sb.from("agitation_tasks").select("contact_id").eq("status", "concluido");
+      let qr = sb.from("agitation_tasks").select("contact_id").eq("status", TASK_STATUS.ENVIADO);
+      if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
+      return qr;
+    });
+  // Foi atribuído a alguém nessa missão, tenha enviado ou não.
+  const idsAssignedInMission = () =>
+    distinctContactIds(() => {
+      let qr = sb
+        .from("agitation_tasks")
+        .select("contact_id")
+        .or("assigned_user_id.not.is.null,assigned_contact_id.not.is.null");
       if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
       return qr;
     });
@@ -873,6 +890,10 @@ export async function resolveRelationalFilterIds(
     intersect(ids);
   } else if (f.missao_recebida === "nao") {
     for (const id of await idsForMission()) excludeIds.add(id);
+  } else if (f.missao_recebida === "atribuido") {
+    const ids = await idsAssignedInMission();
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
   }
 
   if (f.evento_rsvp === "sim" || f.evento_rsvp === "recusou") {

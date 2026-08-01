@@ -197,7 +197,9 @@ export const BULK_EDITABLE_FIELD_KEYS: string[] = [
   "como_conheceu",
   "faixa_etaria",
   "observacoes",
-  "consentimento_whatsapp",
+  // A chave do catálogo é "consentimento" (grava em consentimento_whatsapp).
+  // Usar o nome da coluna aqui fazia a opção desaparecer da edição em massa.
+  "consentimento",
   "consentimento_lgpd",
   "consentimento_dados_sensiveis",
 ];

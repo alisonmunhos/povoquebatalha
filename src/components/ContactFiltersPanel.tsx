@@ -388,11 +388,18 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         <Field label="NÃO recebeu mensagem salva">
           <SingleSelectFilter options={opts.mensagens} value={filters.nao_recebeu_template_id} onChange={(v) => set("nao_recebeu_template_id", v)} placeholder="Escolher mensagem" />
         </Field>
-        <Field label="Recebeu mensagem de missão" hint="Conta só o que o agitador marcou como enviado.">
+        <Field
+          label="Recebeu mensagem de missão"
+          hint="'Recebeu' conta só o que o agitador marcou como enviado. 'Foi atribuído' inclui quem entrou na leva de alguém, mesmo sem envio confirmado. Use junto de 'Missão específica' para não repetir mensagem para quem já recebeu."
+        >
           <SingleSelectFilter
-            options={SIM_NAO}
+            options={[
+              { value: "sim", label: "Recebeu mensagem" },
+              { value: "nao", label: "Não recebeu" },
+              { value: "atribuido", label: "Foi atribuído (mesmo sem envio)" },
+            ]}
             value={filters.missao_recebida}
-            onChange={(v) => set("missao_recebida", v as "sim" | "nao" | undefined)}
+            onChange={(v) => set("missao_recebida", v as "sim" | "nao" | "atribuido" | undefined)}
             placeholder="Qualquer"
           />
         </Field>
