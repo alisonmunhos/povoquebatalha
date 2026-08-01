@@ -51,17 +51,27 @@ export function ImpactShareCard({
         : "Nesta semana eu me conectei com";
 
 
-  const unitWord = variant === "total" ? "conexões" : "pessoas";
+  const unitWord =
+    variant === "total"
+      ? value === 1
+        ? "conexão"
+        : "conexões"
+      : value === 1
+        ? "pessoa"
+        : "pessoas";
+
 
   const bars = variant === "week" ? theWeek.daily : stats.daily;
   const max = Math.max(1, ...bars.map((d) => d.messages + d.contacts));
 
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const footerNumbers =
     variant === "total"
-      ? `${stats.messages.total} mensagens · ${stats.contacts.total} cadastros`
+      ? `${plural(stats.messages.total, "mensagem", "mensagens")} · ${plural(stats.contacts.total, "cadastro", "cadastros")}`
       : variant === "day"
-        ? `${stats.messages.today} mensagens · ${stats.contacts.today} cadastros hoje`
-        : `${theWeek.messages} mensagens · ${theWeek.contacts} cadastros`;
+        ? `${plural(stats.messages.today, "mensagem", "mensagens")} · ${plural(stats.contacts.today, "cadastro", "cadastros")} hoje`
+        : `${plural(theWeek.messages, "mensagem", "mensagens")} · ${plural(theWeek.contacts, "cadastro", "cadastros")}`;
+
 
   return (
     <div
