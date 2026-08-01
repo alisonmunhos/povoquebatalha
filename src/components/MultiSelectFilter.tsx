@@ -174,7 +174,7 @@ export function MultiSelectFilter({
     <Command shouldFilter className="flex flex-col max-h-full min-h-0">
       <CommandInput ref={inputRef} placeholder="Buscar…" />
 
-      {advanced && (
+      {advanced && !noneMode && (
         <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
           <button
             type="button"
@@ -199,17 +199,29 @@ export function MultiSelectFilter({
         </div>
       )}
 
-      {advanced && matchMode && tab === "mostrar" && (
+      {advanced && matchMode && (tab === "mostrar" || noneMode) && (
         <div className="px-2 py-1.5 border-b">
-          <div className="flex items-center gap-1 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1 text-[11px]">
             {MATCH_MODES.map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setDraftMatch(m)}
+                onClick={() => {
+                  setDraftMatch(m);
+                  setTab("mostrar");
+                  if (m === "nenhuma" && draftExclude.length) {
+                    // As opções passam a ser editadas em uma única lista.
+                    setDraft([...new Set([...draft, ...draftExclude])]);
+                    setDraftExclude([]);
+                  }
+                }}
                 className={cn(
                   "rounded px-2 py-1 border",
-                  draftMatch === m ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+                  draftMatch === m
+                    ? m === "nenhuma"
+                      ? "bg-destructive text-destructive-foreground border-destructive"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground",
                 )}
               >
                 {MATCH_MODE_LABEL[m]}
@@ -219,6 +231,7 @@ export function MultiSelectFilter({
           <p className="mt-1 text-[10px] text-muted-foreground">{MATCH_MODE_HELP[draftMatch]}</p>
         </div>
       )}
+
 
       {!advanced && excludable && (
         <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
