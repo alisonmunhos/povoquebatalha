@@ -45,9 +45,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/_authenticated/minhas-missoes")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    mission: typeof search.mission === "string" ? search.mission : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { mission?: string } =>
+    typeof search.mission === "string" ? { mission: search.mission } : {},
   head: () => ({ meta: [{ title: "Minhas Missões — Povo que Batalha" }] }),
   component: MyMissionsPage,
 });

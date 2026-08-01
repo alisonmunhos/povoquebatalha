@@ -16,9 +16,8 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/minha-semana")({
   // ?userId= permite que a equipe veja a MESMA tela de outra pessoa.
-  validateSearch: (search: Record<string, unknown>) => ({
-    userId: typeof search["userId"] === "string" ? (search["userId"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { userId?: string } =>
+    typeof search["userId"] === "string" ? { userId: search["userId"] as string } : {},
   head: () => ({
     meta: [
       { title: "Minha semana — Povo que Batalha" },
