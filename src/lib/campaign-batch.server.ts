@@ -5,7 +5,7 @@
 import { BLOCK_LABELS, messageBlockReason } from "@/lib/contact-rules";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { sendMessage } from "@/lib/wa-send.server";
+import { sendMessage, recordWhatsappSendOutcome } from "@/lib/wa-send.server";
 
 type Client = SupabaseClient<Database>;
 
@@ -162,6 +162,8 @@ export async function processCampaignBatchShared(
       skipValidations: true, // já validamos acima com o skip específico da campanha
       delayMessage,
     });
+
+    await recordWhatsappSendOutcome(r.contact_id, result);
 
     if (result.ok) {
       await db.from("campaign_recipients").update({

@@ -204,7 +204,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       throw new Error("WhatsApp do contato indisponível para envio.");
     }
 
-    const { sendMessage, readUseSendLinkFlag, detectUrl, renderVars } = await import("@/lib/wa-send.server");
+    const { sendMessage, readUseSendLinkFlag, detectUrl, renderVars, recordWhatsappSendOutcome } = await import("@/lib/wa-send.server");
     const rendered = renderVars(data.message ?? "", c);
     const hasMedia = Boolean(data.media_path);
     if (!hasMedia && !rendered.trim()) throw new Error("Escreva uma mensagem ou anexe um arquivo.");
@@ -239,6 +239,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       origin: "inbox",
       skipValidations: true, // já validamos opt-out/consent/whatsapp_status acima
     });
+
+    await recordWhatsappSendOutcome(data.contact_id, result);
 
     const sendError = result.ok ? null : (result.error ?? result.fallback_reason ?? "erro desconhecido");
     const zaap: { zaapId?: string; messageId?: string; id?: string } = {
