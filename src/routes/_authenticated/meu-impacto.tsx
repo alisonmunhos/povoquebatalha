@@ -93,16 +93,8 @@ function MyImpactPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-4 md:p-6">
-      <div className="flex items-center gap-2">
-        <Link
-          to="/agitacao"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-muted"
-          aria-label="Voltar para Agitação"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <h1 className="font-display text-2xl">Meu impacto</h1>
-      </div>
+      <AgitacaoNav title="Meu impacto" />
+
 
       {/* Destaque principal */}
       <section className="rounded-2xl border bg-card p-5 text-center shadow-punch">
