@@ -16,13 +16,16 @@ function Dashboard() {
   const cards = [
     { label: "Contatos", value: data.totalContatos, icon: Users, hint: `${data.novosNaSemana} novos esta semana` },
     { label: "Com consentimento", value: data.comConsentimento, icon: MessageCircle, hint: "podem receber WhatsApp" },
-    { label: "Opt-out", value: data.optOut, icon: UserMinus, hint: "descadastrados" },
+    { label: "Opt-out", value: data.optOut, icon: UserMinus, hint: "pediram para não receber" },
+    { label: "Fora da base", value: data.arquivados, icon: Archive, hint: "arquivados: não entram no total" },
+    { label: "Duplicidades a revisar", value: data.duplicidadesRevisar, icon: Copy, hint: "pares aguardando decisão" },
     { label: "Campanhas", value: data.totalCampanhas, icon: Send, hint: `${data.enviadasNaSemana} envios na semana` },
     { label: "Com geolocalização", value: data.comGeolocalizacao, icon: MapPin, hint: "aparecem no mapa" },
     { label: "Sem geolocalização", value: data.semGeolocalizacao, icon: MapPinOff, hint: "pendentes de geocode" },
     { label: "Campanhas em rascunho", value: data.campanhasRascunho, icon: Send, hint: "aguardando envio" },
     { label: "Campanhas em envio", value: data.campanhasEmEnvio, icon: Send, hint: "processando fila" },
   ];
+
 
   return (
     <div className="p-6 md:p-10 max-w-5xl">
