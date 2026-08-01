@@ -434,8 +434,39 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Missão específica" hint="Opcional: limita o filtro acima a uma missão.">
-          <SingleSelectFilter options={opts.missoes ?? []} value={filters.missao_id} onChange={(v) => set("missao_id", v)} placeholder="Qualquer missão" />
+        <Field
+          label="Missões específicas"
+          hint="Pode marcar várias. 'Qualquer uma' = recebeu de pelo menos uma; 'Todas' = recebeu de todas as marcadas. A aba 'Esconder' remove quem já recebeu daquelas missões."
+        >
+          <MultiSelectFilter options={opts.missoes ?? []} {...selFull("missao_ids")} placeholder="Qualquer missão" />
+        </Field>
+        <Field
+          label="Quantas missões diferentes já recebeu"
+          hint="Exemplo: mínimo 2 mostra quem já recebeu mensagem de duas ou mais missões."
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Mínimo"
+              value={filters.missoes_recebidas_min ?? ""}
+              onChange={(e) =>
+                set("missoes_recebidas_min", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Máximo"
+              value={filters.missoes_recebidas_max ?? ""}
+              onChange={(e) =>
+                set("missoes_recebidas_max", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+          </div>
         </Field>
         <Field label="Presença em evento">
           <SingleSelectFilter
@@ -449,9 +480,41 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Qualquer"
           />
         </Field>
-        <Field label="Evento específico" hint="Opcional: limita o filtro de presença a um evento.">
-          <SingleSelectFilter options={opts.eventos ?? []} value={filters.evento_id} onChange={(v) => set("evento_id", v)} placeholder="Qualquer evento" />
+        <Field
+          label="Eventos específicos"
+          hint="Pode marcar vários. 'Todas' = confirmou presença em todos os eventos marcados."
+        >
+          <MultiSelectFilter options={opts.eventos ?? []} {...selFull("evento_ids")} placeholder="Qualquer evento" />
         </Field>
+        <Field
+          label="Em quantos eventos confirmou presença"
+          hint="Exemplo: mínimo 2 mostra quem confirmou em dois ou mais eventos."
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Mínimo"
+              value={filters.eventos_confirmados_min ?? ""}
+              onChange={(e) =>
+                set("eventos_confirmados_min", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Máximo"
+              value={filters.eventos_confirmados_max ?? ""}
+              onChange={(e) =>
+                set("eventos_confirmados_max", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+            />
+          </div>
+        </Field>
+
         <Field label="Já respondeu alguma mensagem" hint="Teve pelo menos uma resposta recebida no WhatsApp.">
           <SingleSelectFilter
             options={SIM_NAO}
