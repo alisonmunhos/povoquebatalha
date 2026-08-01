@@ -4,6 +4,7 @@
 //   (3) persistir de verdade no commitImport, não só em observações.
 import { z } from "zod";
 import { normalizeSearchTerm } from "./contact-rules";
+import { TASK_STATUS } from "./agitation-task-status";
 
 /** Sentinela para "célula vazia" dentro de filtros de array (tags, disponibilidade, etc.). */
 export const EMPTY_FILTER_TOKEN = "__EMPTY__";
