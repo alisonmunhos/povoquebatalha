@@ -1,6 +1,6 @@
 // Card visual 1080x1350 para compartilhar no WhatsApp (status/grupo).
 // Só números agregados de UM usuário — nenhum dado de contato aparece aqui.
-import fistMark from "@/assets/fist-mark-transparent.png";
+import appIcon from "@/assets/app-icon-squircle.png.asset.json";
 import { milestoneFor, weekMilestoneFor, resolveMilestone } from "@/lib/impact-milestones";
 
 import type { WeekStatShape } from "@/lib/impact-week";
