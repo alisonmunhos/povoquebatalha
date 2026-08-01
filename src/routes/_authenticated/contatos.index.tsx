@@ -10,7 +10,7 @@ import { setOptOut, archiveContact, deleteContactsBulk, createTag } from "@/lib/
 import { countPendingDuplicates } from "@/lib/duplicates.functions";
 import { checkWhatsappForContacts, contactsQuickCounts, contactsStatusFacets } from "@/lib/contacts-phone.functions";
 import { formatPhoneBR } from "@/lib/phone";
-import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE } from "@/lib/phone-labels";
+import { LIFECYCLE_LABEL, PHONE_STATUS_LABEL, PHONE_STATUS_BADGE, WHATSAPP_STATUS_LABEL, WHATSAPP_STATUS_BADGE } from "@/lib/phone-labels";
 import { PhoneReviewDialog } from "@/components/PhoneReviewDialog";
 import { Users, Search, UserMinus, UserCheck, Pencil, Copy, MessageCircle, Archive, ArchiveRestore, Filter, Download, Tag as TagIcon, Save, Info, Send, Trash2, PhoneCall, CheckCircle2 } from "lucide-react";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
@@ -678,6 +678,9 @@ function Contatos() {
                     {c.opt_out_at && <span title="A pessoa pediu para não receber mensagens" className="text-[10px] uppercase px-1.5 py-0.5 bg-red-100 text-red-700 rounded">Pediu para não receber</span>}
                     {!c.opt_out_at && c.consentimento_whatsapp && <span className="text-[10px] uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">Ativo</span>}
                     {c.phone_status && c.phone_status !== "valido" && <span className={"text-[10px] uppercase px-1.5 py-0.5 rounded " + (PHONE_STATUS_BADGE[c.phone_status] ?? "bg-amber-100 text-amber-700")}>{PHONE_STATUS_LABEL[c.phone_status] ?? c.phone_status}</span>}
+                    {c.whatsapp_status && !["desconhecido", "opt_out"].includes(c.whatsapp_status) && (
+                      <span title="Resultado do último envio real de WhatsApp" className={"text-[10px] uppercase px-1.5 py-0.5 rounded " + (WHATSAPP_STATUS_BADGE[c.whatsapp_status] ?? "bg-slate-100 text-slate-600")}>{WHATSAPP_STATUS_LABEL[c.whatsapp_status] ?? c.whatsapp_status}</span>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="inline-flex gap-1">

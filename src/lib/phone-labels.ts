@@ -40,6 +40,14 @@ export const WHATSAPP_STATUS_LABEL: Record<string, string> = {
   opt_out: "Opt-out",
 };
 
+export const WHATSAPP_STATUS_BADGE: Record<string, string> = {
+  confirmado: "bg-emerald-100 text-emerald-700",
+  invalido: "bg-red-100 text-red-700",
+  erro_envio: "bg-orange-100 text-orange-700",
+  opt_out: "bg-red-100 text-red-700",
+  desconhecido: "bg-slate-100 text-slate-600",
+};
+
 // DDDs sugeridos a partir do nome da cidade (subset comum). Fallback = UF -> primeiro DDD da capital.
 export const DDD_BY_CITY: Record<string, string> = {
   "sao paulo": "11", "são paulo": "11", "guarulhos": "11", "campinas": "19", "santos": "13",
