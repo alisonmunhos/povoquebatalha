@@ -67,7 +67,16 @@ export function ActiveFiltersChips({
   if (filters.created_desde) chips.push({ key: "cd-de", label: `Cadastrado desde: ${filters.created_desde}`, onRemove: remove("created_desde") });
   if (filters.created_ate) chips.push({ key: "cd-ate", label: `Cadastrado até: ${filters.created_ate}`, onRemove: remove("created_ate") });
   if (filters.missao_recebida)
-    chips.push({ key: "mis", label: `Recebeu missão: ${filters.missao_recebida === "sim" ? "sim" : "não"}`, onRemove: remove("missao_recebida") });
+    chips.push({
+      key: "mis",
+      label:
+        filters.missao_recebida === "sim"
+          ? "Recebeu missão: sim"
+          : filters.missao_recebida === "atribuido"
+            ? "Missão: foi atribuído"
+            : "Recebeu missão: não",
+      onRemove: remove("missao_recebida"),
+    });
   if (filters.missao_id)
     chips.push({ key: "mis-id", label: `Missão: ${findLabel(options?.missoes, filters.missao_id)}`, onRemove: remove("missao_id") });
   if (filters.evento_rsvp) {
