@@ -1,58 +1,29 @@
-## Objetivo
+## Parte 1 — Ícone nos cartões "Minha Jornada"
 
-Resolver as duas causas do resultado zero no filtro de missões, sem tocar na planilha do BI nem na lógica de tags.
+Aprovando a versão em anexo (`opcao-c-icone-do-celular.png`), farei:
 
----
+- Publicar essa imagem como asset do projeto (`app-icon-squircle.png`) e usá-la em `src/components/ImpactShareCard.tsx` no lugar do `fist-mark-transparent.png` atual, que estava cortando o pulso.
+- Exibir como selo do app: quadradinho arredondado (como no celular), tamanho controlado, posicionado entre o headline e o gráfico, mantendo o efeito de burst atrás.
+- Aplicar nas 3 variações do cartão (geral, do dia, da semana).
+- Remover o asset antigo `fist-mark-transparent.png` se não houver outro uso.
 
-## Mudança 1 — Acabar com o conflito silencioso Mostrar × Esconder
+## Parte 2 — Jornada dos responsáveis atribuídos por link
 
-Hoje o menu guarda duas listas independentes (`missao_ids` e `missao_ids_excluir`). Marcar a mesma missão nos dois lados sempre resulta em zero, sem aviso.
+Diagnóstico confirmado por consulta ao banco: as tarefas de faylon, Iago, Ezequiel, Betina, Tzusy e Matheus Bertolo foram atribuídas ao **contato** (`assigned_contact_id`), não ao usuário. Todos eles **têm conta**, ligada por `profiles.contact_id`. A tela de desempenho só monta o link da jornada quando existe `assigned_user_id`, por isso aparece "—" mesmo com 100% de envios.
 
-Correção em duas camadas:
+Correção:
 
-1. **Exclusividade por item (principal):** ao marcar uma opção em uma aba, ela é automaticamente desmarcada na aba oposta. Um item nunca fica nos dois lados. O rótulo "escondido"/"mostrado" que aparece hoje ao lado da opção deixa de ser um estado possível de conflito.
-2. **Trava de segurança no "Aplicar":** se, por qualquer caminho (visão salva antiga, URL colada), houver sobreposição entre as duas listas, o botão Aplicar mostra um aviso vermelho no rodapé do menu — "As mesmas opções estão em Mostrar e Esconder; isso sempre traz zero resultados" — com um botão "Corrigir" que remove os itens repetidos do lado Esconder.
+- Em `src/lib/agitation-performance.functions.ts`, ao montar a lista de responsáveis, resolver o `userId` também pelo caminho contato → `profiles.contact_id`.
+- Consolidar linhas duplicadas do mesmo responsável (hoje Diego Masiero aparece duas vezes: uma por conta, uma por link), somando atribuídos/enviados.
+- `AssigneeRanking.tsx` passa a exibir o botão "Ver jornada" para esses casos; quem realmente não tem conta continua com "—" e um tooltip explicando que a pessoa não tem cadastro no app.
 
-Também passa a aparecer, no rodapé do menu, a frase já existente do `describeSelection` de forma mais visível (ex.: "tem qualquer: A, B · não tem: C"), para o usuário conferir a leitura antes de aplicar.
+## Detalhes técnicos
 
-**Risco:** baixo. É um componente compartilhado por todos os filtros de lista, então mexer nele afeta todos os campos — mas a mudança é só de estado local de rascunho (draft), sem alterar o formato gravado nos filtros.
+- A jornada já conta as tarefas autodeclaradas como enviadas (`impact-stats.server.ts` usa `agitation_tasks.status = 'enviado'`), então os números da jornada vão bater com o ranking — não há mudança de regra de cálculo.
+- Nenhuma migration necessária; a mudança é de leitura/apresentação.
+- Sem alterações em RLS, dados ou rotas públicas.
 
----
+## Onde testar
 
-## Mudança 2 — Caminho explícito "não recebeu nenhuma destas"
-
-Adicionar um quarto modo de combinação, ao lado de "Qualquer uma / Todas / Somente essas":
-
-- **Nenhuma destas** → grava as opções marcadas apenas no lado de exclusão (`missao_ids_excluir`) e deixa o lado de inclusão vazio. Resultado: mantém todos os outros filtros (ex.: a tag) e remove quem recebeu qualquer uma das missões marcadas.
-
-Assim o caso relatado ("tag terceirizadas E não recebeu nenhuma das 3 missões") é feito numa única aba, marcando as 3 missões e escolhendo "Nenhuma destas" — sem passar pela aba Esconder e sem entender a diferença entre os modos.
-
-Texto de ajuda do modo: "Mostra quem NÃO tem nenhuma das opções marcadas (os outros filtros continuam valendo)."
-
-O modo se aplica aos campos que já suportam combinação: tags, formas de ajuda, disponibilidade, missões e eventos. A aba "Esconder" continua existindo para o caso avançado de misturar inclusão e exclusão no mesmo campo.
-
-**Risco:** médio-baixo. O motor de consulta não muda — "Nenhuma destas" reaproveita o caminho de exclusão que já funciona. O ponto de atenção é o modo não ser gravado em `*_modo` quando a inclusão está vazia (hoje a gravação apaga o modo nesse caso), então o menu precisa reconstituir "Nenhuma destas" ao reabrir; será tratado permitindo persistir o modo quando houver exclusão.
-
----
-
-## Arquivos tocados
-
-| Arquivo | O que muda |
-|---|---|
-| `src/lib/filter-match-mode.ts` | novo modo `nenhuma` (rótulo, ajuda, lista de modos, leitura do modo salvo, frase descritiva) |
-| `src/lib/filter-exclusion.ts` | `applyFilterSides` passa a aceitar/persistir o modo `nenhuma` (gravar exclusão + manter a chave de modo) |
-| `src/components/MultiSelectFilter.tsx` | exclusividade entre abas, aviso + botão "Corrigir" na sobreposição, botão do novo modo, frase de leitura no rodapé |
-| `src/components/ContactFiltersPanel.tsx` | ajuste do texto de ajuda do campo "Missões específicas" explicando o novo modo |
-| `src/lib/crm-filters.ts` | apenas ampliar o enum de `*_modo` para aceitar `nenhuma` (validação); a lógica de query não muda |
-
-## Fora deste plano
-
-- Unificação do motor de filtros com a planilha do BI.
-- Assimetria interna do filtro de tags (`intersect` vs atribuição).
-- Modo de combinação no lado Esconder (hoje sempre "qualquer uma").
-
-## Como testar depois
-
-1. Tag "Grupo Terceirizadas" + Missões específicas → marcar as 3 plenárias → modo "Nenhuma destas" → deve retornar ~203 contatos.
-2. Marcar uma missão em Mostrar e tentar marcá-la em Esconder → ela sai automaticamente do primeiro lado.
-3. Abrir uma visão salva com sobreposição → aviso vermelho e botão "Corrigir" no menu.
+- `/missoes-agitacao/desempenho` → coluna Jornada dos 6 responsáveis citados.
+- `/meu-impacto` e `/minha-semana` → novo selo do app nos cartões de compartilhamento.
