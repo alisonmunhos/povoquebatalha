@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ImpactBanner } from "@/components/ImpactBanner";
+import { AgitacaoNav } from "@/components/AgitacaoNav";
 import {
   TASK_STATUS,
   TASK_STATUS_CLASS,
