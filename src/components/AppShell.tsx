@@ -16,6 +16,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { AgitacaoTabBar, AgitacaoTabBarSpacer } from "@/components/AgitacaoNav";
+import { isAgitadorOnlyRoles } from "@/hooks/use-agitador-mode";
 
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
