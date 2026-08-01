@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
+  MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
   X, ExternalLink, Filter, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
