@@ -69,22 +69,60 @@ export function ImpactShareCard({
       style={{ width: 1080, height: 1350, backgroundColor: CARD_BG, position: "relative" }}
       className="flex flex-col justify-between overflow-hidden p-16"
     >
-      {/* Marca d'água do punho — discreta, canto inferior direito */}
-      <img
-        src={fistSilhouette}
-        alt=""
-        width={512}
-        height={512}
+      {/* Punho + raios — área vazia à direita, entre o headline e o gráfico.
+          Não sobrepõe barras nem texto. */}
+      <div
         style={{
           position: "absolute",
-          right: 40,
-          bottom: 40,
-          width: 260,
-          height: 260,
-          opacity: 0.5,
-          objectFit: "contain",
+          right: 56,
+          top: 430,
+          width: 360,
+          height: 360,
+          pointerEvents: "none",
         }}
-      />
+      >
+        <svg
+          viewBox="0 0 360 360"
+          width={360}
+          height={360}
+          style={{ position: "absolute", inset: 0 }}
+          aria-hidden
+        >
+          {Array.from({ length: 16 }).map((_, i) => {
+            const angle = (i * 360) / 16;
+            const long = i % 2 === 0;
+            return (
+              <line
+                key={i}
+                x1={180}
+                y1={180}
+                x2={180}
+                y2={long ? 8 : 44}
+                stroke={ACCENT}
+                strokeWidth={long ? 6 : 4}
+                strokeLinecap="round"
+                opacity={long ? 0.55 : 0.3}
+                transform={`rotate(${angle} 180 180)`}
+              />
+            );
+          })}
+        </svg>
+        <img
+          src={fistMark}
+          alt=""
+          width={230}
+          height={230}
+          style={{
+            position: "absolute",
+            left: 65,
+            top: 65,
+            width: 230,
+            height: 230,
+            objectFit: "contain",
+          }}
+        />
+      </div>
+
 
       {/* 1-3: kicker, nome, headline de reflexão */}
       <div style={{ position: "relative" }}>
