@@ -108,7 +108,7 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
       const ids = missions.map((m) => m.id);
       const { data: tasks, error: e2 } = await context.supabase
         .from("agitation_tasks")
-        .select("mission_id,status,assigned_user_id,assigned_contact_id,assigned_at,updated_at")
+        .select("mission_id,status,assigned_user_id,assigned_contact_id,assigned_at,assigned_to_user_at,updated_at")
         .in("mission_id", ids);
       if (e2) throw e2;
 
@@ -121,10 +121,10 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
 
       for (const t of tasks ?? []) {
         const hasAssignment = !!(t.assigned_contact_id || t.assigned_user_id);
-        addTask(geral, t.status, hasAssignment);
+        addTask(geral, t.status, hasAssignment, t.assigned_to_user_at);
 
         const m = byMission.get(t.mission_id) ?? { ...emptyTotals(), responsaveis: new Set<string>() };
-        addTask(m, t.status, hasAssignment);
+        addTask(m, t.status, hasAssignment, t.assigned_to_user_at);
         if (!hasAssignment) {
           byMission.set(t.mission_id, m);
           continue;
@@ -137,7 +137,7 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
 
         const a =
           byAssignee.get(key) ?? { ...emptyTotals(), tipo, refId, ultima_acao: null as string | null };
-        addTask(a, t.status, hasAssignment);
+        addTask(a, t.status, hasAssignment, t.assigned_to_user_at);
         const stamp = t.updated_at ?? t.assigned_at ?? null;
         if (stamp && (!a.ultima_acao || stamp > a.ultima_acao)) a.ultima_acao = stamp;
         byAssignee.set(key, a);
