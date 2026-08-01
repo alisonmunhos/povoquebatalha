@@ -388,6 +388,13 @@ export function MultiSelectFilter({
       <span className="truncate">
         {nothingSelected ? (
           <span className="text-muted-foreground">{placeholder}</span>
+        ) : advanced && matchMode === "nenhuma" ? (
+          <span className="text-destructive">
+            <span className="font-medium">nenhuma: </span>
+            {hiddenCount <= 2
+              ? (excludeValue ?? []).map(labelOf).join(", ")
+              : `${hiddenCount} opções`}
+          </span>
         ) : (
           <>
             {!advanced && mode === "exclude" && value.length > 0 && (
