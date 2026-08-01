@@ -97,7 +97,7 @@ function MyWeekPage() {
   }
 
   const s = q.data;
-  const badge = weekMilestoneFor(week.connections);
+  const badge = resolveMilestone(weekMilestoneFor(week.connections), week.connections);
   const previous = scope === "closed" ? s.weeks.beforeClosed : s.weeks.closed;
   const diff = week.connections - previous.connections;
 
