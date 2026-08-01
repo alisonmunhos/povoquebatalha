@@ -3,16 +3,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useRef, useState } from "react";
-import { toast } from "sonner";
-import { Download, Flame, Loader2, Share2, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { Flame, Loader2, Sparkles } from "lucide-react";
 import { AgitacaoNav } from "@/components/AgitacaoNav";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { getMyImpactStats } from "@/lib/impact-stats.functions";
 import { milestoneFor, nextMilestone } from "@/lib/impact-milestones";
-import { ImpactShareCard } from "@/components/ImpactShareCard";
-import { elementToPngBlob, downloadBlob, sharePng } from "@/lib/share-image";
+import { ShareCardActions } from "@/components/impact/ShareCardActions";
 import { Button } from "@/components/ui/button";
+
 
 export const Route = createFileRoute("/_authenticated/meu-impacto")({
   head: () => ({
@@ -30,36 +29,8 @@ export const Route = createFileRoute("/_authenticated/meu-impacto")({
 function MyImpactPage() {
   const statsFn = useServerFn(getMyImpactStats);
   const q = useQuery({ queryKey: ["my-impact"], queryFn: () => statsFn(), retry: 1 });
-  const shareRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<"share" | "download" | null>(null);
   const [variant, setVariant] = useState<"total" | "day">("total");
 
-  async function withBlob(kind: "share" | "download") {
-    if (!shareRef.current || !q.data) return;
-    setBusy(kind);
-    try {
-      const blob = await elementToPngBlob(shareRef.current);
-      const filename = "meu-impacto-povo-que-batalha.png";
-      if (kind === "download") {
-        downloadBlob(blob, filename);
-        toast.success("Imagem salva no seu aparelho.");
-        return;
-      }
-      const total = variant === "total" ? q.data.connections.total : q.data.connections.today;
-      const text =
-        variant === "total"
-          ? `Já me conectei com ${total} pessoas na campanha do Povo que Batalha! 💪`
-          : `Hoje eu me conectei com ${total} pessoas na campanha do Povo que Batalha! 💪`;
-      const r = await sharePng({ blob, filename, text });
-      if (r === "downloaded") {
-        toast.info("Imagem baixada. Anexe no WhatsApp que já abrimos pra você.");
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível gerar a imagem.");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   if (q.isLoading) {
     return (
@@ -105,7 +76,9 @@ function MyImpactPage() {
         <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
           <Sparkles className="h-3.5 w-3.5" /> {milestone.badge}
         </p>
-        <p className="mt-3 text-sm italic text-muted-foreground">{milestone.phrase}</p>
+        <p className="mt-3 text-base font-semibold">{milestone.headline}</p>
+        <p className="mt-1 text-sm italic text-muted-foreground">{milestone.phrase}</p>
+
 
         {next && (
           <div className="mt-4 text-left">
@@ -196,35 +169,18 @@ function MyImpactPage() {
             <Link to="/minha-semana">Conquista da semana</Link>
           </Button>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button size="lg" className="flex-1" disabled={busy !== null} onClick={() => void withBlob("share")}>
-            {busy === "share" ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Share2 className="mr-2 h-4 w-4" />
-            )}
-            {variant === "total" ? "Compartilhar minha conquista" : "Compartilhar o dia de hoje"}
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            disabled={busy !== null}
-            onClick={() => void withBlob("download")}
-          >
-            {busy === "download" ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            Baixar imagem
-          </Button>
-        </div>
+        <ShareCardActions
+          stats={s}
+          variant={variant}
+          shareLabel={variant === "total" ? "Compartilhar minha conquista" : "Compartilhar o dia de hoje"}
+          shareText={
+            variant === "total"
+              ? `Já me conectei com ${s.connections.total} pessoas na campanha do Povo que Batalha! 💪`
+              : `Hoje eu me conectei com ${s.connections.today} pessoas na campanha do Povo que Batalha! 💪`
+          }
+        />
       </section>
 
-      {/* Card de compartilhamento renderizado fora da tela, no tamanho real. */}
-      <div aria-hidden className="pointer-events-none fixed left-[-4000px] top-0 opacity-0">
-        <ImpactShareCard stats={s} innerRef={shareRef} variant={variant} />
-      </div>
 
     </div>
   );

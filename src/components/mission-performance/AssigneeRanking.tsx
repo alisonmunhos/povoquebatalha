@@ -2,11 +2,14 @@
 import { useState } from "react";
 import type { AssigneePerformance } from "@/lib/agitation-performance.functions";
 import { conclusionRate } from "./PerformanceSummary";
+import { UserJourneyDialog } from "./UserJourneyDialog";
 
 type SortKey = "enviados" | "conclusao";
 
 export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
   const [sort, setSort] = useState<SortKey>("enviados");
+  const [journey, setJourney] = useState<{ userId: string; nome: string } | null>(null);
+
 
   const sorted = [...rows].sort((a, b) =>
     sort === "enviados"
@@ -45,6 +48,7 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                 <th className="text-right p-2" title="Número com erro ou não quer receber.">Arquivados</th>
                 <th className="text-right p-2" title="Enviados sobre os contatos que ainda valem envio.">Conclusão</th>
                 <th className="text-right p-2">Última ação</th>
+                <th className="text-right p-2">Jornada</th>
               </tr>
             </thead>
             <tbody>
@@ -65,12 +69,35 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                   <td className="p-2 text-right text-xs text-muted-foreground">
                     {r.ultima_acao ? new Date(r.ultima_acao).toLocaleDateString("pt-BR") : "—"}
                   </td>
+                  <td className="p-2 text-right">
+                    {r.tipo === "conta" ? (
+                      <button
+                        type="button"
+                        onClick={() => setJourney({ userId: r.refId, nome: r.nome })}
+                        className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      >
+                        Ver jornada
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground" title="Sem conta no app.">
+                        —
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <UserJourneyDialog
+        userId={journey?.userId ?? null}
+        nome={journey?.nome ?? ""}
+        open={journey !== null}
+        onOpenChange={(v) => !v && setJourney(null)}
+      />
     </section>
   );
 }
+
