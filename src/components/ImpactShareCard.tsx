@@ -118,19 +118,20 @@ export function ImpactShareCard({
           })}
         </svg>
         <img
-          src={fistMark}
+          src={appIcon.url}
           alt=""
-          width={230}
-          height={230}
+          width={216}
+          height={216}
           style={{
             position: "absolute",
-            left: 65,
-            top: 65,
-            width: 230,
-            height: 230,
+            left: 72,
+            top: 72,
+            width: 216,
+            height: 216,
             objectFit: "contain",
           }}
         />
+
       </div>
 
 
