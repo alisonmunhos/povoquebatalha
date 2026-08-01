@@ -15,6 +15,11 @@ export function PerformanceSummary({ totals }: { totals: PerformanceTotals }) {
     { label: "Não enviados", value: totals.nao_enviados, hint: "Ninguém agiu nesse contato ainda." },
     { label: "Arquivados", value: totals.arquivados, hint: "Número com erro ou pessoa não quer receber." },
     {
+      label: "Parados há +2h",
+      value: totals.parados,
+      hint: "Estão com alguém, sem nenhuma ação, há mais de 2 horas — voltam automaticamente para a fila.",
+    },
+    {
       label: "Taxa de conclusão",
       value: `${conclusionRate(totals)}%`,
       hint: "Enviados dividido pelos contatos que ainda valem envio (sem os arquivados).",

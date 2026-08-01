@@ -1382,6 +1382,36 @@ async function loadOwnedTask(
   return data;
 }
 
+/**
+ * Retrato dos campos que o arquivamento por missão altera. Guardamos na
+ * auditoria para que o "Desfazer" devolva o contato exatamente como estava,
+ * sem apagar informação anterior (ex.: telefone que já pedia revisão).
+ */
+type AdminClient = { from: (t: string) => any };
+
+async function snapshotContact(admin: AdminClient, contactId: string) {
+  const { data } = await admin
+    .from("contacts")
+    .select("whatsapp_status,phone_status,lifecycle_status,consentimento_whatsapp")
+    .eq("id", contactId)
+    .maybeSingle();
+  return (data ?? null) as Record<string, unknown> | null;
+}
+
+/** Último retrato salvo para este contato nesta missão (usado pelo Desfazer). */
+async function lastSnapshot(admin: AdminClient, contactId: string, actions: string[]) {
+  const { data } = await admin
+    .from("contact_audit_log")
+    .select("changes,action,created_at")
+    .eq("contact_id", contactId)
+    .in("action", actions)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const changes = (data?.[0]?.changes ?? null) as Record<string, unknown> | null;
+  const previo = changes?.["previo"];
+  return previo && typeof previo === "object" ? (previo as Record<string, unknown>) : null;
+}
+
 export const refuseMissionContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => refuseSchema.parse(d))
@@ -1391,32 +1421,26 @@ export const refuseMissionContact = createServerFn({ method: "POST" })
       (task as { agitation_missions?: { title?: string } | null }).agitation_missions?.title ??
       "missão de agitação";
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const now = new Date().toISOString();
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
 
-    const { error } = await supabaseAdmin
-      .from("contacts")
-      .update({
-        opt_out_at: now,
-        opt_out_motivo: `Pediu para não receber mensagens (missão: ${missionTitle})`,
-        arquivado_at: now,
-        whatsapp_status: "opt_out",
-        lifecycle_status: "nao_enviar",
-        consentimento_whatsapp: false,
-      })
-      .eq("id", task.contact_id);
-    if (error) throw new Error(error.message);
+    const previo = await snapshotContact(supabaseAdmin as never, task.contact_id);
+
+    // Mecanismo único de arquivar (o mesmo da Gestão da Base), com opt-out.
+    await setContactArchived(supabaseAdmin as never, {
+      contactId: task.contact_id,
+      archived: true,
+      userId: context.userId,
+      optOut: true,
+      motivo: `Pediu para não receber mensagens (missão: ${missionTitle})`,
+      auditAction: "opt_out_missao",
+      auditChanges: { mission_id: task.mission_id, mission_title: missionTitle, previo },
+    });
 
     await supabaseAdmin
       .from("agitation_tasks")
       .update({ status: TASK_STATUS.ARQUIVADO_OPTOUT, completed_at: null })
       .eq("id", task.id);
 
-    await supabaseAdmin.from("contact_audit_log").insert({
-      contact_id: task.contact_id,
-      user_id: context.userId,
-      action: "opt_out_missao",
-      changes: { mission_id: task.mission_id, mission_title: missionTitle },
-    });
     await supabaseAdmin.from("agitacao_contact_logs").insert({
       contact_id: task.contact_id,
       user_id: context.userId,
@@ -1434,28 +1458,23 @@ export const undoRefuseMissionContact = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // Mesmo mecanismo usado pela Gestão da Base para desarquivar um contato.
     const { setContactArchived } = await import("@/lib/contact-archive.server");
+
+    const restore = await lastSnapshot(supabaseAdmin as never, task.contact_id, ["opt_out_missao"]);
+
     await setContactArchived(supabaseAdmin as never, {
       contactId: task.contact_id,
       archived: false,
       userId: context.userId,
-      auditAction: "unarchive",
-      auditChanges: { mission_id: task.mission_id, origem: "missao" },
+      restore,
+      auditAction: "opt_out_missao_desfeito",
+      auditChanges: { mission_id: task.mission_id, origem: "missao", restaurado: restore },
     });
 
     await supabaseAdmin
       .from("agitation_tasks")
       .update({ status: TASK_STATUS.SEM_ACAO, completed_at: null })
       .eq("id", task.id);
-
-    await supabaseAdmin.from("contact_audit_log").insert({
-      contact_id: task.contact_id,
-      user_id: context.userId,
-      action: "opt_out_missao_desfeito",
-      changes: { mission_id: task.mission_id },
-    });
 
     return { ok: true as const };
   });
@@ -1471,30 +1490,28 @@ export const reportMissionContactError = createServerFn({ method: "POST" })
       (task as { agitation_missions?: { title?: string } | null }).agitation_missions?.title ??
       "missão de agitação";
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const now = new Date().toISOString();
+    const { setContactArchived } = await import("@/lib/contact-archive.server");
 
-    const { error } = await supabaseAdmin
-      .from("contacts")
-      .update({
-        arquivado_at: now,
-        whatsapp_status: "invalido",
-        phone_status: "invalido",
-        lifecycle_status: "telefone_invalido",
-      })
-      .eq("id", task.contact_id);
-    if (error) throw new Error(error.message);
+    const previo = await snapshotContact(supabaseAdmin as never, task.contact_id);
+
+    await setContactArchived(supabaseAdmin as never, {
+      contactId: task.contact_id,
+      archived: true,
+      userId: context.userId,
+      // Erro de número também bloqueia envios futuros (arquivar + não enviar),
+      // como "Não quer receber" — a diferença é só o motivo registrado.
+      optOut: true,
+      invalidPhone: true,
+      motivo: `Número não abriu o WhatsApp (missão: ${missionTitle})`,
+      auditAction: "erro_numero_missao",
+      auditChanges: { mission_id: task.mission_id, mission_title: missionTitle, previo },
+    });
 
     await supabaseAdmin
       .from("agitation_tasks")
       .update({ status: TASK_STATUS.ARQUIVADO_ERRO, completed_at: null })
       .eq("id", task.id);
 
-    await supabaseAdmin.from("contact_audit_log").insert({
-      contact_id: task.contact_id,
-      user_id: context.userId,
-      action: "erro_numero_missao",
-      changes: { mission_id: task.mission_id, mission_title: missionTitle },
-    });
     await supabaseAdmin.from("agitacao_contact_logs").insert({
       contact_id: task.contact_id,
       user_id: context.userId,
@@ -1512,15 +1529,19 @@ export const undoMissionContactError = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const task = await loadOwnedTask(context.supabase, context.userId, data.task_id);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // Mesmo mecanismo usado pela Gestão da Base para desarquivar um contato.
     const { setContactArchived } = await import("@/lib/contact-archive.server");
+
+    const restore = await lastSnapshot(supabaseAdmin as never, task.contact_id, [
+      "erro_numero_missao",
+    ]);
+
     await setContactArchived(supabaseAdmin as never, {
       contactId: task.contact_id,
       archived: false,
       userId: context.userId,
-      auditAction: "unarchive",
-      auditChanges: { mission_id: task.mission_id, origem: "missao" },
+      restore,
+      auditAction: "erro_numero_missao_desfeito",
+      auditChanges: { mission_id: task.mission_id, origem: "missao", restaurado: restore },
     });
 
     await supabaseAdmin
@@ -1528,13 +1549,7 @@ export const undoMissionContactError = createServerFn({ method: "POST" })
       .update({ status: TASK_STATUS.SEM_ACAO, completed_at: null })
       .eq("id", task.id);
 
-    await supabaseAdmin.from("contact_audit_log").insert({
-      contact_id: task.contact_id,
-      user_id: context.userId,
-      action: "erro_numero_missao_desfeito",
-      changes: { mission_id: task.mission_id },
-    });
-
     return { ok: true as const };
   });
+
 

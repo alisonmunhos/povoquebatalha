@@ -15,6 +15,18 @@ type MinimalClient = {
 };
 
 
+/** Campos que o arquivamento por missão altera e que o "Desfazer" precisa devolver. */
+export const RESTORABLE_CONTACT_FIELDS = [
+  "whatsapp_status",
+  "phone_status",
+  "lifecycle_status",
+  "consentimento_whatsapp",
+] as const;
+
+export type RestorableContactSnapshot = Partial<
+  Record<(typeof RESTORABLE_CONTACT_FIELDS)[number], unknown>
+>;
+
 export type ArchiveContactOptions = {
   contactId: string;
   archived: boolean;
@@ -29,10 +41,23 @@ export type ArchiveContactOptions = {
   auditAction?: string;
   /** Dados extras da auditoria. */
   auditChanges?: Record<string, unknown> | null;
+  /**
+   * Ao desarquivar: valores anteriores capturados no momento do arquivamento.
+   * Sem isso o contato volta ao estado neutro; com isso ele volta exatamente
+   * como estava (ex.: telefone que já era "precisa revisão" continua assim).
+   */
+  restore?: RestorableContactSnapshot | null;
 };
 
 export async function setContactArchived(client: MinimalClient, opts: ArchiveContactOptions) {
   const now = new Date().toISOString();
+
+  const restore: Record<string, unknown> = {};
+  if (opts.restore) {
+    for (const field of RESTORABLE_CONTACT_FIELDS) {
+      if (field in opts.restore) restore[field] = opts.restore[field] ?? null;
+    }
+  }
 
   const values: Record<string, unknown> = opts.archived
     ? {
@@ -42,6 +67,8 @@ export async function setContactArchived(client: MinimalClient, opts: ArchiveCon
               opt_out_at: now,
               opt_out_motivo: opts.motivo ?? null,
               whatsapp_status: "opt_out",
+              lifecycle_status: "nao_enviar",
+              consentimento_whatsapp: false,
             }
           : {}),
         ...(opts.invalidPhone
@@ -60,6 +87,8 @@ export async function setContactArchived(client: MinimalClient, opts: ArchiveCon
         whatsapp_status: "desconhecido",
         phone_status: null,
         lifecycle_status: null,
+        // Quando temos o retrato de antes, ele tem prioridade sobre o estado neutro.
+        ...restore,
       };
 
   const { error } = await client.from("contacts").update(values).eq("id", opts.contactId);
