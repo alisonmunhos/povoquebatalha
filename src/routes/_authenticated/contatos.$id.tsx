@@ -11,7 +11,7 @@ import { listContactLogsUnified } from "@/lib/contact-logs.functions";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { parsePhoneBR, formatPhoneBR } from "@/lib/phone";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
-import { ArrowLeft, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2, Phone } from "lucide-react";
+import { ArrowLeft, Home, Loader2, Save, Archive, ArchiveRestore, UserMinus, UserCheck, Plus, X, Copy, MessageCircle, History, Tag as TagIcon, Trash2, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDeleteContactDialog } from "@/components/ConfirmDeleteContactDialog";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
