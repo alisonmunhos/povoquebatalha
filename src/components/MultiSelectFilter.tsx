@@ -294,7 +294,7 @@ export function MultiSelectFilter({
                   className={cn(
                     "flex h-4 w-4 items-center justify-center rounded border shrink-0",
                     checked
-                      ? tab === "esconder" && advanced
+                      ? (tab === "esconder" && advanced) || noneMode
                         ? "bg-destructive border-destructive text-destructive-foreground"
                         : "bg-primary border-primary text-primary-foreground"
                       : "border-input",
@@ -323,14 +323,31 @@ export function MultiSelectFilter({
       </CommandList>
 
       {advanced && phrase && (
-        <p className="shrink-0 border-t bg-muted/40 px-2 py-1.5 text-[10px] text-muted-foreground">{phrase}</p>
+        <p className="shrink-0 border-t bg-muted/40 px-2 py-1.5 text-[11px] font-medium text-foreground">{phrase}</p>
+      )}
+
+      {advanced && overlap.length > 0 && (
+        <div className="shrink-0 border-t border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive">
+          <p>
+            {overlap.length === 1 ? "1 opção está" : `${overlap.length} opções estão`} em Mostrar e em
+            Esconder ao mesmo tempo — isso sempre traz zero resultados.
+          </p>
+          <button
+            type="button"
+            onClick={fixOverlap}
+            className="mt-1 rounded border border-destructive px-2 py-0.5 font-medium"
+          >
+            Corrigir
+          </button>
+        </div>
       )}
 
       <div className="shrink-0 flex items-center gap-2 border-t bg-card px-2 py-2">
         <button
           type="button"
           onClick={apply}
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          disabled={overlap.length > 0}
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
         >
           Aplicar
         </button>
