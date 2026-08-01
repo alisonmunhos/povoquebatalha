@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { BarChart3, ArrowLeft } from "lucide-react";
 import { getMissionsPerformance } from "@/lib/agitation-performance.functions";
+import { getCampaignJourney } from "@/lib/campaign-journey.functions";
+import { CampaignJourneyPanel } from "@/components/mission-performance/CampaignJourneyPanel";
 import { PerformanceSummary } from "@/components/mission-performance/PerformanceSummary";
 import { AssigneeRanking } from "@/components/mission-performance/AssigneeRanking";
 import { MissionBreakdown } from "@/components/mission-performance/MissionBreakdown";
@@ -24,14 +26,27 @@ export const Route = createFileRoute("/_authenticated/missoes-agitacao/desempenh
 type Visibility = "all" | "active" | "archived";
 type Days = 7 | 30 | 90 | 0;
 
+const PERIOD_LABEL: Record<Days, string> = {
+  7: "Últimos 7 dias",
+  30: "Últimos 30 dias",
+  90: "Últimos 90 dias",
+  0: "Desde o começo",
+};
+
 function DesempenhoMissoes() {
   const fetchFn = useServerFn(getMissionsPerformance);
+  const fetchJourney = useServerFn(getCampaignJourney);
   const [visibility, setVisibility] = useState<Visibility>("active");
   const [days, setDays] = useState<Days>(30);
 
   const q = useQuery({
     queryKey: ["missions-performance", visibility, days],
     queryFn: () => fetchFn({ data: { visibility, days } }),
+  });
+
+  const journey = useQuery({
+    queryKey: ["campaign-journey", days],
+    queryFn: () => fetchJourney({ data: { days } }),
   });
 
   return (
@@ -74,6 +89,10 @@ function DesempenhoMissoes() {
           <option value="all">Mostrar: todas</option>
         </select>
       </div>
+
+      {journey.data && (
+        <CampaignJourneyPanel data={journey.data} periodoLabel={PERIOD_LABEL[days]} />
+      )}
 
       {q.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
       {q.isError && (
