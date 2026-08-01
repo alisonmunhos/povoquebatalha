@@ -1,21 +1,20 @@
 // Ranking de agitadores — somente leitura.
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { AssigneePerformance } from "@/lib/agitation-performance.functions";
 import { conclusionRate } from "./PerformanceSummary";
-import { UserJourneyDialog } from "./UserJourneyDialog";
 
 type SortKey = "enviados" | "conclusao";
 
 export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
   const [sort, setSort] = useState<SortKey>("enviados");
-  const [journey, setJourney] = useState<{ userId: string; nome: string } | null>(null);
-
 
   const sorted = [...rows].sort((a, b) =>
     sort === "enviados"
       ? b.enviados - a.enviados || b.total - a.total
       : conclusionRate(b) - conclusionRate(a) || b.enviados - a.enviados,
   );
+
 
   return (
     <section className="space-y-2">
