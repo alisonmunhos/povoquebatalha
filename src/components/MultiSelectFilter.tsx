@@ -5,6 +5,13 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import type { FilterMode } from "@/lib/filter-exclusion";
+import {
+  MATCH_MODES,
+  MATCH_MODE_HELP,
+  MATCH_MODE_LABEL,
+  describeSelection,
+  type MatchMode,
+} from "@/lib/filter-match-mode";
 
 export type MultiOption = {
   value: string;
@@ -24,10 +31,19 @@ type Props = {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
-  /** Quando informado junto de onApply, habilita o modo "esconder os marcados". */
+  /** Legado: quando informado junto de onApply, habilita "esconder os marcados". */
   mode?: FilterMode;
-  /** Aplica seleção + modo de uma só vez (usado quando o campo aceita "exceto"). */
+  /** Legado: aplica seleção + modo de uma só vez. */
   onApply?: (values: string[], mode: FilterMode) => void;
+  /**
+   * Modo de combinação atual (qualquer / todas / somente). Quando informado,
+   * o menu mostra os botões de combinação.
+   */
+  matchMode?: MatchMode;
+  /** Valores marcados para ESCONDER (aba "Esconder"). */
+  excludeValue?: string[];
+  /** Aplica os dois lados + modo de uma vez. Ativa a experiência completa. */
+  onApplyFull?: (p: { include: string[]; exclude: string[]; mode: MatchMode }) => void;
 };
 
 export function MultiSelectFilter({
@@ -40,51 +56,140 @@ export function MultiSelectFilter({
   className,
   mode,
   onApply,
+  matchMode,
+  excludeValue,
+  onApplyFull,
 }: Props) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  const advanced = !!onApplyFull;
+  const excludable = advanced || (!!onApply && !!mode);
+
   const [draft, setDraft] = useState<string[]>(value);
-  const excludable = !!onApply && !!mode;
+  const [draftExclude, setDraftExclude] = useState<string[]>(excludeValue ?? []);
+  const [tab, setTab] = useState<"mostrar" | "esconder">("mostrar");
   const [draftMode, setDraftMode] = useState<FilterMode>(mode ?? "include");
+  const [draftMatch, setDraftMatch] = useState<MatchMode>(matchMode ?? "qualquer");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Sincroniza o rascunho apenas ao abrir, para não sobrescrever a edição em andamento.
   useEffect(() => {
     if (open) {
       setDraft(value);
+      setDraftExclude(excludeValue ?? []);
       setDraftMode(mode ?? "include");
+      setDraftMatch(matchMode ?? "qualquer");
+      setTab("mostrar");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const draftSet = new Set(draft);
-  const selectedSet = new Set(value);
-  const selectedLabels = options.filter((o) => selectedSet.has(o.value)).map((o) => o.label);
+  const activeList = advanced && tab === "esconder" ? draftExclude : draft;
+  const setActiveList = (next: string[]) => {
+    if (advanced && tab === "esconder") setDraftExclude(next);
+    else setDraft(next);
+  };
+
+  const activeSet = new Set(activeList);
+  const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  const selectedLabels = value.map(labelOf);
+  const hiddenCount = excludeValue?.length ?? 0;
 
   function toggle(v: string) {
-    const next = new Set(draftSet);
+    const next = new Set(activeSet);
     if (next.has(v)) next.delete(v);
     else next.add(v);
-    setDraft([...next]);
+    setActiveList([...next]);
   }
 
   function apply() {
-    if (onApply) onApply(draft, draftMode);
-    else onChange(draft);
+    if (onApplyFull) {
+      // "Somente essas" = tem as marcadas e nada além: as demais opções entram
+      // automaticamente no lado de exclusão.
+      const includeSet = new Set(draft);
+      const autoExclude =
+        draftMatch === "somente"
+          ? options.filter((o) => !includeSet.has(o.value)).map((o) => o.value)
+          : [];
+      onApplyFull({
+        include: draft,
+        exclude: [...new Set([...draftExclude, ...autoExclude])],
+        mode: draftMatch,
+      });
+    } else if (onApply) {
+      onApply(draft, draftMode);
+    } else {
+      onChange(draft);
+    }
     setOpen(false);
   }
 
   function clearAll() {
-    if (onApply) onApply([], mode ?? "include");
+    if (onApplyFull) onApplyFull({ include: [], exclude: [], mode: "qualquer" });
+    else if (onApply) onApply([], mode ?? "include");
     else onChange([]);
   }
+
+  const phrase = describeSelection({
+    include: draft,
+    exclude: draftExclude,
+    mode: draftMatch,
+    labelOf,
+  });
 
   const panel = (
     // Altura em coluna: a lista rola por dentro e o rodapé com "Aplicar"
     // fica sempre visível, mesmo quando o menu abre no rodapé da tela.
     <Command shouldFilter className="flex flex-col max-h-full min-h-0">
       <CommandInput ref={inputRef} placeholder="Buscar…" />
-      {excludable && (
+
+      {advanced && (
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
+          <button
+            type="button"
+            onClick={() => setTab("mostrar")}
+            className={cn(
+              "rounded px-2 py-1 border",
+              tab === "mostrar" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+            )}
+          >
+            Mostrar {draft.length > 0 ? `(${draft.length})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("esconder")}
+            className={cn(
+              "rounded px-2 py-1 border",
+              tab === "esconder" ? "bg-destructive text-destructive-foreground border-destructive" : "text-muted-foreground",
+            )}
+          >
+            Esconder {draftExclude.length > 0 ? `(${draftExclude.length})` : ""}
+          </button>
+        </div>
+      )}
+
+      {advanced && matchMode && tab === "mostrar" && (
+        <div className="px-2 py-1.5 border-b">
+          <div className="flex items-center gap-1 text-[11px]">
+            {MATCH_MODES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setDraftMatch(m)}
+                className={cn(
+                  "rounded px-2 py-1 border",
+                  draftMatch === m ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+                )}
+              >
+                {MATCH_MODE_LABEL[m]}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">{MATCH_MODE_HELP[draftMatch]}</p>
+        </div>
+      )}
+
+      {!advanced && excludable && (
         <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
           <button
             type="button"
@@ -108,24 +213,27 @@ export function MultiSelectFilter({
           </button>
         </div>
       )}
+
       <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b text-xs">
         <span className="text-muted-foreground">
-          {draft.length > 0 ? `${draft.length} selecionado(s)` : "Nenhum selecionado"}
+          {activeList.length > 0 ? `${activeList.length} marcado(s)` : "Nenhum marcado"}
         </span>
         <button
           type="button"
-          onClick={() => setDraft(options.filter((o) => !o.disabled).map((o) => o.value))}
+          onClick={() => setActiveList(options.filter((o) => !o.disabled).map((o) => o.value))}
           className="text-muted-foreground hover:text-foreground"
         >
-          Selecionar todos
+          Marcar todos
         </button>
       </div>
       <CommandList className={cn("flex-1 min-h-0", isMobile ? "max-h-[50vh]" : "max-h-none")}>
         <CommandEmpty>{emptyText}</CommandEmpty>
         <CommandGroup>
           {options.map((o) => {
-            const checked = draftSet.has(o.value);
+            const checked = activeSet.has(o.value);
             const isDisabled = !!o.disabled && !checked;
+            const otherSide =
+              advanced && (tab === "mostrar" ? draftExclude.includes(o.value) : draft.includes(o.value));
             return (
               <CommandItem
                 key={o.value}
@@ -141,12 +249,21 @@ export function MultiSelectFilter({
                 <div
                   className={cn(
                     "flex h-4 w-4 items-center justify-center rounded border shrink-0",
-                    checked ? "bg-primary border-primary text-primary-foreground" : "border-input",
+                    checked
+                      ? tab === "esconder" && advanced
+                        ? "bg-destructive border-destructive text-destructive-foreground"
+                        : "bg-primary border-primary text-primary-foreground"
+                      : "border-input",
                   )}
                 >
                   {checked && <Check className="h-3 w-3" />}
                 </div>
                 <span className="flex-1 truncate">{o.label}</span>
+                {otherSide && (
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {tab === "mostrar" ? "escondido" : "mostrado"}
+                  </span>
+                )}
                 {isDisabled && (
                   <span className="text-[10px] text-muted-foreground shrink-0">
                     {o.disabledReason ?? "sem contatos"}
@@ -160,18 +277,27 @@ export function MultiSelectFilter({
           })}
         </CommandGroup>
       </CommandList>
+
+      {advanced && phrase && (
+        <p className="shrink-0 border-t bg-muted/40 px-2 py-1.5 text-[10px] text-muted-foreground">{phrase}</p>
+      )}
+
       <div className="shrink-0 flex items-center gap-2 border-t bg-card px-2 py-2">
         <button
           type="button"
           onClick={apply}
           className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
         >
-          Aplicar{draft.length > 0 ? ` (${draft.length})` : ""}
+          Aplicar
         </button>
         <button
           type="button"
-          onClick={() => setDraft([])}
-          disabled={draft.length === 0}
+          onClick={() => {
+            setDraft([]);
+            setDraftExclude([]);
+            setDraftMatch("qualquer");
+          }}
+          disabled={draft.length === 0 && draftExclude.length === 0}
           className="rounded-md border px-3 py-1.5 text-xs disabled:opacity-40"
         >
           Limpar
@@ -187,6 +313,7 @@ export function MultiSelectFilter({
     </Command>
   );
 
+  const nothingSelected = value.length === 0 && hiddenCount === 0;
   const trigger = (
     <button
       type="button"
@@ -198,17 +325,35 @@ export function MultiSelectFilter({
       )}
     >
       <span className="truncate">
-        {value.length === 0 ? (
+        {nothingSelected ? (
           <span className="text-muted-foreground">{placeholder}</span>
         ) : (
           <>
-            {mode === "exclude" && <span className="text-destructive font-medium">exceto </span>}
-            {value.length <= 2 ? selectedLabels.join(", ") : `${value.length} selecionados`}
+            {!advanced && mode === "exclude" && value.length > 0 && (
+              <span className="text-destructive font-medium">exceto </span>
+            )}
+            {advanced && matchMode === "todos" && value.length > 0 && (
+              <span className="font-medium">todas: </span>
+            )}
+            {advanced && matchMode === "somente" && value.length > 0 && (
+              <span className="font-medium">somente: </span>
+            )}
+            {value.length > 0
+              ? value.length <= 2
+                ? selectedLabels.join(", ")
+                : `${value.length} selecionados`
+              : null}
+            {hiddenCount > 0 && (
+              <span className="text-destructive">
+                {value.length > 0 ? " · " : ""}
+                {hiddenCount} escondido(s)
+              </span>
+            )}
           </>
         )}
       </span>
       <div className="flex items-center gap-1 ml-2 shrink-0">
-        {value.length > 0 && (
+        {!nothingSelected && (
           <span
             role="button"
             tabIndex={-1}
@@ -247,7 +392,7 @@ export function MultiSelectFilter({
     <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
-        className="p-0 w-[280px] flex flex-col overflow-hidden max-h-[min(70vh,var(--radix-popover-content-available-height))]"
+        className="p-0 w-[300px] flex flex-col overflow-hidden max-h-[min(70vh,var(--radix-popover-content-available-height))]"
         align="start"
         collisionPadding={16}
         avoidCollisions

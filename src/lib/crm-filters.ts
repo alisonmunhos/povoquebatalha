@@ -144,10 +144,26 @@ export const crmFilterSchema = z.object({
   // Histórico — missões de agitação, eventos, formulários e respostas
   missao_recebida: z.enum(["sim", "nao", "atribuido"]).optional(),
   missao_id: z.string().uuid().optional(),
+  missao_ids: z.array(z.string().uuid()).optional(),
+  missao_ids_excluir: z.array(z.string().uuid()).optional(),
+  missao_ids_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  /** Quantas missões diferentes o contato já recebeu mensagem (envio confirmado). */
+  missoes_recebidas_min: z.coerce.number().int().min(0).optional(),
+  missoes_recebidas_max: z.coerce.number().int().min(0).optional(),
   evento_rsvp: z.enum(["sim", "nao", "recusou"]).optional(),
   evento_id: z.string().uuid().optional(),
+  evento_ids: z.array(z.string().uuid()).optional(),
+  evento_ids_excluir: z.array(z.string().uuid()).optional(),
+  evento_ids_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  eventos_confirmados_min: z.coerce.number().int().min(0).optional(),
+  eventos_confirmados_max: z.coerce.number().int().min(0).optional(),
   tracking_form_ids: z.array(z.string().uuid()).optional(),
   respondeu_mensagem: z.enum(["sim", "nao"]).optional(),
+
+  // Modos de combinação dos filtros de lista (ver src/lib/filter-match-mode.ts)
+  tag_ids_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  formas_ajuda_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
+  disponibilidade_modo: z.enum(["qualquer", "todos", "somente"]).optional(),
 
   // Filtros usados pela planilha BI (contatos-bi)
   formas_ajuda_outro: z.string().trim().optional(),
@@ -379,6 +395,52 @@ function applyExcludeEnumArrayFilter<T extends {
   return q;
 }
 
+/** Variantes aceitas de um slug (compatibilidade com valores legados na base). */
+function jsonbSlugVariants(col: string, slug: string): string[] {
+  if (col === "formas_ajuda" && slug === "panfletagem_banquinha") {
+    return ["panfletagem_banquinha", "panfletagem"];
+  }
+  return [slug];
+}
+
+/**
+ * Inclusão em coluna de lista (jsonb) com modo de combinação:
+ *   qualquer → OU entre as opções marcadas (padrão histórico)
+ *   todos/somente → E entre as opções marcadas
+ * "(Não informado)" continua entrando como cláusula OU no modo "qualquer".
+ */
+function applyJsonbListFilter<T extends {
+  or: (v: string) => T;
+  contains: (col: string, v: unknown) => T;
+}>(q: T, col: string, arr: string[] | undefined, modo: string | undefined): T {
+  if (!arr?.length) return q;
+  const { values, empty } = splitEmptyToken(arr);
+  const andMode = modo === "todos" || modo === "somente";
+
+  if (andMode) {
+    for (const slug of values) {
+      const clauses = jsonbSlugVariants(col, slug).map(
+        (v) => `${col}.cs.["${v.replace(/"/g, "")}"]`,
+      );
+      q = q.or(clauses.join(","));
+    }
+    return q;
+  }
+
+  const clauses: string[] = [];
+  for (const slug of values) {
+    for (const v of jsonbSlugVariants(col, slug)) {
+      clauses.push(`${col}.cs.["${v.replace(/"/g, "")}"]`);
+    }
+  }
+  if (empty) {
+    clauses.push(`${col}.is.null`);
+    clauses.push(`${col}->0.is.null`);
+  }
+  if (clauses.length) q = q.or(clauses.join(","));
+  return q;
+}
+
 /**
  * Exclusão em coluna de lista (jsonb): remove quem tem QUALQUER uma das
  * opções marcadas. As colunas são NOT NULL com default `[]`, então o
@@ -516,31 +578,13 @@ export function applyCrmFilters<T extends {
   }
 
   // Participação
-  if (f.formas_ajuda?.length) {
-    // Cada opção selecionada vira uma cláusula OR (`formas_ajuda @> [slug]`),
-    // expandindo `panfletagem_banquinha` para casar também com o valor legado `panfletagem`.
-    const { values, empty } = splitEmptyToken(f.formas_ajuda);
-    const clauses: string[] = [];
-    for (const slug of values) {
-      const variants =
-        slug === "panfletagem_banquinha" ? ["panfletagem_banquinha", "panfletagem"] : [slug];
-      for (const v of variants) clauses.push(`formas_ajuda.cs.["${v.replace(/"/g, "")}"]`);
-    }
-    if (empty) {
-      clauses.push("formas_ajuda.is.null");
-      clauses.push("formas_ajuda->0.is.null");
-    }
-    if (clauses.length) q = q.or(clauses.join(","));
-  }
-  if (f.disponibilidade?.length) {
-    const { values, empty } = splitEmptyToken(f.disponibilidade);
-    const clauses = values.map((slug) => `disponibilidade.cs.["${slug.replace(/"/g, "")}"]`);
-    if (empty) {
-      clauses.push("disponibilidade.is.null");
-      clauses.push("disponibilidade->0.is.null");
-    }
-    if (clauses.length) q = q.or(clauses.join(","));
-  }
+  // "qualquer" (padrão): OU entre as opções marcadas.
+  // "todos"/"somente": E entre as opções marcadas (cada uma vira uma condição
+  // separada). Em "somente", a interface já manda as demais opções no lado de
+  // exclusão, então aqui basta o E.
+  q = applyJsonbListFilter(q, "formas_ajuda", f.formas_ajuda, f.formas_ajuda_modo);
+  q = applyJsonbListFilter(q, "disponibilidade", f.disponibilidade, f.disponibilidade_modo);
+
   if (f.quem_indicou_values?.length) {
     q = applyExactIlikeArrayFilter(q, "quem_indicou", f.quem_indicou_values);
   } else if (f.quem_indicou) {
@@ -799,10 +843,42 @@ export async function resolveRelationalFilterIds(
     return Array.from(new Set(rows.map((r) => r.contact_id).filter(Boolean) as string[]));
   }
 
+  /** Conta quantos valores distintos de uma coluna cada contato tem. */
+  async function countByContact(
+    build: () => unknown,
+    col: string,
+  ): Promise<Map<string, Set<string>>> {
+    const rows = await fetchAllPaged<Record<string, string | null>>(build as never);
+    const map = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const cid = r["contact_id"];
+      const val = r[col];
+      if (!cid || !val) continue;
+      const set = map.get(cid) ?? new Set<string>();
+      set.add(val);
+      map.set(cid, set);
+    }
+    return map;
+  }
+
   if (f.tag_ids?.length) {
-    const { ids, noMatch } = await resolveContactIdsForTagFilter(supabase, f.tag_ids);
-    if (noMatch) return EMPTY_RELATIONAL;
-    if (ids?.length) allowedIds = ids;
+    const modo = f.tag_ids_modo;
+    if (modo === "todos" || modo === "somente") {
+      // "Tem TODAS as tags marcadas": conta tags distintas por contato.
+      const { values: tagIds } = splitEmptyToken(f.tag_ids);
+      if (!tagIds.length) return EMPTY_RELATIONAL;
+      const per = await countByContact(
+        () => sb.from("contact_tags").select("contact_id,tag_id").in("tag_id", tagIds),
+        "tag_id",
+      );
+      const ids = [...per.entries()].filter(([, s]) => s.size >= tagIds.length).map(([id]) => id);
+      if (!ids.length) return EMPTY_RELATIONAL;
+      intersect(ids);
+    } else {
+      const { ids, noMatch } = await resolveContactIdsForTagFilter(supabase, f.tag_ids);
+      if (noMatch) return EMPTY_RELATIONAL;
+      if (ids?.length) allowedIds = ids;
+    }
   }
 
   // Exclusão de tags: "todos, exceto quem tem estas tags".
@@ -834,15 +910,31 @@ export async function resolveRelationalFilterIds(
     distinctContactIds(() =>
       sb.from("automation_deliveries").select("contact_id").eq("template_id", templateId).eq("status", "sent"),
     );
+
+  // Missões marcadas na tela (aceita a seleção múltipla nova e o campo antigo).
+  const missionIds = f.missao_ids?.length ? f.missao_ids : f.missao_id ? [f.missao_id] : [];
+  const missionAllMode = f.missao_ids_modo === "todos" || f.missao_ids_modo === "somente";
+
   // "Recebeu mensagem de missão" = tarefa marcada como ENVIADA pelo agitador.
-  // (Antes procurava o status antigo "concluido", que não existe mais no banco —
-  // por isso o filtro nunca devolvia ninguém.)
-  const idsForMission = () =>
-    distinctContactIds(() => {
+  const idsForMission = async () => {
+    if (missionIds.length > 1 && missionAllMode) {
+      const per = await countByContact(
+        () =>
+          sb
+            .from("agitation_tasks")
+            .select("contact_id,mission_id")
+            .eq("status", TASK_STATUS.ENVIADO)
+            .in("mission_id", missionIds),
+        "mission_id",
+      );
+      return [...per.entries()].filter(([, s]) => s.size >= missionIds.length).map(([id]) => id);
+    }
+    return distinctContactIds(() => {
       let qr = sb.from("agitation_tasks").select("contact_id").eq("status", TASK_STATUS.ENVIADO);
-      if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
+      if (missionIds.length) qr = qr.in("mission_id", missionIds);
       return qr;
     });
+  };
   // Foi atribuído a alguém nessa missão, tenha enviado ou não.
   const idsAssignedInMission = () =>
     distinctContactIds(() => {
@@ -850,15 +942,34 @@ export async function resolveRelationalFilterIds(
         .from("agitation_tasks")
         .select("contact_id")
         .or("assigned_user_id.not.is.null,assigned_contact_id.not.is.null");
-      if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
+      if (missionIds.length) qr = qr.in("mission_id", missionIds);
       return qr;
     });
-  const idsForEvent = (statuses: string[]) =>
-    distinctContactIds(() => {
+
+  const CONFIRMED_RSVP = ["confirmado", "confirmed", "sim", "yes"];
+  const DECLINED_RSVP = ["recusado", "declined", "nao", "no"];
+  const eventIds = f.evento_ids?.length ? f.evento_ids : f.evento_id ? [f.evento_id] : [];
+  const eventAllMode = f.evento_ids_modo === "todos" || f.evento_ids_modo === "somente";
+
+  const idsForEvent = async (statuses: string[]) => {
+    if (eventIds.length > 1 && eventAllMode) {
+      const per = await countByContact(
+        () =>
+          sb
+            .from("event_rsvps")
+            .select("contact_id,event_id")
+            .in("status", statuses)
+            .in("event_id", eventIds),
+        "event_id",
+      );
+      return [...per.entries()].filter(([, s]) => s.size >= eventIds.length).map(([id]) => id);
+    }
+    return distinctContactIds(() => {
       let qr = sb.from("event_rsvps").select("contact_id").in("status", statuses);
-      if (f.evento_id) qr = qr.eq("event_id", f.evento_id);
+      if (eventIds.length) qr = qr.in("event_id", eventIds);
       return qr;
     });
+  };
   const idsWhoReplied = () =>
     distinctContactIds(() => sb.from("inbound_messages").select("contact_id").not("contact_id", "is", null));
 
@@ -884,25 +995,87 @@ export async function resolveRelationalFilterIds(
     for (const id of await idsForTemplate(f.nao_recebeu_template_id)) excludeIds.add(id);
   }
 
-  if (f.missao_recebida === "sim") {
+  // Missões marcadas sem escolher "recebeu / não recebeu": trata como "recebeu".
+  const missionMode = f.missao_recebida ?? (missionIds.length ? "sim" : undefined);
+  if (missionMode === "sim") {
     const ids = await idsForMission();
     if (!ids.length) return EMPTY_RELATIONAL;
     intersect(ids);
-  } else if (f.missao_recebida === "nao") {
+  } else if (missionMode === "nao") {
     for (const id of await idsForMission()) excludeIds.add(id);
-  } else if (f.missao_recebida === "atribuido") {
+  } else if (missionMode === "atribuido") {
     const ids = await idsAssignedInMission();
     if (!ids.length) return EMPTY_RELATIONAL;
     intersect(ids);
   }
 
-  if (f.evento_rsvp === "sim" || f.evento_rsvp === "recusou") {
-    const statuses = f.evento_rsvp === "sim" ? ["confirmado", "confirmed", "sim", "yes"] : ["recusado", "declined", "nao", "no"];
+  // Missões marcadas para ESCONDER: quem já recebeu mensagem delas sai da lista.
+  if (f.missao_ids_excluir?.length) {
+    const ids = await distinctContactIds(() =>
+      sb
+        .from("agitation_tasks")
+        .select("contact_id")
+        .eq("status", TASK_STATUS.ENVIADO)
+        .in("mission_id", f.missao_ids_excluir),
+    );
+    for (const id of ids) excludeIds.add(id);
+  }
+
+  // Quantas missões diferentes a pessoa já recebeu (ex.: "2 ou mais").
+  if (f.missoes_recebidas_min != null || f.missoes_recebidas_max != null) {
+    const per = await countByContact(
+      () => sb.from("agitation_tasks").select("contact_id,mission_id").eq("status", TASK_STATUS.ENVIADO),
+      "mission_id",
+    );
+    const min = f.missoes_recebidas_min ?? 0;
+    const max = f.missoes_recebidas_max;
+    if (min > 0) {
+      const ids = [...per.entries()].filter(([, s]) => s.size >= min).map(([id]) => id);
+      if (!ids.length) return EMPTY_RELATIONAL;
+      intersect(ids);
+    }
+    if (max != null) {
+      for (const [id, s] of per.entries()) if (s.size > max) excludeIds.add(id);
+    }
+  }
+
+  if (f.evento_rsvp === "sim" || f.evento_rsvp === "recusou" || (!f.evento_rsvp && eventIds.length)) {
+    const statuses = f.evento_rsvp === "recusou" ? DECLINED_RSVP : CONFIRMED_RSVP;
     const ids = await idsForEvent(statuses);
     if (!ids.length) return EMPTY_RELATIONAL;
     intersect(ids);
   } else if (f.evento_rsvp === "nao") {
-    for (const id of await idsForEvent(["confirmado", "confirmed", "sim", "yes"])) excludeIds.add(id);
+    for (const id of await idsForEvent(CONFIRMED_RSVP)) excludeIds.add(id);
+  }
+
+  // Eventos marcados para ESCONDER: quem confirmou presença neles sai da lista.
+  if (f.evento_ids_excluir?.length) {
+    const ids = await distinctContactIds(() =>
+      sb
+        .from("event_rsvps")
+        .select("contact_id")
+        .in("status", CONFIRMED_RSVP)
+        .in("event_id", f.evento_ids_excluir),
+    );
+    for (const id of ids) excludeIds.add(id);
+  }
+
+  // Em quantos eventos diferentes a pessoa confirmou presença.
+  if (f.eventos_confirmados_min != null || f.eventos_confirmados_max != null) {
+    const per = await countByContact(
+      () => sb.from("event_rsvps").select("contact_id,event_id").in("status", CONFIRMED_RSVP),
+      "event_id",
+    );
+    const min = f.eventos_confirmados_min ?? 0;
+    const max = f.eventos_confirmados_max;
+    if (min > 0) {
+      const ids = [...per.entries()].filter(([, s]) => s.size >= min).map(([id]) => id);
+      if (!ids.length) return EMPTY_RELATIONAL;
+      intersect(ids);
+    }
+    if (max != null) {
+      for (const [id, s] of per.entries()) if (s.size > max) excludeIds.add(id);
+    }
   }
 
   if (f.respondeu_mensagem === "sim") {
@@ -912,6 +1085,7 @@ export async function resolveRelationalFilterIds(
   } else if (f.respondeu_mensagem === "nao") {
     for (const id of await idsWhoReplied()) excludeIds.add(id);
   }
+
 
   if (allowedIds && !allowedIds.length) return EMPTY_RELATIONAL;
   return { allowedIds, excludeIds, noMatch: false };

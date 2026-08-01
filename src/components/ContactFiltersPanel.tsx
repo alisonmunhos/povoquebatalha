@@ -7,11 +7,16 @@ import { Input } from "@/components/ui/input";
 import type { CrmFilters } from "@/lib/crm-filters";
 import {
   applyFilterSelection,
+  applyFilterSides,
+  getExcludeValues,
   getFilterMode,
   getFilterValues,
+  getIncludeValues,
   type ExcludableFilterKey,
   type FilterMode,
 } from "@/lib/filter-exclusion";
+import { getMatchMode, type MatchMode } from "@/lib/filter-match-mode";
+
 import { SYSTEM_CAPTURE_SENTINEL } from "@/lib/contact-source-metadata";
 import { listSystemUserOptions } from "@/lib/users.functions";
 import { cn } from "@/lib/utils";
@@ -182,6 +187,30 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
       onChange(applyFilterSelection(filters, key, values, getFilterMode(filters, key))),
   });
 
+  /**
+   * Campos em que a pessoa pode ter vários valores (tags, formas de ajuda,
+   * missões, eventos): menu completo com abas Mostrar/Esconder e combinação
+   * "Qualquer uma / Todas / Somente essas".
+   */
+  const selFull = (key: ExcludableFilterKey) => ({
+    value: getIncludeValues(filters, key),
+    excludeValue: getExcludeValues(filters, key),
+    matchMode: getMatchMode(filters, key),
+    onApplyFull: (p: { include: string[]; exclude: string[]; mode: MatchMode }) =>
+      onChange(applyFilterSides(filters, key, p.include, p.exclude, p.mode)),
+    onChange: (values: string[]) =>
+      onChange(
+        applyFilterSides(
+          filters,
+          key,
+          values,
+          getExcludeValues(filters, key),
+          getMatchMode(filters, key),
+        ),
+      ),
+  });
+
+
   const opts = options ?? {
     cidades: [], bairros: [], ufs: [], profissoes: [], instituicoes: [], tipos_contato: [],
     origens: [], origem_detalhes: [], formas_ajuda: [], movimentos_sociais: [],
@@ -244,8 +273,9 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
             placeholder="Todos (contatos e usuários)"
           />
         </Field>
-        <Field label="Tags" hint="Dentro do menu você pode escolher entre mostrar só os marcados ou esconder os marcados (exceto).">
-          <MultiSelectFilter options={opts.tags} {...sel("tag_ids")} placeholder="Todas as tags" />
+        <Field label="Tags" hint="No menu você escolhe: mostrar quem tem qualquer uma, todas, ou somente as marcadas. A aba 'Esconder' remove quem tem as tags marcadas ali — pode usar as duas juntas.">
+          <MultiSelectFilter options={opts.tags} {...selFull("tag_ids")} placeholder="Todas as tags" />
+
         </Field>
         <Field label="Situação do cadastro" hint="Progresso do recadastro + marcações manuais (bloqueado, precisa revisão). Exemplo: 'Cadastro completo' = quem já preencheu o formulário de atualização. Opções sem contatos ficam desabilitadas.">
           <MultiSelectFilter options={withCounts(LIFECYCLE, facets?.lifecycle)} {...sel("lifecycle_statuses")} placeholder="Qualquer" />
@@ -321,11 +351,12 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
       </Section>
 
       <Section icon={<Users className="h-4 w-4" />} title="Como pode ajudar">
-        <Field label="Formas de ajuda">
-          <MultiSelectFilter options={opts.formas_ajuda} {...sel("formas_ajuda")} placeholder="Todas as formas" />
+        <Field label="Formas de ajuda" hint="No menu: qualquer uma, todas, ou somente as marcadas. A aba 'Esconder' remove quem tem as opções marcadas ali.">
+          <MultiSelectFilter options={opts.formas_ajuda} {...selFull("formas_ajuda")} placeholder="Todas as formas" />
         </Field>
         <Field label="Disponibilidade" informativo>
-          <MultiSelectFilter options={opts.disponibilidade} {...sel("disponibilidade")} placeholder="Qualquer dia/período" />
+          <MultiSelectFilter options={opts.disponibilidade} {...selFull("disponibilidade")} placeholder="Qualquer dia/período" />
+
         </Field>
       </Section>
 
