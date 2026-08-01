@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getDashboardStats } from "@/lib/dashboard.functions";
-import { Users, MessageCircle, Send, UserMinus, MapPin, MapPinOff } from "lucide-react";
+import { Users, MessageCircle, Send, UserMinus, MapPin, MapPinOff, Archive, Copy } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
