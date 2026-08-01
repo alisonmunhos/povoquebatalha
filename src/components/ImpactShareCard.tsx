@@ -140,7 +140,7 @@ export function ImpactShareCard({
             Semana de {theWeek.rangeLabel}
           </p>
         )}
-        <p className="mt-8 max-w-[820px] text-5xl font-bold leading-tight" style={{ color: ACCENT }}>
+        <p className="mt-8 max-w-[620px] text-5xl font-bold leading-tight" style={{ color: ACCENT }}>
           {headline}
         </p>
       </div>
