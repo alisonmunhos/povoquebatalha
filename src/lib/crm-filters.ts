@@ -833,9 +833,22 @@ export async function resolveRelationalFilterIds(
     distinctContactIds(() =>
       sb.from("automation_deliveries").select("contact_id").eq("template_id", templateId).eq("status", "sent"),
     );
+  // "Recebeu mensagem de missão" = tarefa marcada como ENVIADA pelo agitador.
+  // (Antes procurava o status antigo "concluido", que não existe mais no banco —
+  // por isso o filtro nunca devolvia ninguém.)
   const idsForMission = () =>
     distinctContactIds(() => {
-      let qr = sb.from("agitation_tasks").select("contact_id").eq("status", "concluido");
+      let qr = sb.from("agitation_tasks").select("contact_id").eq("status", TASK_STATUS.ENVIADO);
+      if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
+      return qr;
+    });
+  // Foi atribuído a alguém nessa missão, tenha enviado ou não.
+  const idsAssignedInMission = () =>
+    distinctContactIds(() => {
+      let qr = sb
+        .from("agitation_tasks")
+        .select("contact_id")
+        .or("assigned_user_id.not.is.null,assigned_contact_id.not.is.null");
       if (f.missao_id) qr = qr.eq("mission_id", f.missao_id);
       return qr;
     });
