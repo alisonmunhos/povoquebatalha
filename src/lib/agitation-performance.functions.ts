@@ -28,8 +28,11 @@ export type AssigneePerformance = PerformanceTotals & {
   tipo: "conta" | "link";
   /** id do usuário (tipo "conta") ou do contato (tipo "link"). */
   refId: string;
+  /** id do usuário no app, quando existe — mesmo quando a tarefa veio por link. */
+  userId: string | null;
   ultima_acao: string | null;
 };
+
 
 
 export type MissionPerformance = PerformanceTotals & {
