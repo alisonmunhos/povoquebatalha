@@ -5,6 +5,10 @@
  * - `badge`: nome do patamar (pill roxo do cartão)
  * - `headline`: frase de reflexão que aparece acima do número gigante
  * - `phrase`: frase de compartilhamento (itálico amarelo, rodapé do cartão)
+ *
+ * IMPORTANTE: headline e phrase usam o marcador `{n}`, que é sempre trocado
+ * pelo número REAL e ATUAL da pessoa (nunca pelo limiar do patamar). Assim o
+ * texto nunca contradiz o número gigante do cartão.
  */
 export type Milestone = { min: number; badge: string; headline: string; phrase: string };
 
@@ -19,47 +23,47 @@ export const IMPACT_MILESTONES: Milestone[] = [
   {
     min: 5,
     badge: "Primeiras conexões",
-    headline: "Comecei a construir minha rede de conexões pela campanha.",
-    phrase: "Comecei a construir minha rede de conexões pela campanha.",
+    headline: "Já me conectei com {n} pessoas pela campanha.",
+    phrase: "Já me conectei com {n} pessoas pela campanha. Cada conversa fortalece nossa rede.",
   },
   {
     min: 10,
     badge: "Presença firme",
-    headline: "Já conectei com 10 pessoas.",
-    phrase: "Já conectei com 10 pessoas. Cada conversa fortalece nossa rede.",
+    headline: "Já me conectei com {n} pessoas.",
+    phrase: "Já me conectei com {n} pessoas. Cada conversa fortalece nossa rede.",
   },
   {
     min: 25,
     badge: "Construindo pontes",
-    headline: "Já conectei 25 pessoas à nossa rede.",
-    phrase: "Já conectei 25 pessoas à nossa rede. Vem fazer parte também.",
+    headline: "Já conectei {n} pessoas à nossa rede.",
+    phrase: "Já conectei {n} pessoas à nossa rede. Vem fazer parte também.",
   },
   {
     min: 50,
     badge: "Rede em movimento",
-    headline: "50 conexões!",
+    headline: "Já são {n} conexões!",
     phrase:
-      "50 conexões! Muitas conversas começaram a partir daqui — nossa rede está em movimento.",
+      "Já são {n} conexões! Muitas conversas começaram a partir daqui — nossa rede está em movimento.",
   },
   {
     min: 100,
     badge: "Multiplicando conexões",
-    headline: "Cheguei a 100 conexões.",
+    headline: "Já cheguei a {n} conexões.",
     phrase:
-      "Cheguei a 100 conexões. Toda conversa aproxima mais gente da nossa luta — Venha somar.",
+      "Já cheguei a {n} conexões. Toda conversa aproxima mais gente da nossa luta — Venha somar.",
   },
   {
     min: 250,
     badge: "Fortalecendo a base",
-    headline: "250 pessoas conectadas.",
-    phrase: "250 pessoas conectadas. Cada uma fortalece nossa organização.",
+    headline: "{n} pessoas conectadas.",
+    phrase: "{n} pessoas conectadas. Cada uma fortalece nossa organização.",
   },
   {
     min: 500,
     badge: "Rede fortalecida",
-    headline: "500 conexões construídas.",
+    headline: "{n} conexões construídas.",
     phrase:
-      "500 conexões construídas. Nossa rede é mais forte a cada pessoa que se junta — Construa as suas conexões também!",
+      "{n} conexões construídas. Nossa rede é mais forte a cada pessoa que se junta — Construa as suas conexões também!",
   },
 ];
 
@@ -67,6 +71,28 @@ export function milestoneFor(connections: number): Milestone {
   let found = IMPACT_MILESTONES[0]!;
   for (const m of IMPACT_MILESTONES) if (connections >= m.min) found = m;
   return found;
+}
+
+/** Troca `{n}` pelo número real e atual da pessoa. */
+export function fillMilestoneText(text: string, connections: number): string {
+  return text.replaceAll("{n}", String(connections));
+}
+
+/** Rótulo do badge deixando claro que é um limiar cruzado: "Nome · 50+". */
+export function milestoneBadgeLabel(m: Milestone): string {
+  return m.min > 0 ? `${m.badge} · ${m.min}+` : m.badge;
+}
+
+/** Textos já resolvidos com o número atual — use sempre isto na interface. */
+export function resolveMilestone(
+  m: Milestone,
+  connections: number,
+): { badge: string; headline: string; phrase: string } {
+  return {
+    badge: milestoneBadgeLabel(m),
+    headline: fillMilestoneText(m.headline, connections),
+    phrase: fillMilestoneText(m.phrase, connections),
+  };
 }
 
 /** Próxima meta e progresso (%) até ela — para a barra de avanço. */

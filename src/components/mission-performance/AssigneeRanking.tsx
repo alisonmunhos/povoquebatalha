@@ -1,21 +1,20 @@
 // Ranking de agitadores — somente leitura.
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { AssigneePerformance } from "@/lib/agitation-performance.functions";
 import { conclusionRate } from "./PerformanceSummary";
-import { UserJourneyDialog } from "./UserJourneyDialog";
 
 type SortKey = "enviados" | "conclusao";
 
 export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
   const [sort, setSort] = useState<SortKey>("enviados");
-  const [journey, setJourney] = useState<{ userId: string; nome: string } | null>(null);
-
 
   const sorted = [...rows].sort((a, b) =>
     sort === "enviados"
       ? b.enviados - a.enviados || b.total - a.total
       : conclusionRate(b) - conclusionRate(a) || b.enviados - a.enviados,
   );
+
 
   return (
     <section className="space-y-2">
@@ -71,13 +70,26 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                   </td>
                   <td className="p-2 text-right">
                     {r.tipo === "conta" ? (
-                      <button
-                        type="button"
-                        onClick={() => setJourney({ userId: r.refId, nome: r.nome })}
-                        className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                      >
-                        Ver jornada
-                      </button>
+                      <span className="flex justify-end gap-2">
+                        <Link
+                          to="/meu-impacto"
+                          search={{ userId: r.refId }}
+                          target="_blank"
+                          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                          title="Abre a mesma tela que essa pessoa vê no app."
+                        >
+                          Geral
+                        </Link>
+                        <Link
+                          to="/minha-semana"
+                          search={{ userId: r.refId }}
+                          target="_blank"
+                          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                          title="Abre a tela da semana dessa pessoa."
+                        >
+                          Semana
+                        </Link>
+                      </span>
                     ) : (
                       <span className="text-xs text-muted-foreground" title="Sem conta no app.">
                         —
@@ -91,12 +103,6 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
         </div>
       )}
 
-      <UserJourneyDialog
-        userId={journey?.userId ?? null}
-        nome={journey?.nome ?? ""}
-        open={journey !== null}
-        onOpenChange={(v) => !v && setJourney(null)}
-      />
     </section>
   );
 }

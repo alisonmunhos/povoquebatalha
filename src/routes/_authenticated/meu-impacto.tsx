@@ -7,13 +7,18 @@ import { useState } from "react";
 import { Flame, Loader2, Sparkles } from "lucide-react";
 import { AgitacaoNav } from "@/components/AgitacaoNav";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { getMyImpactStats } from "@/lib/impact-stats.functions";
-import { milestoneFor, nextMilestone } from "@/lib/impact-milestones";
+import { getMyImpactStats, getImpactStatsForUser } from "@/lib/impact-stats.functions";
+import { milestoneFor, nextMilestone, resolveMilestone } from "@/lib/impact-milestones";
 import { ShareCardActions } from "@/components/impact/ShareCardActions";
 import { Button } from "@/components/ui/button";
 
 
 export const Route = createFileRoute("/_authenticated/meu-impacto")({
+  // ?userId= permite que a equipe (admin/vrm/operador) veja a MESMA tela de
+  // outra pessoa. A checagem de permissão acontece no servidor.
+  validateSearch: (search: Record<string, unknown>) => ({
+    userId: typeof search["userId"] === "string" ? (search["userId"] as string) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Meu Impacto — Povo que Batalha" },
@@ -27,9 +32,16 @@ export const Route = createFileRoute("/_authenticated/meu-impacto")({
 });
 
 function MyImpactPage() {
-  const statsFn = useServerFn(getMyImpactStats);
-  const q = useQuery({ queryKey: ["my-impact"], queryFn: () => statsFn(), retry: 1 });
+  const { userId } = Route.useSearch();
+  const mineFn = useServerFn(getMyImpactStats);
+  const otherFn = useServerFn(getImpactStatsForUser);
+  const q = useQuery({
+    queryKey: ["my-impact", userId ?? "me"],
+    queryFn: () => (userId ? otherFn({ data: { userId } }) : mineFn()),
+    retry: 1,
+  });
   const [variant, setVariant] = useState<"total" | "day">("total");
+
 
 
   if (q.isLoading) {
@@ -54,7 +66,7 @@ function MyImpactPage() {
   }
 
   const s = q.data;
-  const milestone = milestoneFor(s.connections.total);
+  const milestone = resolveMilestone(milestoneFor(s.connections.total), s.connections.total);
   const next = nextMilestone(s.connections.total);
   const claimPercent =
     s.missions.openClaimTotal > 0
