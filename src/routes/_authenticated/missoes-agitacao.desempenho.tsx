@@ -26,14 +26,27 @@ export const Route = createFileRoute("/_authenticated/missoes-agitacao/desempenh
 type Visibility = "all" | "active" | "archived";
 type Days = 7 | 30 | 90 | 0;
 
+const PERIOD_LABEL: Record<Days, string> = {
+  7: "Últimos 7 dias",
+  30: "Últimos 30 dias",
+  90: "Últimos 90 dias",
+  0: "Desde o começo",
+};
+
 function DesempenhoMissoes() {
   const fetchFn = useServerFn(getMissionsPerformance);
+  const fetchJourney = useServerFn(getCampaignJourney);
   const [visibility, setVisibility] = useState<Visibility>("active");
   const [days, setDays] = useState<Days>(30);
 
   const q = useQuery({
     queryKey: ["missions-performance", visibility, days],
     queryFn: () => fetchFn({ data: { visibility, days } }),
+  });
+
+  const journey = useQuery({
+    queryKey: ["campaign-journey", days],
+    queryFn: () => fetchJourney({ data: { days } }),
   });
 
   return (
