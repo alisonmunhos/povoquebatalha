@@ -80,7 +80,11 @@ export function applyFilterSides(
 
   if (supportsMatchMode(key)) {
     const modeKey = getModeKey(key);
-    if (include.length && mode !== "qualquer") next[modeKey] = mode;
+    // "nenhuma destas" vive só no lado de exclusão: o modo precisa ser guardado
+    // mesmo sem inclusão, senão o menu não consegue reconstituir a escolha.
+    const keepMode =
+      mode === "nenhuma" ? exclude.length > 0 : include.length > 0 && mode !== "qualquer";
+    if (keepMode) next[modeKey] = mode;
     else delete next[modeKey];
   }
 

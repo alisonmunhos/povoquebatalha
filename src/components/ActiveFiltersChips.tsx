@@ -11,6 +11,7 @@ type Chip = { key: string; label: string; onRemove: () => void };
 function modePrefix(mode: string | undefined): string {
   if (mode === "todos") return "Todas — ";
   if (mode === "somente") return "Somente — ";
+  if (mode === "nenhuma") return "Nenhuma — ";
   return "";
 }
 

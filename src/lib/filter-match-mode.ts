@@ -13,7 +13,7 @@
 // (`<campo>_excluir`), que agora pode ser usado JUNTO com a inclusão.
 import type { CrmFilters } from "@/lib/crm-filters";
 
-export type MatchMode = "qualquer" | "todos" | "somente";
+export type MatchMode = "qualquer" | "todos" | "somente" | "nenhuma";
 
 /**
  * Campos em que um contato pode ter vários valores ao mesmo tempo — só neles
@@ -41,7 +41,7 @@ export function getModeKey(key: MatchModeFilterKey): string {
 export function getMatchMode(filters: CrmFilters, key: string): MatchMode {
   if (!supportsMatchMode(key)) return "qualquer";
   const v = (filters as Record<string, unknown>)[getModeKey(key)];
-  return v === "todos" || v === "somente" ? v : "qualquer";
+  return v === "todos" || v === "somente" || v === "nenhuma" ? v : "qualquer";
 }
 
 /** No motor de consulta, "somente" se comporta como "todos" + exclusão do resto. */
@@ -53,15 +53,17 @@ export const MATCH_MODE_LABEL: Record<MatchMode, string> = {
   qualquer: "Qualquer uma",
   todos: "Todas",
   somente: "Somente essas",
+  nenhuma: "Nenhuma destas",
 };
 
 export const MATCH_MODE_HELP: Record<MatchMode, string> = {
   qualquer: "Mostra quem tem pelo menos uma das opções marcadas.",
   todos: "Mostra quem tem todas as opções marcadas (pode ter outras também).",
   somente: "Mostra quem tem exatamente as opções marcadas e nada além delas.",
+  nenhuma: "Mostra quem NÃO tem nenhuma das opções marcadas (os outros filtros continuam valendo).",
 };
 
-export const MATCH_MODES: MatchMode[] = ["qualquer", "todos", "somente"];
+export const MATCH_MODES: MatchMode[] = ["qualquer", "todos", "somente", "nenhuma"];
 
 /** Frase curta do filtro, usada no rodapé do menu e nos chips de filtros ativos. */
 export function describeSelection(opts: {
@@ -79,6 +81,11 @@ export function describeSelection(opts: {
       : `${arr.slice(0, max).map(label).join(", ")} +${arr.length - max}`;
 
   const parts: string[] = [];
+  if (opts.mode === "nenhuma") {
+    const marcadas = opts.exclude.length ? opts.exclude : opts.include;
+    if (marcadas.length) parts.push(`não tem nenhuma: ${names(marcadas)}`);
+    return parts.join(" · ");
+  }
   if (opts.include.length) {
     const prefix =
       opts.mode === "todos" ? "tem todas" : opts.mode === "somente" ? "tem somente" : "tem qualquer";
