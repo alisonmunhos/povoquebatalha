@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_authenticated")({
 // Agitador-only users must stay under /agitacao — exceção: a ficha de um
 // contato específico (/contatos/$id), pra abrir "Ficha completa" a partir da
 // própria lista de captados. A lista inteira (/contatos) continua bloqueada.
-const AGITADOR_ALLOWED_PREFIXES = ["/agitacao", "/minhas-missoes", "/meu-impacto", "/minha-semana"];
 const CONTACT_DETAIL_RE = /^\/contatos\/[0-9a-f-]{36}$/i;
 
 function AuthenticatedShell() {
@@ -34,13 +33,8 @@ function AuthenticatedShell() {
 
   useEffect(() => {
     if (!roles || roles.length === 0) return;
-    const isAgitadorOnly =
-      roles.includes("agitador") &&
-      !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao");
-    if (isAgitadorOnly) {
-      const allowed =
-        AGITADOR_ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(p + "/")) ||
-        CONTACT_DETAIL_RE.test(path);
+    if (isAgitadorOnlyRoles(roles)) {
+      const allowed = isAgitacaoPath(path) || CONTACT_DETAIL_RE.test(path);
       if (!allowed) router.navigate({ to: "/agitacao", replace: true });
       return;
     }
