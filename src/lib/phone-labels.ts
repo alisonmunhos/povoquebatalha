@@ -20,17 +20,18 @@ export const PHONE_STATUS_BADGE: Record<string, string> = {
 };
 
 export const LIFECYCLE_LABEL: Record<string, string> = {
-  importado_aguardando_recadastro: "Só importado (sem cadastro)",
+  importado_aguardando_recadastro: "Importado (sem cadastro)",
   link_enviado: "Link enviado",
   recadastro_iniciado: "Cadastro iniciado",
   recadastro_concluido: "Cadastro completo",
   nao_respondeu: "Não respondeu",
-  telefone_invalido: "Marcado telefone inválido (manual)",
-  precisa_revisao: "Precisa revisão (manual)",
-  duplicado_possivel: "Possível duplicado (manual)",
-  duplicado_mesclado: "Mesclado",
-  nao_enviar: "Bloqueado (não enviar)",
+  telefone_invalido: "Telefone inválido",
+  precisa_revisao: "Precisa revisão",
+  duplicado_possivel: "Possível duplicado",
+  duplicado_mesclado: "Mesclado em outro contato",
+  nao_enviar: "Não enviar",
 };
+
 
 export const WHATSAPP_STATUS_LABEL: Record<string, string> = {
   desconhecido: "Não verificado",
@@ -38,6 +39,14 @@ export const WHATSAPP_STATUS_LABEL: Record<string, string> = {
   invalido: "Não tem WhatsApp",
   erro_envio: "Erro no envio",
   opt_out: "Opt-out",
+};
+
+export const WHATSAPP_STATUS_BADGE: Record<string, string> = {
+  confirmado: "bg-emerald-100 text-emerald-700",
+  invalido: "bg-red-100 text-red-700",
+  erro_envio: "bg-orange-100 text-orange-700",
+  opt_out: "bg-red-100 text-red-700",
+  desconhecido: "bg-slate-100 text-slate-600",
 };
 
 // DDDs sugeridos a partir do nome da cidade (subset comum). Fallback = UF -> primeiro DDD da capital.
