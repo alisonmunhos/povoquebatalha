@@ -31,7 +31,14 @@ export type AssigneePerformance = PerformanceTotals & {
   /** id do usuário no app, quando existe — mesmo quando a tarefa veio por link. */
   userId: string | null;
   ultima_acao: string | null;
+  /** Cadastros captados pela pessoa no período (entra na jornada dela). */
+  cadastros: number;
+  /** Enviados + cadastros — o mesmo número da jornada ("conexões"). */
+  conexoes: number;
+  /** WhatsApp (só dígitos) para abrir conversa direta, quando conhecido. */
+  whatsapp: string | null;
 };
+
 
 
 
@@ -107,16 +114,29 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
         const since = new Date(Date.now() - data.days * 24 * 60 * 60 * 1000).toISOString();
         mq = mq.gte("created_at", since);
       }
-      const { data: missions, error } = await mq;
+      const { data: missionsData, error } = await mq;
       if (error) throw error;
-      if (!missions?.length) return { geral: emptyTotals(), assignees: [], missions: [] };
+      const missions = missionsData ?? [];
 
       const ids = missions.map((m) => m.id);
-      const { data: tasks, error: e2 } = await context.supabase
-        .from("agitation_tasks")
-        .select("mission_id,status,assigned_user_id,assigned_contact_id,assigned_at,assigned_to_user_at,updated_at")
-        .in("mission_id", ids);
-      if (e2) throw e2;
+      let tasks: Array<{
+        mission_id: string;
+        status: string | null;
+        assigned_user_id: string | null;
+        assigned_contact_id: string | null;
+        assigned_at: string | null;
+        assigned_to_user_at: string | null;
+        updated_at: string | null;
+      }> = [];
+      if (ids.length) {
+        const { data: t, error: e2 } = await context.supabase
+          .from("agitation_tasks")
+          .select("mission_id,status,assigned_user_id,assigned_contact_id,assigned_at,assigned_to_user_at,updated_at")
+          .in("mission_id", ids);
+        if (e2) throw e2;
+        tasks = (t ?? []) as typeof tasks;
+      }
+
 
       const geral = emptyTotals();
       const byMission = new Map<string, PerformanceTotals & { responsaveis: Set<string> }>();
@@ -213,14 +233,112 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
         }
       }
 
+      // Todos os usuários do app entram no ranking, mesmo sem missão atribuída:
+      // cadastros também contam na jornada.
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: allProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id,full_name,contact_id,status")
+        .neq("status", "revogado");
+      const profiles = allProfiles ?? [];
+      for (const p of profiles) {
+        nameByUser.set(p.id, p.full_name);
+        const groupKey = `conta:${p.id}`;
+        if (!merged.has(groupKey)) {
+          merged.set(groupKey, {
+            ...emptyTotals(),
+            tipo: "conta",
+            refId: p.id,
+            userId: p.id,
+            ultima_acao: null,
+          });
+        }
+      }
+
+      // Cadastros captados por cada pessoa (mesma régua da jornada).
+      const allUserIds = [...merged.values()].map((a) => a.userId).filter((v): v is string => !!v);
+      const cadastrosByUser = new Map<string, number>();
+      if (allUserIds.length) {
+        const { QUALIFYING_SOURCE_EVENTS } = await import("@/lib/impact-week");
+        let ev = supabaseAdmin
+          .from("contact_source_events")
+          .select("source_user_id,contact_id,created_at")
+          .in("source_user_id", allUserIds)
+          .in("event_type", [...QUALIFYING_SOURCE_EVENTS])
+          .neq("source_module", "importacao")
+          .limit(50000);
+        if (data.days > 0) {
+          ev = ev.gte(
+            "created_at",
+            new Date(Date.now() - data.days * 24 * 60 * 60 * 1000).toISOString(),
+          );
+        }
+        const { data: evs } = await ev;
+        const seen = new Set<string>();
+        for (const e of evs ?? []) {
+          const uid = e.source_user_id as string | null;
+          const cid = e.contact_id as string | null;
+          if (!uid || !cid) continue;
+          const k = `${uid}:${cid}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          cadastrosByUser.set(uid, (cadastrosByUser.get(uid) ?? 0) + 1);
+        }
+      }
+
+      // WhatsApp de cada pessoa (perfil → contato) para o atalho de conversa.
+      const phoneByUser = new Map<string, string>();
+      {
+        const linkIds = profiles.map((p) => p.contact_id).filter((v): v is string => !!v);
+        const extraContactIds = [...merged.values()]
+          .filter((a) => !a.userId)
+          .map((a) => a.refId);
+        const allContactIds = [...new Set([...linkIds, ...extraContactIds])];
+        const phoneByContact = new Map<string, string>();
+        if (allContactIds.length) {
+          const { data: cs } = await supabaseAdmin
+            .from("contacts")
+            .select("id,phone_e164,phone_raw")
+            .in("id", allContactIds);
+          for (const c of cs ?? []) {
+            const digits = String(c.phone_e164 ?? c.phone_raw ?? "").replace(/\D/g, "");
+            if (digits.length >= 10) phoneByContact.set(c.id, digits.startsWith("55") ? digits : `55${digits}`);
+          }
+        }
+        for (const p of profiles) {
+          const ph = p.contact_id ? phoneByContact.get(p.contact_id) : undefined;
+          if (ph) phoneByUser.set(p.id, ph);
+        }
+        for (const a of merged.values()) {
+          if (!a.userId) {
+            const ph = phoneByContact.get(a.refId);
+            if (ph) phoneByUser.set(`link:${a.refId}`, ph);
+          }
+        }
+      }
+
       const assignees: AssigneePerformance[] = [...merged.entries()]
         .map(([key, a]) => {
           const { tipo, refId, userId, ultima_acao, ...totals } = a;
           const nome =
             (userId ? nameByUser.get(userId) : null) ?? nameByContact.get(refId) ?? "Sem nome";
-          return { key, nome, tipo, refId, userId, ultima_acao, ...totals };
+          const cadastros = userId ? (cadastrosByUser.get(userId) ?? 0) : 0;
+          const whatsapp = (userId ? phoneByUser.get(userId) : phoneByUser.get(`link:${refId}`)) ?? null;
+          return {
+            key,
+            nome,
+            tipo,
+            refId,
+            userId,
+            ultima_acao,
+            cadastros,
+            conexoes: totals.enviados + cadastros,
+            whatsapp,
+            ...totals,
+          };
         })
-        .sort((x, y) => y.enviados - x.enviados || y.total - x.total);
+        .sort((x, y) => y.conexoes - x.conexoes || y.enviados - x.enviados || y.total - x.total);
+
 
 
       const missionRows: MissionPerformance[] = missions.map((m) => {
