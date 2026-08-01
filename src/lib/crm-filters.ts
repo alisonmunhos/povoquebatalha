@@ -142,7 +142,7 @@ export const crmFilterSchema = z.object({
   nao_recebeu_template_id: z.string().uuid().optional(),
 
   // Histórico — missões de agitação, eventos, formulários e respostas
-  missao_recebida: z.enum(["sim", "nao"]).optional(),
+  missao_recebida: z.enum(["sim", "nao", "atribuido"]).optional(),
   missao_id: z.string().uuid().optional(),
   evento_rsvp: z.enum(["sim", "nao", "recusou"]).optional(),
   evento_id: z.string().uuid().optional(),
@@ -890,6 +890,10 @@ export async function resolveRelationalFilterIds(
     intersect(ids);
   } else if (f.missao_recebida === "nao") {
     for (const id of await idsForMission()) excludeIds.add(id);
+  } else if (f.missao_recebida === "atribuido") {
+    const ids = await idsAssignedInMission();
+    if (!ids.length) return EMPTY_RELATIONAL;
+    intersect(ids);
   }
 
   if (f.evento_rsvp === "sim" || f.evento_rsvp === "recusou") {
