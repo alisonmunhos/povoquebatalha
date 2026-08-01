@@ -436,7 +436,7 @@ export function ContactFiltersPanel({ filters, onChange, options, facets }: Prop
         </Field>
         <Field
           label="Missões específicas"
-          hint="Pode marcar várias. 'Qualquer uma' = recebeu de pelo menos uma; 'Todas' = recebeu de todas as marcadas. A aba 'Esconder' remove quem já recebeu daquelas missões."
+          hint="Pode marcar várias. 'Qualquer uma' = recebeu de pelo menos uma; 'Todas' = recebeu de todas as marcadas; 'Nenhuma destas' = NÃO recebeu de nenhuma das marcadas (os outros filtros continuam valendo). A aba 'Esconder' é para casos avançados, misturando quem recebeu e quem não recebeu."
         >
           <MultiSelectFilter options={opts.missoes ?? []} {...selFull("missao_ids")} placeholder="Qualquer missão" />
         </Field>

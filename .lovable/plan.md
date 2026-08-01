@@ -1,47 +1,58 @@
-## O que está acontecendo hoje (verificado no código)
+## Objetivo
 
-1. **Missão e Evento são de escolha única.** Em `src/lib/crm-filters.ts` o esquema tem `missao_id`, `evento_id`, `missao_recebida` e `evento_rsvp` como valor único; na interface (`ContactFiltersPanel.tsx`, linhas 401–422) eles usam `SingleSelectFilter`. Por isso não têm caixinhas de seleção como Tags/Cidade — e não existe hoje nenhuma forma de perguntar "recebeu mensagem de 2 ou mais missões".
+Resolver as duas causas do resultado zero no filtro de missões, sem tocar na planilha do BI nem na lógica de tags.
 
-2. **Todos os filtros de lista são "QUALQUER um dos marcados" (OU).** Tags (`resolveContactIdsForTagFilter`) e Formas de ajuda (linhas 519–531) montam cláusulas OR. Não existe "tem TODAS as marcadas", nem "tem SOMENTE essas", nem contagem.
+---
 
-3. **"Esconder os marcados" é um modo que substitui a inclusão.** Em `src/lib/filter-exclusion.ts`, `applyFilterSelection` apaga o lado oposto: ao escolher "esconder", a seleção de inclusão é descartada. Logo, "tem as tags 4–13 mas não tem a 2" é impossível em um único campo — e a alternância sem explicação é o que deixa a experiência confusa.
+## Mudança 1 — Acabar com o conflito silencioso Mostrar × Esconder
 
-## Plano
+Hoje o menu guarda duas listas independentes (`missao_ids` e `missao_ids_excluir`). Marcar a mesma missão nos dois lados sempre resulta em zero, sem aviso.
 
-### Etapa 1 — Novo vocabulário de combinação (base)
-Criar `src/lib/filter-match-mode.ts` com 4 modos por campo de lista, em linguagem simples:
+Correção em duas camadas:
 
-```text
-Qualquer um dos marcados   (OU)      → tem pelo menos 1
-Todos os marcados          (E)       → tem todos, pode ter outros
-Somente os marcados        (exato)   → tem esses e nada além
-Nenhum dos marcados        (NÃO)     → exclusão
-```
+1. **Exclusividade por item (principal):** ao marcar uma opção em uma aba, ela é automaticamente desmarcada na aba oposta. Um item nunca fica nos dois lados. O rótulo "escondido"/"mostrado" que aparece hoje ao lado da opção deixa de ser um estado possível de conflito.
+2. **Trava de segurança no "Aplicar":** se, por qualquer caminho (visão salva antiga, URL colada), houver sobreposição entre as duas listas, o botão Aplicar mostra um aviso vermelho no rodapé do menu — "As mesmas opções estão em Mostrar e Esconder; isso sempre traz zero resultados" — com um botão "Corrigir" que remove os itens repetidos do lado Esconder.
 
-Chaves novas no esquema, por campo: `<campo>_modo` (`qualquer | todos | somente`) mantendo `<campo>_excluir` como o "nenhum". Isso preserva URLs e visões salvas já compartilhadas (padrão = `qualquer`, comportamento atual).
+Também passa a aparecer, no rodapé do menu, a frase já existente do `describeSelection` de forma mais visível (ex.: "tem qualquer: A, B · não tem: C"), para o usuário conferir a leitura antes de aplicar.
 
-### Etapa 2 — Incluir e excluir ao mesmo tempo
-- `applyFilterSelection` deixa de apagar o lado oposto; passa a gravar dois conjuntos independentes por campo: **marcados para mostrar** e **marcados para esconder**.
-- Motor: em Tags, resolver os IDs por modo (`todos` = interseção de conjuntos por tag; `somente` = interseção + contagem total de tags igual à seleção) e sempre subtrair o conjunto de exclusão.
-- Em colunas jsonb (formas de ajuda, disponibilidade, movimentos sociais): `todos` = `cs` encadeado; `somente` = `cs` da seleção + `jsonb_array_length = n`; `nenhum` = `not.cs` (já existe).
-- Resultado: "tem pelo menos as tags 4 a 13, mas não tem a 2" = modo **Todos** com 4–13 marcadas + 2 marcada em **esconder**. "Só tem a tag X" = modo **Somente**.
+**Risco:** baixo. É um componente compartilhado por todos os filtros de lista, então mexer nele afeta todos os campos — mas a mudança é só de estado local de rascunho (draft), sem alterar o formato gravado nos filtros.
 
-### Etapa 3 — Interface clara no lugar do alternador atual
-No `MultiSelectFilter` (e no popover de coluna da planilha BI):
-- Um seletor de 4 botões no topo com rótulo explicativo dinâmico ("Mostra quem tem **todas** as opções marcadas — pode ter outras também").
-- Uma segunda aba dentro do mesmo popover: **Esconder** — lista igual, marcações separadas, com contador ("2 escondidos").
-- Rodapé mostra a frase final do filtro antes de aplicar, ex.: *"tem todas: Alicerce, Rua… · não tem: Voluntário"*.
-- Os chips de filtros ativos (`sheet-filter-chips.ts`, `ActiveFiltersChips.tsx`) passam a mostrar a mesma frase, para o filtro nunca ser opaco.
+---
 
-### Etapa 4 — Missões e Eventos com seleção múltipla + contagem
-- Esquema: `missao_ids: string[]`, `evento_ids: string[]` (mantendo `missao_id`/`evento_id` como entrada compatível), com `missao_ids_modo` (qualquer/todos) e `missao_ids_excluir`.
-- Novo filtro **"Quantas missões recebeu"**: `missoes_recebidas_min` / `missoes_recebidas_max` (ex.: mínimo 2 = "recebeu mensagem de 2 ou mais missões"), calculado por contagem distinta de `mission_id` em `agitation_tasks` com status `enviado`.
-- Mesma estrutura para eventos: seleção múltipla de eventos + situação (confirmou / recusou / não confirmou) e contagem mínima de presenças confirmadas.
-- A interface desses dois campos passa a usar o mesmo componente de caixas de seleção dos outros, resolvendo a inconsistência das telas anexadas.
+## Mudança 2 — Caminho explícito "não recebeu nenhuma destas"
 
-### Etapa 5 — Verificação
-- Conferir no banco alguns casos reais (contato com 2+ missões enviadas; contato com só uma tag) e comparar com o resultado do filtro na tela.
-- Garantir que listagem, exportação CSV, seleção em massa e a planilha BI usem o mesmo motor (`resolveRelationalFilterIds` / `applyCrmFilters`), sem regressão nos filtros existentes.
+Adicionar um quarto modo de combinação, ao lado de "Qualquer uma / Todas / Somente essas":
 
-## Detalhes técnicos
-Arquivos afetados: `src/lib/crm-filters.ts` (esquema + resolvedores), `src/lib/filter-exclusion.ts` → estendido por `src/lib/filter-match-mode.ts`, `src/components/MultiSelectFilter.tsx`, `src/components/ContactFiltersPanel.tsx`, `src/components/contacts-sheet/ColumnFilterPopover.tsx`, `src/lib/column-filter-mapping.ts`, `src/lib/sheet-filter-chips.ts`, `src/lib/crm-filter-options.functions.ts`. Sem migration obrigatória; se a contagem de missões ficar lenta, adiciono uma view/índice em migration separada, sem apagar dados.
+- **Nenhuma destas** → grava as opções marcadas apenas no lado de exclusão (`missao_ids_excluir`) e deixa o lado de inclusão vazio. Resultado: mantém todos os outros filtros (ex.: a tag) e remove quem recebeu qualquer uma das missões marcadas.
+
+Assim o caso relatado ("tag terceirizadas E não recebeu nenhuma das 3 missões") é feito numa única aba, marcando as 3 missões e escolhendo "Nenhuma destas" — sem passar pela aba Esconder e sem entender a diferença entre os modos.
+
+Texto de ajuda do modo: "Mostra quem NÃO tem nenhuma das opções marcadas (os outros filtros continuam valendo)."
+
+O modo se aplica aos campos que já suportam combinação: tags, formas de ajuda, disponibilidade, missões e eventos. A aba "Esconder" continua existindo para o caso avançado de misturar inclusão e exclusão no mesmo campo.
+
+**Risco:** médio-baixo. O motor de consulta não muda — "Nenhuma destas" reaproveita o caminho de exclusão que já funciona. O ponto de atenção é o modo não ser gravado em `*_modo` quando a inclusão está vazia (hoje a gravação apaga o modo nesse caso), então o menu precisa reconstituir "Nenhuma destas" ao reabrir; será tratado permitindo persistir o modo quando houver exclusão.
+
+---
+
+## Arquivos tocados
+
+| Arquivo | O que muda |
+|---|---|
+| `src/lib/filter-match-mode.ts` | novo modo `nenhuma` (rótulo, ajuda, lista de modos, leitura do modo salvo, frase descritiva) |
+| `src/lib/filter-exclusion.ts` | `applyFilterSides` passa a aceitar/persistir o modo `nenhuma` (gravar exclusão + manter a chave de modo) |
+| `src/components/MultiSelectFilter.tsx` | exclusividade entre abas, aviso + botão "Corrigir" na sobreposição, botão do novo modo, frase de leitura no rodapé |
+| `src/components/ContactFiltersPanel.tsx` | ajuste do texto de ajuda do campo "Missões específicas" explicando o novo modo |
+| `src/lib/crm-filters.ts` | apenas ampliar o enum de `*_modo` para aceitar `nenhuma` (validação); a lógica de query não muda |
+
+## Fora deste plano
+
+- Unificação do motor de filtros com a planilha do BI.
+- Assimetria interna do filtro de tags (`intersect` vs atribuição).
+- Modo de combinação no lado Esconder (hoje sempre "qualquer uma").
+
+## Como testar depois
+
+1. Tag "Grupo Terceirizadas" + Missões específicas → marcar as 3 plenárias → modo "Nenhuma destas" → deve retornar ~203 contatos.
+2. Marcar uma missão em Mostrar e tentar marcá-la em Esconder → ela sai automaticamente do primeiro lado.
+3. Abrir uma visão salva com sobreposição → aviso vermelho e botão "Corrigir" no menu.

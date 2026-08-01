@@ -75,10 +75,18 @@ export function MultiSelectFilter({
   // Sincroniza o rascunho apenas ao abrir, para não sobrescrever a edição em andamento.
   useEffect(() => {
     if (open) {
-      setDraft(value);
-      setDraftExclude(excludeValue ?? []);
+      const savedMode = matchMode ?? "qualquer";
+      // No modo "nenhuma destas" as opções ficam guardadas no lado de exclusão,
+      // mas aparecem marcadas na aba "Mostrar" para o usuário editar ali mesmo.
+      if (savedMode === "nenhuma") {
+        setDraft(excludeValue ?? []);
+        setDraftExclude([]);
+      } else {
+        setDraft(value);
+        setDraftExclude(excludeValue ?? []);
+      }
       setDraftMode(mode ?? "include");
-      setDraftMatch(matchMode ?? "qualquer");
+      setDraftMatch(savedMode);
       setTab("mostrar");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,16 +102,39 @@ export function MultiSelectFilter({
   const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? v;
   const selectedLabels = value.map(labelOf);
   const hiddenCount = excludeValue?.length ?? 0;
+  const noneMode = advanced && draftMatch === "nenhuma";
+  const overlap = draft.filter((v) => draftExclude.includes(v));
 
   function toggle(v: string) {
     const next = new Set(activeSet);
     if (next.has(v)) next.delete(v);
     else next.add(v);
-    setActiveList([...next]);
+    // Um item nunca pode ficar nos dois lados: marcar em um lado desmarca no outro.
+    if (advanced && tab === "esconder") {
+      setDraftExclude([...next]);
+      setDraft(draft.filter((x) => x !== v));
+    } else {
+      setDraft([...next]);
+      setDraftExclude(draftExclude.filter((x) => x !== v));
+    }
+  }
+
+  function fixOverlap() {
+    setDraftExclude(draftExclude.filter((v) => !draft.includes(v)));
   }
 
   function apply() {
     if (onApplyFull) {
+      if (draftMatch === "nenhuma") {
+        // "Nenhuma destas": tudo o que foi marcado vira exclusão; nada de inclusão.
+        onApplyFull({
+          include: [],
+          exclude: [...new Set([...draft, ...draftExclude])],
+          mode: "nenhuma",
+        });
+        setOpen(false);
+        return;
+      }
       // "Somente essas" = tem as marcadas e nada além: as demais opções entram
       // automaticamente no lado de exclusão.
       const includeSet = new Set(draft);
@@ -113,7 +144,7 @@ export function MultiSelectFilter({
           : [];
       onApplyFull({
         include: draft,
-        exclude: [...new Set([...draftExclude, ...autoExclude])],
+        exclude: [...new Set([...draftExclude.filter((v) => !includeSet.has(v)), ...autoExclude])],
         mode: draftMatch,
       });
     } else if (onApply) {
@@ -143,7 +174,7 @@ export function MultiSelectFilter({
     <Command shouldFilter className="flex flex-col max-h-full min-h-0">
       <CommandInput ref={inputRef} placeholder="Buscar…" />
 
-      {advanced && (
+      {advanced && !noneMode && (
         <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
           <button
             type="button"
@@ -168,17 +199,29 @@ export function MultiSelectFilter({
         </div>
       )}
 
-      {advanced && matchMode && tab === "mostrar" && (
+      {advanced && matchMode && (tab === "mostrar" || noneMode) && (
         <div className="px-2 py-1.5 border-b">
-          <div className="flex items-center gap-1 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1 text-[11px]">
             {MATCH_MODES.map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setDraftMatch(m)}
+                onClick={() => {
+                  setDraftMatch(m);
+                  setTab("mostrar");
+                  if (m === "nenhuma" && draftExclude.length) {
+                    // As opções passam a ser editadas em uma única lista.
+                    setDraft([...new Set([...draft, ...draftExclude])]);
+                    setDraftExclude([]);
+                  }
+                }}
                 className={cn(
                   "rounded px-2 py-1 border",
-                  draftMatch === m ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground",
+                  draftMatch === m
+                    ? m === "nenhuma"
+                      ? "bg-destructive text-destructive-foreground border-destructive"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground",
                 )}
               >
                 {MATCH_MODE_LABEL[m]}
@@ -188,6 +231,7 @@ export function MultiSelectFilter({
           <p className="mt-1 text-[10px] text-muted-foreground">{MATCH_MODE_HELP[draftMatch]}</p>
         </div>
       )}
+
 
       {!advanced && excludable && (
         <div className="flex items-center gap-1 px-2 py-1.5 border-b text-xs">
@@ -250,7 +294,7 @@ export function MultiSelectFilter({
                   className={cn(
                     "flex h-4 w-4 items-center justify-center rounded border shrink-0",
                     checked
-                      ? tab === "esconder" && advanced
+                      ? (tab === "esconder" && advanced) || noneMode
                         ? "bg-destructive border-destructive text-destructive-foreground"
                         : "bg-primary border-primary text-primary-foreground"
                       : "border-input",
@@ -279,14 +323,31 @@ export function MultiSelectFilter({
       </CommandList>
 
       {advanced && phrase && (
-        <p className="shrink-0 border-t bg-muted/40 px-2 py-1.5 text-[10px] text-muted-foreground">{phrase}</p>
+        <p className="shrink-0 border-t bg-muted/40 px-2 py-1.5 text-[11px] font-medium text-foreground">{phrase}</p>
+      )}
+
+      {advanced && overlap.length > 0 && (
+        <div className="shrink-0 border-t border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive">
+          <p>
+            {overlap.length === 1 ? "1 opção está" : `${overlap.length} opções estão`} em Mostrar e em
+            Esconder ao mesmo tempo — isso sempre traz zero resultados.
+          </p>
+          <button
+            type="button"
+            onClick={fixOverlap}
+            className="mt-1 rounded border border-destructive px-2 py-0.5 font-medium"
+          >
+            Corrigir
+          </button>
+        </div>
       )}
 
       <div className="shrink-0 flex items-center gap-2 border-t bg-card px-2 py-2">
         <button
           type="button"
           onClick={apply}
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          disabled={overlap.length > 0}
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
         >
           Aplicar
         </button>
@@ -327,6 +388,13 @@ export function MultiSelectFilter({
       <span className="truncate">
         {nothingSelected ? (
           <span className="text-muted-foreground">{placeholder}</span>
+        ) : advanced && matchMode === "nenhuma" ? (
+          <span className="text-destructive">
+            <span className="font-medium">nenhuma: </span>
+            {hiddenCount <= 2
+              ? (excludeValue ?? []).map(labelOf).join(", ")
+              : `${hiddenCount} opções`}
+          </span>
         ) : (
           <>
             {!advanced && mode === "exclude" && value.length > 0 && (
