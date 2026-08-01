@@ -354,6 +354,45 @@ function baseSkip(rendered: string, reason: string): SendResult {
   };
 }
 
+/** Erros da Z-API que indicam número inexistente/sem WhatsApp. */
+const INVALID_NUMBER_PATTERNS = [
+  /not\s*exists?/i,
+  /n[aã]o\s*(existe|possui|tem)\s*whatsapp/i,
+  /invalid\s*(phone|number)/i,
+  /phone\s*not\s*found/i,
+];
+
+/**
+ * Alimenta `contacts.whatsapp_status` a partir do resultado real de um envio.
+ * Nunca sobrescreve `opt_out` (decisão da pessoa). Chamada best-effort:
+ * qualquer falha aqui é silenciosa e não afeta o envio.
+ */
+export async function recordWhatsappSendOutcome(
+  contactId: string | null | undefined,
+  result: Pick<SendResult, "ok" | "endpoint_used" | "error">,
+): Promise<void> {
+  if (!contactId) return;
+  if (result.endpoint_used === "skipped" || result.endpoint_used === "wa.me") return;
+
+  const err = result.error ?? "";
+  let next: "confirmado" | "invalido" | "erro_envio";
+  if (result.ok) next = "confirmado";
+  else if (INVALID_NUMBER_PATTERNS.some((re) => re.test(err))) next = "invalido";
+  else next = "erro_envio";
+
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("contacts")
+      .update({ whatsapp_status: next, whatsapp_checked_at: new Date().toISOString() } as never)
+      .eq("id", contactId)
+      .neq("whatsapp_status", "opt_out");
+  } catch {
+    // best-effort
+  }
+}
+
+
 /**
  * Lê a feature flag `use_send_link` do `whatsapp_instances.config` (jsonb).
  * Padrão: false — segue usando send-text com linkPreview:true.
