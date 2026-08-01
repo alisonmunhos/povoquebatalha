@@ -86,10 +86,7 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { setMobileOpen(false); }, [currentPath]);
 
-  const isAgitadorOnly =
-    !!rolesRaw &&
-    roles.includes("agitador") &&
-    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao");
+  const isAgitadorOnly = isAgitadorOnlyRoles(rolesRaw);
 
   const canAddContact = roles.length > 0;
 
