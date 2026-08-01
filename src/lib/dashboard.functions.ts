@@ -62,6 +62,9 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       novosNaSemana: novosSemana.count ?? 0,
       comConsentimento: comConsent.count ?? 0,
       optOut: optOut.count ?? 0,
+      arquivados: arquivados.count ?? 0,
+      duplicidadesRevisar: dupRevisar.count ?? 0,
+
       totalCampanhas: campanhas.count ?? 0,
       enviadasNaSemana: enviadasSemana.count ?? 0,
       semGeolocalizacao: semGeo.count ?? 0,
