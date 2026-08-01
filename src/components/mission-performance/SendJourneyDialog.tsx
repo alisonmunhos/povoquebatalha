@@ -21,7 +21,7 @@ export function SendJourneyDialog({
   userId,
   nome,
   whatsapp,
-  legenda,
+  legenda: legendaFallback,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,6 +36,20 @@ export function SendJourneyDialog({
     queryFn: () => fetchFn({ data: { userId } }),
     enabled: open,
   });
+
+  // A legenda acompanha o cartão: total desde o começo, não o período da tabela.
+  const primeiro = nome.split(" ")[0] ?? nome;
+  const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
+  const legenda = q.data
+    ? [
+        `Olá, ${primeiro}! Olha o tamanho da sua jornada no Povo que Batalha:`,
+        `• ${plural(q.data.connections.total, "conexão", "conexões")}`,
+        `• ${plural(q.data.messages.total, "mensagem enviada", "mensagens enviadas")}`,
+        `• ${plural(q.data.contacts.total, "cadastro", "cadastros")}`,
+        "",
+        `Veja e compartilhe a sua: ${typeof window === "undefined" ? "" : window.location.origin}/meu-impacto`,
+      ].join("\n")
+    : legendaFallback;
 
   const waLink = whatsapp
     ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(legenda)}`
