@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { AssigneePerformance } from "@/lib/agitation-performance.functions";
 import { conclusionRate } from "./PerformanceSummary";
+import { SendJourneyDialog } from "./SendJourneyDialog";
 
 type SortKey = "conexoes" | "enviados" | "cadastros" | "conclusao";
 
@@ -23,6 +24,7 @@ function journeyMessage(r: AssigneePerformance): string {
 export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
   const [sort, setSort] = useState<SortKey>("conexoes");
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [sending, setSending] = useState<AssigneePerformance | null>(null);
 
   const visible = hideEmpty ? rows.filter((r) => r.conexoes > 0 || r.atribuidos > 0) : rows;
   const sorted = [...visible].sort((a, b) => {
@@ -139,20 +141,19 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
                     )}
                   </td>
                   <td className="p-2 text-right">
-                    {r.whatsapp ? (
-                      <a
-                        href={`https://wa.me/${r.whatsapp}?text=${encodeURIComponent(journeyMessage(r))}`}
-                        target="_blank"
-                        rel="noreferrer"
+                    {r.userId ? (
+                      <button
+                        type="button"
+                        onClick={() => setSending(r)}
                         className="inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted"
-                        title="Abre o WhatsApp com a jornada dessa pessoa já escrita."
+                        title="Abre o cartão de desempenho geral com a legenda pronta para mandar no WhatsApp."
                       >
                         Mandar jornada
-                      </a>
+                      </button>
                     ) : (
                       <span
                         className="text-xs text-muted-foreground"
-                        title="Não temos o WhatsApp dessa pessoa cadastrado."
+                        title="Essa pessoa não tem cadastro no app, então não existe cartão de jornada."
                       >
                         —
                       </span>
@@ -165,7 +166,16 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
         </div>
       )}
 
-
+      {sending?.userId && (
+        <SendJourneyDialog
+          open
+          onOpenChange={(o) => !o && setSending(null)}
+          userId={sending.userId}
+          nome={sending.nome}
+          whatsapp={sending.whatsapp}
+          legenda={journeyMessage(sending)}
+        />
+      )}
     </section>
   );
 }
