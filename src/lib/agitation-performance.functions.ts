@@ -31,7 +31,14 @@ export type AssigneePerformance = PerformanceTotals & {
   /** id do usuário no app, quando existe — mesmo quando a tarefa veio por link. */
   userId: string | null;
   ultima_acao: string | null;
+  /** Cadastros captados pela pessoa no período (entra na jornada dela). */
+  cadastros: number;
+  /** Enviados + cadastros — o mesmo número da jornada ("conexões"). */
+  conexoes: number;
+  /** WhatsApp (só dígitos) para abrir conversa direta, quando conhecido. */
+  whatsapp: string | null;
 };
+
 
 
 
