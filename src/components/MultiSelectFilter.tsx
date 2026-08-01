@@ -308,17 +308,19 @@ export function SingleSelectFilter({ options, value, onChange, placeholder = "Se
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 w-[280px]"
+        className="p-0 w-[280px] flex flex-col overflow-hidden max-h-[min(70vh,var(--radix-popover-content-available-height))]"
         align="start"
+        collisionPadding={16}
+        avoidCollisions
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <Command>
+        <Command className="flex flex-col max-h-full min-h-0">
           <CommandInput ref={inputRef} placeholder="Buscar…" />
-          <CommandList>
+          <CommandList className="flex-1 min-h-0 max-h-none">
             <CommandEmpty>Sem opções.</CommandEmpty>
             <CommandGroup>
               {options.map((o) => (
