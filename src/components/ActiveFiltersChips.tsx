@@ -77,14 +77,47 @@ export function ActiveFiltersChips({
             : "Recebeu missão: não",
       onRemove: remove("missao_recebida"),
     });
+  for (const v of filters.missao_ids ?? [])
+    chips.push({
+      key: `mis-${v}`,
+      label: `${modePrefix(filters.missao_ids_modo)}Missão: ${findLabel(options?.missoes, v)}`,
+      onRemove: removeFromArr("missao_ids", v),
+    });
+  for (const v of filters.missao_ids_excluir ?? [])
+    chips.push({
+      key: `mis-x-${v}`,
+      label: `Sem a missão: ${findLabel(options?.missoes, v)}`,
+      onRemove: removeFromArr("missao_ids_excluir", v),
+    });
   if (filters.missao_id)
     chips.push({ key: "mis-id", label: `Missão: ${findLabel(options?.missoes, filters.missao_id)}`, onRemove: remove("missao_id") });
+  if (filters.missoes_recebidas_min != null)
+    chips.push({ key: "mis-min", label: `Missões recebidas: ${filters.missoes_recebidas_min} ou mais`, onRemove: remove("missoes_recebidas_min") });
+  if (filters.missoes_recebidas_max != null)
+    chips.push({ key: "mis-max", label: `Missões recebidas: até ${filters.missoes_recebidas_max}`, onRemove: remove("missoes_recebidas_max") });
   if (filters.evento_rsvp) {
     const l = filters.evento_rsvp === "sim" ? "confirmou" : filters.evento_rsvp === "recusou" ? "recusou" : "não confirmou";
     chips.push({ key: "ev", label: `Evento: ${l}`, onRemove: remove("evento_rsvp") });
   }
+  for (const v of filters.evento_ids ?? [])
+    chips.push({
+      key: `ev-${v}`,
+      label: `${modePrefix(filters.evento_ids_modo)}Evento: ${findLabel(options?.eventos, v)}`,
+      onRemove: removeFromArr("evento_ids", v),
+    });
+  for (const v of filters.evento_ids_excluir ?? [])
+    chips.push({
+      key: `ev-x-${v}`,
+      label: `Sem o evento: ${findLabel(options?.eventos, v)}`,
+      onRemove: removeFromArr("evento_ids_excluir", v),
+    });
   if (filters.evento_id)
     chips.push({ key: "ev-id", label: `Evento: ${findLabel(options?.eventos, filters.evento_id)}`, onRemove: remove("evento_id") });
+  if (filters.eventos_confirmados_min != null)
+    chips.push({ key: "ev-min", label: `Eventos confirmados: ${filters.eventos_confirmados_min} ou mais`, onRemove: remove("eventos_confirmados_min") });
+  if (filters.eventos_confirmados_max != null)
+    chips.push({ key: "ev-max", label: `Eventos confirmados: até ${filters.eventos_confirmados_max}`, onRemove: remove("eventos_confirmados_max") });
+
   if (filters.respondeu_mensagem)
     chips.push({ key: "resp", label: `Já respondeu: ${filters.respondeu_mensagem === "sim" ? "sim" : "não"}`, onRemove: remove("respondeu_mensagem") });
   for (const v of filters.captured_by_user_ids ?? []) {
