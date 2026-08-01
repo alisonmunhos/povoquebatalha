@@ -1,59 +1,37 @@
-## Relatório de verificação (conferido no código e no banco agora)
+## Objetivo
 
-### FASE 1 — Filtros da Gestão da Base
+Fazer o módulo Agitação se comportar como um app próprio: sempre com **botão Início**, **seta de voltar** e atalhos fixos, tanto para quem só tem acesso à Agitação quanto para quem usa o sistema completo.
 
-| Item | Situação real |
-|---|---|
-| Alicerce = Não ignora quem nunca respondeu | **Confirmado, bug real.** O filtro compara direto ("igual a não"), então quem tem o campo vazio fica de fora. "Bloqueado" já usa o padrão correto (aceita vazio). Correção pequena e isolada. |
-| Formas de ajuda sem "exceto" | **Já está pronto.** O motor entende a exclusão de formas de ajuda e o painel já usa o mesmo componente com o alternador "Mostrar / Esconder os marcados", igual a tags e cidades. Provavelmente você não viu porque a opção fica **dentro** do menu — e é justamente o menu que hoje corta o rodapé (item abaixo). |
-| "Recebeu mensagem de missão" / "Missão específica" não filtram | **Confirmado, e achei a causa exata.** A lógica existe, mas procura tarefas com o status antigo `concluido`. Esse status não existe mais: hoje o banco tem `sem_acao` (1264), `enviado` (115), `arquivado_erro` (19), `pendente_envio` (3), `arquivado_optout` (2). Nenhuma tarefa bate → resultado sempre vazio. Correção pequena: passar a usar `enviado` (e, opcionalmente, oferecer "recebeu de fato" vs "foi atribuído"). |
-| Edição em massa sem "Consentimento WhatsApp" | **Aparentemente já está na lista** (o campo consta entre os editáveis em massa e a tela percorre essa lista). Vou confirmar na tela real antes de mexer; se não aparecer, é problema de cadastro do campo no catálogo, não do motor. |
-| Menu de filtro sem chegar no botão "Aplicar" | **Confirmado.** No desktop o menu abre com largura fixa e sem limite de altura nem ajuste à borda da tela: quando abre na parte baixa, o rodapé com "Aplicar" fica fora da área visível e a rolagem interna não o alcança. No celular já existe versão em folha inferior que funciona. |
+## O que já existe (verificado no código)
 
-### FASE 2 — Arquivamento e opt-out nas missões
+- `AppShell.tsx` já tem um modo "mini-app" para quem só tem o papel *agitador* (cabeçalho "Modo Agitação" com sino, instalar app, novo contato e sair) — mas **sem botão Início e sem voltar**.
+- `route.tsx` restringe o agitador a `/agitacao`, `/minhas-missoes`, `/meu-impacto`, `/minha-semana` e ficha de contato.
+- Voltar existe só de forma solta: `/meu-impacto` e `/minha-semana` têm seta para `/agitacao`; `/minhas-missoes` tem link interno; `/missoes-agitacao/$id` e `/desempenho` têm "Voltar" próprio. `/agitacao` e a ficha de contato não têm nada.
 
-- Os dois botões **já arquivam** o contato e **já são registrados de forma diferente** (`arquivado_erro` vs `arquivado_optout`).
-- O que falta: "Deu erro/não abriu" **não marca opt-out** hoje (só marca telefone inválido). É a única mudança de comportamento pedida.
-- "Desfazer" **já existe, já é individual** e já usa o mecanismo único de desarquivar, que reverte arquivado + opt-out + devolve o contato para "ativos" e para a fila de triagem.
-- **Risco real a tratar:** ao desfazer, esse mecanismo hoje zera também qualidade do telefone e situação do cadastro para todos os casos. Se "erro" passar a marcar opt-out, o desfazer precisa distinguir o que foi marcado pela missão do que já era verdade antes — senão apaga informação boa de telefone.
-- A definição de arquivado/opt-out é lida em **~40 arquivos** (envio de WhatsApp, campanhas, painel, filtros, mapa, duplicidades, território, importação, triagem). Nenhum deles precisa mudar, mas todos precisam ser conferidos depois.
-- Regra de segurança confirmada no código: a liberação automática já ignora contatos arquivados; eles nunca voltam para "sem atribuição" sozinhos.
+## Plano
 
-### FASE 3 — Liberação automática
+### 1. Componente único de navegação (`src/components/AgitacaoNav.tsx`)
+Barra reutilizável com:
+- **Seta Voltar** — volta no histórico quando houver de onde voltar; caso contrário vai para a tela inicial da Agitação (`/agitacao`). Nunca fica sem destino.
+- **Botão Início (ícone de casa)** — vai para `/agitacao`.
+- **Botão "Sistema"** — aparece **só** para quem tem outros papéis (admin/operador/vrm/comunicação) e leva ao Dashboard geral. Para o agitador puro esse botão não existe (ele não tem acesso).
+- Título da tela atual, para o usuário saber onde está.
 
-- **Já existe** liberação por tempo, mas **manual** (o admin dispara, com corte em horas) e já restringe a tarefas sem nenhuma ação e sem link atribuído — ou seja, já é segura.
-- **Não existe** o escalonamento automático de avisos (1h → lembrete, 2h → aviso de redistribuição), nem o agendamento automático. Há infraestrutura pronta para reaproveitar (notificações + rota agendada semanal já em produção).
-- **Correção dos números da missão "Convite Plenária PPB"** (conferidos agora): Alison 9 parados ✅; conta "Sistema" tem **2 parados + 1 pendente**, não 8; **36 nunca distribuídos**, não 66. Há ainda Fabíola 10 e Mateus 3 parados. Total liberável na missão: **50 tarefas**.
+### 2. Cabeçalho do "Modo Agitação"
+No cabeçalho mini-app do `AppShell`, o bloco "Modo Agitação" passa a ser clicável (leva a `/agitacao`) e ganha o ícone de Início ao lado da seta de voltar. Mantém sino, instalar app, novo contato e sair.
 
-### FASE 4 — Tela "Desempenho das Missões"
+### 3. Barra inferior de abas (mobile) no modo Agitação
+Abas fixas no rodapé, no padrão de app: **Início** (`/agitacao`), **Missões** (`/minhas-missoes`), **Impacto** (`/meu-impacto`), **Semana** (`/minha-semana`), com aba ativa destacada. Aparece para o agitador puro e também para os outros papéis enquanto navegam em telas da Agitação (no celular).
 
-**Resposta direta: não reaproveita.** A tela tem **motor de contagem próprio e separado**, que agrega tarefas de missão por status. O motor de "Meu Impacto" é outro arquivo, com outra base de dados (captação de contatos, semana, badges) e nenhuma relação entre os dois. Consequência prática: as duas telas podem divergir, e incluir "contatos adicionados" no Desempenho significa **passar a usar os dois motores na mesma tela** — dá para fazer com segurança, mas exige unificar antes o vocabulário de contagem, senão os números brigam entre si.
+### 4. Aplicar a barra nas telas
+Inserir `AgitacaoNav` no topo de: `/agitacao` (só Início/Sistema, sem voltar), `/minhas-missoes`, `/meu-impacto`, `/minha-semana` (substituindo as setas soltas atuais) e na ficha de contato quando aberta por um agitador (voltar → lista de captados).
 
-### FASE 5 — Auditoria anterior
+### 5. Botão de voltar físico do celular
+Garantir que a navegação use o histórico do router (sem `replace`) nessas telas, para o gesto/botão nativo de voltar funcionar como esperado.
 
-- Status de WhatsApp inerte: **confirmado** — 3.774 de 3.794 contatos estão "desconhecido".
-- Base hoje: 3.794 contatos, 54 arquivados, 29 opt-out, 30 usuários do sistema. As duas decisões pendentes mudam pouco o total (≈1,5%), mas mudam a confiança nos indicadores.
-- Painel/contador de duplicidades e redução dos 10 estados de ciclo de vida: **não existem**.
+## Detalhes técnicos
 
----
-
-## Riscos de quebrar o que está publicado
-
-1. **Alto:** mexer no mecanismo de desarquivar sem preservar telefone/situação anterior — pode apagar dado bom em contatos já triados.
-2. **Alto:** unificar contagem entre Desempenho e Meu Impacto sem congelar o vocabulário — indicadores publicados mudariam de valor sem aviso.
-3. **Médio:** reduzir os 10 estados de ciclo de vida — esses estados são usados em filtros salvos, bloqueio de envio e formulários públicos.
-4. **Baixo:** correções de Alicerce, filtro de missão, menu de filtro e opt-out no botão de erro — pontuais, sem efeito colateral em outras telas.
-
-## Ordem de implementação proposta
-
-**Etapa 1 (rápida, sem risco)** — Alicerce aceitando vazio; filtro de missão usando o status certo (com opção "recebeu" vs "foi atribuído"); menu de filtro com altura limitada à tela e rodapé sempre visível; conferir "Consentimento WhatsApp" na edição em massa. Fecha a Fase 1 inteira.
-
-**Etapa 2** — Opt-out no botão "Deu erro/não abriu", com desfazer preservando o que era verdade antes; mostrar o motivo (erro vs recusa) na tela de controle do admin e distinguir arquivado de opt-out na Gestão da Base. Fecha Fase 2 + parte da Fase 5.
-
-**Etapa 3** — Liberar as 50 tarefas paradas da "Convite Plenária PPB" e decidir o papel de agitador da conta "Sistema"; depois o escalonamento automático 1h/2h reaproveitando notificações e agendamento existentes. Fase 3.
-
-**Etapa 4** — Só depois: unificar vocabulário de contagem e então estender o Desempenho (contatos adicionados, gráficos, ver conquistas de um usuário, conquista coletiva). Fase 4.
-
-**Etapa 5** — Contador de duplicidades, decisão sobre status de WhatsApp e agrupamento dos estados de ciclo de vida — cada um com as duas decisões de indicador respondidas antes. Fase 5.
-
-Preciso das suas respostas em três pontos antes da Etapa 4: contato arquivado entra no "Total da base"? Usuário do sistema conta como apoiador? E a conta "Sistema" perde o papel de agitador?
+- Lógica de papéis reaproveitada de `useAuth`/`useRoles`; o "modo agitador puro" continua definido no mesmo critério de `route.tsx` e `AppShell.tsx` — extraio esse cálculo para um hook `useIsAgitadorOnly` para não duplicar a regra em três lugares.
+- Voltar usa `router.history.canGoBack()` com fallback para `/agitacao`.
+- Sem mudanças de banco, permissões ou regras de negócio: alteração puramente de interface e navegação.
+- Rodapé com `padding-bottom` seguro (safe-area) para não cobrir conteúdo nem os botões de ação das telas.

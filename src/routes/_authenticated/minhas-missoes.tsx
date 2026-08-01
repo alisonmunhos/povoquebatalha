@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ImpactBanner } from "@/components/ImpactBanner";
+import { AgitacaoNav } from "@/components/AgitacaoNav";
 import {
   TASK_STATUS,
   TASK_STATUS_CLASS,
@@ -163,6 +164,7 @@ function MyMissionsPage() {
   if (focused) {
     return (
       <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-4">
+        <AgitacaoNav title="Missão" />
         <button
           type="button"
           onClick={backToList}
@@ -178,8 +180,8 @@ function MyMissionsPage() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-4">
       <div>
-        <h1 className="font-display text-2xl">Minhas missões</h1>
-        <p className="text-sm text-muted-foreground">
+        <AgitacaoNav title="Minhas missões" />
+        <p className="text-sm text-muted-foreground mt-1">
           Toque em uma missão para ver seus contatos, enviar no WhatsApp e marcar o resultado.
         </p>
       </div>

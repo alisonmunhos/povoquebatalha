@@ -5,13 +5,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Zap, MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
+  MessageCircle, CheckCircle2, StickyNote, Search, Loader2, Phone, MapPin, History,
   X, ExternalLink, Filter, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { listMyMissions } from "@/lib/agitation-missions.functions";
 import { ImpactBanner } from "@/components/ImpactBanner";
+import { AgitacaoNav } from "@/components/AgitacaoNav";
 import { Input } from "@/components/ui/input";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
@@ -148,10 +149,8 @@ function AgitacaoPage() {
   return (
     <div className="min-h-dvh bg-muted/20">
       <div className="max-w-3xl mx-auto p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-semibold">Agitação</h1>
-        </div>
+        <AgitacaoNav title="Agitação" hideBack />
+
 
         {/* Faixa de impacto pessoal */}
         <ImpactBanner />

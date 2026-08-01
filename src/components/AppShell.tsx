@@ -15,6 +15,8 @@ import { AddContactButton } from "@/components/AddContactButton";
 import { BrandMark } from "@/components/BrandMark";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { AgitacaoTabBar, AgitacaoTabBarSpacer } from "@/components/AgitacaoNav";
+import { isAgitadorOnlyRoles } from "@/hooks/use-agitador-mode";
 
 
 type NavItem = { to: string; label: string; icon: typeof Users; hint?: string; roles?: AppRole[] };
@@ -85,10 +87,7 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { setMobileOpen(false); }, [currentPath]);
 
-  const isAgitadorOnly =
-    !!rolesRaw &&
-    roles.includes("agitador") &&
-    !roles.some((r) => r === "admin" || r === "operador" || r === "vrm" || r === "comunicacao");
+  const isAgitadorOnly = isAgitadorOnlyRoles(rolesRaw);
 
   const canAddContact = roles.length > 0;
 
@@ -128,13 +127,13 @@ export function AppShell() {
       <div className="min-h-dvh bg-background flex flex-col">
         <header className="border-b bg-card sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
+            <Link to="/agitacao" className="flex items-center gap-2 min-w-0 rounded-md hover:bg-muted px-1 -ml-1">
               <Zap className="h-5 w-5 text-primary shrink-0" />
-              <div className="min-w-0">
+              <div className="min-w-0 text-left">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground leading-tight">Modo Agitação</div>
                 <div className="text-sm font-semibold truncate">Povo que Batalha</div>
               </div>
-            </div>
+            </Link>
             <div className="flex items-center gap-2">
               <NotificationBell />
               <InstallAppButton variant="chip" />
@@ -152,7 +151,9 @@ export function AppShell() {
         </header>
         <main className="flex-1 min-w-0">
           <Outlet />
+          <AgitacaoTabBarSpacer />
         </main>
+        <AgitacaoTabBar />
       </div>
     );
   }
@@ -274,7 +275,9 @@ export function AppShell() {
 
         <main className="flex-1 min-w-0">
           <Outlet />
+          <AgitacaoTabBarSpacer />
         </main>
+        <AgitacaoTabBar />
       </div>
     </div>
   );
