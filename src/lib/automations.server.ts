@@ -7,7 +7,7 @@
 // apenas para não quebrar chamadas em messages.functions.ts (fase 2 unifica lá também).
 
 import { messageBlockReason } from "@/lib/contact-rules";
-import { renderVars, sendMessage } from "@/lib/wa-send.server";
+import { renderVars, sendMessage, recordWhatsappSendOutcome } from "@/lib/wa-send.server";
 
 type ContactCtx = {
   id: string;
@@ -132,6 +132,8 @@ export async function triggerAutomationsForEvent(params: {
         origin: "automation",
         skipValidations: true,
       });
+
+      await recordWhatsappSendOutcome(contact.id, result);
 
       if (result.ok) {
         await supabaseAdmin.from("automation_deliveries").upsert({
