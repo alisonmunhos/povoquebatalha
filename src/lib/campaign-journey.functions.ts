@@ -74,13 +74,73 @@ export const getCampaignJourney = createServerFn({ method: "GET" })
       return count ?? 0;
     };
 
-    const [cadastrosFormulario, cadastrosManuais, mensagens, importadosIgnorados] =
-      await Promise.all([
-        countContacts(["recadastro", "inscricao"]),
-        countContacts(["manual"]),
-        countSentTasks(),
-        countImported(),
-      ]);
+    // Últimos 7 dias (fuso de São Paulo) para o mini-gráfico do cartão.
+    const TZ = "America/Sao_Paulo";
+    const keyOf = (iso: string) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: TZ,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(iso));
+    const labelOf = (d: Date) =>
+      new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "short" })
+        .format(d)
+        .replace(".", "")
+        .slice(0, 3);
+
+    const weekStart = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
+
+    const listContactDays = async () => {
+      const { data: rows, error } = await context.supabase
+        .from("contacts")
+        .select("created_at")
+        .in("origem", ["recadastro", "inscricao", "manual"])
+        .eq("is_system_user", false)
+        .gte("created_at", weekStart);
+      if (error) throw error;
+      return (rows ?? []).map((r) => keyOf(r.created_at as string));
+    };
+
+    const listTaskDays = async () => {
+      const { data: rows, error } = await context.supabase
+        .from("agitation_tasks")
+        .select("completed_at")
+        .eq("status", TASK_STATUS.ENVIADO)
+        .gte("completed_at", weekStart);
+      if (error) throw error;
+      return (rows ?? [])
+        .filter((r) => r.completed_at)
+        .map((r) => keyOf(r.completed_at as string));
+    };
+
+    const [
+      cadastrosFormulario,
+      cadastrosManuais,
+      mensagens,
+      importadosIgnorados,
+      contactDays,
+      taskDays,
+    ] = await Promise.all([
+      countContacts(["recadastro", "inscricao"]),
+      countContacts(["manual"]),
+      countSentTasks(),
+      countImported(),
+      listContactDays(),
+      listTaskDays(),
+    ]);
+
+    const daily: CampaignDay[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const key = keyOf(d.toISOString());
+      daily.push({
+        day: key,
+        label: labelOf(d),
+        mensagens: taskDays.filter((k) => k === key).length,
+        cadastros: contactDays.filter((k) => k === key).length,
+      });
+    }
 
     const cadastros = cadastrosFormulario + cadastrosManuais;
     return {
@@ -90,5 +150,7 @@ export const getCampaignJourney = createServerFn({ method: "GET" })
       mensagens,
       conexoes: cadastros + mensagens,
       importadosIgnorados,
+      daily,
     };
+
   });
