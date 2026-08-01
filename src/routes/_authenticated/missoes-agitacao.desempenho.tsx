@@ -90,6 +90,10 @@ function DesempenhoMissoes() {
         </select>
       </div>
 
+      {journey.data && (
+        <CampaignJourneyPanel data={journey.data} periodoLabel={PERIOD_LABEL[days]} />
+      )}
+
       {q.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
       {q.isError && (
         <p className="text-sm text-rose-600">
