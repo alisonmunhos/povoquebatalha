@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { listMyAgitacaoContacts, logAgitacaoAction } from "@/lib/agitacao.functions";
 import { listMyMissions } from "@/lib/agitation-missions.functions";
 import { ImpactBanner } from "@/components/ImpactBanner";
+import { AgitacaoNav } from "@/components/AgitacaoNav";
 import { Input } from "@/components/ui/input";
 import { TerritoryContactLogDrawer } from "@/components/TerritoryContactLogDrawer";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
