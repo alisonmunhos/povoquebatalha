@@ -277,7 +277,9 @@ export function AppShell() {
 
         <main className="flex-1 min-w-0">
           <Outlet />
+          <AgitacaoTabBarSpacer />
         </main>
+        <AgitacaoTabBar />
       </div>
     </div>
   );
