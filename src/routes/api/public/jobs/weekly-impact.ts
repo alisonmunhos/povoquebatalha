@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/public/jobs/weekly-impact")({
           const r = await sendWeeklyImpactNotifications({
             userIds: Array.isArray(body.user_ids) ? body.user_ids : undefined,
             force: body.force === true,
-            onlyActive: body.only_active !== false,
+            onlyActive: body.only_active === true,
           });
           return Response.json({ ok: true, ...r });
         } catch (e) {

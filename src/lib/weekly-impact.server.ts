@@ -119,6 +119,12 @@ function buildText(stat: WeekStatShape, previous: WeekStatShape) {
         : diff < 0
           ? `Foram ${Math.abs(diff)} a menos que na semana anterior.`
           : "Mesmo ritmo da semana anterior.";
+  if (stat.connections === 0) {
+    return {
+      title: "Sua semana está esperando por você",
+      body: `Nenhuma conexão entre ${stat.rangeLabel}. Uma conversa já muda esse número — toque para ver sua jornada.`,
+    };
+  }
   return {
     title: `Sua semana: ${stat.connections} ${stat.connections === 1 ? "pessoa" : "pessoas"}`,
     body: `${badge.badge} · ${stat.messages} mensagens e ${stat.contacts} cadastros entre ${stat.rangeLabel}. ${compare}`,
@@ -137,12 +143,17 @@ export async function sendWeeklyImpactNotifications(opts: {
 }): Promise<{ sent: number; skipped: number; users: number }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const now = opts.now ?? new Date();
-  const onlyActive = opts.onlyActive ?? true;
+  // Todos os usuários recebem a jornada, mesmo quem não enviou missões:
+  // cadastros também contam. `onlyActive` só é usado se pedido explicitamente.
+  const onlyActive = opts.onlyActive ?? false;
 
   let userIds = opts.userIds ?? [];
   if (!userIds.length) {
-    const { data: roles } = await supabaseAdmin.from("user_roles").select("user_id");
-    userIds = Array.from(new Set((roles ?? []).map((r) => r.user_id as string)));
+    const { data: ps } = await supabaseAdmin
+      .from("profiles")
+      .select("id,status")
+      .neq("status", "revogado");
+    userIds = Array.from(new Set((ps ?? []).map((r) => r.id as string)));
   }
   if (!userIds.length) return { sent: 0, skipped: 0, users: 0 };
 
