@@ -154,6 +154,8 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
       const userIds = [...byAssignee.values()].filter((a) => a.tipo === "conta").map((a) => a.refId);
       const nameByContact = new Map<string, string | null>();
       const nameByUser = new Map<string, string | null>();
+      // Contato → usuário do app: quem recebeu tarefas por link mas tem cadastro no app.
+      const userByContact = new Map<string, string>();
       if (contactIds.length) {
         const { data: cs } = await context.supabase
           .from("contacts")
@@ -161,23 +163,65 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
           .in("id", contactIds);
         (cs ?? []).forEach((c) => nameByContact.set(c.id, c.nome));
       }
-      if (userIds.length) {
+      {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { data: ps } = await supabaseAdmin
-          .from("profiles")
-          .select("id,full_name")
-          .in("id", userIds);
-        (ps ?? []).forEach((p) => nameByUser.set(p.id, p.full_name));
+        if (userIds.length) {
+          const { data: ps } = await supabaseAdmin
+            .from("profiles")
+            .select("id,full_name")
+            .in("id", userIds);
+          (ps ?? []).forEach((p) => nameByUser.set(p.id, p.full_name));
+        }
+        if (contactIds.length) {
+          const { data: linked } = await supabaseAdmin
+            .from("profiles")
+            .select("id,full_name,contact_id")
+            .in("contact_id", contactIds);
+          (linked ?? []).forEach((p) => {
+            if (!p.contact_id) return;
+            userByContact.set(p.contact_id, p.id);
+            if (!nameByUser.get(p.id)) nameByUser.set(p.id, p.full_name);
+          });
+        }
       }
 
-      const assignees: AssigneePerformance[] = [...byAssignee.entries()]
+      // Junta a mesma pessoa numa linha só: tarefas por link + tarefas por conta.
+      type AssigneeAcc = PerformanceTotals & {
+        tipo: "conta" | "link";
+        refId: string;
+        userId: string | null;
+        ultima_acao: string | null;
+      };
+      const merged = new Map<string, AssigneeAcc>();
+      for (const [, a] of byAssignee) {
+        const userId = a.tipo === "conta" ? a.refId : (userByContact.get(a.refId) ?? null);
+        const groupKey = userId ? `conta:${userId}` : `link:${a.refId}`;
+        const prev = merged.get(groupKey);
+        if (!prev) {
+          merged.set(groupKey, { ...a, userId, tipo: userId ? "conta" : "link", refId: userId ?? a.refId });
+          continue;
+        }
+        prev.total += a.total;
+        prev.enviados += a.enviados;
+        prev.pendentes += a.pendentes;
+        prev.nao_enviados += a.nao_enviados;
+        prev.arquivados += a.arquivados;
+        prev.atribuidos += a.atribuidos;
+        prev.parados += a.parados;
+        if (a.ultima_acao && (!prev.ultima_acao || a.ultima_acao > prev.ultima_acao)) {
+          prev.ultima_acao = a.ultima_acao;
+        }
+      }
+
+      const assignees: AssigneePerformance[] = [...merged.entries()]
         .map(([key, a]) => {
-          const { tipo, refId, ultima_acao, ...totals } = a;
+          const { tipo, refId, userId, ultima_acao, ...totals } = a;
           const nome =
-            (tipo === "conta" ? nameByUser.get(refId) : nameByContact.get(refId)) ?? "Sem nome";
-          return { key, nome, tipo, refId, ultima_acao, ...totals };
+            (userId ? nameByUser.get(userId) : null) ?? nameByContact.get(refId) ?? "Sem nome";
+          return { key, nome, tipo, refId, userId, ultima_acao, ...totals };
         })
         .sort((x, y) => y.enviados - x.enviados || y.total - x.total);
+
 
       const missionRows: MissionPerformance[] = missions.map((m) => {
         const s = byMission.get(m.id);
