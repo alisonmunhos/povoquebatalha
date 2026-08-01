@@ -34,7 +34,8 @@ export const getCampaignJourney = createServerFn({ method: "GET" })
         ? new Date(Date.now() - data.days * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-    const countContacts = async (origens: string[]) => {
+    type Origem = "import" | "inscricao" | "manual" | "recadastro";
+    const countContacts = async (origens: Origem[]) => {
       let q = context.supabase
         .from("contacts")
         .select("id", { count: "exact", head: true })
