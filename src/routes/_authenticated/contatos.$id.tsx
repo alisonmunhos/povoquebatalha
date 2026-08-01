@@ -233,7 +233,14 @@ function ContatoFicha() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 mb-6">
-        <button onClick={handleGoBack} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" /> Voltar</button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleGoBack} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" /> Voltar</button>
+          {isAgitadorOnly && (
+            <Link to="/agitacao" title="Início da Agitação" aria-label="Início da Agitação" className="inline-flex h-8 w-8 items-center justify-center rounded-md border hover:bg-muted">
+              <Home className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
         <div className="flex gap-2">
           {phoneDigits && (
             <>
