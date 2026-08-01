@@ -18,6 +18,8 @@ export type PerformanceTotals = {
   nao_enviados: number;
   arquivados: number;
   atribuidos: number;
+  /** Atribuídos, sem nenhuma ação e parados há mais de 2 horas. */
+  parados: number;
 };
 
 export type AssigneePerformance = PerformanceTotals & {
@@ -38,10 +40,25 @@ export type MissionPerformance = PerformanceTotals & {
 };
 
 function emptyTotals(): PerformanceTotals {
-  return { total: 0, enviados: 0, pendentes: 0, nao_enviados: 0, arquivados: 0, atribuidos: 0 };
+  return {
+    total: 0,
+    enviados: 0,
+    pendentes: 0,
+    nao_enviados: 0,
+    arquivados: 0,
+    atribuidos: 0,
+    parados: 0,
+  };
 }
 
-function addTask(acc: PerformanceTotals, status: string | null, hasAssignment: boolean) {
+const STALLED_CUTOFF_MS = 2 * 60 * 60 * 1000;
+
+function addTask(
+  acc: PerformanceTotals,
+  status: string | null,
+  hasAssignment: boolean,
+  assignedAt?: string | null,
+) {
   acc.total++;
   if (hasAssignment) acc.atribuidos++;
   const key = taskStatusFilterKey(status);
@@ -49,6 +66,17 @@ function addTask(acc: PerformanceTotals, status: string | null, hasAssignment: b
   else if (key === "pendente") acc.pendentes++;
   else if (key === "arquivados") acc.arquivados++;
   else acc.nao_enviados++;
+  // Mesma régua da liberação automática: sem ação + parado há mais de 2h.
+  if (
+    hasAssignment &&
+    key !== "enviado" &&
+    key !== "pendente" &&
+    key !== "arquivados" &&
+    assignedAt &&
+    Date.parse(assignedAt) < Date.now() - STALLED_CUTOFF_MS
+  ) {
+    acc.parados++;
+  }
 }
 
 export const getMissionsPerformance = createServerFn({ method: "GET" })
