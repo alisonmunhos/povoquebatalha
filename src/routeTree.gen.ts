@@ -70,6 +70,7 @@ import { Route as ApiPublicPushUnsubscribeRouteImport } from './routes/api/publi
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
 import { Route as ApiPublicLegalPagesSlugRouteImport } from './routes/api/public/legal-pages/$slug'
 import { Route as ApiPublicJobsWeeklyImpactRouteImport } from './routes/api/public/jobs/weekly-impact'
+import { Route as ApiPublicJobsReleaseStalledMissionsRouteImport } from './routes/api/public/jobs/release-stalled-missions'
 import { Route as ApiPublicJobsProcessCampaignQueueRouteImport } from './routes/api/public/jobs/process-campaign-queue'
 import { Route as ApiPublicFormsRecadastroRouteImport } from './routes/api/public/forms/recadastro'
 import { Route as ApiPublicFormsOptOutRouteImport } from './routes/api/public/forms/opt-out'
@@ -416,6 +417,12 @@ const ApiPublicJobsWeeklyImpactRoute =
     path: '/api/public/jobs/weekly-impact',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsReleaseStalledMissionsRoute =
+  ApiPublicJobsReleaseStalledMissionsRouteImport.update({
+    id: '/api/public/jobs/release-stalled-missions',
+    path: '/api/public/jobs/release-stalled-missions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsProcessCampaignQueueRoute =
   ApiPublicJobsProcessCampaignQueueRouteImport.update({
     id: '/api/public/jobs/process-campaign-queue',
@@ -581,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/jobs/release-stalled-missions': typeof ApiPublicJobsReleaseStalledMissionsRoute
   '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
   '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
@@ -660,6 +668,7 @@ export interface FileRoutesByTo {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/jobs/release-stalled-missions': typeof ApiPublicJobsReleaseStalledMissionsRoute
   '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
   '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
@@ -742,6 +751,7 @@ export interface FileRoutesById {
   '/api/public/forms/opt-out': typeof ApiPublicFormsOptOutRoute
   '/api/public/forms/recadastro': typeof ApiPublicFormsRecadastroRoute
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
+  '/api/public/jobs/release-stalled-missions': typeof ApiPublicJobsReleaseStalledMissionsRoute
   '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
   '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
@@ -824,6 +834,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/jobs/release-stalled-missions'
     | '/api/public/jobs/weekly-impact'
     | '/api/public/legal-pages/$slug'
     | '/api/public/push/subscribe'
@@ -903,6 +914,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/jobs/release-stalled-missions'
     | '/api/public/jobs/weekly-impact'
     | '/api/public/legal-pages/$slug'
     | '/api/public/push/subscribe'
@@ -984,6 +996,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/opt-out'
     | '/api/public/forms/recadastro'
     | '/api/public/jobs/process-campaign-queue'
+    | '/api/public/jobs/release-stalled-missions'
     | '/api/public/jobs/weekly-impact'
     | '/api/public/legal-pages/$slug'
     | '/api/public/push/subscribe'
@@ -1029,6 +1042,7 @@ export interface RootRouteChildren {
   ApiPublicFormsOptOutRoute: typeof ApiPublicFormsOptOutRoute
   ApiPublicFormsRecadastroRoute: typeof ApiPublicFormsRecadastroRoute
   ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
+  ApiPublicJobsReleaseStalledMissionsRoute: typeof ApiPublicJobsReleaseStalledMissionsRoute
   ApiPublicJobsWeeklyImpactRoute: typeof ApiPublicJobsWeeklyImpactRoute
   ApiPublicLegalPagesSlugRoute: typeof ApiPublicLegalPagesSlugRoute
   ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
@@ -1470,6 +1484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsWeeklyImpactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/release-stalled-missions': {
+      id: '/api/public/jobs/release-stalled-missions'
+      path: '/api/public/jobs/release-stalled-missions'
+      fullPath: '/api/public/jobs/release-stalled-missions'
+      preLoaderRoute: typeof ApiPublicJobsReleaseStalledMissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/process-campaign-queue': {
       id: '/api/public/jobs/process-campaign-queue'
       path: '/api/public/jobs/process-campaign-queue'
@@ -1769,6 +1790,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFormsRecadastroRoute: ApiPublicFormsRecadastroRoute,
   ApiPublicJobsProcessCampaignQueueRoute:
     ApiPublicJobsProcessCampaignQueueRoute,
+  ApiPublicJobsReleaseStalledMissionsRoute:
+    ApiPublicJobsReleaseStalledMissionsRoute,
   ApiPublicJobsWeeklyImpactRoute: ApiPublicJobsWeeklyImpactRoute,
   ApiPublicLegalPagesSlugRoute: ApiPublicLegalPagesSlugRoute,
   ApiPublicPushSubscribeRoute: ApiPublicPushSubscribeRoute,
