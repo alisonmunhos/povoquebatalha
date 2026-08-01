@@ -26,8 +26,11 @@ export type AssigneePerformance = PerformanceTotals & {
   key: string;
   nome: string;
   tipo: "conta" | "link";
+  /** id do usuário (tipo "conta") ou do contato (tipo "link"). */
+  refId: string;
   ultima_acao: string | null;
 };
+
 
 export type MissionPerformance = PerformanceTotals & {
   id: string;
@@ -169,7 +172,7 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
           const { tipo, refId, ultima_acao, ...totals } = a;
           const nome =
             (tipo === "conta" ? nameByUser.get(refId) : nameByContact.get(refId)) ?? "Sem nome";
-          return { key, nome, tipo, ultima_acao, ...totals };
+          return { key, nome, tipo, refId, ultima_acao, ...totals };
         })
         .sort((x, y) => y.enviados - x.enviados || y.total - x.total);
 

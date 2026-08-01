@@ -2,13 +2,14 @@
  * Gera e compartilha uma imagem a partir de um bloco da tela.
  * html-to-image é carregado dinamicamente para não rodar no servidor (SSR).
  */
+import { CARD_BG } from "@/components/ImpactShareCard";
 
-export async function elementToPngBlob(el: HTMLElement): Promise<Blob> {
+export async function elementToPngBlob(el: HTMLElement, backgroundColor = CARD_BG): Promise<Blob> {
   const { toBlob } = await import("html-to-image");
   const blob = await toBlob(el, {
     cacheBust: true,
     pixelRatio: 1,
-    backgroundColor: "#16130F",
+    backgroundColor,
     width: el.offsetWidth,
     height: el.offsetHeight,
   });
@@ -48,6 +49,8 @@ export async function sharePng(opts: {
     return "shared";
   }
   downloadBlob(opts.blob, opts.filename);
-  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(opts.text)}`, "_blank");
+  const encoded = encodeURIComponent(opts.text);
+  window.open(`https://wa.me/?text=${encoded}`, "_blank");
   return "downloaded";
 }
+
