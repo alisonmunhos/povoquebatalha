@@ -114,16 +114,29 @@ export const getMissionsPerformance = createServerFn({ method: "GET" })
         const since = new Date(Date.now() - data.days * 24 * 60 * 60 * 1000).toISOString();
         mq = mq.gte("created_at", since);
       }
-      const { data: missions, error } = await mq;
+      const { data: missionsData, error } = await mq;
       if (error) throw error;
-      if (!missions?.length) return { geral: emptyTotals(), assignees: [], missions: [] };
+      const missions = missionsData ?? [];
 
       const ids = missions.map((m) => m.id);
-      const { data: tasks, error: e2 } = await context.supabase
-        .from("agitation_tasks")
-        .select("mission_id,status,assigned_user_id,assigned_contact_id,assigned_at,assigned_to_user_at,updated_at")
-        .in("mission_id", ids);
-      if (e2) throw e2;
+      let tasks: Array<{
+        mission_id: string;
+        status: string | null;
+        assigned_user_id: string | null;
+        assigned_contact_id: string | null;
+        assigned_at: string | null;
+        assigned_to_user_at: string | null;
+        updated_at: string | null;
+      }> = [];
+      if (ids.length) {
+        const { data: t, error: e2 } = await context.supabase
+          .from("agitation_tasks")
+          .select("mission_id,status,assigned_user_id,assigned_contact_id,assigned_at,assigned_to_user_at,updated_at")
+          .in("mission_id", ids);
+        if (e2) throw e2;
+        tasks = (t ?? []) as typeof tasks;
+      }
+
 
       const geral = emptyTotals();
       const byMission = new Map<string, PerformanceTotals & { responsaveis: Set<string> }>();
