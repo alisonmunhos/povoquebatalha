@@ -1,6 +1,6 @@
 // Card visual 1080x1350 para compartilhar no WhatsApp (status/grupo).
 // Só números agregados de UM usuário — nenhum dado de contato aparece aqui.
-import fistMark from "@/assets/fist-mark-transparent.png";
+import appIcon from "@/assets/app-icon-squircle.png.asset.json";
 import { milestoneFor, weekMilestoneFor, resolveMilestone } from "@/lib/impact-milestones";
 
 import type { WeekStatShape } from "@/lib/impact-week";
@@ -118,19 +118,20 @@ export function ImpactShareCard({
           })}
         </svg>
         <img
-          src={fistMark}
+          src={appIcon.url}
           alt=""
-          width={230}
-          height={230}
+          width={216}
+          height={216}
           style={{
             position: "absolute",
-            left: 65,
-            top: 65,
-            width: 230,
-            height: 230,
+            left: 72,
+            top: 72,
+            width: 216,
+            height: 216,
             objectFit: "contain",
           }}
         />
+
       </div>
 
 
