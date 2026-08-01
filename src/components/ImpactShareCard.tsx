@@ -51,7 +51,15 @@ export function ImpactShareCard({
         : "Nesta semana eu me conectei com";
 
 
-  const unitWord = variant === "total" ? "conexões" : "pessoas";
+  const unitWord =
+    variant === "total"
+      ? value === 1
+        ? "conexão"
+        : "conexões"
+      : value === 1
+        ? "pessoa"
+        : "pessoas";
+
 
   const bars = variant === "week" ? theWeek.daily : stats.daily;
   const max = Math.max(1, ...bars.map((d) => d.messages + d.contacts));
