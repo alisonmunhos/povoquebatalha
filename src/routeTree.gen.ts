@@ -14,7 +14,6 @@ import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as InscreverRouteImport } from './routes/inscrever'
-import { Route as CardgenTempRouteImport } from './routes/cardgen-temp'
 import { Route as CadastroUsuarioRouteImport } from './routes/cadastro-usuario'
 import { Route as CadastroAgitadorRouteImport } from './routes/cadastro-agitador'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -114,11 +113,6 @@ const ObrigadoRoute = ObrigadoRouteImport.update({
 const InscreverRoute = InscreverRouteImport.update({
   id: '/inscrever',
   path: '/inscrever',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CardgenTempRoute = CardgenTempRouteImport.update({
-  id: '/cardgen-temp',
-  path: '/cardgen-temp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroUsuarioRoute = CadastroUsuarioRouteImport.update({
@@ -538,7 +532,6 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
-  '/cardgen-temp': typeof CardgenTempRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -620,7 +613,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
-  '/cardgen-temp': typeof CardgenTempRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -703,7 +695,6 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
-  '/cardgen-temp': typeof CardgenTempRoute
   '/inscrever': typeof InscreverRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
@@ -787,7 +778,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cadastro-agitador'
     | '/cadastro-usuario'
-    | '/cardgen-temp'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -869,7 +859,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cadastro-agitador'
     | '/cadastro-usuario'
-    | '/cardgen-temp'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -951,7 +940,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cadastro-agitador'
     | '/cadastro-usuario'
-    | '/cardgen-temp'
     | '/inscrever'
     | '/obrigado'
     | '/primeiro-acesso'
@@ -1035,7 +1023,6 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CadastroAgitadorRoute: typeof CadastroAgitadorRoute
   CadastroUsuarioRoute: typeof CadastroUsuarioRoute
-  CardgenTempRoute: typeof CardgenTempRoute
   InscreverRoute: typeof InscreverRoute
   ObrigadoRoute: typeof ObrigadoRoute
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
@@ -1103,13 +1090,6 @@ declare module '@tanstack/react-router' {
       path: '/inscrever'
       fullPath: '/inscrever'
       preLoaderRoute: typeof InscreverRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cardgen-temp': {
-      id: '/cardgen-temp'
-      path: '/cardgen-temp'
-      fullPath: '/cardgen-temp'
-      preLoaderRoute: typeof CardgenTempRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro-usuario': {
@@ -1790,7 +1770,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CadastroAgitadorRoute: CadastroAgitadorRoute,
   CadastroUsuarioRoute: CadastroUsuarioRoute,
-  CardgenTempRoute: CardgenTempRoute,
   InscreverRoute: InscreverRoute,
   ObrigadoRoute: ObrigadoRoute,
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
