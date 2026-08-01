@@ -16,9 +16,8 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/_authenticated/meu-impacto")({
   // ?userId= permite que a equipe (admin/vrm/operador) veja a MESMA tela de
   // outra pessoa. A checagem de permissão acontece no servidor.
-  validateSearch: (search: Record<string, unknown>) => ({
-    userId: typeof search["userId"] === "string" ? (search["userId"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { userId?: string } =>
+    typeof search["userId"] === "string" ? { userId: search["userId"] as string } : {},
   head: () => ({
     meta: [
       { title: "Meu Impacto — Povo que Batalha" },
