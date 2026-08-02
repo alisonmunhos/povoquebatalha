@@ -45,8 +45,8 @@ function DesempenhoMissoes() {
   });
 
   const journey = useQuery({
-    queryKey: ["campaign-journey", days],
-    queryFn: () => fetchJourney({ data: { days } }),
+    queryKey: ["campaign-journey"],
+    queryFn: () => fetchJourney({ data: { days: 0 } }),
   });
 
   return (
