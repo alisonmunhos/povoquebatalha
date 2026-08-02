@@ -779,7 +779,13 @@ export const commitImport = createServerFn({ method: "POST" })
           }
         }
 
-        async function registerImportSource(contactId: string, eventType: "contato_criado" | "contato_atualizado") {
+        async function registerImportSource(
+          contactId: string,
+          eventType: "contato_criado" | "contato_atualizado",
+          /** Origem real do contato já existente, quando houver. */
+          origemPreexistente?: string | null,
+          moduloPreexistente?: string | null,
+        ) {
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             await supabaseAdmin.rpc("apply_contact_source", {
@@ -791,8 +797,26 @@ export const commitImport = createServerFn({ method: "POST" })
               _event_type: eventType,
               _metadata: importSourceMetadata(data.importId),
             });
+            // A importação nunca pode rebaixar a origem de quem já veio de
+            // formulário, agitação, território etc. Se o contato já tinha uma
+            // origem real, restauramos o módulo de origem depois do registro.
+            const temOrigemReal = !!origemPreexistente && origemPreexistente !== "import";
+            if (temOrigemReal) {
+              const modulo =
+                moduloPreexistente && moduloPreexistente !== "importacao"
+                  ? moduloPreexistente
+                  : origemPreexistente === "recadastro" || origemPreexistente === "inscricao"
+                    ? "formulario_publico"
+                    : "manual";
+              await supabaseAdmin
+                .from("contacts")
+                .update({ primary_source_module: modulo as never })
+                .eq("id", contactId);
+            }
+
           } catch { /* non-blocking */ }
         }
+
 
         if (dup && dup.match === "forte") {
           const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
@@ -842,9 +866,18 @@ export const commitImport = createServerFn({ method: "POST" })
               const cur = (existing as Record<string, unknown>).observacoes as string | null;
               merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
             }
+            // Origem é intocável na atualização: quem já veio de formulário,
+            // agitação, território etc. continua com a origem real. A importação
+            // só grava "import" quando está criando um contato novo.
+            const origemAtual = (existing as Record<string, unknown>).origem as string | null;
+            const moduloAtual = (existing as Record<string, unknown>).primary_source_module as string | null;
+            delete merge.origem;
+            delete merge.primary_source_module;
+            if (!origemAtual) merge.origem = "import";
             await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
             await applyTagsTo(dup.contact_id);
-            await registerImportSource(dup.contact_id, "contato_atualizado");
+            await registerImportSource(dup.contact_id, "contato_atualizado", origemAtual, moduloAtual);
+
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
