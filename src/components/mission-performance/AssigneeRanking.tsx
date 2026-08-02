@@ -21,7 +21,13 @@ function journeyMessage(r: AssigneePerformance): string {
   ].join("\n");
 }
 
-export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
+export function AssigneeRanking({
+  rows,
+  periodoLabel,
+}: {
+  rows: AssigneePerformance[];
+  periodoLabel?: string;
+}) {
   const [sort, setSort] = useState<SortKey>("conexoes");
   const [hideEmpty, setHideEmpty] = useState(false);
   const [sending, setSending] = useState<AssigneePerformance | null>(null);
@@ -39,7 +45,12 @@ export function AssigneeRanking({ rows }: { rows: AssigneePerformance[] }) {
   return (
     <section className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Jornada de todos os usuários</h2>
+        <h2 className="text-base font-semibold">
+          Jornada de todos os usuários
+          {periodoLabel && (
+            <span className="ml-2 text-xs font-normal text-muted-foreground">· {periodoLabel}</span>
+          )}
+        </h2>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input
