@@ -1,32 +1,22 @@
-## O que muda
+## Situação atual (verificada agora)
 
-Hoje a faixa "Jornada da campanha" no topo de `/missoes-agitacao/desempenho` só mostra números. Vamos permitir gerar e compartilhar um **cartão da campanha** (1080x1350), igual ao dos usuários, mas com linguagem institucional e cores próprias.
+- Seu lote está lá: **10 contatos sem ação** na missão `5e39f70f…`, atribuídos a você (`24fb8128…`) às 01:35 UTC de hoje — parados há poucos minutos.
+- Você tem **3 aparelhos/navegadores inscritos** para receber push.
+- Nenhum aviso de missão foi criado para você nas últimas 2h, então o bloqueio "um aviso por rodada" não vai atrapalhar o teste.
+- O agendamento já aponta para o domínio publicado e o endpoint respondeu 200 no último teste.
 
-## Linguagem (infinitivo / terceira pessoa)
+Como o job só avisa quem está parado há mais de 1h, ele hoje não dispararia nada. O endpoint aceita parâmetros de tempo no corpo da chamada, então dá para simular sem mexer no código nem no agendamento.
 
-Em vez de "Hoje eu me conectei com", os textos passam a falar da campanha:
+## O que farei
 
-- Kicker: `CAMPANHA DO POVO QUE BATALHA`
-- Headline: "Somar forças, uma conexão por vez" (patamares próprios, ex.: "Construir base", "Multiplicar contatos", "Ocupar cada rua")
-- Número gigante = conexões da campanha, unidade "conexões"
-- Selo do patamar (ex.: "Campanha · 500+")
-- Rodapé: "X mensagens enviadas em missões · Y cadastros novos" + nota "sem contar contatos importados"
-- Frase final no infinitivo: "Continuar batalhando. Chamar mais gente."
-- Legenda do período: "Últimos 30 dias" / "Desde o começo"
+1. Chamar uma vez o endpoint publicado `/api/public/jobs/release-stalled-missions` com os tempos reduzidos apenas nessa chamada:
+   - avisar a partir de 0h (para pegar seu lote recém-pego)
+   - liberar somente depois de 24h (para **não** devolver seus 10 contatos para a fila)
+2. Conferir a resposta (`avisados` deve vir 1).
+3. Confirmar no banco que a notificação foi criada para você, com título "Você ainda tem contatos esperando" e a contagem certa de contatos.
+4. Confirmar que o envio de push foi disparado para os 3 aparelhos e reportar qualquer falha registrada nos logs do servidor.
 
-## Cores (variação própria, sem gradiente)
+## Cuidados
 
-Inverso do cartão pessoal, para diferenciar na hora: fundo **amarelo #F0AA04**, texto e número em **#16130F**, selo em **#7B4B94** com texto branco, barras do gráfico em **#16130F**. Mantém o punho/ícone do app e o burst de raios (em tom escuro).
-
-## Onde fica
-
-No painel `CampaignJourneyPanel`: botões **Compartilhar imagem** e **Baixar imagem**, mais uma mini-prévia do cartão. Só visível para quem já acessa a tela de desempenho (papéis de equipe) — nenhum dado pessoal aparece no cartão, apenas totais.
-
-## Detalhes técnicos
-
-- `src/lib/campaign-journey.functions.ts`: acrescentar `daily` (7 dias: mensagens enviadas + cadastros por dia) e `rangeLabel`, para o mini-gráfico. Continua somente leitura.
-- Novo `src/components/CampaignShareCard.tsx`: mesmo layout/estrutura do `ImpactShareCard`, com a paleta e os textos institucionais.
-- Novo `src/lib/campaign-milestones.ts`: patamares da campanha (0, 50, 100, 500, 1.000, 5.000, 10.000+) com headline/selo/frase no infinitivo.
-- Generalizar as ações de compartilhar: extrair de `ShareCardActions` um wrapper que aceita qualquer nó de cartão (`children`/render prop), reaproveitando `elementToPngBlob`, `downloadBlob` e `sharePng`. O cartão pessoal continua funcionando igual.
-- `CampaignJourneyPanel.tsx` passa a receber `days`/`periodoLabel` e renderiza as ações.
-- Nada muda no cartão pessoal, nas notificações de sábado ou no cálculo das jornadas individuais.
+- Nada é alterado no agendamento, no código ou nos seus contatos: os tempos reduzidos valem só para essa chamada manual.
+- Você deve receber a notificação no sininho e no celular. Se aparecer no sininho mas não no celular, o problema está na permissão/inscrição do aparelho — nesse caso eu investigo os logs de push em seguida.
