@@ -102,7 +102,7 @@ function DesempenhoMissoes() {
       {q.data && (
         <>
           <PerformanceSummary totals={q.data.geral} />
-          <AssigneeRanking rows={q.data.assignees} />
+          <AssigneeRanking rows={q.data.assignees} periodoLabel={PERIOD_LABEL[days]} />
           <MissionBreakdown rows={q.data.missions} />
         </>
       )}
