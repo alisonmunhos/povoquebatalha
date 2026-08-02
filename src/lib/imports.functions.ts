@@ -801,12 +801,19 @@ export const commitImport = createServerFn({ method: "POST" })
             // formulário, agitação, território etc. Se o contato já tinha uma
             // origem real, restauramos o módulo de origem depois do registro.
             const temOrigemReal = !!origemPreexistente && origemPreexistente !== "import";
-            if (temOrigemReal && moduloPreexistente && moduloPreexistente !== "importacao") {
+            if (temOrigemReal) {
+              const modulo =
+                moduloPreexistente && moduloPreexistente !== "importacao"
+                  ? moduloPreexistente
+                  : origemPreexistente === "recadastro" || origemPreexistente === "inscricao"
+                    ? "formulario_publico"
+                    : "manual";
               await supabaseAdmin
                 .from("contacts")
-                .update({ primary_source_module: moduloPreexistente as never })
+                .update({ primary_source_module: modulo as never })
                 .eq("id", contactId);
             }
+
           } catch { /* non-blocking */ }
         }
 
