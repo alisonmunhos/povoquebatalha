@@ -18,7 +18,7 @@ export function CampaignShareCard({
   innerRef,
 }: {
   data: CampaignJourney;
-  periodoLabel: string;
+  periodoLabel?: string;
   innerRef?: React.Ref<HTMLDivElement>;
 }) {
   const milestone = resolveCampaignMilestone(data.conexoes);
@@ -73,7 +73,7 @@ export function CampaignShareCard({
           Campanha do Povo que Batalha
         </p>
         <p className="mt-6 text-4xl font-semibold" style={{ color: INK_SOFT }}>
-          Jornada da campanha · {periodoLabel}
+          Jornada da campanha{periodoLabel ? ` · ${periodoLabel}` : ""}
         </p>
         <p className="mt-8 max-w-[620px] text-5xl font-bold leading-tight" style={{ color: INK }}>
           {milestone.headline}
