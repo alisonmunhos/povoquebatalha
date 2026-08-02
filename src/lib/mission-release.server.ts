@@ -14,6 +14,10 @@ type AdminClient = { from: (table: string) => any };
 
 const HOUR_MS = 60 * 60 * 1000;
 
+/** Selo que identifica o aviso de "contatos parados" entre as notificações de missão. */
+const WARN_REASON = "contatos_parados";
+
+
 export type ReleaseStalledResult = {
   avisados: number;
   liberados: number;
@@ -76,12 +80,15 @@ export async function releaseStalledMissionTasks(
   }
   for (const { userId, missionId, count } of warnPairs.values()) {
     const since = new Date(now - releaseAfter * HOUR_MS).toISOString();
+    // Só conta como "já avisado" um aviso de contatos parados — notificações de
+    // missão nova (mesma missão, mesmo kind) não devem bloquear o aviso.
     const { data: recent } = await admin
       .from("notifications")
       .select("id")
       .eq("user_id", userId)
       .eq("mission_id", missionId)
       .eq("kind", "mission")
+      .filter("cta_payload->>reason", "eq", WARN_REASON)
       .gte("created_at", since)
       .limit(1);
     if (recent?.length) continue;
@@ -97,10 +104,15 @@ export async function releaseStalledMissionTasks(
         `Se você não puder agora, em cerca de ${releaseAfter}h eles voltam para a fila e outra pessoa pode assumir.`,
       cta_label: "Abrir minhas missões",
       cta_kind: "mission",
-      cta_payload: { mission_id: missionId },
+      cta_payload: { mission_id: missionId, reason: WARN_REASON },
     });
-    if (!error) avisados++;
+    if (error) {
+      console.error("[missions] falha ao criar aviso de contatos parados:", error.message);
+      continue;
+    }
+    avisados++;
   }
+
 
   // 2) Liberação: devolve para a fila (sem apagar nada do contato).
   let liberados = 0;
