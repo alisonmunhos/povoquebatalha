@@ -10,14 +10,12 @@ const nf = new Intl.NumberFormat("pt-BR");
 
 export function CampaignJourneyPanel({
   data,
-  periodoLabel,
 }: {
   data: CampaignJourney;
-  periodoLabel: string;
 }) {
   const milestone = resolveCampaignMilestone(data.conexoes);
   const shareText = [
-    `Jornada da Campanha do Povo que Batalha · ${periodoLabel}`,
+    "Jornada da Campanha do Povo que Batalha",
     `${nf.format(data.conexoes)} conexões · ${nf.format(data.mensagens)} mensagens enviadas em missões · ${nf.format(data.cadastros)} cadastros novos`,
     milestone.phrase,
     SITE_URL,
@@ -27,7 +25,7 @@ export function CampaignJourneyPanel({
     <section className="rounded-lg border-2 bg-card p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Jornada da campanha</h2>
-        <span className="text-xs text-muted-foreground">{periodoLabel}</span>
+        <span className="text-xs text-muted-foreground">Desde o começo</span>
       </div>
 
 
@@ -72,9 +70,7 @@ export function CampaignJourneyPanel({
           de contato aparece na imagem.
         </p>
         <ShareImageActions
-          card={(ref) => (
-            <CampaignShareCard data={data} periodoLabel={periodoLabel} innerRef={ref} />
-          )}
+          card={(ref) => <CampaignShareCard data={data} innerRef={ref} />}
           shareText={shareText}
           filename="jornada-da-campanha-povo-que-batalha.png"
           backgroundColor={CAMPAIGN_CARD_BG}

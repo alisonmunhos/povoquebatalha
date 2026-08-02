@@ -45,8 +45,8 @@ function DesempenhoMissoes() {
   });
 
   const journey = useQuery({
-    queryKey: ["campaign-journey", days],
-    queryFn: () => fetchJourney({ data: { days } }),
+    queryKey: ["campaign-journey"],
+    queryFn: () => fetchJourney({ data: { days: 0 } }),
   });
 
   return (
@@ -90,9 +90,7 @@ function DesempenhoMissoes() {
         </select>
       </div>
 
-      {journey.data && (
-        <CampaignJourneyPanel data={journey.data} periodoLabel={PERIOD_LABEL[days]} />
-      )}
+      {journey.data && <CampaignJourneyPanel data={journey.data} />}
 
       {q.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
       {q.isError && (
@@ -104,7 +102,7 @@ function DesempenhoMissoes() {
       {q.data && (
         <>
           <PerformanceSummary totals={q.data.geral} />
-          <AssigneeRanking rows={q.data.assignees} />
+          <AssigneeRanking rows={q.data.assignees} periodoLabel={PERIOD_LABEL[days]} />
           <MissionBreakdown rows={q.data.missions} />
         </>
       )}
