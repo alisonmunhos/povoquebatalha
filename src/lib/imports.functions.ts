@@ -779,7 +779,13 @@ export const commitImport = createServerFn({ method: "POST" })
           }
         }
 
-        async function registerImportSource(contactId: string, eventType: "contato_criado" | "contato_atualizado") {
+        async function registerImportSource(
+          contactId: string,
+          eventType: "contato_criado" | "contato_atualizado",
+          /** Origem real do contato já existente, quando houver. */
+          origemPreexistente?: string | null,
+          moduloPreexistente?: string | null,
+        ) {
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             await supabaseAdmin.rpc("apply_contact_source", {
@@ -791,8 +797,19 @@ export const commitImport = createServerFn({ method: "POST" })
               _event_type: eventType,
               _metadata: importSourceMetadata(data.importId),
             });
+            // A importação nunca pode rebaixar a origem de quem já veio de
+            // formulário, agitação, território etc. Se o contato já tinha uma
+            // origem real, restauramos o módulo de origem depois do registro.
+            const temOrigemReal = !!origemPreexistente && origemPreexistente !== "import";
+            if (temOrigemReal && moduloPreexistente && moduloPreexistente !== "importacao") {
+              await supabaseAdmin
+                .from("contacts")
+                .update({ primary_source_module: moduloPreexistente as never })
+                .eq("id", contactId);
+            }
           } catch { /* non-blocking */ }
         }
+
 
         if (dup && dup.match === "forte") {
           const { data: existing } = await sb.from("contacts").select("*").eq("id", dup.contact_id).single();
