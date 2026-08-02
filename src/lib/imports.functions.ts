@@ -866,9 +866,18 @@ export const commitImport = createServerFn({ method: "POST" })
               const cur = (existing as Record<string, unknown>).observacoes as string | null;
               merge.observacoes = cur ? `${cur}\n${obsText}` : obsText;
             }
+            // Origem é intocável na atualização: quem já veio de formulário,
+            // agitação, território etc. continua com a origem real. A importação
+            // só grava "import" quando está criando um contato novo.
+            const origemAtual = (existing as Record<string, unknown>).origem as string | null;
+            const moduloAtual = (existing as Record<string, unknown>).primary_source_module as string | null;
+            delete merge.origem;
+            delete merge.primary_source_module;
+            if (!origemAtual) merge.origem = "import";
             await sb.from("contacts").update(merge as never).eq("id", dup.contact_id);
             await applyTagsTo(dup.contact_id);
-            await registerImportSource(dup.contact_id, "contato_atualizado");
+            await registerImportSource(dup.contact_id, "contato_atualizado", origemAtual, moduloAtual);
+
             await sb.from("import_rows").update({ status: "duplicado", contact_id: dup.contact_id }).eq("id", row.id);
             duplicados++;
             atualizados++;
