@@ -1,22 +1,31 @@
-## Situação atual (verificada agora)
+# Limpar as notificações de teste antigas
 
-- Seu lote está lá: **10 contatos sem ação** na missão `5e39f70f…`, atribuídos a você (`24fb8128…`) às 01:35 UTC de hoje — parados há poucos minutos.
-- Você tem **3 aparelhos/navegadores inscritos** para receber push.
-- Nenhum aviso de missão foi criado para você nas últimas 2h, então o bloqueio "um aviso por rodada" não vai atrapalhar o teste.
-- O agendamento já aponta para o domínio publicado e o endpoint respondeu 200 no último teste.
+## O que está acontecendo
 
-Como o job só avisa quem está parado há mais de 1h, ele hoje não dispararia nada. O endpoint aceita parâmetros de tempo no corpo da chamada, então dá para simular sem mexer no código nem no agendamento.
+Na tela de Notificações da Agitação, cada envio aparece como um item só quando as notificações
+foram criadas juntas com um mesmo identificador de lote. As notificações antigas
+("Notificação de teste!" e "Teste") foram criadas antes desse agrupamento existir, então cada
+pessoa que recebeu virou um item separado — por isso só dá para cancelar uma por uma.
 
-## O que farei
+Situação real hoje no banco:
 
-1. Chamar uma vez o endpoint publicado `/api/public/jobs/release-stalled-missions` com os tempos reduzidos apenas nessa chamada:
-   - avisar a partir de 0h (para pegar seu lote recém-pego)
-   - liberar somente depois de 24h (para **não** devolver seus 10 contatos para a fila)
-2. Conferir a resposta (`avisados` deve vir 1).
-3. Confirmar no banco que a notificação foi criada para você, com título "Você ainda tem contatos esperando" e a contagem certa de contatos.
-4. Confirmar que o envio de push foi disparado para os 3 aparelhos e reportar qualquer falha registrada nos logs do servidor.
+- "Notificação de teste!" — 25 notificações, 24 ainda ativas
+- "Teste" — 38 notificações, 36 ainda ativas
 
-## Cuidados
+## O que vou fazer
 
-- Nada é alterado no agendamento, no código ou nos seus contatos: os tempos reduzidos valem só para essa chamada manual.
-- Você deve receber a notificação no sininho e no celular. Se aparecer no sininho mas não no celular, o problema está na permissão/inscrição do aparelho — nesse caso eu investigo os logs de push em seguida.
+1. Cancelar em bloco, direto nos dados, todas as notificações ativas com os títulos
+   "Notificação de teste!" e "Teste". Elas passam a ficar como "Cancelada", igual ao que
+   acontece quando você cancela manualmente — nada é apagado, o histórico continua registrado.
+2. Adicionar na tela de Notificações da Agitação uma ação "Cancelar todas com este título",
+   para que qualquer grupo antigo sem lote possa ser cancelado de uma vez no futuro.
+   A ação mostra quantas notificações serão afetadas antes de confirmar.
+
+## Detalhes técnicos
+
+- Atualização de dados: `notifications` → `cancelled_at = now()` onde `title` está na lista de
+  títulos de teste, `kind = 'custom'` e `cancelled_at is null`. Sem DELETE.
+- Nova função de servidor em `src/lib/notifications.functions.ts` (ex.: `cancelNotificationsByTitle`),
+  protegida por autenticação + checagem de staff, no mesmo padrão de `cancelNotificationBatch`.
+- Botão/confirmação em `src/routes/_authenticated/agitacao-notificacoes.tsx`, reaproveitando o
+  fluxo de cancelamento já existente e invalidando as consultas da lista.
