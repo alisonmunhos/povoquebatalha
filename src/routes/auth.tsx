@@ -11,6 +11,7 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   head: () => ({
     meta: shareMeta({
       title: "Entrar — Campanha do Povo que Batalha",
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   component: AuthPage,
 });
+
 
 const ROLE_HOME: Record<string, string> = {
   admin: "/dashboard",
