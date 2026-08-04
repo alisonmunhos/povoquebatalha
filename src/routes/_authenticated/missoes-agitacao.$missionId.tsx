@@ -703,6 +703,41 @@ function MissionDetailsPanel() {
         defaultTagName={q.data.mission.title}
         onApplied={onApplyTagDone}
       />
+
+      <AlertDialog
+        open={confirmUnassign !== null}
+        onOpenChange={(o) => {
+          if (!o && !unassigning) setConfirmUnassign(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmUnassign?.all
+                ? "Liberar todos os contatos desta missão?"
+                : `Liberar ${confirmUnassign?.ids.length ?? 0} contato(s)?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmUnassign?.all
+                ? `Os ${confirmUnassign?.ids.length ?? 0} contatos atribuídos voltam para a fila da missão e o status de envio deles é reiniciado. A missão fica sem ninguém encarregado.`
+                : "Eles voltam para a fila da missão (sem responsável) e o status de envio é reiniciado. Contatos arquivados por erro de número ou por não querer receber não são afetados."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unassigning}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={unassigning}
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmUnassign) runUnassign(confirmUnassign.ids, confirmUnassign.all);
+              }}
+            >
+              {unassigning ? "Liberando…" : "Liberar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+
 }
