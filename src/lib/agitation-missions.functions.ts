@@ -144,34 +144,21 @@ export const createAgitationMission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => createMissionSchema.parse(d))
   .handler(async ({ data, context }) => {
-    // Resolve audiência -> IDs (mesmo padrão de createCampaignFromSelection).
-    let baseIds = data.ids ?? [];
-    if (!baseIds.length && data.filters) {
-      let q = context.supabase.from("contacts").select("id").limit(20000);
-      q = applyCrmFilters(q as never, data.filters as CrmFilters) as typeof q;
-      if (data.filters.tag_ids?.length) {
-        const { data: rels } = await context.supabase
-          .from("contact_tags")
-          .select("contact_id")
-          .in("tag_id", data.filters.tag_ids);
-        const relIds = Array.from(new Set((rels ?? []).map((r) => r.contact_id)));
-        if (relIds.length) {
-          const { data: rows } = await q.in("id", relIds);
-          baseIds = (rows ?? []).map((r) => r.id);
-        }
-      } else {
-        const { data: rows } = await q;
-        baseIds = (rows ?? []).map((r) => r.id);
-      }
-    }
+    // Resolve audiência -> IDs usando o mesmo motor das campanhas (trata
+    // filtros relacionais, paginação e busca em lotes — listas grandes de IDs
+    // estouravam o limite de URL/cabeçalho e faziam a criação falhar).
+    const { resolveAudienceIds, fetchAudienceContacts } = await import(
+      "@/lib/campaign-audience.server"
+    );
+    const baseIds = data.ids?.length
+      ? await resolveAudienceIds(context.supabase, { ids: data.ids })
+      : data.filters
+        ? await resolveAudienceIds(context.supabase, { filters: data.filters })
+        : [];
     if (!baseIds.length) throw new Error("Nenhum contato selecionado.");
 
-    const { data: contatos, error: cErr } = await context.supabase
-      .from("contacts")
-      .select("id,phone_e164,phone_whatsapp_candidate")
-      .in("id", baseIds);
-    if (cErr) throw cErr;
-    const comTelefone = (contatos ?? []).filter((c) => !!c.phone_e164);
+    const contatos = await fetchAudienceContacts(context.supabase, baseIds);
+    const comTelefone = contatos.filter((c) => !!c.phone_e164);
     const ignorados_sem_telefone = baseIds.length - comTelefone.length;
 
     let elegiveis = comTelefone;
