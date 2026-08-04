@@ -603,36 +603,43 @@ export const unassignMissionTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => unassignSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: before, error: fetchErr } = await context.supabase
-      .from("agitation_tasks")
-      .select("id, assigned_user_id")
-      .eq("mission_id", data.mission_id)
-      .in("id", data.task_ids);
-    if (fetchErr) throw fetchErr;
+    // Lotes: listas grandes de IDs estouram o limite de tamanho da requisição.
+    const CHUNK = 200;
+    const chunks: string[][] = [];
+    for (let i = 0; i < data.task_ids.length; i += CHUNK) {
+      chunks.push(data.task_ids.slice(i, i + CHUNK));
+    }
 
-    const affectedUserIds = Array.from(
-      new Set(
-        (before ?? [])
-          .map((t) => t.assigned_user_id)
-          .filter((v): v is string => !!v),
-      ),
-    );
+    const affected = new Set<string>();
+    for (const ids of chunks) {
+      const { data: before, error: fetchErr } = await context.supabase
+        .from("agitation_tasks")
+        .select("id, assigned_user_id")
+        .eq("mission_id", data.mission_id)
+        .in("id", ids);
+      if (fetchErr) throw fetchErr;
+      for (const t of before ?? []) {
+        if (t.assigned_user_id) affected.add(t.assigned_user_id);
+      }
 
-    const { error } = await context.supabase
-      .from("agitation_tasks")
-      .update({
-        assigned_contact_id: null,
-        assigned_at: null,
-        assigned_user_id: null,
-        claim_id: null,
-        assigned_to_user_at: null,
-        status: TASK_STATUS.SEM_ACAO,
-      } as never)
-      .eq("mission_id", data.mission_id)
-      .in("id", data.task_ids)
-      // Trava de segurança: contato arquivado (erro/opt-out) nunca volta para a fila aqui.
-      .not("status", "in", `(${ARCHIVED_TASK_STATUSES.join(",")})`);
-    if (error) throw error;
+      const { error } = await context.supabase
+        .from("agitation_tasks")
+        .update({
+          assigned_contact_id: null,
+          assigned_at: null,
+          assigned_user_id: null,
+          claim_id: null,
+          assigned_to_user_at: null,
+          status: TASK_STATUS.SEM_ACAO,
+        } as never)
+        .eq("mission_id", data.mission_id)
+        .in("id", ids)
+        // Trava de segurança: contato arquivado (erro/opt-out) nunca volta para a fila aqui.
+        .not("status", "in", `(${ARCHIVED_TASK_STATUSES.join(",")})`);
+      if (error) throw error;
+    }
+    const affectedUserIds = Array.from(affected);
+
 
     const now = new Date().toISOString();
     for (const userId of affectedUserIds) {
