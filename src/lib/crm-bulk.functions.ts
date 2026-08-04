@@ -24,6 +24,7 @@ type ContactRichRow = Pick<
 // ===== Listagem rica do CRM (substitui partes da listContacts) =====
 const listSchema = z.object({
   filters: crmFilterSchema.partial().default({}),
+  restrictToIds: z.array(z.string().uuid()).max(20000).optional(),
   page: z.number().int().min(1).default(1),
   // Teto de segurança pra opção "Todos" da tela — cobre a base atual (~1200
   // contatos) com folga; se a base crescer muito além disso, essa opção
@@ -46,7 +47,12 @@ export const listContactsRich = createServerFn({ method: "POST" })
     // --- Restrições que dependem de outras tabelas (resolvidas antes) ---
     const rel = await resolveRelationalFilterIds(context.supabase, data.filters as CrmFilters);
     if (rel.noMatch) return empty;
-    const allowedIds = rel.allowedIds;
+    const segmentIds = data.restrictToIds?.length ? Array.from(new Set(data.restrictToIds)) : null;
+    const allowedIds = segmentIds
+      ? rel.allowedIds
+        ? rel.allowedIds.filter((id) => new Set(segmentIds).has(id))
+        : segmentIds
+      : rel.allowedIds;
     const excludeSet = rel.excludeIds;
 
 

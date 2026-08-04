@@ -160,6 +160,7 @@ function Contatos() {
       if (s.tipo === "dinamico") {
         setSegmentoEstaticoIds(null);
         setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
+        setPage(1);
         return;
       }
       // Segmento estático: a lista é fixa (member_ids). Vira seleção manual,
@@ -167,8 +168,10 @@ function Contatos() {
       const ids = ((s.member_ids as string[] | null) ?? []).filter(Boolean);
       setSegmentoEstaticoIds(ids);
       setSelected(new Set(ids));
-      // Sem filtro de arquivados para não esconder membros do segmento.
-      setFilters({} as CrmFilters);
+      // A lista fixa continua sendo a fonte do envio; os filtros de origem são
+      // restaurados apenas para explicar como essa fotografia foi criada.
+      setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
+      setPage(1);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.segment]);
@@ -194,8 +197,8 @@ function Contatos() {
   }, [filters, searchInput, sort, page, pageSize]);
 
   const q = useQuery({
-    queryKey: ["contacts-rich", filters, page, pageSize, sort],
-    queryFn: () => listFn({ data: { filters, page, pageSize, sort } }),
+    queryKey: ["contacts-rich", filters, segmentoEstaticoIds, page, pageSize, sort],
+    queryFn: () => listFn({ data: { filters, restrictToIds: segmentoEstaticoIds ?? undefined, page, pageSize, sort } }),
   });
 
   function onChangePageSize(next: number) {
@@ -399,7 +402,11 @@ function Contatos() {
           <Users className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-semibold">Contatos</h1>
         </div>
-        <div className="text-sm text-muted-foreground">{q.data?.total ?? 0} resultado(s)</div>
+        <div className="text-sm text-muted-foreground">
+          {segmentoEstaticoIds
+            ? `${segmentoEstaticoIds.length.toLocaleString("pt-BR")} salvo(s) · ${(q.data?.total ?? 0).toLocaleString("pt-BR")} corresponde(m) aos filtros de origem hoje`
+            : `${q.data?.total ?? 0} resultado(s)`}
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -423,7 +430,7 @@ function Contatos() {
         </Button>
         <Button variant="outline" size="sm" onClick={() => doExport("filtrados")}><Download className="h-4 w-4 mr-1" /> Exportar filtrados</Button>
         <Button variant="outline" size="sm" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "dinamico" })}><Save className="h-4 w-4 mr-1" /> Salvar como segmento</Button>
-        <Button size="sm" onClick={() => setSendDlg({ open: true, mode: segmentoEstaticoIds?.length ? "selection" : "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
+        <Button size="sm" onClick={() => setSendDlg({ open: true, mode: segmentoEstaticoIds?.length ? "selection" : "filter" })}><Send className="h-4 w-4 mr-1" /> {segmentoEstaticoIds?.length ? "Enviar para segmento" : "Enviar WhatsApp p/ filtro"}</Button>
       </div>
 
       {/* Filtros rápidos por chip */}
