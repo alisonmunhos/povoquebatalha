@@ -629,7 +629,7 @@ function MissionDetailsPanel() {
                   <button
                     type="button"
                     title="Liberar atribuição"
-                    onClick={() => onUnassign([t.id])}
+                    onClick={() => askUnassign([t.id])}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <X className="h-4 w-4" />
