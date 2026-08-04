@@ -147,10 +147,25 @@ function Contatos() {
 
   // Aplica segmento via querystring
   useEffect(() => {
-    if (!search.segment) return;
+    if (!search.segment) {
+      setSegmentoEstaticoIds(null);
+      return;
+    }
     segFn().then((r) => {
       const s = r.rows.find((x) => x.id === search.segment);
-      if (s?.tipo === "dinamico") setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
+      if (!s) return;
+      if (s.tipo === "dinamico") {
+        setSegmentoEstaticoIds(null);
+        setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
+        return;
+      }
+      // Segmento estático: a lista é fixa (member_ids). Vira seleção manual,
+      // que é o mecanismo usado pelo envio "para os selecionados".
+      const ids = ((s.member_ids as string[] | null) ?? []).filter(Boolean);
+      setSegmentoEstaticoIds(ids);
+      setSelected(new Set(ids));
+      // Sem filtro de arquivados para não esconder membros do segmento.
+      setFilters({});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.segment]);
