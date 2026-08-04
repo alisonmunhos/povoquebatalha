@@ -17,6 +17,17 @@ import {
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { AssignResponsibleModal } from "@/components/AssignResponsibleModal";
 import { AssignMissionUsersModal } from "@/components/AssignMissionUsersModal";
 import { OpenMissionModal } from "@/components/OpenMissionModal";
@@ -136,6 +147,11 @@ function MissionDetailsPanel() {
   const [responsavelFilter, setResponsavelFilter] = useState<string>("todos");
   const [hideSemNumero, setHideSemNumero] = useState(false);
   const [hideOptOutErro, setHideOptOutErro] = useState(true);
+  const [unassigning, setUnassigning] = useState(false);
+  const [confirmUnassign, setConfirmUnassign] = useState<{ ids: string[]; all: boolean } | null>(
+    null,
+  );
+
 
 
   const q = useQuery({
@@ -224,41 +240,39 @@ function MissionDetailsPanel() {
     setSelected(new Set());
     invalidate();
   }
-  async function onUnassign(taskIds: string[]) {
-    if (
-      !confirm(
-        `Desatribuir ${taskIds.length} contato(s)? Eles voltam pra lista de sem atribuição (e status concluído/não enviado é reiniciado).`,
-      )
-    )
-      return;
+  // Confirmação dentro do app: a janelinha nativa do navegador é bloqueada no
+  // preview e em alguns celulares, e a ação morria em silêncio.
+  async function runUnassign(taskIds: string[], allMode: boolean) {
+    setUnassigning(true);
     try {
-      await unassignFn({ data: { mission_id: missionId, task_ids: taskIds } });
+      const r = await unassignFn({ data: { mission_id: missionId, task_ids: taskIds } });
       setSelected(new Set());
       invalidate();
       queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
-      toast.success(`${taskIds.length} contato(s) desatribuído(s).`);
+      const n = (r as { updated?: number } | null)?.updated ?? taskIds.length;
+      toast.success(
+        allMode
+          ? "Todos os contatos foram liberados."
+          : `${n} contato(s) liberado(s).`,
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
+      toast.error(e instanceof Error ? e.message : "Erro ao liberar contatos.");
+    } finally {
+      setUnassigning(false);
+      setConfirmUnassign(null);
     }
   }
 
-  async function onUnassignAll() {
-    if (
-      !confirm(
-        `Desatribuir TODOS os ${assignedTaskIds.length} contato(s) atribuídos desta missão?\n\nA missão inteira será esvaziada.`,
-      )
-    )
-      return;
-    try {
-      await unassignFn({ data: { mission_id: missionId, task_ids: assignedTaskIds } });
-      setSelected(new Set());
-      invalidate();
-      queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
-      toast.success("Todos os contatos foram desatribuídos.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
-    }
+  function askUnassign(taskIds: string[]) {
+    if (taskIds.length === 0) return;
+    setConfirmUnassign({ ids: taskIds, all: false });
   }
+
+  function askUnassignAll() {
+    if (assignedTaskIds.length === 0) return;
+    setConfirmUnassign({ ids: assignedTaskIds, all: true });
+  }
+
 
   function onApplyTagDone() {
     setSelected(new Set());
@@ -562,28 +576,29 @@ function MissionDetailsPanel() {
             <Button
               size="sm"
               variant="outline"
-              disabled={selected.size === 0}
-              onClick={() => onUnassign([...selected])}
+              disabled={selected.size === 0 || unassigning}
+              onClick={() => askUnassign([...selected])}
             >
               Liberar selecionados ({selected.size})
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={stalledTaskIds.length === 0}
+              disabled={stalledTaskIds.length === 0 || unassigning}
               title="Libera só os contatos que têm responsável mas ainda não foram acionados, para você redistribuir."
-              onClick={() => onUnassign(stalledTaskIds)}
+              onClick={() => askUnassign(stalledTaskIds)}
             >
               Liberar parados ({stalledTaskIds.length})
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={!hasAnyAssignment}
-              onClick={onUnassignAll}
+              disabled={!hasAnyAssignment || unassigning}
+              onClick={askUnassignAll}
             >
               Liberar todos
             </Button>
+
             <Button
               size="sm"
               variant="outline"
@@ -625,7 +640,7 @@ function MissionDetailsPanel() {
                   <button
                     type="button"
                     title="Liberar atribuição"
-                    onClick={() => onUnassign([t.id])}
+                    onClick={() => askUnassign([t.id])}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <X className="h-4 w-4" />
@@ -699,6 +714,41 @@ function MissionDetailsPanel() {
         defaultTagName={q.data.mission.title}
         onApplied={onApplyTagDone}
       />
+
+      <AlertDialog
+        open={confirmUnassign !== null}
+        onOpenChange={(o) => {
+          if (!o && !unassigning) setConfirmUnassign(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmUnassign?.all
+                ? "Liberar todos os contatos desta missão?"
+                : `Liberar ${confirmUnassign?.ids.length ?? 0} contato(s)?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmUnassign?.all
+                ? `Os ${confirmUnassign?.ids.length ?? 0} contatos atribuídos voltam para a fila da missão e o status de envio deles é reiniciado. A missão fica sem ninguém encarregado.`
+                : "Eles voltam para a fila da missão (sem responsável) e o status de envio é reiniciado. Contatos arquivados por erro de número ou por não querer receber não são afetados."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unassigning}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={unassigning}
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmUnassign) runUnassign(confirmUnassign.ids, confirmUnassign.all);
+              }}
+            >
+              {unassigning ? "Liberando…" : "Liberar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+
 }
