@@ -1,26 +1,56 @@
-# Por que você não consegue pegar mais 10 contatos
+# Normalizar segmentos e públicos de campanha
 
-## Diagnóstico (verificado no banco agora)
+## Diagnóstico confirmado
 
-A missão **Convite Plenaria - Grupo Terceirizadas** foi **arquivada** hoje às 00:12 (UTC). Enquanto ela está arquivada, o sistema recusa qualquer nova leva — a regra de auto-atribuição bloqueia missões arquivadas antes mesmo de olhar a fila.
+O segmento **PMPA Campanha** é estático: guarda uma fotografia de **2.468 IDs** e também os filtros que deram origem a ela. Hoje:
 
-Confirmações:
+- 2.465 desses contatos ainda existem; 3 foram removidos;
+- 8 estão arquivados e 8 têm opt-out;
+- todos os demais têm consentimento e telefone enviável;
+- os filtros originais, recalculados hoje, retornam 2.458 contatos — uma lista dinâmica pode mudar, enquanto a lista estática não muda sozinha.
 
-- A missão continua "aberta para auto-atribuição" e com **149 contatos livres** na fila (total 203, 54 atribuídos) — ou seja, não é falta de contato.
-- Ela **não** está pausada.
-- Suas duas últimas levas foram encerradas/liberadas, então você **não** tem leva em aberto travando.
-- Cooldown configurado: 30 minutos — não é o motivo aqui.
+Há três falhas de implementação confirmadas:
 
-Ou seja: a única coisa que bloqueia é o arquivamento.
+1. Ao abrir um segmento estático no CRM, a tela zera os filtros de origem. Isso faz a base inteira aparecer ao fundo, embora a seleção fixa continue sendo outra lista.
+2. A tela “Nova campanha” apenas grava o vínculo com o segmento. Ela não resolve nem prepara os destinatários na criação, então a campanha nasce mostrando zero.
+3. A preparação/criação de campanha ainda consulta milhares de IDs em uma única requisição. O assistente já foi corrigido para usar lotes, mas os demais caminhos não; listas grandes podem falhar ou voltar vazias.
 
-## O que farei
+## Correção
 
-1. Reativar a missão (retirar o arquivamento), mantendo tudo como está: mesmos contatos, mesmas levas, mesmo tamanho de leva (10) e cooldown (30 min).
-2. Conferir no banco que ela voltou como ativa e aberta, com os 149 contatos ainda disponíveis.
-3. Testar no app publicado que "pegar mais 10" volta a funcionar para a sua conta.
-4. Melhorar a mensagem de erro na tela: hoje, quando a missão está arquivada, você recebe um aviso genérico. Passará a dizer com clareza que a missão foi encerrada/arquivada pela coordenação e que por isso não é possível pegar novos contatos.
+1. **Criar uma única resolução de público no servidor**
+   - Aceitar segmento estático, segmento dinâmico, filtros do CRM ou IDs selecionados.
+   - Aplicar tanto filtros simples quanto filtros relacionais (tags, missões e exclusões).
+   - Buscar contatos em lotes, propagar erros e remover IDs inexistentes sem zerar silenciosamente.
+   - Usar a regra única de elegibilidade já existente para consentimento, opt-out, arquivamento, WhatsApp e telefone.
+
+2. **Usar essa resolução em todos os caminhos de campanha**
+   - Estatísticas do assistente.
+   - Criação pelo assistente do CRM.
+   - Criação pela tela “Nova campanha”.
+   - Prévia e botão de preparar/reprocessar campanha.
+   - Gravar `campaign_recipients` e `total_destinatarios` já na criação do rascunho, evitando campanhas zeradas.
+
+3. **Corrigir a abertura do segmento estático no CRM**
+   - Manter os 2.468 IDs como a seleção fixa usada no envio.
+   - Restaurar e exibir os filtros que originaram o segmento, sem transformar silenciosamente a lista estática em dinâmica.
+   - Restringir a tabela aos membros existentes do segmento, em vez de mostrar toda a base.
+   - Exibir um resumo claro: “2.468 salvos · 2.465 existentes · 2.457 aptos agora”, com os motivos dos descartes.
+
+4. **Eliminar contagens enganosas**
+   - A contagem de segmento estático passará a diferenciar IDs salvos, contatos existentes e contatos aptos.
+   - O assistente mostrará também IDs removidos/inexistentes, para a soma dos cartões fechar.
+   - Segmentos dinâmicos continuarão recalculando; segmentos estáticos continuarão sendo fotografia fixa.
+
+## Validação
+
+- Rodar o typecheck.
+- Abrir `/contatos?segment=b26ed144-16a7-4dea-81ac-aaa955cc60f5` e confirmar filtros, tabela, seleção e resumo coerentes.
+- Abrir o assistente e confirmar público real, aptos e descartes — nunca zero silencioso.
+- Criar uma campanha de teste com **PMPA Campanha** e confirmar que ela já nasce com destinatários e filas preparadas.
+- Conferir no banco que `total_destinatarios`, `audience_ids` e `campaign_recipients` têm a mesma quantidade elegível.
 
 ## Cuidados
 
-- Nada é apagado: reativar não mexe em contatos, envios ou histórico de levas.
-- Se o arquivamento foi intencional (a plenária já passou, por exemplo), me diga antes de aprovar — nesse caso eu apenas ajusto a mensagem da tela e deixo a missão encerrada.
+- Nenhum contato ou segmento será apagado.
+- Os 3 IDs sem contato serão apenas informados como inexistentes; não serão recriados automaticamente.
+- Os 8 arquivados/opt-out continuarão bloqueados por segurança.
