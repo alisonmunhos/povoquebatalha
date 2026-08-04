@@ -144,10 +144,18 @@ export const getAudienceStats = createServerFn({ method: "POST" })
     if (!ids.length) {
       return { total: 0, aptos: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, whatsappIndisponivel: 0, motivos: null as null | Record<string, number>, aptosIds: [] as string[], amostra: [] as Array<{ id: string; nome: string | null; nome_social: string | null; phone_e164: string | null; cidade: string | null; bairro: string | null }> };
     }
-    const { data: contatos } = await context.supabase
-      .from("contacts")
-      .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
-      .in("id", ids);
+    // Busca em lotes: listas grandes (segmentos estáticos com milhares de IDs)
+    // estouram o limite de tamanho da consulta e voltavam vazias, zerando tudo.
+    const CHUNK = 400;
+    const contatos: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const { data: parte, error } = await context.supabase
+        .from("contacts")
+        .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
+        .in("id", ids.slice(i, i + CHUNK));
+      if (error) throw error;
+      contatos.push(...((parte ?? []) as Array<Record<string, unknown>>));
+    }
     // C2/C6 — mesma decisão de elegibilidade usada pelo envio.
     const { aptos, motivos } = summarizeEligibility(contatos ?? [], { requireConsent: true });
     return {
