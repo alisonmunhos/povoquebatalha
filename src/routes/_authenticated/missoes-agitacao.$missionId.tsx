@@ -224,41 +224,39 @@ function MissionDetailsPanel() {
     setSelected(new Set());
     invalidate();
   }
-  async function onUnassign(taskIds: string[]) {
-    if (
-      !confirm(
-        `Desatribuir ${taskIds.length} contato(s)? Eles voltam pra lista de sem atribuição (e status concluído/não enviado é reiniciado).`,
-      )
-    )
-      return;
+  // Confirmação dentro do app: a janelinha nativa do navegador é bloqueada no
+  // preview e em alguns celulares, e a ação morria em silêncio.
+  async function runUnassign(taskIds: string[], allMode: boolean) {
+    setUnassigning(true);
     try {
-      await unassignFn({ data: { mission_id: missionId, task_ids: taskIds } });
+      const r = await unassignFn({ data: { mission_id: missionId, task_ids: taskIds } });
       setSelected(new Set());
       invalidate();
       queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
-      toast.success(`${taskIds.length} contato(s) desatribuído(s).`);
+      const n = (r as { updated?: number } | null)?.updated ?? taskIds.length;
+      toast.success(
+        allMode
+          ? "Todos os contatos foram liberados."
+          : `${n} contato(s) liberado(s).`,
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
+      toast.error(e instanceof Error ? e.message : "Erro ao liberar contatos.");
+    } finally {
+      setUnassigning(false);
+      setConfirmUnassign(null);
     }
   }
 
-  async function onUnassignAll() {
-    if (
-      !confirm(
-        `Desatribuir TODOS os ${assignedTaskIds.length} contato(s) atribuídos desta missão?\n\nA missão inteira será esvaziada.`,
-      )
-    )
-      return;
-    try {
-      await unassignFn({ data: { mission_id: missionId, task_ids: assignedTaskIds } });
-      setSelected(new Set());
-      invalidate();
-      queryClient.invalidateQueries({ queryKey: ["mission-recipients", missionId] });
-      toast.success("Todos os contatos foram desatribuídos.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao desatribuir.");
-    }
+  function askUnassign(taskIds: string[]) {
+    if (taskIds.length === 0) return;
+    setConfirmUnassign({ ids: taskIds, all: false });
   }
+
+  function askUnassignAll() {
+    if (assignedTaskIds.length === 0) return;
+    setConfirmUnassign({ ids: assignedTaskIds, all: true });
+  }
+
 
   function onApplyTagDone() {
     setSelected(new Set());
