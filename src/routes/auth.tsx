@@ -75,10 +75,17 @@ function AuthPage() {
         if (signErr) throw signErr;
         const uid = signIn.user?.id;
         if (!uid) throw new Error("Sessão inválida.");
-        const { data: roleRows } = await supabase
+
+        // Garante que a sessão já está gravada no navegador antes de sair da tela.
+        await waitForSession();
+
+        const { data: roleRows, error: rolesErr } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", uid);
+        if (rolesErr) {
+          throw new Error("Não conseguimos confirmar seu acesso agora. Tente novamente.");
+        }
         const roles = (roleRows ?? []).map((r) => r.role as string);
         if (roles.length === 0) {
           await supabase.auth.signOut();
@@ -94,7 +101,17 @@ function AuthPage() {
           throw new Error("Acesso não autorizado. Solicite convite ao administrador.");
         }
         const dest = safeNext(search.next) ?? pickHome(roles);
-        router.navigate({ to: dest });
+        // Navegação interna com garantia: se a rota não trocar, vamos direto pela URL.
+        try {
+          await router.navigate({ to: dest });
+        } catch {
+          /* cai no fallback abaixo */
+        }
+        if (window.location.pathname !== dest.split("?")[0]) {
+          window.location.assign(dest);
+        }
+        return;
+
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
           redirectTo: `${window.location.origin}/aceitar-convite`,
