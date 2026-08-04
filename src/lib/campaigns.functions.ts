@@ -3,8 +3,12 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
 import { audienceInputSchema, campaignInput, createFromSelectionSchema } from "@/lib/campaigns.schemas";
-import type { AudienceSource } from "@/lib/campaign-audience.server";
 import type { CrmFilters } from "@/lib/crm-filters";
+
+type CampaignSource =
+  | { ids: string[] }
+  | { segmentId: string }
+  | { filters: Partial<CrmFilters> };
 
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -67,7 +71,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       link_title: payload.link_title ?? null,
       link_description: payload.link_description ?? null,
       link_image: payload.link_image ?? null,
-      total_destinatarios: preparedAudience?.eligible.length ?? 0,
+      ...(preparedAudience ? { total_destinatarios: preparedAudience.eligible.length } : {}),
       created_by: context.userId,
     };
     if (id) {
@@ -212,7 +216,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
     const { ensureCampaignLink, resolveAudience } = await import("@/lib/campaign-audience.server");
     const { renderVars } = await import("@/lib/wa-send.server");
     const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
-    const source: AudienceSource | null = savedIds.length
+    const source: CampaignSource | null = savedIds.length
       ? { ids: savedIds } as const
       : c.segment_id
         ? { segmentId: c.segment_id } as const
@@ -253,7 +257,7 @@ export const prepareCampaign = createServerFn({ method: "POST" })
     }
     const { replaceCampaignRecipients, resolveAudience } = await import("@/lib/campaign-audience.server");
     const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
-    const source: AudienceSource | null = savedIds.length
+    const source: CampaignSource | null = savedIds.length
       ? { ids: savedIds } as const
       : c.segment_id
         ? { segmentId: c.segment_id } as const
