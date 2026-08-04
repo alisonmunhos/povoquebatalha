@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
 import { audienceInputSchema, campaignInput, createFromSelectionSchema } from "@/lib/campaigns.schemas";
+import type { AudienceSource } from "@/lib/campaign-audience.server";
+import type { CrmFilters } from "@/lib/crm-filters";
 
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -210,12 +212,12 @@ export const previewCampaign = createServerFn({ method: "POST" })
     const { ensureCampaignLink, resolveAudience } = await import("@/lib/campaign-audience.server");
     const { renderVars } = await import("@/lib/wa-send.server");
     const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
-    const source = savedIds.length
+    const source: AudienceSource | null = savedIds.length
       ? { ids: savedIds } as const
       : c.segment_id
         ? { segmentId: c.segment_id } as const
         : c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length
-          ? { filters: c.filtro_adhoc } as const
+          ? { filters: c.filtro_adhoc as Partial<CrmFilters> }
           : null;
     if (!source) {
       return { totalBruto: 0, elegíveis: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
@@ -251,12 +253,12 @@ export const prepareCampaign = createServerFn({ method: "POST" })
     }
     const { replaceCampaignRecipients, resolveAudience } = await import("@/lib/campaign-audience.server");
     const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
-    const source = savedIds.length
+    const source: AudienceSource | null = savedIds.length
       ? { ids: savedIds } as const
       : c.segment_id
         ? { segmentId: c.segment_id } as const
         : c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length
-          ? { filters: c.filtro_adhoc } as const
+          ? { filters: c.filtro_adhoc as Partial<CrmFilters> }
           : null;
     if (!source) return { ok: false as const, total: 0, ignorados: 0, message: "Público vazio — nenhum contato corresponde aos filtros." };
     const audience = await resolveAudience(context.supabase, source);
