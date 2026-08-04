@@ -136,6 +136,11 @@ function MissionDetailsPanel() {
   const [responsavelFilter, setResponsavelFilter] = useState<string>("todos");
   const [hideSemNumero, setHideSemNumero] = useState(false);
   const [hideOptOutErro, setHideOptOutErro] = useState(true);
+  const [unassigning, setUnassigning] = useState(false);
+  const [confirmUnassign, setConfirmUnassign] = useState<{ ids: string[]; all: boolean } | null>(
+    null,
+  );
+
 
 
   const q = useQuery({
