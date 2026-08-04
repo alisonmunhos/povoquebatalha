@@ -17,6 +17,17 @@ import {
 } from "@/lib/agitation-missions.functions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { AssignResponsibleModal } from "@/components/AssignResponsibleModal";
 import { AssignMissionUsersModal } from "@/components/AssignMissionUsersModal";
 import { OpenMissionModal } from "@/components/OpenMissionModal";
