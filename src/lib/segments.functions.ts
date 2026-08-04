@@ -91,7 +91,16 @@ export const countSegment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: seg } = await context.supabase.from("segments").select("tipo,filtro,member_ids").eq("id", data.id).single();
     if (!seg) return { total: 0 };
-    if (seg.tipo === "estatico") return { total: (seg.member_ids as string[] | null)?.length ?? 0 };
+    if (seg.tipo === "estatico") {
+      const { resolveAudience } = await import("@/lib/campaign-audience.server");
+      const audience = await resolveAudience(context.supabase, { ids: (seg.member_ids as string[] | null) ?? [] });
+      return {
+        total: audience.ids.length,
+        existentes: audience.contacts.length,
+        aptos: audience.eligible.length,
+        inexistentes: audience.missing,
+      };
+    }
     const filtro = (seg.filtro ?? {}) as CrmFilters;
     let q = context.supabase.from("contacts").select("id", { count: "exact", head: true });
     q = applyCrmFilters(q as never, filtro) as typeof q;

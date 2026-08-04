@@ -276,6 +276,9 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <Stat label="Selecionados / no filtro" value={aud.total} tone="neutral" />
                 <Stat label="Aptos para envio" value={aud.aptos} tone="ok" />
+                {typeof aud.inexistentes === "number" && aud.inexistentes > 0 && (
+                  <Stat label="Não existem mais" value={aud.inexistentes} tone="warn" />
+                )}
                 <Stat label="Sem consentimento" value={aud.semConsent} tone="warn" />
                 <Stat label="Opt-out (não enviar)" value={aud.optOut} tone="warn" />
                 <Stat label="Arquivados" value={aud.arquivados} tone="warn" />

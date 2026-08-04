@@ -1,42 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { bestPhone, canReceiveMessage, summarizeEligibility } from "@/lib/contact-rules";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
-import { applyCrmFilters, crmFilterSchema, type CrmFilters } from "@/lib/crm-filters";
-import { renderVars } from "@/lib/wa-send.server";
+import { audienceInputSchema, campaignInput, createFromSelectionSchema } from "@/lib/campaigns.schemas";
+import type { CrmFilters } from "@/lib/crm-filters";
 
-const campaignInput = z.object({
-  id: z.string().uuid().optional(),
-  nome: z.string().min(1).max(160),
-  descricao: z.string().max(500).optional().nullable(),
-  tipo: z.enum(["text", "image", "document", "link"]).default("text"),
-  mensagem_template: z.string().min(1).max(4000),
-  template_id: z.string().uuid().optional().nullable(),
-  midia_url: z.string().url().optional().nullable(),
-  midia_path: z.string().max(500).optional().nullable(),
-  midia_filename: z.string().max(200).optional().nullable(),
-  midia_mime: z.string().max(120).optional().nullable(),
-  midia_caption: z.string().max(500).optional().nullable(),
-  segment_id: z.string().uuid().optional().nullable(),
-  filtro_adhoc: crmFilterSchema.partial().optional(),
-  audience_ids: z.array(z.string().uuid()).max(20000).optional().nullable(),
-  agendado_para: z.string().datetime().optional().nullable(),
-  delay_min_ms: z.number().int().min(500).max(60000).default(1500),
-  delay_max_ms: z.number().int().min(500).max(120000).default(4000),
-  link_url: z.string().url().optional().nullable(),
-  link_title: z.string().max(2000).transform(s => s.slice(0,300)).optional().nullable(),
-  link_description: z.string().max(4000).transform(s => s.slice(0,600)).optional().nullable(),
-  link_image: z.string().url().optional().nullable(),
-});
-
-/** Anexa a URL ao final do corpo se ainda não estiver contida (garante prévia no WhatsApp). */
-function ensureLinkInBody(body: string, linkUrl: string | null | undefined): string {
-  if (!linkUrl) return body;
-  if (body.includes(linkUrl)) return body;
-  const sep = body.trim().length > 0 ? "\n\n" : "";
-  return `${body}${sep}${linkUrl}`;
-}
+type CampaignSource =
+  | { ids: string[] }
+  | { segmentId: string }
+  | { filters: Partial<CrmFilters> };
 
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -70,6 +42,14 @@ export const upsertCampaign = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => campaignInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...payload } = data;
+    let preparedAudience: Awaited<ReturnType<typeof import("@/lib/campaign-audience.server")["resolveAudience"]>> | null = null;
+    if (!id && payload.segment_id) {
+      const { resolveAudience } = await import("@/lib/campaign-audience.server");
+      preparedAudience = await resolveAudience(context.supabase, { segmentId: payload.segment_id });
+      if (!preparedAudience.eligible.length) {
+        throw new Error("Este segmento não tem contatos aptos para receber a campanha.");
+      }
+    }
     const row = {
       nome: payload.nome,
       descricao: payload.descricao ?? null,
@@ -83,7 +63,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       midia_caption: payload.midia_caption ?? null,
       segment_id: payload.segment_id ?? null,
       filtro_adhoc: (payload.filtro_adhoc ?? {}) as never,
-      audience_ids: (payload.audience_ids ?? null) as never,
+      audience_ids: (preparedAudience?.eligible.map((contact) => contact.id) ?? payload.audience_ids ?? null) as never,
       agendado_para: payload.agendado_para ?? null,
       delay_min_ms: payload.delay_min_ms,
       delay_max_ms: payload.delay_max_ms,
@@ -91,6 +71,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       link_title: payload.link_title ?? null,
       link_description: payload.link_description ?? null,
       link_image: payload.link_image ?? null,
+      ...(preparedAudience ? { total_destinatarios: preparedAudience.eligible.length } : {}),
       created_by: context.userId,
     };
     if (id) {
@@ -100,6 +81,14 @@ export const upsertCampaign = createServerFn({ method: "POST" })
     }
     const { data: ins, error } = await context.supabase.from("campaigns").insert(row).select("id").single();
     if (error) throw error;
+    if (preparedAudience) {
+      const { replaceCampaignRecipients } = await import("@/lib/campaign-audience.server");
+      await replaceCampaignRecipients(
+        context.supabase,
+        { id: ins.id, mensagem_template: payload.mensagem_template, link_url: payload.link_url },
+        preparedAudience.eligible,
+      );
+    }
     return { id: ins.id };
   });
 
@@ -115,71 +104,31 @@ export const deleteCampaign = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-// (render de variáveis e escolha de endpoint agora vivem em wa-send.server.ts)
-
-
-// ============ NOVO: estatísticas de público antes de enviar ============
-const audienceInputSchema = z.object({
-  ids: z.array(z.string().uuid()).max(20000).optional(),
-  filters: crmFilterSchema.partial().optional(),
-});
-
 export const getAudienceStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => audienceInputSchema.parse(d))
   .handler(async ({ data, context }) => {
-    let ids = data.ids ?? [];
-    if (!ids.length && data.filters) {
-      let q = context.supabase.from("contacts").select("id").limit(20000);
-      q = applyCrmFilters(q as never, data.filters as CrmFilters) as typeof q;
-      if (data.filters.tag_ids?.length) {
-        const { data: rels } = await context.supabase.from("contact_tags").select("contact_id").in("tag_id", data.filters.tag_ids);
-        const relIds = Array.from(new Set((rels ?? []).map((r) => r.contact_id)));
-        if (!relIds.length) ids = [];
-        else { const { data: rows } = await q.in("id", relIds); ids = (rows ?? []).map((r) => r.id); }
-      } else {
-        const { data: rows } = await q; ids = (rows ?? []).map((r) => r.id);
-      }
-    }
-    if (!ids.length) {
+    const { bestPhone } = await import("@/lib/contact-rules");
+    const { resolveAudience } = await import("@/lib/campaign-audience.server");
+    const source = data.ids?.length ? { ids: data.ids } as const : data.filters ? { filters: data.filters } as const : null;
+    if (!source) {
       return { total: 0, aptos: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, whatsappIndisponivel: 0, motivos: null as null | Record<string, number>, aptosIds: [] as string[], amostra: [] as Array<{ id: string; nome: string | null; nome_social: string | null; phone_e164: string | null; cidade: string | null; bairro: string | null }> };
     }
-    // Busca em lotes pequenos e em paralelo: a lista de IDs viaja na URL da
-    // consulta e, com milhares de contatos (segmento estático), estourava o
-    // limite de tamanho do pedido — o erro era silencioso e zerava tudo.
-    const CHUNK = 120;
-    const PARALELO = 6;
-    const SELECT_CONTATO =
-      "id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status";
-    const lotes: string[][] = [];
-    for (let i = 0; i < ids.length; i += CHUNK) lotes.push(ids.slice(i, i + CHUNK));
-    const contatos: Array<Record<string, unknown>> = [];
-    for (let i = 0; i < lotes.length; i += PARALELO) {
-      const partes = await Promise.all(
-        lotes.slice(i, i + PARALELO).map((lote) =>
-          context.supabase.from("contacts").select(SELECT_CONTATO).in("id", lote),
-        ),
-      );
-      for (const { data: parte, error } of partes) {
-        if (error) throw error;
-        contatos.push(...((parte ?? []) as Array<Record<string, unknown>>));
-      }
-    }
-    // C2/C6 — mesma decisão de elegibilidade usada pelo envio.
-    const { aptos, motivos } = summarizeEligibility(contatos ?? [], { requireConsent: true });
+    const audience = await resolveAudience(context.supabase, source);
     return {
-      total: ids.length,
-      aptos: aptos.length,
-      semConsent: motivos.sem_consentimento,
-      optOut: motivos.opt_out,
-      arquivados: motivos.arquivado + motivos.nao_enviar,
-      semTelefone: motivos.sem_telefone,
-      whatsappIndisponivel: motivos.whatsapp_indisponivel,
-      motivos,
-      aptosIds: aptos.map((c) => (c as { id: string }).id),
-      amostra: aptos.slice(0, 3).map((c) => {
-        const r = c as { id: string; nome: string | null; nome_social: string | null; cidade: string | null; bairro: string | null };
-        return { id: r.id, nome: r.nome, nome_social: r.nome_social, phone_e164: bestPhone(c), cidade: r.cidade, bairro: r.bairro };
+      total: audience.ids.length,
+      existentes: audience.contacts.length,
+      inexistentes: audience.missing,
+      aptos: audience.eligible.length,
+      semConsent: audience.reasons.sem_consentimento,
+      optOut: audience.reasons.opt_out,
+      arquivados: audience.reasons.arquivado + audience.reasons.nao_enviar,
+      semTelefone: audience.reasons.sem_telefone,
+      whatsappIndisponivel: audience.reasons.whatsapp_indisponivel,
+      motivos: audience.reasons,
+      aptosIds: audience.eligible.map((contact) => contact.id),
+      amostra: audience.eligible.slice(0, 3).map((contact) => {
+        return { id: contact.id, nome: contact.nome, nome_social: contact.nome_social, phone_e164: bestPhone(contact), cidade: contact.cidade, bairro: contact.bairro };
       }),
     };
   });
@@ -203,53 +152,15 @@ export const signCampaignMediaUpload = createServerFn({ method: "POST" })
     return { path, token: signed.token, signedUrl: signed.signedUrl, contentType: data.contentType, filename: clean };
   });
 
-// ============ NOVO: criar campanha completa desde a seleção do CRM ============
-const createFromSelectionSchema = z.object({
-  nome: z.string().trim().min(1).max(160),
-  ids: z.array(z.string().uuid()).max(20000).optional(),
-  filters: crmFilterSchema.partial().optional(),
-  template_id: z.string().uuid().optional().nullable(),
-  mensagem_template: z.string().min(1).max(4000),
-  tipo: z.enum(["text","image","document","link"]).default("text"),
-  midia_path: z.string().max(500).optional().nullable(),
-  midia_filename: z.string().max(200).optional().nullable(),
-  midia_mime: z.string().max(120).optional().nullable(),
-  agendado_para: z.string().datetime().optional().nullable(),
-  delay_min_ms: z.number().int().min(500).max(60000).default(1500),
-  delay_max_ms: z.number().int().min(500).max(120000).default(4000),
-  link_url: z.string().url().optional().nullable(),
-  link_title: z.string().max(2000).transform(s => s.slice(0,300)).optional().nullable(),
-  link_description: z.string().max(4000).transform(s => s.slice(0,600)).optional().nullable(),
-  link_image: z.string().url().optional().nullable(),
-  save_as_template: z.object({ title: z.string().trim().min(2).max(120), category: z.string().max(60).optional() }).optional(),
-});
-
 export const createCampaignFromSelection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => createFromSelectionSchema.parse(d))
   .handler(async ({ data, context }) => {
-    // 1) Resolve audience -> IDs
-    let baseIds = data.ids ?? [];
-    if (!baseIds.length && data.filters) {
-      let q = context.supabase.from("contacts").select("id").limit(20000);
-      q = applyCrmFilters(q as never, data.filters as CrmFilters) as typeof q;
-      if (data.filters.tag_ids?.length) {
-        const { data: rels } = await context.supabase.from("contact_tags").select("contact_id").in("tag_id", data.filters.tag_ids);
-        const relIds = Array.from(new Set((rels ?? []).map((r) => r.contact_id)));
-        if (relIds.length) { const { data: rows } = await q.in("id", relIds); baseIds = (rows ?? []).map((r) => r.id); }
-      } else {
-        const { data: rows } = await q; baseIds = (rows ?? []).map((r) => r.id);
-      }
-    }
-    if (!baseIds.length) throw new Error("Nenhum contato no público.");
-
-    // 2) Filter eligibility
-    const { data: contatos } = await context.supabase
-      .from("contacts")
-      .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
-      .in("id", baseIds);
-    const elegiveis = (contatos ?? []).filter((c) => canReceiveMessage(c, { requireConsent: true }));
-    if (!elegiveis.length) throw new Error("Nenhum contato apto (com consentimento, telefone e sem opt-out/arquivado).");
+    const { replaceCampaignRecipients, resolveAudience } = await import("@/lib/campaign-audience.server");
+    const source = data.ids?.length ? { ids: data.ids } as const : data.filters ? { filters: data.filters } as const : null;
+    if (!source) throw new Error("Nenhum contato no público.");
+    const audience = await resolveAudience(context.supabase, source);
+    if (!audience.eligible.length) throw new Error("Nenhum contato apto (com consentimento, telefone e sem opt-out/arquivado).");
 
     // 3) Optionally save as reusable template
     if (data.save_as_template) {
@@ -274,7 +185,7 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
       midia_path: data.midia_path ?? null,
       midia_filename: data.midia_filename ?? null,
       midia_mime: data.midia_mime ?? null,
-      audience_ids: elegiveis.map((c) => c.id) as never,
+      audience_ids: audience.eligible.map((contact) => contact.id) as never,
       agendado_para: data.agendado_para ?? null,
       delay_min_ms: data.delay_min_ms,
       delay_max_ms: data.delay_max_ms,
@@ -283,25 +194,17 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
       link_description: data.link_description ?? null,
       link_image: data.link_image ?? null,
       status: data.agendado_para ? "scheduled" : "draft",
-      total_destinatarios: elegiveis.length,
+      total_destinatarios: audience.eligible.length,
       created_by: context.userId,
     }).select("id").single();
     if (error) throw error;
 
-    // 5) Create queued recipients with rendered messages (com link ao final quando houver)
-    const rows = elegiveis.map((c) => ({
-      campaign_id: ins.id, contact_id: c.id,
-      rendered_message: ensureLinkInBody(renderVars(data.mensagem_template, c), data.link_url),
-      status: "queued" as const,
-    }));
-    for (let i = 0; i < rows.length; i += 500) {
-      const chunk = rows.slice(i, i + 500);
-      const { error: e2 } = await context.supabase.from("campaign_recipients").insert(chunk);
-      if (e2) throw e2;
-    }
-
-    const ignorados = baseIds.length - elegiveis.length;
-    return { id: ins.id, total: elegiveis.length, ignorados };
+    await replaceCampaignRecipients(
+      context.supabase,
+      { id: ins.id, mensagem_template: data.mensagem_template, link_url: data.link_url },
+      audience.eligible,
+    );
+    return { id: ins.id, total: audience.eligible.length, ignorados: audience.ids.length - audience.eligible.length };
   });
 
 export const previewCampaign = createServerFn({ method: "POST" })
@@ -310,76 +213,38 @@ export const previewCampaign = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: c, error } = await context.supabase.from("campaigns").select("*").eq("id", data.id).single();
     if (error || !c) throw error ?? new Error("Não encontrada");
-
-    let contactsQuery = context.supabase
-      .from("contacts")
-      .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status", { count: "exact" });
-
-    if (c.audience_ids && Array.isArray(c.audience_ids) && (c.audience_ids as unknown[]).length) {
-      contactsQuery = contactsQuery.in("id", c.audience_ids as string[]);
-    } else if (c.segment_id) {
-      const { data: seg } = await context.supabase.from("segments").select("tipo,filtro,member_ids").eq("id", c.segment_id).single();
-      if (seg?.tipo === "estatico") {
-        const ids = (seg.member_ids as string[]) ?? [];
-        contactsQuery = contactsQuery.in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-      } else if (seg?.filtro) {
-        contactsQuery = applyCrmFilters(contactsQuery as never, seg.filtro as CrmFilters) as typeof contactsQuery;
-      }
-    } else if (c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length) {
-      contactsQuery = applyCrmFilters(contactsQuery as never, c.filtro_adhoc as CrmFilters) as typeof contactsQuery;
-    } else {
+    const { ensureCampaignLink, resolveAudience } = await import("@/lib/campaign-audience.server");
+    const { renderVars } = await import("@/lib/wa-send.server");
+    const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
+    const source: CampaignSource | null = savedIds.length
+      ? { ids: savedIds } as const
+      : c.segment_id
+        ? { segmentId: c.segment_id } as const
+        : c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length
+          ? { filters: c.filtro_adhoc as Partial<CrmFilters> }
+          : null;
+    if (!source) {
       return { totalBruto: 0, elegíveis: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
     }
-
-    const { data: all, count } = await contactsQuery.limit(20000);
-    let semConsent = 0, optOut = 0, arquivados = 0, semTelefone = 0;
-    const elegiveis: NonNullable<typeof all> = [];
-    for (const r of all ?? []) {
-      if (r.arquivado_at || r.lifecycle_status === "nao_enviar") { arquivados++; continue; }
-      if (r.opt_out_at) { optOut++; continue; }
-      if (!r.consentimento_whatsapp) { semConsent++; continue; }
-      if (!r.phone_e164) { semTelefone++; continue; }
-      elegiveis.push(r);
-    }
-    const exemplos = elegiveis.slice(0, 3).map((r) => ({
-      nome: r.nome, cidade: r.cidade, phone: r.phone_e164,
-      preview: ensureLinkInBody(renderVars(c.mensagem_template, r), c.link_url),
+    const audience = await resolveAudience(context.supabase, source);
+    const exemplos = audience.eligible.slice(0, 3).map((contact) => ({
+      nome: contact.nome,
+      cidade: contact.cidade,
+      phone: contact.phone_e164 ?? contact.phone_whatsapp_candidate ?? contact.phone_raw,
+      preview: ensureCampaignLink(renderVars(c.mensagem_template, contact), c.link_url),
     }));
 
     return {
-      totalBruto: count ?? (all?.length ?? 0),
-      elegíveis: elegiveis.length,
-      semConsent, optOut, arquivados, semTelefone,
+      totalBruto: audience.ids.length,
+      elegíveis: audience.eligible.length,
+      semConsent: audience.reasons.sem_consentimento,
+      optOut: audience.reasons.opt_out,
+      arquivados: audience.reasons.arquivado + audience.reasons.nao_enviar,
+      semTelefone: audience.reasons.sem_telefone,
       exemplos,
       mensagemExemplo: exemplos[0]?.preview ?? c.mensagem_template,
     };
   });
-
-async function buildAudienceIds(context: { supabase: import("@supabase/supabase-js").SupabaseClient }, campaign: {
-  segment_id: string | null;
-  filtro_adhoc: unknown;
-  audience_ids?: unknown;
-}): Promise<string[]> {
-  if (campaign.audience_ids && Array.isArray(campaign.audience_ids) && (campaign.audience_ids as unknown[]).length) {
-    return campaign.audience_ids as string[];
-  }
-  if (campaign.segment_id) {
-    const { data: seg } = await context.supabase.from("segments").select("tipo,filtro,member_ids").eq("id", campaign.segment_id).single();
-    if (!seg) return [];
-    if (seg.tipo === "estatico") return (seg.member_ids as string[]) ?? [];
-    let q = context.supabase.from("contacts").select("id");
-    q = applyCrmFilters(q as never, (seg.filtro ?? {}) as CrmFilters) as typeof q;
-    const { data } = await q.limit(20000);
-    return (data ?? []).map((r) => r.id);
-  }
-  if (campaign.filtro_adhoc && Object.keys(campaign.filtro_adhoc as object).length) {
-    let q = context.supabase.from("contacts").select("id");
-    q = applyCrmFilters(q as never, campaign.filtro_adhoc as CrmFilters) as typeof q;
-    const { data } = await q.limit(20000);
-    return (data ?? []).map((r) => r.id);
-  }
-  return [];
-}
 
 export const prepareCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -390,37 +255,31 @@ export const prepareCampaign = createServerFn({ method: "POST" })
     if (!["draft", "scheduled", "paused"].includes(c.status)) {
       return { ok: false as const, total: 0, ignorados: 0, message: "Campanha em andamento ou finalizada — não pode ser reprocessada." };
     }
-
-    const audience = await buildAudienceIds(context, c);
-    if (!audience.length) return { ok: false as const, total: 0, ignorados: 0, message: "Público vazio — nenhum contato corresponde aos filtros." };
-
-    const { data: contatos } = await context.supabase
-      .from("contacts")
-      .select("id,nome,nome_social,phone_e164,phone_whatsapp_candidate,phone_raw,cidade,bairro,uf,consentimento_whatsapp,opt_out_at,arquivado_at,lifecycle_status,whatsapp_status")
-      .in("id", audience.slice(0, 20000));
-
-    const elegiveis = (contatos ?? []).filter((c2) => canReceiveMessage(c2, { requireConsent: true }));
-
-    await context.supabase.from("campaign_recipients").delete().eq("campaign_id", data.id);
-
-    const rows = elegiveis.map((c2) => ({
-      campaign_id: data.id, contact_id: c2.id,
-      rendered_message: ensureLinkInBody(renderVars(c.mensagem_template, c2), c.link_url),
-      status: "queued" as const,
-    }));
-
-    for (let i = 0; i < rows.length; i += 500) {
-      const chunk = rows.slice(i, i + 500);
-      const { error } = await context.supabase.from("campaign_recipients").insert(chunk);
-      if (error) throw error;
-    }
+    const { replaceCampaignRecipients, resolveAudience } = await import("@/lib/campaign-audience.server");
+    const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
+    const source: CampaignSource | null = savedIds.length
+      ? { ids: savedIds } as const
+      : c.segment_id
+        ? { segmentId: c.segment_id } as const
+        : c.filtro_adhoc && Object.keys(c.filtro_adhoc as object).length
+          ? { filters: c.filtro_adhoc as Partial<CrmFilters> }
+          : null;
+    if (!source) return { ok: false as const, total: 0, ignorados: 0, message: "Público vazio — nenhum contato corresponde aos filtros." };
+    const audience = await resolveAudience(context.supabase, source);
+    if (!audience.ids.length) return { ok: false as const, total: 0, ignorados: 0, message: "Público vazio — nenhum contato corresponde aos filtros." };
+    await replaceCampaignRecipients(
+      context.supabase,
+      { id: data.id, mensagem_template: c.mensagem_template, link_url: c.link_url },
+      audience.eligible,
+    );
 
     await context.supabase.from("campaigns").update({
-      total_destinatarios: rows.length,
+      audience_ids: audience.eligible.map((contact) => contact.id) as never,
+      total_destinatarios: audience.eligible.length,
       status: c.agendado_para ? "scheduled" : "draft",
     }).eq("id", data.id);
 
-    return { ok: true as const, total: rows.length, ignorados: (contatos?.length ?? 0) - rows.length, message: null };
+    return { ok: true as const, total: audience.eligible.length, ignorados: audience.ids.length - audience.eligible.length, message: null };
   });
 
 export const startCampaign = createServerFn({ method: "POST" })
