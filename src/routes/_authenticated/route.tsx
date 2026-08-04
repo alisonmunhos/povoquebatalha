@@ -9,15 +9,33 @@ import { Clock } from "lucide-react";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
+    const bounce = () => {
       throw redirect({
         to: "/auth",
         search: { next: location.pathname + (location.searchStr ?? "") },
       });
+    };
+
+    // 1) Sessão local: se não existe nenhuma, é logout de verdade.
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess.session) bounce();
+
+    // 2) Confirma com o servidor, tolerando uma falha momentânea de rede.
+    let user = null;
+    for (let i = 0; i < 2; i++) {
+      const { data, error } = await supabase.auth.getUser();
+      if (data.user) {
+        user = data.user;
+        break;
+      }
+      // Sessão inválida/expirada → volta pro login. Erro de rede → tenta de novo.
+      if (error && (error.status === 401 || error.status === 403)) bounce();
+      await new Promise((r) => setTimeout(r, 250));
     }
-    return { user: data.user };
+    if (!user) return { user: sess.session!.user };
+    return { user };
   },
+
   component: AuthenticatedShell,
 });
 
