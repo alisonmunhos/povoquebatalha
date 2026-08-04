@@ -146,7 +146,9 @@ export const getAudienceStats = createServerFn({ method: "POST" })
     }
     // Busca em lotes: listas grandes (segmentos estáticos com milhares de IDs)
     // estouram o limite de tamanho da consulta e voltavam vazias, zerando tudo.
-    const CHUNK = 400;
+    // Lotes pequenos: a consulta viaja na URL e listas grandes estouram o
+    // limite de cabeçalho HTTP (o erro antes era silencioso e zerava tudo).
+    const CHUNK = 120;
     const contatos: Array<Record<string, unknown>> = [];
     for (let i = 0; i < ids.length; i += CHUNK) {
       const { data: parte, error } = await context.supabase
