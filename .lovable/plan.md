@@ -1,22 +1,26 @@
-## Situação atual (verificada agora)
+# Por que você não consegue pegar mais 10 contatos
 
-- Seu lote está lá: **10 contatos sem ação** na missão `5e39f70f…`, atribuídos a você (`24fb8128…`) às 01:35 UTC de hoje — parados há poucos minutos.
-- Você tem **3 aparelhos/navegadores inscritos** para receber push.
-- Nenhum aviso de missão foi criado para você nas últimas 2h, então o bloqueio "um aviso por rodada" não vai atrapalhar o teste.
-- O agendamento já aponta para o domínio publicado e o endpoint respondeu 200 no último teste.
+## Diagnóstico (verificado no banco agora)
 
-Como o job só avisa quem está parado há mais de 1h, ele hoje não dispararia nada. O endpoint aceita parâmetros de tempo no corpo da chamada, então dá para simular sem mexer no código nem no agendamento.
+A missão **Convite Plenaria - Grupo Terceirizadas** foi **arquivada** hoje às 00:12 (UTC). Enquanto ela está arquivada, o sistema recusa qualquer nova leva — a regra de auto-atribuição bloqueia missões arquivadas antes mesmo de olhar a fila.
+
+Confirmações:
+
+- A missão continua "aberta para auto-atribuição" e com **149 contatos livres** na fila (total 203, 54 atribuídos) — ou seja, não é falta de contato.
+- Ela **não** está pausada.
+- Suas duas últimas levas foram encerradas/liberadas, então você **não** tem leva em aberto travando.
+- Cooldown configurado: 30 minutos — não é o motivo aqui.
+
+Ou seja: a única coisa que bloqueia é o arquivamento.
 
 ## O que farei
 
-1. Chamar uma vez o endpoint publicado `/api/public/jobs/release-stalled-missions` com os tempos reduzidos apenas nessa chamada:
-   - avisar a partir de 0h (para pegar seu lote recém-pego)
-   - liberar somente depois de 24h (para **não** devolver seus 10 contatos para a fila)
-2. Conferir a resposta (`avisados` deve vir 1).
-3. Confirmar no banco que a notificação foi criada para você, com título "Você ainda tem contatos esperando" e a contagem certa de contatos.
-4. Confirmar que o envio de push foi disparado para os 3 aparelhos e reportar qualquer falha registrada nos logs do servidor.
+1. Reativar a missão (retirar o arquivamento), mantendo tudo como está: mesmos contatos, mesmas levas, mesmo tamanho de leva (10) e cooldown (30 min).
+2. Conferir no banco que ela voltou como ativa e aberta, com os 149 contatos ainda disponíveis.
+3. Testar no app publicado que "pegar mais 10" volta a funcionar para a sua conta.
+4. Melhorar a mensagem de erro na tela: hoje, quando a missão está arquivada, você recebe um aviso genérico. Passará a dizer com clareza que a missão foi encerrada/arquivada pela coordenação e que por isso não é possível pegar novos contatos.
 
 ## Cuidados
 
-- Nada é alterado no agendamento, no código ou nos seus contatos: os tempos reduzidos valem só para essa chamada manual.
-- Você deve receber a notificação no sininho e no celular. Se aparecer no sininho mas não no celular, o problema está na permissão/inscrição do aparelho — nesse caso eu investigo os logs de push em seguida.
+- Nada é apagado: reativar não mexe em contatos, envios ou histórico de levas.
+- Se o arquivamento foi intencional (a plenária já passou, por exemplo), me diga antes de aprovar — nesse caso eu apenas ajusto a mensagem da tela e deixo a missão encerrada.
