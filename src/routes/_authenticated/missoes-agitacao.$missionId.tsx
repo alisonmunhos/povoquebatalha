@@ -565,28 +565,29 @@ function MissionDetailsPanel() {
             <Button
               size="sm"
               variant="outline"
-              disabled={selected.size === 0}
-              onClick={() => onUnassign([...selected])}
+              disabled={selected.size === 0 || unassigning}
+              onClick={() => askUnassign([...selected])}
             >
               Liberar selecionados ({selected.size})
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={stalledTaskIds.length === 0}
+              disabled={stalledTaskIds.length === 0 || unassigning}
               title="Libera só os contatos que têm responsável mas ainda não foram acionados, para você redistribuir."
-              onClick={() => onUnassign(stalledTaskIds)}
+              onClick={() => askUnassign(stalledTaskIds)}
             >
               Liberar parados ({stalledTaskIds.length})
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={!hasAnyAssignment}
-              onClick={onUnassignAll}
+              disabled={!hasAnyAssignment || unassigning}
+              onClick={askUnassignAll}
             >
               Liberar todos
             </Button>
+
             <Button
               size="sm"
               variant="outline"
