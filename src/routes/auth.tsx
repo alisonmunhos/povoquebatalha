@@ -45,7 +45,16 @@ function pickHome(roles: string[]): string {
   return "/dashboard";
 }
 
+async function waitForSession(tries = 10): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) return;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+}
+
 function safeNext(next: string | undefined): string | null {
+
   if (!next) return null;
   if (!next.startsWith("/") || next.startsWith("//")) return null;
   return next;
