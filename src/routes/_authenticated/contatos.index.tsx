@@ -149,10 +149,11 @@ function Contatos() {
 
   // Aplica segmento via querystring
   useEffect(() => {
-    if (!search.segment) {
-      setSegmentoEstaticoIds(null);
-      return;
-    }
+    // Sem segmento na URL não zeramos a lista fixa: a sincronia de filtros com
+    // a URL remove o parâmetro "segment" logo depois de carregar, e zerar aqui
+    // fazia o envio voltar para o modo "filtro" com a seleção do segmento.
+    if (!search.segment) return;
+
     segFn().then((r) => {
       const s = r.rows.find((x) => x.id === search.segment);
       if (!s) return;
