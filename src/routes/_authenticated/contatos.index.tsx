@@ -231,7 +231,7 @@ function Contatos() {
       toast.success(`${r.ids.length} contato(s) selecionados`);
     }
   }
-  function clearSel() { setSelected(new Set()); }
+  function clearSel() { setSelected(new Set()); setSegmentoEstaticoIds(null); }
 
   async function doBulkTag(add: boolean) {
     if (!bulkTagId) return toast.error("Escolha uma tag");
