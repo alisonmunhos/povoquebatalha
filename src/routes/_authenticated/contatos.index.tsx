@@ -103,6 +103,8 @@ function Contatos() {
   const [sendDlg, setSendDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
   const [missaoDlg, setMissaoDlg] = useState<{ open: boolean; mode: "selection" | "filter" }>({ open: false, mode: "selection" });
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  // IDs fixos de um segmento estático aberto pela URL (null = nenhum)
+  const [segmentoEstaticoIds, setSegmentoEstaticoIds] = useState<string[] | null>(null);
 
   // Opções dinâmicas dos filtros — bairros dependem da(s) cidade(s) selecionada(s)
   const cidadesSelecionadas = useMemo(() => filters.cidades ?? [], [filters.cidades]);
@@ -147,10 +149,26 @@ function Contatos() {
 
   // Aplica segmento via querystring
   useEffect(() => {
+    // Sem segmento na URL não zeramos a lista fixa: a sincronia de filtros com
+    // a URL remove o parâmetro "segment" logo depois de carregar, e zerar aqui
+    // fazia o envio voltar para o modo "filtro" com a seleção do segmento.
     if (!search.segment) return;
+
     segFn().then((r) => {
       const s = r.rows.find((x) => x.id === search.segment);
-      if (s?.tipo === "dinamico") setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
+      if (!s) return;
+      if (s.tipo === "dinamico") {
+        setSegmentoEstaticoIds(null);
+        setFilters((s.filtro as CrmFilters) ?? { archived: "nao" });
+        return;
+      }
+      // Segmento estático: a lista é fixa (member_ids). Vira seleção manual,
+      // que é o mecanismo usado pelo envio "para os selecionados".
+      const ids = ((s.member_ids as string[] | null) ?? []).filter(Boolean);
+      setSegmentoEstaticoIds(ids);
+      setSelected(new Set(ids));
+      // Sem filtro de arquivados para não esconder membros do segmento.
+      setFilters({} as CrmFilters);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.segment]);
@@ -213,7 +231,7 @@ function Contatos() {
       toast.success(`${r.ids.length} contato(s) selecionados`);
     }
   }
-  function clearSel() { setSelected(new Set()); }
+  function clearSel() { setSelected(new Set()); setSegmentoEstaticoIds(null); }
 
   async function doBulkTag(add: boolean) {
     if (!bulkTagId) return toast.error("Escolha uma tag");
@@ -405,7 +423,7 @@ function Contatos() {
         </Button>
         <Button variant="outline" size="sm" onClick={() => doExport("filtrados")}><Download className="h-4 w-4 mr-1" /> Exportar filtrados</Button>
         <Button variant="outline" size="sm" onClick={() => setSaveDlg({ ...saveDlg, open: true, tipo: "dinamico" })}><Save className="h-4 w-4 mr-1" /> Salvar como segmento</Button>
-        <Button size="sm" onClick={() => setSendDlg({ open: true, mode: "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
+        <Button size="sm" onClick={() => setSendDlg({ open: true, mode: segmentoEstaticoIds?.length ? "selection" : "filter" })}><Send className="h-4 w-4 mr-1" /> Enviar WhatsApp p/ filtro</Button>
       </div>
 
       {/* Filtros rápidos por chip */}
