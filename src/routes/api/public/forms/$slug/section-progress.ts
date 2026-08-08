@@ -106,6 +106,24 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
 
         const saved = result as Exclude<typeof result, { ok: false }>;
 
+        // Nada identificável ainda (sem nome, WhatsApp nem e-mail): nenhum
+        // contato é criado. Avisamos o cliente sem erro de servidor.
+        if (!saved.contactId) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              identified: false,
+              recad_token: saved.recad_token,
+              email: null,
+              nome: null,
+              phone: null,
+              has_account: false,
+              event_confirmed: false,
+            }),
+            { headers: cors },
+          );
+        }
+
         // Presença no evento é gravada na mesma operação do salvamento do contato.
         // O cliente para de enviar `event_slug` depois da primeira confirmação,
         // então isso não se repete a cada etapa.
@@ -123,6 +141,7 @@ export const Route = createFileRoute("/api/public/forms/$slug/section-progress")
         return new Response(
           JSON.stringify({
             ok: true,
+            identified: true,
             recad_token: saved.recad_token,
             email: saved.email,
             nome: saved.nome,

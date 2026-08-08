@@ -207,6 +207,19 @@ export async function saveFormContactFromAnswers(
   const insertPayload = { ...basePayload, nome: hasNome ? (nome as string) : "Participante" };
   const updatePayload = hasNome ? { ...basePayload, nome: nome as string } : basePayload;
 
+  // Sem nenhum dado identificador (nome, WhatsApp ou e-mail) e sem contato
+  // existente: não criamos cadastro fantasma. Nada é gravado nesta chamada.
+  if (!target && !hasNome && !phoneRaw && !email) {
+    return {
+      contactId: null,
+      recad_token: recad_token ?? "",
+      nome: null,
+      email: null,
+      phone: null,
+      hasAccount: false,
+    };
+  }
+
   let savedId: string | null = null;
   if (target) {
     // Telefone divergente não cria contato novo: atualizamos o existente,
