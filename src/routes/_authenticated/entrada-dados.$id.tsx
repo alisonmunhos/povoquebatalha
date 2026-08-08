@@ -63,6 +63,8 @@ function FormBuilder() {
   const [mintingLink, setMintingLink] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
+  const [linkQr, setLinkQr] = useState<{ token: string; dataUrl: string } | null>(null);
+  const [loadingLinkQr, setLoadingLinkQr] = useState<string | null>(null);
   const [coreQuestions, setCoreQuestions] = useState<QuestionDraft[]>([]);
 
   useEffect(() => {
