@@ -284,6 +284,23 @@ function FormBuilder() {
     }
   }
 
+  // QR de um link específico da lista: gera na hora e mostra dentro do cartão.
+  async function loadQrForToken(token: string) {
+    const url = buildPublicUrl(token);
+    if (!url) return;
+    setLoadingLinkQr(token);
+    try {
+      const { generateQrDataUrl } = await import("@/lib/qr-code-browser");
+      const dataUrl = await generateQrDataUrl(url);
+      setLinkQr({ token, dataUrl });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar QR code");
+    } finally {
+      setLoadingLinkQr(null);
+    }
+  }
+
+
   return (
     <div className="p-6 md:p-10 max-w-3xl mx-auto space-y-6">
       <Link to="/entrada-dados" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</Link>
