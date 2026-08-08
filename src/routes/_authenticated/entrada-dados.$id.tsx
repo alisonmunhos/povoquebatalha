@@ -63,6 +63,8 @@ function FormBuilder() {
   const [mintingLink, setMintingLink] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
+  const [linkQr, setLinkQr] = useState<{ token: string; dataUrl: string } | null>(null);
+  const [loadingLinkQr, setLoadingLinkQr] = useState<string | null>(null);
   const [coreQuestions, setCoreQuestions] = useState<QuestionDraft[]>([]);
 
   useEffect(() => {
@@ -284,6 +286,23 @@ function FormBuilder() {
     }
   }
 
+  // QR de um link específico da lista: gera na hora e mostra dentro do cartão.
+  async function loadQrForToken(token: string) {
+    const url = buildPublicUrl(token);
+    if (!url) return;
+    setLoadingLinkQr(token);
+    try {
+      const { generateQrDataUrl } = await import("@/lib/qr-code-browser");
+      const dataUrl = await generateQrDataUrl(url);
+      setLinkQr({ token, dataUrl });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar QR code");
+    } finally {
+      setLoadingLinkQr(null);
+    }
+  }
+
+
   return (
     <div className="p-6 md:p-10 max-w-3xl mx-auto space-y-6">
       <Link to="/entrada-dados" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" />Voltar</Link>
@@ -396,13 +415,28 @@ function FormBuilder() {
                       </a>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
-                        onClick={() => { setLinkToken(l.token); setQrDataUrl(null); }}
+                        disabled={loadingLinkQr === l.token}
+                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60 disabled:opacity-50"
+                        onClick={() => loadQrForToken(l.token)}
                       >
-                        <LinkIcon className="h-3.5 w-3.5" /> Gerar QR deste link
+                        <LinkIcon className="h-3.5 w-3.5" />
+                        {loadingLinkQr === l.token ? "Gerando QR…" : "Gerar QR deste link"}
                       </button>
                     </div>
+                    {linkQr?.token === l.token && (
+                      <div className="space-y-1">
+                        <img src={linkQr.dataUrl} alt={`QR code do link ${l.label || "sem nome"}`} className="w-40 h-40 border rounded-md" />
+                        <a
+                          href={linkQr.dataUrl}
+                          download={`qrcode-${(l.label || q.data.form.slug || "link").toString().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`}
+                          className="text-sm text-primary hover:underline block"
+                        >
+                          Baixar PNG
+                        </a>
+                      </div>
+                    )}
                   </li>
+
                 );
               })}
             </ul>
