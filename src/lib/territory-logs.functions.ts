@@ -32,8 +32,16 @@ export const logTerritoryAction = createServerFn({ method: "POST" })
         data.action === "observacao" || data.action === "pediu_atualizacao" ? "pendente" : null,
     });
     if (error) throw error;
+
+    // Toda observação registrada no swipe/território também entra no campo
+    // "Observações" da ficha (acumulando, nunca sobrescrevendo).
+    if (data.action === "observacao" && data.note?.trim()) {
+      const { appendContactObservacao } = await import("@/lib/contact-observacoes.server");
+      await appendContactObservacao(data.contactId, data.note);
+    }
     return { ok: true as const };
   });
+
 
 export type ContactTerritoryLogRow = {
   id: string;
