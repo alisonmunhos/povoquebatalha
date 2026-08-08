@@ -121,6 +121,15 @@ export const Route = createFileRoute("/api/public/forms/$slug/account-section")(
             );
           }
           const saved = saveResult as Exclude<typeof saveResult, { ok: false }>;
+          if (!saved.contactId) {
+            return new Response(
+              JSON.stringify({
+                ok: false,
+                error: "Ainda não identificamos seu cadastro. Volte e preencha nome, WhatsApp e e-mail nas etapas anteriores.",
+              }),
+              { status: 400, headers: cors },
+            );
+          }
           if (saved.recad_token) activeRecadToken = saved.recad_token;
         }
 

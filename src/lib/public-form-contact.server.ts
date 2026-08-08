@@ -68,7 +68,8 @@ export type SaveFormContactInput = {
 };
 
 export type SaveFormContactResult = {
-  contactId: string;
+  /** Null quando ainda não há dado nenhum que identifique a pessoa (nada foi gravado). */
+  contactId: string | null;
   recad_token: string;
   nome: string | null;
   email: string | null;
@@ -205,6 +206,19 @@ export async function saveFormContactFromAnswers(
   };
   const insertPayload = { ...basePayload, nome: hasNome ? (nome as string) : "Participante" };
   const updatePayload = hasNome ? { ...basePayload, nome: nome as string } : basePayload;
+
+  // Sem nenhum dado identificador (nome, WhatsApp ou e-mail) e sem contato
+  // existente: não criamos cadastro fantasma. Nada é gravado nesta chamada.
+  if (!target && !hasNome && !phoneRaw && !email) {
+    return {
+      contactId: null,
+      recad_token: recad_token ?? "",
+      nome: null,
+      email: null,
+      phone: null,
+      hasAccount: false,
+    };
+  }
 
   let savedId: string | null = null;
   if (target) {
