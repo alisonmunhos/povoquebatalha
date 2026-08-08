@@ -415,13 +415,28 @@ function FormBuilder() {
                       </a>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60"
-                        onClick={() => { setLinkToken(l.token); setQrDataUrl(null); }}
+                        disabled={loadingLinkQr === l.token}
+                        className="inline-flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/60 disabled:opacity-50"
+                        onClick={() => loadQrForToken(l.token)}
                       >
-                        <LinkIcon className="h-3.5 w-3.5" /> Gerar QR deste link
+                        <LinkIcon className="h-3.5 w-3.5" />
+                        {loadingLinkQr === l.token ? "Gerando QR…" : "Gerar QR deste link"}
                       </button>
                     </div>
+                    {linkQr?.token === l.token && (
+                      <div className="space-y-1">
+                        <img src={linkQr.dataUrl} alt={`QR code do link ${l.label || "sem nome"}`} className="w-40 h-40 border rounded-md" />
+                        <a
+                          href={linkQr.dataUrl}
+                          download={`qrcode-${(l.label || q.data.form.slug || "link").toString().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`}
+                          className="text-sm text-primary hover:underline block"
+                        >
+                          Baixar PNG
+                        </a>
+                      </div>
+                    )}
                   </li>
+
                 );
               })}
             </ul>
