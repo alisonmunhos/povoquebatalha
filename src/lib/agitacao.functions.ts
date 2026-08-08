@@ -171,5 +171,13 @@ export const logAgitacaoAction = createServerFn({ method: "POST" })
         data.action === "observacao" || data.action === "pediu_atualizacao" ? "pendente" : null,
     });
     if (error) throw new Error(error.message);
+
+    // Toda observação registrada na Agitação também entra no campo "Observações"
+    // da ficha (acumulando, nunca sobrescrevendo) para aparecer na busca geral.
+    if (data.action === "observacao" && data.observacao?.trim()) {
+      const { appendContactObservacao } = await import("@/lib/contact-observacoes.server");
+      await appendContactObservacao(data.contact_id, data.observacao);
+    }
     return { ok: true as const };
   });
+
