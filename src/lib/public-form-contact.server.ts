@@ -68,7 +68,8 @@ export type SaveFormContactInput = {
 };
 
 export type SaveFormContactResult = {
-  contactId: string;
+  /** Null quando ainda não há dado nenhum que identifique a pessoa (nada foi gravado). */
+  contactId: string | null;
   recad_token: string;
   nome: string | null;
   email: string | null;
