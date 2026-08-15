@@ -65,6 +65,7 @@ import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as MissaoMissionIdContatoContactIdRouteImport } from './routes/missao/$missionId/contato/$contactId'
 import { Route as ApiPublicZapiEventoRouteImport } from './routes/api/public/zapi/$evento'
+import { Route as ApiPublicWhatsappCloudWebhookRouteImport } from './routes/api/public/whatsapp-cloud/webhook'
 import { Route as ApiPublicPushVapidRouteImport } from './routes/api/public/push/vapid'
 import { Route as ApiPublicPushUnsubscribeRouteImport } from './routes/api/public/push/unsubscribe'
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
@@ -390,6 +391,12 @@ const ApiPublicZapiEventoRoute = ApiPublicZapiEventoRouteImport.update({
   path: '/api/public/zapi/$evento',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWhatsappCloudWebhookRoute =
+  ApiPublicWhatsappCloudWebhookRouteImport.update({
+    id: '/api/public/whatsapp-cloud/webhook',
+    path: '/api/public/whatsapp-cloud/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPushVapidRoute = ApiPublicPushVapidRouteImport.update({
   id: '/api/public/push/vapid',
   path: '/api/public/push/vapid',
@@ -594,6 +601,7 @@ export interface FileRoutesByFullPath {
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
   '/api/public/push/vapid': typeof ApiPublicPushVapidRoute
+  '/api/public/whatsapp-cloud/webhook': typeof ApiPublicWhatsappCloudWebhookRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -674,6 +682,7 @@ export interface FileRoutesByTo {
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
   '/api/public/push/vapid': typeof ApiPublicPushVapidRoute
+  '/api/public/whatsapp-cloud/webhook': typeof ApiPublicWhatsappCloudWebhookRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -757,6 +766,7 @@ export interface FileRoutesById {
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
   '/api/public/push/vapid': typeof ApiPublicPushVapidRoute
+  '/api/public/whatsapp-cloud/webhook': typeof ApiPublicWhatsappCloudWebhookRoute
   '/api/public/zapi/$evento': typeof ApiPublicZapiEventoRoute
   '/missao/$missionId/contato/$contactId': typeof MissaoMissionIdContatoContactIdRoute
   '/api/public/agitation-missions/$missionId/$contactId': typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -840,6 +850,7 @@ export interface FileRouteTypes {
     | '/api/public/push/subscribe'
     | '/api/public/push/unsubscribe'
     | '/api/public/push/vapid'
+    | '/api/public/whatsapp-cloud/webhook'
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
@@ -920,6 +931,7 @@ export interface FileRouteTypes {
     | '/api/public/push/subscribe'
     | '/api/public/push/unsubscribe'
     | '/api/public/push/vapid'
+    | '/api/public/whatsapp-cloud/webhook'
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
@@ -1002,6 +1014,7 @@ export interface FileRouteTypes {
     | '/api/public/push/subscribe'
     | '/api/public/push/unsubscribe'
     | '/api/public/push/vapid'
+    | '/api/public/whatsapp-cloud/webhook'
     | '/api/public/zapi/$evento'
     | '/missao/$missionId/contato/$contactId'
     | '/api/public/agitation-missions/$missionId/$contactId'
@@ -1048,6 +1061,7 @@ export interface RootRouteChildren {
   ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
   ApiPublicPushUnsubscribeRoute: typeof ApiPublicPushUnsubscribeRoute
   ApiPublicPushVapidRoute: typeof ApiPublicPushVapidRoute
+  ApiPublicWhatsappCloudWebhookRoute: typeof ApiPublicWhatsappCloudWebhookRoute
   ApiPublicZapiEventoRoute: typeof ApiPublicZapiEventoRoute
   MissaoMissionIdContatoContactIdRoute: typeof MissaoMissionIdContatoContactIdRoute
   ApiPublicAgitationMissionsMissionIdContactIdRoute: typeof ApiPublicAgitationMissionsMissionIdContactIdRoute
@@ -1449,6 +1463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicZapiEventoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/whatsapp-cloud/webhook': {
+      id: '/api/public/whatsapp-cloud/webhook'
+      path: '/api/public/whatsapp-cloud/webhook'
+      fullPath: '/api/public/whatsapp-cloud/webhook'
+      preLoaderRoute: typeof ApiPublicWhatsappCloudWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/push/vapid': {
       id: '/api/public/push/vapid'
       path: '/api/public/push/vapid'
@@ -1797,6 +1818,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPushSubscribeRoute: ApiPublicPushSubscribeRoute,
   ApiPublicPushUnsubscribeRoute: ApiPublicPushUnsubscribeRoute,
   ApiPublicPushVapidRoute: ApiPublicPushVapidRoute,
+  ApiPublicWhatsappCloudWebhookRoute: ApiPublicWhatsappCloudWebhookRoute,
   ApiPublicZapiEventoRoute: ApiPublicZapiEventoRoute,
   MissaoMissionIdContatoContactIdRoute: MissaoMissionIdContatoContactIdRoute,
   ApiPublicAgitationMissionsMissionIdContactIdRoute:
@@ -1809,3 +1831,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
