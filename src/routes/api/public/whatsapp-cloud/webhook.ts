@@ -139,10 +139,11 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 const now = new Date().toISOString();
                 const errorRec = asArray(status.errors)[0] ?? null;
                 const errorMsg = errorRec
-                  ? `${safeStr(errorRec.code) ?? safeStr(String(errorRec.code ?? "")) ?? "erro"}: ${
+                  ? `${String(errorRec.code ?? "erro")}: ${
                       safeStr(errorRec.title) ?? safeStr(errorRec.message) ?? "falha no envio"
                     }`
                   : null;
+
 
                 type RecipientPatch = {
                   status?: "sent" | "delivered" | "read" | "failed";
