@@ -5,7 +5,7 @@
 //   Callback URL: https://<dominio>/api/public/whatsapp-cloud/webhook
 //   Verify token: valor do secret META_WEBHOOK_VERIFY_TOKEN
 import { createFileRoute } from "@tanstack/react-router";
-import { timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -23,6 +23,17 @@ function tokenMatches(received: string, expected: string): boolean {
   const a = Buffer.from(received);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// Confere a assinatura HMAC-SHA256 que a Meta envia em X-Hub-Signature-256
+// (formato "sha256=<hex>"), calculada sobre o corpo bruto da requisição.
+function signatureIsValid(rawBody: string, header: string | null, appSecret: string): boolean {
+  if (!header || !header.startsWith("sha256=")) return false;
+  const received = header.slice("sha256=".length).trim().toLowerCase();
+  const expected = createHmac("sha256", appSecret).update(rawBody, "utf8").digest("hex");
+  const a = Buffer.from(received, "hex");
+  const b = Buffer.from(expected, "hex");
+  return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
 }
 
 const OPT_OUT_KEYWORDS = ["sair", "parar", "cancelar", "remove", "stop", "descadastrar"];
