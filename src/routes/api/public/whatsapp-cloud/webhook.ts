@@ -59,11 +59,22 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
       },
 
       POST: async ({ request }) => {
+        // Corpo bruto é obrigatório para validar a assinatura.
+        const rawBody = await request.text();
+
+        const appSecret = process.env["META_APP_SECRET"] ?? "";
+        if (!appSecret) {
+          return new Response("Webhook secret missing", { status: 500 });
+        }
+        if (!signatureIsValid(rawBody, request.headers.get("x-hub-signature-256"), appSecret)) {
+          return new Response("Invalid signature", { status: 401 });
+        }
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         let body: AnyRecord = {};
         try {
-          body = (await request.json()) as AnyRecord;
+          body = JSON.parse(rawBody) as AnyRecord;
         } catch {
           body = {};
         }
