@@ -911,6 +911,7 @@ function AddressBlockField({
   onChange: (v: AddressValue) => void;
 }) {
   const v = value ?? {};
+  const fieldId = useId();
   const cepHook = useCepLookup();
 
   async function onCepChange(raw: string) {
@@ -937,9 +938,9 @@ function AddressBlockField({
       <p className="text-sm font-medium">{label}</p>
       {help_text && <p className="text-xs text-muted-foreground -mt-2">{help_text}</p>}
       <div>
-        <label className="text-xs text-muted-foreground" htmlFor={`${name}-cep`}>CEP {cepHook.loading ? "(buscando…)" : ""}</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-cep`}>CEP {cepHook.loading ? "(buscando…)" : ""}</label>
         <input
-          id={`${name}-cep`}
+          id={`${fieldId}-cep`}
           value={v.cep ?? ""}
           onChange={(e) => onCepChange(e.target.value)}
           placeholder="00000-000"
@@ -948,9 +949,9 @@ function AddressBlockField({
         {cepHook.error && <p className="text-xs text-amber-600 mt-1">{cepHook.error}</p>}
       </div>
       <div>
-        <label className="text-xs text-muted-foreground" htmlFor={`${name}-endereco`}>Endereço (rua/avenida)</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-endereco`}>Endereço (rua/avenida)</label>
         <input
-          id={`${name}-endereco`}
+          id={`${fieldId}-endereco`}
           value={v.endereco ?? ""}
           onChange={(e) => onChange({ ...v, endereco: e.target.value })}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -973,18 +974,18 @@ function AddressBlockField({
         />
       </div>
       <div>
-        <label className="text-xs text-muted-foreground" htmlFor={`${name}-bairro`}>Bairro</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-bairro`}>Bairro</label>
         <input
-          id={`${name}-bairro`}
+          id={`${fieldId}-bairro`}
           value={v.bairro ?? ""}
           onChange={(e) => onChange({ ...v, bairro: e.target.value })}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="text-xs text-muted-foreground" htmlFor={`${name}-referencia`}>Ponto de referência</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-referencia`}>Ponto de referência</label>
         <input
-          id={`${name}-referencia`}
+          id={`${fieldId}-referencia`}
           value={v.referencia ?? ""}
           onChange={(e) => onChange({ ...v, referencia: e.target.value })}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
