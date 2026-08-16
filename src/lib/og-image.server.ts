@@ -17,18 +17,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function readPixel(source: DecodedImage, x: number, y: number) {
-  const safeX = clamp(Math.round(x), 0, source.width - 1);
-  const safeY = clamp(Math.round(y), 0, source.height - 1);
-  const index = (safeY * source.width + safeX) * 4;
-  return {
-    r: source.data[index] ?? 0,
-    g: source.data[index + 1] ?? 0,
-    b: source.data[index + 2] ?? 0,
-    a: source.data[index + 3] ?? 255,
-  };
-}
-
 /** Amostragem bilinear: média ponderada dos 4 vizinhos, evita serrilhado ao escalar. */
 function samplePixel(source: DecodedImage, x: number, y: number) {
   const fx = clamp(x, 0, source.width - 1);
@@ -91,7 +79,7 @@ function drawCoverBackground(target: Uint8Array, source: DecodedImage) {
 
   for (let y = 0; y < OG_HEIGHT; y += 1) {
     for (let x = 0; x < OG_WIDTH; x += 1) {
-      const pixel = readPixel(source, cropX + x / scale, cropY + y / scale);
+      const pixel = samplePixel(source, cropX + x / scale, cropY + y / scale);
       const index = (y * OG_WIDTH + x) * 4;
       target[index] = Math.round(pixel.r * 0.28 + BG_R * 0.72);
       target[index + 1] = Math.round(pixel.g * 0.28 + BG_G * 0.72);
@@ -126,7 +114,7 @@ function drawContainedForeground(target: Uint8Array, source: DecodedImage) {
 
   for (let y = 0; y < drawHeight; y += 1) {
     for (let x = 0; x < drawWidth; x += 1) {
-      const pixel = readPixel(source, x / scale, y / scale);
+      const pixel = samplePixel(source, x / scale, y / scale);
       blendPixel(target, left + x, top + y, pixel);
     }
   }
