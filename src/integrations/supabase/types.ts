@@ -1895,6 +1895,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           event_key: string
+          header_image_mime: string | null
+          header_image_path: string | null
           id: string
           is_active: boolean
           is_fixed: boolean
@@ -1917,6 +1919,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           event_key: string
+          header_image_mime?: string | null
+          header_image_path?: string | null
           id?: string
           is_active?: boolean
           is_fixed?: boolean
@@ -1939,6 +1943,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           event_key?: string
+          header_image_mime?: string | null
+          header_image_path?: string | null
           id?: string
           is_active?: boolean
           is_fixed?: boolean
