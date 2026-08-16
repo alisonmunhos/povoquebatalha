@@ -89,4 +89,32 @@ export const whatsappCloud = {
       type: "text",
       text: { preview_url: previewUrl, body },
     }),
+
+  /** Imagem por URL pública (a Meta baixa o arquivo). Caption opcional. */
+  sendImage: (phone: string, url: string, caption?: string | null) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "image",
+      image: caption ? { link: url, caption } : { link: url },
+    }),
+
+  /** Documento por URL pública. `filename` é o nome exibido no WhatsApp. */
+  sendDocument: (phone: string, url: string, filename: string, caption?: string | null) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "document",
+      document: caption ? { link: url, filename, caption } : { link: url, filename },
+    }),
+
+  /** Áudio por URL pública. A Cloud API não aceita caption em áudio. */
+  sendAudio: (phone: string, url: string) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "audio",
+      audio: { link: url },
+    }),
 };
+
