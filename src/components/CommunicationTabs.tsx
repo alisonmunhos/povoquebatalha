@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import {
-  Inbox, Users, Send, MessageSquareText, Calendar, Heart, MessageCircle,
+  Inbox, Users, Send, MessageSquareText, Calendar, Heart, MessageCircle, FileCheck2,
 } from "lucide-react";
 
 type Tab = { to: string; label: string; icon: typeof Inbox; adminOnly?: boolean };
@@ -16,8 +16,10 @@ const TABS: Tab[] = [
   { to: "/mensagens", label: "Mensagens", icon: MessageSquareText },
   { to: "/calendario", label: "Calendário", icon: Calendar },
   { to: "/relacionamento", label: "Relacionamento", icon: Heart },
+  { to: "/comunicacao/templates", label: "Templates", icon: FileCheck2, adminOnly: true },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
 ];
+
 
 /**
  * Barra de navegação do "app" Comunicação.

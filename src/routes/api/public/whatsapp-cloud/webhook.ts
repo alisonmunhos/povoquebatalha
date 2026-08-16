@@ -99,7 +99,44 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 asRecord(asArray(value.contacts)[0]?.profile)?.name,
               );
 
-              // ---- Mensagens recebidas ----
+              // ---- Aprovação/recusa de templates oficiais ----
+              if (field === "message_template_status_update") {
+                const metaTemplateId =
+                  safeStr(value["message_template_id"]) ??
+                  (typeof value["message_template_id"] === "number"
+                    ? String(value["message_template_id"])
+                    : null);
+                const eventName = (safeStr(value["event"]) ?? "").toUpperCase();
+                const reason = safeStr(value["reason"]);
+                const STATUS_MAP: Record<string, string> = {
+                  APPROVED: "approved",
+                  REJECTED: "rejected",
+                  PAUSED: "paused",
+                  DISABLED: "disabled",
+                  PENDING: "pending",
+                  PENDING_DELETION: "disabled",
+                  IN_APPEAL: "pending",
+                  FLAGGED: "paused",
+                };
+                const mapped = STATUS_MAP[eventName];
+                if (metaTemplateId && mapped) {
+                  const patch: { status: string; rejected_reason?: string | null } = {
+                    status: mapped,
+                  };
+                  if (reason && reason.toUpperCase() !== "NONE") patch.rejected_reason = reason;
+                  if (mapped === "approved") patch.rejected_reason = null;
+                  try {
+                    await supabaseAdmin
+                      .from("whatsapp_templates")
+                      .update(patch)
+                      .eq("meta_template_id", metaTemplateId);
+                  } catch {
+                    /* evento já registrado em webhook_log */
+                  }
+                }
+              }
+
+
               for (const message of asArray(value.messages)) {
                 const from = safeStr(message.from);
                 const tipo = safeStr(message.type) ?? "text";
