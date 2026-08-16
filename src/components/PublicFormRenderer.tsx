@@ -36,6 +36,7 @@ type FormQuestion = {
 type FormDefinition = {
   id: string;
   title: string;
+  header_image_url?: string | null;
   whatsapp_button_enabled: boolean;
   questions: FormQuestion[];
   initial_values: Record<string, AnswerValue> | null;
@@ -64,6 +65,7 @@ type BranchRule = {
 type SectionedFormDefinition = {
   id: string;
   title: string;
+  header_image_url?: string | null;
   questions: Array<FormQuestion & { section_id: string | null }>;
   sections: FormSection[];
   branch_rules: BranchRule[];
@@ -628,6 +630,20 @@ export function PublicFormRenderer({
     </button>
   );
 
+  // Imagem de cabeçalho: só na primeira tela (nunca na tela de sucesso).
+  const headerImageUrl =
+    (layoutMode === "sectioned" ? sectionedForm?.header_image_url : form?.header_image_url) ?? null;
+  const headerImageTitle = (layoutMode === "sectioned" ? sectionedForm?.title : form?.title) ?? "Formulário";
+  const showHeaderImage = Boolean(headerImageUrl) && (layoutMode === "sectioned" ? isFirstStep : true);
+  const headerImage = showHeaderImage && headerImageUrl ? (
+    <img
+      src={headerImageUrl}
+      alt={headerImageTitle}
+      loading="lazy"
+      className="mt-4 w-full rounded-xl border-2 border-border object-contain"
+    />
+  ) : null;
+
   // ===== Modo sobreposto: cada etapa cobre a tela anterior, com "Voltar" =====
   if (presentation === "overlay") {
     if (isLoading) {
@@ -671,6 +687,7 @@ export function PublicFormRenderer({
           onSubmit={onContinueSectioned}
           footer={sectionSubmitButton}
         >
+          {headerImage}
           <div className="space-y-5">{sectionFields}</div>
         </StepOverlay>
       );
@@ -707,6 +724,7 @@ export function PublicFormRenderer({
         ) : layoutMode === "sectioned" && sectionedForm && currentSection ? (
           <>
             <h1 className="text-3xl font-bold tracking-tight">{sectionedForm.title}</h1>
+            {headerImage}
             {progressLabel && <p className="text-sm text-muted-foreground mt-1">{progressLabel}</p>}
             <form onSubmit={onContinueSectioned} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
               <h2 className="text-lg font-semibold">{sectionTitle}</h2>
@@ -718,6 +736,7 @@ export function PublicFormRenderer({
         ) : form ? (
           <>
             <h1 className="text-3xl font-bold tracking-tight">{form.title}</h1>
+            {headerImage}
             <form onSubmit={onSubmit} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
               <input type="text" name="hp" aria-hidden="true" aria-label="Campo antispam (não preencher)" tabIndex={-1} autoComplete="off" className="hidden" />
               {form.questions

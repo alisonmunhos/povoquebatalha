@@ -82,6 +82,7 @@ import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/form
 import { Route as ApiPublicEventsSlugRouteImport } from './routes/api/public/events/$slug'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 import { Route as ApiPublicFormsSlugSectionProgressRouteImport } from './routes/api/public/forms/$slug/section-progress'
+import { Route as ApiPublicFormsSlugOgImageRouteImport } from './routes/api/public/forms/$slug/og-image'
 import { Route as ApiPublicFormsSlugAccountSectionRouteImport } from './routes/api/public/forms/$slug/account-section'
 import { Route as ApiPublicEventsSlugRsvpRouteImport } from './routes/api/public/events/$slug/rsvp'
 import { Route as ApiPublicEventsSlugOgImageRouteImport } from './routes/api/public/events/$slug/og-image'
@@ -485,6 +486,12 @@ const ApiPublicFormsSlugSectionProgressRoute =
     path: '/section-progress',
     getParentRoute: () => ApiPublicFormsSlugRoute,
   } as any)
+const ApiPublicFormsSlugOgImageRoute =
+  ApiPublicFormsSlugOgImageRouteImport.update({
+    id: '/og-image',
+    path: '/og-image',
+    getParentRoute: () => ApiPublicFormsSlugRoute,
+  } as any)
 const ApiPublicFormsSlugAccountSectionRoute =
   ApiPublicFormsSlugAccountSectionRouteImport.update({
     id: '/account-section',
@@ -612,6 +619,7 @@ export interface FileRoutesByFullPath {
   '/api/public/events/$slug/og-image': typeof ApiPublicEventsSlugOgImageRoute
   '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
+  '/api/public/forms/$slug/og-image': typeof ApiPublicFormsSlugOgImageRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
 export interface FileRoutesByTo {
@@ -693,6 +701,7 @@ export interface FileRoutesByTo {
   '/api/public/events/$slug/og-image': typeof ApiPublicEventsSlugOgImageRoute
   '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
+  '/api/public/forms/$slug/og-image': typeof ApiPublicFormsSlugOgImageRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
 export interface FileRoutesById {
@@ -777,6 +786,7 @@ export interface FileRoutesById {
   '/api/public/events/$slug/og-image': typeof ApiPublicEventsSlugOgImageRoute
   '/api/public/events/$slug/rsvp': typeof ApiPublicEventsSlugRsvpRoute
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
+  '/api/public/forms/$slug/og-image': typeof ApiPublicFormsSlugOgImageRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
 }
 export interface FileRouteTypes {
@@ -861,6 +871,7 @@ export interface FileRouteTypes {
     | '/api/public/events/$slug/og-image'
     | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
+    | '/api/public/forms/$slug/og-image'
     | '/api/public/forms/$slug/section-progress'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -942,6 +953,7 @@ export interface FileRouteTypes {
     | '/api/public/events/$slug/og-image'
     | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
+    | '/api/public/forms/$slug/og-image'
     | '/api/public/forms/$slug/section-progress'
   id:
     | '__root__'
@@ -1025,6 +1037,7 @@ export interface FileRouteTypes {
     | '/api/public/events/$slug/og-image'
     | '/api/public/events/$slug/rsvp'
     | '/api/public/forms/$slug/account-section'
+    | '/api/public/forms/$slug/og-image'
     | '/api/public/forms/$slug/section-progress'
   fileRoutesById: FileRoutesById
 }
@@ -1582,6 +1595,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormsSlugSectionProgressRouteImport
       parentRoute: typeof ApiPublicFormsSlugRoute
     }
+    '/api/public/forms/$slug/og-image': {
+      id: '/api/public/forms/$slug/og-image'
+      path: '/og-image'
+      fullPath: '/api/public/forms/$slug/og-image'
+      preLoaderRoute: typeof ApiPublicFormsSlugOgImageRouteImport
+      parentRoute: typeof ApiPublicFormsSlugRoute
+    }
     '/api/public/forms/$slug/account-section': {
       id: '/api/public/forms/$slug/account-section'
       path: '/account-section'
@@ -1771,11 +1791,13 @@ const ApiPublicEventsSlugRouteWithChildren =
 
 interface ApiPublicFormsSlugRouteChildren {
   ApiPublicFormsSlugAccountSectionRoute: typeof ApiPublicFormsSlugAccountSectionRoute
+  ApiPublicFormsSlugOgImageRoute: typeof ApiPublicFormsSlugOgImageRoute
   ApiPublicFormsSlugSectionProgressRoute: typeof ApiPublicFormsSlugSectionProgressRoute
 }
 
 const ApiPublicFormsSlugRouteChildren: ApiPublicFormsSlugRouteChildren = {
   ApiPublicFormsSlugAccountSectionRoute: ApiPublicFormsSlugAccountSectionRoute,
+  ApiPublicFormsSlugOgImageRoute: ApiPublicFormsSlugOgImageRoute,
   ApiPublicFormsSlugSectionProgressRoute:
     ApiPublicFormsSlugSectionProgressRoute,
 }

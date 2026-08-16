@@ -194,6 +194,8 @@ const updateSchema = z.object({
   push_button_enabled: z.boolean().optional(),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]).optional(),
   success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).optional(),
+  header_image_path: z.string().trim().max(500).nullable().optional(),
+  header_image_mime: z.string().trim().max(120).nullable().optional(),
 });
 
 export const updateFormDefinition = createServerFn({ method: "POST" })
@@ -693,4 +695,47 @@ export const getFormQrCode = createServerFn({ method: "GET" })
     const QRCode = await import("qrcode");
     const dataUrl = await QRCode.toDataURL(data.url, { width: 320, margin: 1 });
     return { dataUrl };
+  });
+
+/**
+ * Gera URL assinada de upload para a imagem de cabeçalho do formulário
+ * (bucket privado `campaign-media`). Espelha `signMissionMediaUpload`.
+ */
+export const signFormHeaderImageUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        form_definition_id: z.string().uuid(),
+        filename: z.string().trim().min(1).max(200),
+        contentType: z.string().trim().min(1).max(120),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!allowed.includes(data.contentType)) throw new Error("Tipo não permitido. Use PNG, JPG ou WEBP.");
+    const clean = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+    const path = `formularios/header/${data.form_definition_id}/${Date.now()}_${clean}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUploadUrl(path);
+    if (error) throw error;
+    return { path, token: signed.token, signedUrl: signed.signedUrl, contentType: data.contentType, filename: clean };
+  });
+
+/** Link temporário para ver a imagem de cabeçalho já salva (pré-visualização no admin). */
+export const getFormHeaderImageUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ path: z.string().min(1).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("campaign-media")
+      .createSignedUrl(data.path, 60 * 60);
+    if (error) throw error;
+    return { url: signed?.signedUrl ?? null };
   });
