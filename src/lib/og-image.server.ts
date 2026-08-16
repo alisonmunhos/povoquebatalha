@@ -95,26 +95,66 @@ function drawContainedForeground(target: Uint8Array, source: DecodedImage) {
 }
 
 function isJpeg(bytes: Uint8Array) {
-  return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+  return bytes[0] === 0xff && bytes[1] === 0xd8;
+}
+
+function isPng(bytes: Uint8Array) {
+  return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+}
+
+/** Converte qualquer PNG (RGB/RGBA/cinza, 8 ou 16 bits) em RGBA de 8 bits. */
+async function decodePngAsRgba(bytes: Uint8Array): Promise<DecodedImage | null> {
+  try {
+    const { decode: decodePng } = await import("fast-png");
+    const png = decodePng(bytes);
+    const channels = png.channels ?? 4;
+    const shift = png.depth === 16 ? 8 : 0;
+    const src = png.data as unknown as ArrayLike<number>;
+    const out = new Uint8Array(png.width * png.height * 4);
+    for (let i = 0; i < png.width * png.height; i += 1) {
+      const s = i * channels;
+      let r: number, g: number, b: number, a = 255;
+      if (channels >= 3) {
+        r = (src[s] ?? 0) >> shift;
+        g = (src[s + 1] ?? 0) >> shift;
+        b = (src[s + 2] ?? 0) >> shift;
+        if (channels === 4) a = (src[s + 3] ?? 255) >> shift;
+      } else {
+        r = g = b = (src[s] ?? 0) >> shift;
+        if (channels === 2) a = (src[s + 1] ?? 255) >> shift;
+      }
+      const t = i * 4;
+      out[t] = r;
+      out[t + 1] = g;
+      out[t + 2] = b;
+      out[t + 3] = a;
+    }
+    return { width: png.width, height: png.height, data: out };
+  } catch {
+    return null;
+  }
 }
 
 export async function createOpenGraphJpeg(file: Blob) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if (!isJpeg(bytes)) return null;
 
-  let source: DecodedImage;
-  try {
-    source = decode(bytes, {
-      useTArray: true,
-      formatAsRGBA: true,
-      tolerantDecoding: true,
-      maxMemoryUsageInMB: 256,
-    });
-  } catch {
-    return null;
+  let source: DecodedImage | null = null;
+  if (isJpeg(bytes)) {
+    try {
+      source = decode(bytes, {
+        useTArray: true,
+        formatAsRGBA: true,
+        tolerantDecoding: true,
+        maxMemoryUsageInMB: 512,
+      });
+    } catch {
+      source = null;
+    }
+  } else if (isPng(bytes)) {
+    source = await decodePngAsRgba(bytes);
   }
 
-  if (!source.width || !source.height) return null;
+  if (!source || !source.width || !source.height) return null;
 
   const target = new Uint8Array(OG_WIDTH * OG_HEIGHT * 4);
   drawCoverBackground(target, source);
