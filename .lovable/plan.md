@@ -1,30 +1,33 @@
-# Por que "Teste plenária 1" não apareceu na ficha do Pyerre
+# Imagem de cabeçalho nos formulários públicos
 
-## O que os dados mostram (verificado agora)
+Objetivo: permitir anexar uma imagem a cada formulário do construtor, exibida só na primeira tela (abaixo do título público) e usada como capa na pré-visualização do link no WhatsApp.
 
-- Contato: **Pyerre schantz garcias**. A observação **"Teste plenária 1"** existe no histórico (registro de hoje, 13:49 de Brasília).
-- O campo **Observações** da ficha dele está **vazio**, e a ficha não foi atualizada hoje às 13:49 (última alteração: 11:43).
-- No mesmo dia, o caso do Guilherme só ficou certo porque foi corrigido **manualmente** por mim (13:46) — não pelo aplicativo.
-- Conclusão: a busca não acha o texto porque a busca da Gestão da Base olha o campo Observações da ficha, e ele continua vazio. Ou seja: a cópia automática da observação para a ficha **não rodou** nesse registro.
+## 1. Banco (migration gerada, não aplicada)
+- `form_definitions`: novas colunas `header_image_path text null` e `header_image_mime text null`.
+- Sem alteração de RLS/grants; arquivos ficam no bucket privado já existente `campaign-media`.
 
-## Causa provável (ainda não confirmada)
+## 2. Admin — upload (aba Entrada de Dados)
+- Em `src/lib/form-definitions.functions.ts`:
+  - Nova server function `signFormHeaderImageUpload` (staff/admin, espelhando `signMissionMediaUpload`): valida PNG/JPG/WEBP até 8 MB, gera signed upload URL em `formularios/header/${id}/${Date.now()}_${arquivo}`.
+  - Nova server function para gerar link temporário de visualização da imagem já salva (preview no admin).
+  - `updateSchema` de `updateFormDefinition`: aceita `header_image_path` e `header_image_mime` (texto opcional, podendo ser nulo).
+- Em `src/routes/_authenticated/entrada-dados.$id.tsx`, seção "Configurações do formulário": campo de upload logo abaixo de "Título (público)", com miniatura, estado de envio e botão "Remover imagem" (limpa os dois campos). Os valores entram no payload de `saveFormulario` ("Salvar formulário").
 
-A correção que faz o swipe copiar a observação para a ficha foi feita no código, mas o registro do Pyerre foi criado por uma versão que ainda não tem essa correção (site publicado / aba antiga aberta). A segunda hipótese é que a cópia rodou e falhou em silêncio — hoje, se der erro, a falha só vai para o log do servidor e o usuário vê "salvo" do mesmo jeito.
+## 3. Exibição na primeira tela
+- `GET /api/public/forms/$slug` (`src/routes/api/public/forms/$slug.ts`): passa a selecionar `header_image_path` e devolver `header_image_url` (signed URL de 1h, igual ao `cover_url` de eventos). Sem imagem → `null`.
+- `src/components/PublicFormRenderer.tsx`: renderiza a imagem em largura total logo abaixo do `<h1>`:
+  - modo `sectioned`: apenas quando `sectionHistory.length === 0` (primeira tela), nos dois modos de apresentação (`inline` e `overlay`);
+  - modo `flat`: sempre (é tela única);
+  - nunca na tela de sucesso.
+  - `alt` com o título do formulário; imagem com cantos arredondados e `loading="lazy"`.
 
-Como as duas hipóteses levam ao mesmo sintoma, o primeiro passo do trabalho é confirmar qual foi, com um teste real de gravação.
+## 4. Prévia do link no WhatsApp
+- `src/lib/form-meta.functions.ts` (`getFormMeta`): seleciona também `header_image_path, header_image_mime, updated_at` e retorna `hasHeaderImage` + `imageVersion` (mesmo padrão de `getEventMeta`).
+- Novo `src/routes/api/public/forms/$slug/og-image.ts`: baixa a imagem do storage e converte com `createOpenGraphJpeg` (letterbox 1200x630, preserva a imagem inteira — cartão vertical não é cortado). 404 quando o formulário está inativo ou sem imagem; cache público de 1h/24h como no de eventos.
+- `src/routes/f.$slug.tsx`: o loader passa a buscar também a origem (`getRequestOrigin`) e, quando `hasHeaderImage`, o `head()` usa `og:image`/`twitter:image` = `${origin}/api/public/forms/${slug}/og-image?v=${imageVersion}` no lugar do padrão. Sem imagem, comportamento atual inalterado (`OG_DEFAULT_IMAGE` via `shareMeta`).
 
-## O que vai ser feito
-
-1. **Confirmar a causa**: registrar uma observação de teste pelo swipe na versão atual e verificar se ela chega ao campo Observações da ficha. Isso separa "versão antiga" de "falha silenciosa".
-2. **Tirar o silêncio do erro** (resolve casos futuros): quando a cópia para a ficha falhar, o salvamento deixa de ser reportado como sucesso pleno — o aplicativo avisa na tela que a observação foi registrada no histórico mas não entrou na ficha, com opção de tentar de novo.
-3. **Rede de segurança**: uma verificação que, ao abrir a ficha/timeline, detecta observações do histórico que não estão no campo Observações e as acrescenta (sem duplicar, sem sobrescrever). Assim, mesmo que uma gravação escape, o dado se autocorrige.
-4. **Correção retroativa**: acrescentar "Teste plenária 1" na ficha do Pyerre e varrer todas as observações do histórico (território/swipe e agitação) que ainda não estão no campo Observações, corrigindo todas — não só as de hoje.
-5. **Publicar**, para o site em produção passar a usar o mesmo caminho (é lá que o cadastro em campo está sendo feito).
-6. **Teste final**: abrir a ficha do Pyerre e buscar "Teste plenária 1" na Gestão da Base.
-
-## Detalhes técnicos
-
-- `src/lib/territory-logs.functions.ts` → `logTerritoryAction`: hoje chama `appendContactObservacao` em modo best-effort. Passar a capturar o resultado e devolver `{ ok, fichaAtualizada }`; `AddNoteSheet.tsx` e `TerritoryMapView`/`territorio.tsx` mostram aviso quando `fichaAtualizada === false`.
-- `src/lib/contact-observacoes.server.ts` → `appendContactObservacao` passa a retornar booleano em vez de `void` (mantendo o log de erro). Mesmo tratamento aplicado em `src/lib/agitacao.functions.ts`.
-- Reconciliação: função server-only que compara `territory_contact_logs`/`agitacao_contact_logs` (`action = 'observacao'`, `note` não nula, `hidden_at` nulo) com `contacts.observacoes` e completa o que falta usando `buildObservacoes` (idempotente pelo prefixo de data/hora). Chamada na leitura da timeline do contato.
-- Backfill histórico por SQL, no mesmo formato de prefixo, sem duplicar linhas já presentes. Nenhuma mudança de schema; nada é apagado.
+## Observações
+- Campo totalmente opcional: formulários existentes continuam idênticos.
+- Como o motor é único, os formulários fixos (`/recadastro`, `/atualizacao`, `/inscrever`) ganham o recurso automaticamente.
+- Prévias já compartilhadas no WhatsApp ficam em cache do robô; o `?v=` força atualização em novos compartilhamentos, mas links antigos podem demorar a refletir a nova capa.
+- A migration fica pronta para você aplicar manualmente; as colunas precisam existir antes de o upload funcionar.
