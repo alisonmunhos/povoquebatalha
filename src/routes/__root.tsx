@@ -107,6 +107,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=Caveat:wght@500;700&display=swap" },
     ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              name: "Campanha do Povo que Batalha",
+              url: "https://povoquebatalha.lovable.app",
+              description:
+                "Campanha de mobilização popular com cadastro de apoiadores, eventos e ações pelo WhatsApp.",
+            },
+            {
+              "@type": "WebSite",
+              name: "Campanha do Povo que Batalha",
+              url: "https://povoquebatalha.lovable.app",
+              inLanguage: "pt-BR",
+              description:
+                "Plataforma de mobilização da Campanha do Povo que Batalha: cadastro de apoiadores, eventos e ações pelo WhatsApp.",
+            },
+          ],
+        }),
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
