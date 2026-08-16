@@ -588,7 +588,7 @@ function LinkResult({ url }: { url: string }) {
       </div>
       {qrDataUrl && (
         <div className="space-y-2">
-          <img src={qrDataUrl} alt="QR code do link" className="w-40 h-40 border rounded-md" />
+          <img src={qrDataUrl} alt="QR code para abrir o link de cadastro" className="w-40 h-40 border rounded-md" />
           <a href={qrDataUrl} download="qrcode-link.png" className="text-sm text-primary hover:underline block">Baixar PNG</a>
         </div>
       )}

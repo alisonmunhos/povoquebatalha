@@ -10,7 +10,7 @@ const MAIN_SECTIONED_FORM_SLUG = "seja-um-apoiador-a-da-campanha-do-povo-que-bat
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: shareMeta({
-      title: "Campanha do Povo que Batalha",
+      title: "Campanha do Povo que Batalha — Gestão de Apoiadores",
       description:
         "Faça parte da Campanha do Povo que Batalha. Cadastre-se e receba as próximas ações.",
       path: "/",

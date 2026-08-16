@@ -2,7 +2,7 @@
 // /f/$slug e as rotas fixas (/recadastro, /atualizacao, /inscrever), que passam
 // seu próprio slug fixo + parâmetros de busca (ref/recad_token) como props.
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight, Eye, EyeOff, Calendar } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
@@ -577,7 +577,7 @@ export function PublicFormRenderer({
       {currentSection.description?.trim() && (
         <p className="text-sm text-muted-foreground">{currentSection.description.trim()}</p>
       )}
-      <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
+      <input type="text" name="hp" aria-hidden="true" aria-label="Campo antispam (não preencher)" tabIndex={-1} autoComplete="off" className="hidden" />
       {isAccountSection && (
         <AccountCreationFields
           email={contactContext?.email ?? ""}
@@ -719,7 +719,7 @@ export function PublicFormRenderer({
           <>
             <h1 className="text-3xl font-bold tracking-tight">{form.title}</h1>
             <form onSubmit={onSubmit} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
-              <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
+              <input type="text" name="hp" aria-hidden="true" aria-label="Campo antispam (não preencher)" tabIndex={-1} autoComplete="off" className="hidden" />
               {form.questions
                 .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
                 .map((q) => (
