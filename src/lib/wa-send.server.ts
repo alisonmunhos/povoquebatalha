@@ -308,6 +308,7 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
 
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
+    const notADeliveryFailure = errorMsg.includes("Envio de mídia ainda não disponível no WhatsApp oficial");
     return {
       ok: false,
       endpoint_used: endpointUsed,
@@ -322,6 +323,7 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       rendered_text: rendered,
       error: errorMsg,
       shadowban_suspected: isShadowbanError(errorMsg),
+      not_a_delivery_failure: notADeliveryFailure,
     };
   }
 }
