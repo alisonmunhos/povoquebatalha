@@ -29,6 +29,44 @@ function readPixel(source: DecodedImage, x: number, y: number) {
   };
 }
 
+/** Amostragem bilinear: média ponderada dos 4 vizinhos, evita serrilhado ao escalar. */
+function samplePixel(source: DecodedImage, x: number, y: number) {
+  const fx = clamp(x, 0, source.width - 1);
+  const fy = clamp(y, 0, source.height - 1);
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = Math.min(x0 + 1, source.width - 1);
+  const y1 = Math.min(y0 + 1, source.height - 1);
+  const wx = fx - x0;
+  const wy = fy - y0;
+
+  const at = (px: number, py: number) => {
+    const i = (py * source.width + px) * 4;
+    return {
+      r: source.data[i] ?? 0,
+      g: source.data[i + 1] ?? 0,
+      b: source.data[i + 2] ?? 0,
+      a: source.data[i + 3] ?? 255,
+    };
+  };
+
+  const p00 = at(x0, y0);
+  const p10 = at(x1, y0);
+  const p01 = at(x0, y1);
+  const p11 = at(x1, y1);
+
+  const mix = (a: number, b: number, c: number, d: number) =>
+    (a * (1 - wx) + b * wx) * (1 - wy) + (c * (1 - wx) + d * wx) * wy;
+
+  return {
+    r: mix(p00.r, p10.r, p01.r, p11.r),
+    g: mix(p00.g, p10.g, p01.g, p11.g),
+    b: mix(p00.b, p10.b, p01.b, p11.b),
+    a: mix(p00.a, p10.a, p01.a, p11.a),
+  };
+}
+
+
 function blendPixel(
   target: Uint8Array,
   x: number,
