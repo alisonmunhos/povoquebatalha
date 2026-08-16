@@ -273,9 +273,49 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
 
   try {
     if (input.attachment) {
-      throw new Error(
-        "Envio de mídia ainda não disponível no WhatsApp oficial (Cloud API). Envie como texto/link por enquanto.",
-      );
+      const att = input.attachment;
+      const caption = rendered.trim() ? rendered : null;
+      let result: Awaited<ReturnType<typeof whatsappCloud.sendText>>;
+
+      if (plan.endpoint === "send-image") {
+        endpointUsed = "send-image";
+        result = await whatsappCloud.sendImage(phone, att.signedUrl, caption);
+      } else if (plan.endpoint === "send-audio") {
+        endpointUsed = "send-audio";
+        result = await whatsappCloud.sendAudio(phone, att.signedUrl);
+        // Áudio não aceita caption: manda o texto como mensagem separada.
+        if (caption) {
+          try {
+            await whatsappCloud.sendText(phone, caption, Boolean(linkUrlFinal));
+          } catch {
+            fallbackReason = "Áudio enviado, mas o texto complementar falhou";
+          }
+        }
+      } else {
+        endpointUsed = "send-document";
+        result = await whatsappCloud.sendDocument(
+          phone,
+          att.signedUrl,
+          att.filename,
+          caption,
+        );
+      }
+
+      return {
+        ok: true,
+        endpoint_used: endpointUsed,
+        preview_status: "sem_link",
+        link_url: linkUrlFinal,
+        link_title: input.link?.title ?? null,
+        link_description: input.link?.description ?? null,
+        link_image: input.link?.image ?? null,
+        fallback_reason: fallbackReason,
+        message_id: result.messageId,
+        zaap_id: null,
+        rendered_text: rendered,
+        error: null,
+        shadowban_suspected: false,
+      };
     }
 
     // A Cloud API não tem endpoint de link com prévia customizada: o texto vai
@@ -305,6 +345,7 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       error: null,
       shadowban_suspected: false,
     };
+
 
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
