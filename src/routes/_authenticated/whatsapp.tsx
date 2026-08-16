@@ -5,10 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics, dismissShadowbanAlert, setSignupWhatsappPhone } from "@/lib/zapi.functions";
+import { getCloudPhoneStatus } from "@/lib/whatsapp-cloud.functions";
 import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle, Copy, Inbox as InboxIcon, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
-  head: () => ({ meta: [{ title: "WhatsApp — Conexão Z-API" }] }),
+  head: () => ({ meta: [{ title: "WhatsApp — Conexão Oficial (Meta)" }] }),
   component: WhatsAppPage,
 });
 
@@ -456,4 +457,110 @@ function WebhookDiagnosticsSection() {
 
 function fmt(iso: string) {
   try { return new Date(iso).toLocaleString("pt-BR"); } catch { return iso; }
+}
+
+const QUALITY: Record<string, { label: string; className: string }> = {
+  GREEN: { label: "Boa", className: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  YELLOW: { label: "Média", className: "bg-amber-100 text-amber-900 border-amber-300" },
+  RED: { label: "Baixa", className: "bg-red-100 text-red-800 border-red-300" },
+  NA: { label: "Ainda não avaliada", className: "bg-muted text-muted-foreground border-border" },
+};
+
+const NAME_STATUS: Record<string, string> = {
+  APPROVED: "Aprovado",
+  AVAILABLE_WITHOUT_REVIEW: "Aprovado",
+  PENDING_REVIEW: "Em análise",
+  DECLINED: "Recusado",
+  EXPIRED: "Expirado",
+};
+
+const LIMIT_TIER: Record<string, string> = {
+  TIER_50: "50/dia",
+  TIER_250: "250/dia",
+  TIER_1K: "1 mil/dia",
+  TIER_10K: "10 mil/dia",
+  TIER_100K: "100 mil/dia",
+  TIER_UNLIMITED: "Ilimitado",
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="border rounded-md p-3 bg-background">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium">{children}</div>
+    </div>
+  );
+}
+
+function CloudPhoneHealthSection() {
+  const qc = useQueryClient();
+  const statusFn = useServerFn(getCloudPhoneStatus);
+  const q = useQuery({
+    queryKey: ["cloud-phone-status"],
+    queryFn: () => statusFn(),
+    refetchInterval: 60000,
+  });
+
+  const d = q.data;
+
+  return (
+    <section className="mt-6 border-2 rounded-xl p-6 bg-card">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">Saúde do número oficial</h2>
+        <button
+          onClick={() => qc.invalidateQueries({ queryKey: ["cloud-phone-status"] })}
+          className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
+        >
+          <RefreshCw className="h-3 w-3" /> Atualizar
+        </button>
+      </div>
+
+      {q.isLoading && <p className="mt-3 text-sm text-muted-foreground">Carregando…</p>}
+
+      {d && !d.ok && (
+        <div className="mt-3 flex items-start gap-2 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{d.error}</span>
+        </div>
+      )}
+
+      {d?.ok && (
+        <>
+          <div className="mt-4 grid sm:grid-cols-2 gap-3">
+            <Field label="Número">{d.display_phone_number ?? "—"}</Field>
+            <Field label="Nome verificado">{d.verified_name ?? "—"}</Field>
+            <Field label="Qualidade">
+              {(() => {
+                const key = (d.quality_rating ?? "NA").toUpperCase();
+                const info = QUALITY[key] ?? QUALITY.NA!;
+                return (
+                  <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ${info.className}`}>
+                    {info.label}
+                  </span>
+                );
+              })()}
+            </Field>
+            <Field label="Verificação em duas etapas">
+              {d.code_verification_status === "VERIFIED"
+                ? "Verificado"
+                : d.code_verification_status === "UNVERIFIED"
+                  ? "Não verificado"
+                  : (d.code_verification_status ?? "—")}
+            </Field>
+            <Field label="Nome de exibição">
+              {d.name_status ? (NAME_STATUS[d.name_status] ?? d.name_status) : "—"}
+            </Field>
+            <Field label="Limite de mensagens">
+              {d.messaging_limit_tier ? (LIMIT_TIER[d.messaging_limit_tier] ?? d.messaging_limit_tier) : "—"}
+            </Field>
+          </div>
+          {d.account_mode && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Modo da conta: {d.account_mode === "LIVE" ? "Produção" : d.account_mode}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
