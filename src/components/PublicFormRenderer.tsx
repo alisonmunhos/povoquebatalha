@@ -2,7 +2,7 @@
 // /f/$slug e as rotas fixas (/recadastro, /atualizacao, /inscrever), que passam
 // seu próprio slug fixo + parâmetros de busca (ref/recad_token) como props.
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Megaphone, CheckCircle2, MessageCircle, Loader2, ChevronRight, Eye, EyeOff, Calendar } from "lucide-react";
 import { useCepLookup, formatCep } from "@/hooks/use-cep";
 import { useDeployRefresh } from "@/hooks/use-deploy-refresh";
@@ -577,7 +577,7 @@ export function PublicFormRenderer({
       {currentSection.description?.trim() && (
         <p className="text-sm text-muted-foreground">{currentSection.description.trim()}</p>
       )}
-      <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
+      <input type="text" name="hp" aria-hidden="true" aria-label="Campo antispam (não preencher)" tabIndex={-1} autoComplete="off" className="hidden" />
       {isAccountSection && (
         <AccountCreationFields
           email={contactContext?.email ?? ""}
@@ -719,7 +719,7 @@ export function PublicFormRenderer({
           <>
             <h1 className="text-3xl font-bold tracking-tight">{form.title}</h1>
             <form onSubmit={onSubmit} className="mt-6 space-y-5 bg-card border rounded-xl p-6">
-              <input type="text" name="hp" tabIndex={-1} autoComplete="off" className="hidden" />
+              <input type="text" name="hp" aria-hidden="true" aria-label="Campo antispam (não preencher)" tabIndex={-1} autoComplete="off" className="hidden" />
               {form.questions
                 .filter((q) => !q.depends_on || parentAnswers[q.depends_on.key] === q.depends_on.value)
                 .map((q) => (
@@ -911,6 +911,7 @@ function AddressBlockField({
   onChange: (v: AddressValue) => void;
 }) {
   const v = value ?? {};
+  const fieldId = useId();
   const cepHook = useCepLookup();
 
   async function onCepChange(raw: string) {
@@ -937,8 +938,9 @@ function AddressBlockField({
       <p className="text-sm font-medium">{label}</p>
       {help_text && <p className="text-xs text-muted-foreground -mt-2">{help_text}</p>}
       <div>
-        <label className="text-xs text-muted-foreground">CEP {cepHook.loading ? "(buscando…)" : ""}</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-cep`}>CEP {cepHook.loading ? "(buscando…)" : ""}</label>
         <input
+          id={`${fieldId}-cep`}
           value={v.cep ?? ""}
           onChange={(e) => onCepChange(e.target.value)}
           placeholder="00000-000"
@@ -947,8 +949,9 @@ function AddressBlockField({
         {cepHook.error && <p className="text-xs text-amber-600 mt-1">{cepHook.error}</p>}
       </div>
       <div>
-        <label className="text-xs text-muted-foreground">Endereço (rua/avenida)</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-endereco`}>Endereço (rua/avenida)</label>
         <input
+          id={`${fieldId}-endereco`}
           value={v.endereco ?? ""}
           onChange={(e) => onChange({ ...v, endereco: e.target.value })}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -956,12 +959,14 @@ function AddressBlockField({
       </div>
       <div className="grid grid-cols-3 gap-3">
         <input
+          aria-label="Número"
           value={v.numero ?? ""}
           onChange={(e) => onChange({ ...v, numero: e.target.value })}
           placeholder="Número"
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
         <input
+          aria-label="Complemento"
           value={v.complemento ?? ""}
           onChange={(e) => onChange({ ...v, complemento: e.target.value })}
           placeholder="Complemento"
@@ -969,16 +974,18 @@ function AddressBlockField({
         />
       </div>
       <div>
-        <label className="text-xs text-muted-foreground">Bairro</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-bairro`}>Bairro</label>
         <input
+          id={`${fieldId}-bairro`}
           value={v.bairro ?? ""}
           onChange={(e) => onChange({ ...v, bairro: e.target.value })}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="text-xs text-muted-foreground">Ponto de referência</label>
+        <label className="text-xs text-muted-foreground" htmlFor={`${fieldId}-referencia`}>Ponto de referência</label>
         <input
+          id={`${fieldId}-referencia`}
           value={v.referencia ?? ""}
           onChange={(e) => onChange({ ...v, referencia: e.target.value })}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -986,18 +993,21 @@ function AddressBlockField({
       </div>
       <div className="grid grid-cols-3 gap-3">
         <input
+          aria-label="Cidade"
           value={v.cidade ?? ""}
           onChange={(e) => onChange({ ...v, cidade: e.target.value })}
           placeholder="Cidade"
           className="col-span-2 rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
         <input
+          aria-label="UF"
           value={v.uf ?? ""}
           onChange={(e) => onChange({ ...v, uf: e.target.value.toUpperCase().slice(0, 2) })}
           placeholder="UF"
           maxLength={2}
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
+
       </div>
     </div>
   );

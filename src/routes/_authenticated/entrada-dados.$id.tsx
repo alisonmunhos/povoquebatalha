@@ -380,7 +380,7 @@ function FormBuilder() {
         </div>
         {qrDataUrl && (
           <div className="space-y-2">
-            <img src={qrDataUrl} alt="QR code do formulário" className="w-40 h-40 border rounded-md" />
+            <img src={qrDataUrl} alt="QR code para abrir o formulário público de cadastro" className="w-40 h-40 border rounded-md" />
             <a href={qrDataUrl} download={`qrcode-${q.data.form.slug}.png`} className="text-sm text-primary hover:underline">Baixar PNG</a>
           </div>
         )}
@@ -425,7 +425,7 @@ function FormBuilder() {
                     </div>
                     {linkQr?.token === l.token && (
                       <div className="space-y-1">
-                        <img src={linkQr.dataUrl} alt={`QR code do link ${l.label || "sem nome"}`} className="w-40 h-40 border rounded-md" />
+                        <img src={linkQr.dataUrl} alt={`QR code para abrir o link de cadastro ${l.label || "sem nome"}`} className="w-40 h-40 border rounded-md" />
                         <a
                           href={linkQr.dataUrl}
                           download={`qrcode-${(l.label || q.data.form.slug || "link").toString().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`}

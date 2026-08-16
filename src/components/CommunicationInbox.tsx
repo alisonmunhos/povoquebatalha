@@ -477,6 +477,7 @@ export function CommunicationInbox() {
                 <button
                   onClick={() => conv && flagMut.mutate({ conversation_id: conv.id, flagged: !convQ.data?.conversation?.flagged })}
                   className="p-2 rounded-md hover:bg-muted"
+                  aria-label="Sinalizar conversa"
                   title="Sinalizar"
                 >
                   {convQ.data?.conversation?.flagged ? <Star className="h-4 w-4 text-amber-500 fill-amber-500" /> : <StarOff className="h-4 w-4" />}
@@ -484,17 +485,19 @@ export function CommunicationInbox() {
                 <button
                   onClick={() => conv && statusMut.mutate({ conversation_id: conv.id, status: conv.status === "resolvida" ? "aberta" : "resolvida" })}
                   className="text-xs inline-flex items-center gap-1 px-2 py-1.5 border rounded-md hover:bg-muted"
+                  aria-label={conv?.status === "resolvida" ? "Reabrir conversa" : "Marcar conversa como resolvida"}
                 >
                   {conv?.status === "resolvida" ? <><RotateCcw className="h-3 w-3" /> Reabrir</> : <><CheckCircle2 className="h-3 w-3" /> Resolver</>}
                 </button>
                 <button
                   onClick={() => setInfoOpen((v) => !v)}
                   className="hidden md:inline-flex p-2 rounded-md hover:bg-muted"
+                  aria-label={infoOpen ? "Ocultar detalhes do contato" : "Mostrar detalhes do contato"}
                   title={infoOpen ? "Ocultar detalhes do contato" : "Mostrar detalhes do contato"}
                 >
                   {infoOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                 </button>
-                <button className="md:hidden p-2 rounded-md hover:bg-muted" onClick={() => setMobilePane("info")}>
+                <button className="md:hidden p-2 rounded-md hover:bg-muted" aria-label="Mostrar detalhes do contato" onClick={() => setMobilePane("info")}>
                   <MoreVertical className="h-4 w-4" />
                 </button>
               </div>
