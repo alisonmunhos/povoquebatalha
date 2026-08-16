@@ -5,10 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getZapiStatus, getZapiQr, disconnectZapi, testSendWhatsApp, getInstanceSettings, setInstanceInboundEnabled, getWebhookDiagnostics, dismissShadowbanAlert, setSignupWhatsappPhone } from "@/lib/zapi.functions";
+import { getCloudPhoneStatus } from "@/lib/whatsapp-cloud.functions";
 import { CheckCircle2, AlertCircle, QrCode, Send, RefreshCw, MessageCircle, Copy, Inbox as InboxIcon, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
-  head: () => ({ meta: [{ title: "WhatsApp — Conexão Z-API" }] }),
+  head: () => ({ meta: [{ title: "WhatsApp — Conexão Oficial (Meta)" }] }),
   component: WhatsAppPage,
 });
 
@@ -63,45 +64,95 @@ function WhatsAppPage() {
 
       <div className="flex items-center gap-3">
         <MessageCircle className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-semibold">Conexão WhatsApp (Z-API)</h1>
+        <h1 className="text-2xl font-semibold">Conexão Oficial (Meta)</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Mantenha a instância conectada para enviar e receber mensagens.
+        Saúde do número oficial usado para enviar e receber mensagens.
       </p>
 
-      {settings.data.shadowban_suspected_at && (
-        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm flex items-start gap-3">
-          <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="font-medium">Suspeita de shadowban detectada</p>
-            <p className="mt-0.5 text-xs">
-              Uma campanha foi pausada automaticamente em{" "}
-              {new Date(settings.data.shadowban_suspected_at).toLocaleString("pt-BR")} após a Z-API
-              rejeitar um envio. Revise a instância antes de retomar campanhas.
-            </p>
-          </div>
+      <CloudPhoneHealthSection />
+
+      <section className="mt-6 border rounded-xl p-6 bg-card">
+        <h2 className="font-semibold">Teste de envio</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Envie uma mensagem de teste pelo número oficial (informe com DDI).
+        </p>
+        <div className="mt-3 space-y-2 max-w-md">
+          <input
+            value={testPhone}
+            onChange={(e) => setTestPhone(e.target.value)}
+            placeholder="5511912345678"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <textarea
+            value={testMsg}
+            onChange={(e) => setTestMsg(e.target.value)}
+            rows={3}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
           <button
-            disabled={dismissingShadowban}
+            disabled={busy || !testPhone}
             onClick={async () => {
-              setDismissingShadowban(true);
+              setBusy(true);
+              setTestResult(null);
               try {
-                await dismissShadowbanFn();
-                qc.invalidateQueries({ queryKey: ["zapi-instance-settings"] });
+                await testFn({ data: { phone: testPhone, message: testMsg } });
+                setTestResult("Enviado!");
+              } catch (e) {
+                setTestResult(e instanceof Error ? e.message : "Erro");
               } finally {
-                setDismissingShadowban(false);
+                setBusy(false);
               }
             }}
-            className="text-xs underline hover:no-underline disabled:opacity-50"
+            className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm inline-flex items-center gap-2 disabled:opacity-50"
           >
-            Descartar
+            <Send className="h-4 w-4" />
+            {busy ? "Enviando…" : "Enviar teste"}
           </button>
+          {testResult && <p className="text-xs">{testResult}</p>}
         </div>
-      )}
+      </section>
 
-      <div className="mt-8 grid md:grid-cols-2 gap-6">
-        <section className="border rounded-xl p-6 bg-card">
+      <div className="mt-10 border-t pt-6">
+        <h2 className="text-lg font-semibold text-muted-foreground">
+          Z-API (legado, em desativação)
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Mantido apenas por segurança durante a transição. Os envios já saem pelo número oficial.
+        </p>
+
+        {settings.data.shadowban_suspected_at && (
+          <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium">Suspeita de shadowban detectada</p>
+              <p className="mt-0.5 text-xs">
+                Uma campanha foi pausada automaticamente em{" "}
+                {new Date(settings.data.shadowban_suspected_at).toLocaleString("pt-BR")} após a Z-API
+                rejeitar um envio. Revise a instância antes de retomar campanhas.
+              </p>
+            </div>
+            <button
+              disabled={dismissingShadowban}
+              onClick={async () => {
+                setDismissingShadowban(true);
+                try {
+                  await dismissShadowbanFn();
+                  qc.invalidateQueries({ queryKey: ["zapi-instance-settings"] });
+                } finally {
+                  setDismissingShadowban(false);
+                }
+              }}
+              className="text-xs underline hover:no-underline disabled:opacity-50"
+            >
+              Descartar
+            </button>
+          </div>
+        )}
+
+        <section className="mt-4 border rounded-xl p-6 bg-card">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Status</h2>
+            <h3 className="font-semibold">Status da instância Z-API</h3>
             <button
               onClick={() => qc.invalidateQueries({ queryKey: ["zapi-status"] })}
               className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
@@ -110,8 +161,8 @@ function WhatsAppPage() {
             </button>
           </div>
           {!s.configured ? (
-            <p className="mt-3 text-sm text-destructive">
-              Z-API não configurada. Defina as variáveis de ambiente.
+            <p className="mt-3 text-sm text-muted-foreground">
+              Z-API não configurada (esperado após a migração para o número oficial).
             </p>
           ) : !s.ok ? (
             <div className="mt-3 flex items-start gap-2 text-sm text-destructive">
@@ -149,7 +200,7 @@ function WhatsAppPage() {
               </div>
               <button
                 onClick={() => setShowQr((v) => !v)}
-                className="text-sm rounded-md bg-primary text-primary-foreground px-3 py-1.5 inline-flex items-center gap-2"
+                className="text-sm rounded-md border px-3 py-1.5 inline-flex items-center gap-2 hover:bg-muted"
               >
                 <QrCode className="h-4 w-4" />
                 {showQr ? "Ocultar QR Code" : "Mostrar QR Code"}
@@ -158,81 +209,41 @@ function WhatsAppPage() {
           )}
         </section>
 
-        <section className="border rounded-xl p-6 bg-card">
-          <h2 className="font-semibold">Teste de envio</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Envie uma mensagem de teste para um número (com DDI).
-          </p>
-          <div className="mt-3 space-y-2">
-            <input
-              value={testPhone}
-              onChange={(e) => setTestPhone(e.target.value)}
-              placeholder="5511912345678"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <textarea
-              value={testMsg}
-              onChange={(e) => setTestMsg(e.target.value)}
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <button
-              disabled={busy || !connected || !testPhone}
-              onClick={async () => {
-                setBusy(true);
-                setTestResult(null);
-                try {
-                  await testFn({ data: { phone: testPhone, message: testMsg } });
-                  setTestResult("Enviado!");
-                } catch (e) {
-                  setTestResult(e instanceof Error ? e.message : "Erro");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-              className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm inline-flex items-center gap-2 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              {busy ? "Enviando…" : "Enviar teste"}
-            </button>
-            {testResult && <p className="text-xs">{testResult}</p>}
-          </div>
-        </section>
+        {showQr && (
+          <section className="mt-4 border rounded-xl p-6 bg-card max-w-sm">
+            <h3 className="font-semibold">QR Code</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Abra o WhatsApp no celular → Aparelhos conectados → Conectar um aparelho.
+            </p>
+            {qr.data?.ok && qr.data.image ? (
+              <img
+                src={qr.data.image}
+                alt="QR Code Z-API"
+                className="mt-3 w-full max-w-xs border rounded"
+              />
+            ) : qr.isError || (qr.data && !qr.data.ok) ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm text-destructive">
+                  {qr.data && !qr.data.ok
+                    ? qr.data.error
+                    : qr.error instanceof Error
+                      ? qr.error.message
+                      : "Não foi possível carregar o QR Code."}
+                </p>
+                <button
+                  onClick={() => qr.refetch()}
+                  className="text-xs rounded-md border px-3 py-1.5 hover:bg-muted inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
+                </button>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">Carregando…</p>
+            )}
+          </section>
+        )}
       </div>
 
-      {showQr && (
-        <section className="mt-6 border rounded-xl p-6 bg-card max-w-sm">
-          <h2 className="font-semibold">QR Code</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Abra o WhatsApp no celular → Aparelhos conectados → Conectar um aparelho.
-          </p>
-          {qr.data?.ok && qr.data.image ? (
-            <img
-              src={qr.data.image}
-              alt="QR Code Z-API"
-              className="mt-3 w-full max-w-xs border rounded"
-            />
-          ) : qr.isError || (qr.data && !qr.data.ok) ? (
-            <div className="mt-3 space-y-2">
-              <p className="text-sm text-destructive">
-                {qr.data && !qr.data.ok
-                  ? qr.data.error
-                  : qr.error instanceof Error
-                    ? qr.error.message
-                    : "Não foi possível carregar o QR Code."}
-              </p>
-              <button
-                onClick={() => qr.refetch()}
-                className="text-xs rounded-md border px-3 py-1.5 hover:bg-muted inline-flex items-center gap-1.5"
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
-              </button>
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">Carregando…</p>
-          )}
-        </section>
-      )}
 
       <section className="mt-6 border rounded-xl p-6 bg-card">
         <h2 className="font-semibold">Recebimento de mensagens (Inbox)</h2>
@@ -446,4 +457,110 @@ function WebhookDiagnosticsSection() {
 
 function fmt(iso: string) {
   try { return new Date(iso).toLocaleString("pt-BR"); } catch { return iso; }
+}
+
+const QUALITY: Record<string, { label: string; className: string }> = {
+  GREEN: { label: "Boa", className: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  YELLOW: { label: "Média", className: "bg-amber-100 text-amber-900 border-amber-300" },
+  RED: { label: "Baixa", className: "bg-red-100 text-red-800 border-red-300" },
+  NA: { label: "Ainda não avaliada", className: "bg-muted text-muted-foreground border-border" },
+};
+
+const NAME_STATUS: Record<string, string> = {
+  APPROVED: "Aprovado",
+  AVAILABLE_WITHOUT_REVIEW: "Aprovado",
+  PENDING_REVIEW: "Em análise",
+  DECLINED: "Recusado",
+  EXPIRED: "Expirado",
+};
+
+const LIMIT_TIER: Record<string, string> = {
+  TIER_50: "50/dia",
+  TIER_250: "250/dia",
+  TIER_1K: "1 mil/dia",
+  TIER_10K: "10 mil/dia",
+  TIER_100K: "100 mil/dia",
+  TIER_UNLIMITED: "Ilimitado",
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="border rounded-md p-3 bg-background">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium">{children}</div>
+    </div>
+  );
+}
+
+function CloudPhoneHealthSection() {
+  const qc = useQueryClient();
+  const statusFn = useServerFn(getCloudPhoneStatus);
+  const q = useQuery({
+    queryKey: ["cloud-phone-status"],
+    queryFn: () => statusFn(),
+    refetchInterval: 60000,
+  });
+
+  const d = q.data;
+
+  return (
+    <section className="mt-6 border-2 rounded-xl p-6 bg-card">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">Saúde do número oficial</h2>
+        <button
+          onClick={() => qc.invalidateQueries({ queryKey: ["cloud-phone-status"] })}
+          className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
+        >
+          <RefreshCw className="h-3 w-3" /> Atualizar
+        </button>
+      </div>
+
+      {q.isLoading && <p className="mt-3 text-sm text-muted-foreground">Carregando…</p>}
+
+      {d && !d.ok && (
+        <div className="mt-3 flex items-start gap-2 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{d.error}</span>
+        </div>
+      )}
+
+      {d?.ok && (
+        <>
+          <div className="mt-4 grid sm:grid-cols-2 gap-3">
+            <Field label="Número">{d.display_phone_number ?? "—"}</Field>
+            <Field label="Nome verificado">{d.verified_name ?? "—"}</Field>
+            <Field label="Qualidade">
+              {(() => {
+                const key = (d.quality_rating ?? "NA").toUpperCase();
+                const info = QUALITY[key] ?? QUALITY.NA!;
+                return (
+                  <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ${info.className}`}>
+                    {info.label}
+                  </span>
+                );
+              })()}
+            </Field>
+            <Field label="Verificação em duas etapas">
+              {d.code_verification_status === "VERIFIED"
+                ? "Verificado"
+                : d.code_verification_status === "UNVERIFIED"
+                  ? "Não verificado"
+                  : (d.code_verification_status ?? "—")}
+            </Field>
+            <Field label="Nome de exibição">
+              {d.name_status ? (NAME_STATUS[d.name_status] ?? d.name_status) : "—"}
+            </Field>
+            <Field label="Limite de mensagens">
+              {d.messaging_limit_tier ? (LIMIT_TIER[d.messaging_limit_tier] ?? d.messaging_limit_tier) : "—"}
+            </Field>
+          </div>
+          {d.account_mode && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Modo da conta: {d.account_mode === "LIVE" ? "Produção" : d.account_mode}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
