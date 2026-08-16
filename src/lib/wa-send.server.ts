@@ -261,45 +261,31 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
     };
   }
 
-  const { zapi } = await import("@/integrations/zapi/client.server");
+  // Motor oficial: WhatsApp Cloud API (Meta). Nesta etapa só texto — mídia
+  // (imagem/documento/áudio) e templates entram numa etapa separada.
+  // O código da Z-API segue no repo (src/integrations/zapi/**) mas não é mais chamado aqui.
+  const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
   let fallbackReason: string | null = null;
   let endpointUsed: SendResult["endpoint_used"] = plan.endpoint;
   let previewStatus: PreviewStatus = plan.preview_status;
 
   try {
-    let result: { messageId?: string; zaapId?: string; id?: string } = {};
-
-    if (plan.endpoint === "send-document" && input.attachment) {
-      const ext = (input.attachment.filename.split(".").pop() ?? "pdf").toLowerCase();
-      result = await zapi.sendDocument(phone, input.attachment.signedUrl, input.attachment.filename, ext);
-      if (rendered.trim()) await zapi.sendText(phone, rendered);
-    } else if (plan.endpoint === "send-image" && input.attachment) {
-      result = await zapi.sendImage(phone, input.attachment.signedUrl, rendered || undefined);
-    } else if (plan.endpoint === "send-audio" && input.attachment) {
-      result = await zapi.sendAudio(phone, input.attachment.signedUrl);
-      if (rendered.trim()) await zapi.sendText(phone, rendered);
-    } else if (plan.endpoint === "send-link" && linkUrlFinal) {
-      try {
-        result = await zapi.sendLink({
-          phone,
-          message: ensureLinkInBody(rendered, linkUrlFinal),
-          linkUrl: linkUrlFinal,
-          title: input.link?.title ?? "",
-          linkDescription: input.link?.description ?? "",
-          image: input.link?.image ?? "",
-          delayMessage: input.delayMessage,
-        });
-      } catch (e) {
-        fallbackReason = `send-link falhou: ${e instanceof Error ? e.message : "erro"}`;
-        endpointUsed = "send-text";
-        previewStatus = "preview_provavel";
-        result = await zapi.sendText(phone, ensureLinkInBody(rendered, linkUrlFinal), input.delayMessage);
-      }
-    } else {
-      // send-text (com link no corpo quando aplicável)
-      const body = ensureLinkInBody(rendered, linkUrlFinal);
-      result = await zapi.sendText(phone, body, input.delayMessage);
+    if (input.attachment) {
+      throw new Error(
+        "Envio de mídia ainda não disponível no WhatsApp oficial (Cloud API). Envie como texto/link por enquanto.",
+      );
     }
+
+    // A Cloud API não tem endpoint de link com prévia customizada: o texto vai
+    // com preview_url e o próprio WhatsApp busca o OG do link.
+    if (plan.endpoint === "send-link") {
+      endpointUsed = "send-text";
+      previewStatus = "preview_provavel";
+      fallbackReason = "Cloud API: prévia gerada pelo WhatsApp a partir do link";
+    }
+
+    const body = ensureLinkInBody(rendered, linkUrlFinal);
+    const result = await whatsappCloud.sendText(phone, body, Boolean(linkUrlFinal));
 
     return {
       ok: true,
@@ -310,12 +296,14 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       link_description: input.link?.description ?? null,
       link_image: input.link?.image ?? null,
       fallback_reason: fallbackReason,
-      message_id: result.messageId ?? result.id ?? null,
-      zaap_id: result.zaapId ?? null,
+      message_id: result.messageId,
+      // Envios novos não têm zaap_id (campo era exclusivo da Z-API).
+      zaap_id: null,
       rendered_text: rendered,
       error: null,
       shadowban_suspected: false,
     };
+
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
     return {
