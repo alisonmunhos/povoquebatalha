@@ -361,10 +361,12 @@ const INVALID_NUMBER_PATTERNS = [
  */
 export async function recordWhatsappSendOutcome(
   contactId: string | null | undefined,
-  result: Pick<SendResult, "ok" | "endpoint_used" | "error">,
+  result: Pick<SendResult, "ok" | "endpoint_used" | "error" | "not_a_delivery_failure">,
 ): Promise<void> {
   if (!contactId) return;
   if (result.endpoint_used === "skipped" || result.endpoint_used === "wa.me") return;
+  // Erros que são limitações nossas (ex.: mídia ainda não suportada) não devem sujar o status do contato.
+  if (result.not_a_delivery_failure) return;
 
   const err = result.error ?? "";
   let next: "confirmado" | "invalido" | "erro_envio";
