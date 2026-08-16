@@ -11,6 +11,7 @@ import { SectionedQuestionsPanel } from "@/components/form-builder/SectionedQues
 import { CustomQuestionFields, type CustomQuestionDraft } from "@/components/form-builder/CustomQuestionFields";
 import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsPreview";
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
+import { FormHeaderImageUpload, emptyFormHeaderImage, type FormHeaderImage } from "@/components/form-builder/FormHeaderImageUpload";
 import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle, Copy, ExternalLink } from "lucide-react";
@@ -66,6 +67,7 @@ function FormBuilder() {
   const [linkQr, setLinkQr] = useState<{ token: string; dataUrl: string } | null>(null);
   const [loadingLinkQr, setLoadingLinkQr] = useState<string | null>(null);
   const [coreQuestions, setCoreQuestions] = useState<QuestionDraft[]>([]);
+  const [headerImage, setHeaderImage] = useState<FormHeaderImage>(emptyFormHeaderImage);
 
   useEffect(() => {
     if (!q.data) return;
@@ -100,6 +102,10 @@ function FormBuilder() {
     setSuccessOrder((q.data.form.success_screen_order as "whatsapp_first" | "confirmation_first" | undefined) ?? "whatsapp_first");
     const link = q.data.trackedLink as { token?: string } | null;
     setLinkToken(link?.token ?? null);
+    setHeaderImage({
+      header_image_path: (q.data.form as { header_image_path?: string | null }).header_image_path ?? null,
+      header_image_mime: (q.data.form as { header_image_mime?: string | null }).header_image_mime ?? null,
+    });
     setTrackedLinks((q.data.trackedLinks as Array<{ id: string; token: string; label: string | null; use_count: number }>) ?? []);
   }, [q.data]);
 
@@ -157,6 +163,8 @@ function FormBuilder() {
           whatsapp_button_phone: waPhone,
           push_button_enabled: pushEnabled,
           success_screen_order: successOrder,
+          header_image_path: headerImage.header_image_path,
+          header_image_mime: headerImage.header_image_mime,
         },
       });
       await saveConfirmationFn({
@@ -324,6 +332,7 @@ function FormBuilder() {
           <label className="text-sm font-medium">Título (público)</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
         </div>
+        <FormHeaderImageUpload formDefinitionId={id} value={headerImage} onChange={setHeaderImage} />
         <div>
           <label className="text-sm font-medium">Nome de rastreio (interno)</label>
           <p className="text-xs text-muted-foreground mb-1">Aparece nos filtros da Gestão da Base. Pode ser igual ao título ou mais específico.</p>
