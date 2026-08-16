@@ -102,6 +102,8 @@ export type SendResult = {
   error: string | null;
   /** true quando o erro bate com os padrões conhecidos de shadowban da Z-API. */
   shadowban_suspected: boolean;
+  /** true quando o erro é uma limitação nossa/não implementada, não uma falha real de entrega da Meta. */
+  not_a_delivery_failure?: boolean;
 };
 
 /** Erros documentados pela Z-API como indicativos de shadowban/restrição temporária de envio. */
@@ -306,6 +308,7 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
 
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
+    const notADeliveryFailure = errorMsg.includes("Envio de mídia ainda não disponível no WhatsApp oficial");
     return {
       ok: false,
       endpoint_used: endpointUsed,
@@ -320,6 +323,7 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
       rendered_text: rendered,
       error: errorMsg,
       shadowban_suspected: isShadowbanError(errorMsg),
+      not_a_delivery_failure: notADeliveryFailure,
     };
   }
 }
@@ -357,10 +361,12 @@ const INVALID_NUMBER_PATTERNS = [
  */
 export async function recordWhatsappSendOutcome(
   contactId: string | null | undefined,
-  result: Pick<SendResult, "ok" | "endpoint_used" | "error">,
+  result: Pick<SendResult, "ok" | "endpoint_used" | "error" | "not_a_delivery_failure">,
 ): Promise<void> {
   if (!contactId) return;
   if (result.endpoint_used === "skipped" || result.endpoint_used === "wa.me") return;
+  // Erros que são limitações nossas (ex.: mídia ainda não suportada) não devem sujar o status do contato.
+  if (result.not_a_delivery_failure) return;
 
   const err = result.error ?? "";
   let next: "confirmado" | "invalido" | "erro_envio";
