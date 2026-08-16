@@ -127,7 +127,7 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: form, error: formErr } = await supabaseAdmin
           .from("form_definitions")
-          .select("id,title,is_active,whatsapp_button_enabled,prefill_from_token,layout_mode")
+          .select("id,title,is_active,whatsapp_button_enabled,prefill_from_token,layout_mode,header_image_path")
           .eq("slug", params.slug)
           .eq("is_active", true)
           .maybeSingle();
@@ -227,12 +227,22 @@ export const Route = createFileRoute("/api/public/forms/$slug")({
           }
         }
 
+        let headerImageUrl: string | null = null;
+        const headerPath = (form as { header_image_path?: string | null }).header_image_path;
+        if (headerPath) {
+          const { data: signed } = await supabaseAdmin.storage
+            .from("campaign-media")
+            .createSignedUrl(headerPath, 60 * 60);
+          headerImageUrl = signed?.signedUrl ?? null;
+        }
+
         return new Response(
           JSON.stringify({
             ok: true,
             form: {
               id: form.id,
               title: form.title,
+              header_image_url: headerImageUrl,
               layout_mode: layoutMode,
               whatsapp_button_enabled: form.whatsapp_button_enabled,
               questions: enriched,
