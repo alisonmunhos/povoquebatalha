@@ -11,12 +11,17 @@ export const getFormMeta = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: form } = await supabaseAdmin
       .from("form_definitions")
-      .select("id,title,is_active")
+      .select("id,title,is_active,header_image_path,header_image_mime,updated_at")
       .eq("slug", data.slug)
       .maybeSingle();
 
     if (!form || !form.is_active) {
-      return { title: null as string | null, description: null as string | null };
+      return {
+        title: null as string | null,
+        description: null as string | null,
+        hasHeaderImage: false,
+        imageVersion: null as string | null,
+      };
     }
 
     // A descrição da prévia usa a descrição da primeira seção, quando existir.
@@ -30,5 +35,12 @@ export const getFormMeta = createServerFn({ method: "GET" })
 
     const description = (section?.description?.trim() || "").slice(0, 180) || null;
 
-    return { title: form.title ?? null, description };
+    return {
+      title: form.title ?? null,
+      description,
+      hasHeaderImage: Boolean(form.header_image_path),
+      imageVersion: form.header_image_path
+        ? `${form.updated_at ?? ""}:${form.header_image_path}`
+        : null,
+    };
   });
