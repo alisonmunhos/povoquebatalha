@@ -194,6 +194,8 @@ const updateSchema = z.object({
   push_button_enabled: z.boolean().optional(),
   source_form_type: z.enum(["cadastro_completo", "receber_informacoes"]).optional(),
   success_screen_order: z.enum(["whatsapp_first", "confirmation_first"]).optional(),
+  header_image_path: z.string().trim().max(500).nullable().optional(),
+  header_image_mime: z.string().trim().max(120).nullable().optional(),
 });
 
 export const updateFormDefinition = createServerFn({ method: "POST" })
