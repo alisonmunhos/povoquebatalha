@@ -60,6 +60,7 @@ import { Route as AuthenticatedMissoesAgitacaoDesempenhoRouteImport } from './ro
 import { Route as AuthenticatedMissoesAgitacaoMissionIdRouteImport } from './routes/_authenticated/missoes-agitacao.$missionId'
 import { Route as AuthenticatedEntradaDadosIdRouteImport } from './routes/_authenticated/entrada-dados.$id'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
+import { Route as AuthenticatedComunicacaoTemplatesRouteImport } from './routes/_authenticated/comunicacao.templates'
 import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
@@ -363,6 +364,12 @@ const AuthenticatedContatosIdRoute = AuthenticatedContatosIdRouteImport.update({
   path: '/contatos/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComunicacaoTemplatesRoute =
+  AuthenticatedComunicacaoTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
+  } as any)
 const AuthenticatedComunicacaoInboxRoute =
   AuthenticatedComunicacaoInboxRouteImport.update({
     id: '/inbox',
@@ -580,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
+  '/comunicacao/templates': typeof AuthenticatedComunicacaoTemplatesRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
@@ -662,6 +670,7 @@ export interface FileRoutesByTo {
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
+  '/comunicacao/templates': typeof AuthenticatedComunicacaoTemplatesRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
@@ -747,6 +756,7 @@ export interface FileRoutesById {
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
+  '/_authenticated/comunicacao/templates': typeof AuthenticatedComunicacaoTemplatesRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/_authenticated/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
   '/_authenticated/missoes-agitacao/$missionId': typeof AuthenticatedMissoesAgitacaoMissionIdRoute
@@ -832,6 +842,7 @@ export interface FileRouteTypes {
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
+    | '/comunicacao/templates'
     | '/contatos/$id'
     | '/entrada-dados/$id'
     | '/missoes-agitacao/$missionId'
@@ -914,6 +925,7 @@ export interface FileRouteTypes {
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
+    | '/comunicacao/templates'
     | '/contatos/$id'
     | '/entrada-dados/$id'
     | '/missoes-agitacao/$missionId'
@@ -998,6 +1010,7 @@ export interface FileRouteTypes {
     | '/_authenticated/campanhas/$id'
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
+    | '/_authenticated/comunicacao/templates'
     | '/_authenticated/contatos/$id'
     | '/_authenticated/entrada-dados/$id'
     | '/_authenticated/missoes-agitacao/$missionId'
@@ -1441,6 +1454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedContatosIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comunicacao/templates': {
+      id: '/_authenticated/comunicacao/templates'
+      path: '/templates'
+      fullPath: '/comunicacao/templates'
+      preLoaderRoute: typeof AuthenticatedComunicacaoTemplatesRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
+    }
     '/_authenticated/comunicacao/inbox': {
       id: '/_authenticated/comunicacao/inbox'
       path: '/inbox'
@@ -1664,6 +1684,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedComunicacaoRouteChildren {
   AuthenticatedComunicacaoContatosRoute: typeof AuthenticatedComunicacaoContatosRoute
   AuthenticatedComunicacaoInboxRoute: typeof AuthenticatedComunicacaoInboxRoute
+  AuthenticatedComunicacaoTemplatesRoute: typeof AuthenticatedComunicacaoTemplatesRoute
   AuthenticatedComunicacaoIndexRoute: typeof AuthenticatedComunicacaoIndexRoute
 }
 
@@ -1672,6 +1693,8 @@ const AuthenticatedComunicacaoRouteChildren: AuthenticatedComunicacaoRouteChildr
     AuthenticatedComunicacaoContatosRoute:
       AuthenticatedComunicacaoContatosRoute,
     AuthenticatedComunicacaoInboxRoute: AuthenticatedComunicacaoInboxRoute,
+    AuthenticatedComunicacaoTemplatesRoute:
+      AuthenticatedComunicacaoTemplatesRoute,
     AuthenticatedComunicacaoIndexRoute: AuthenticatedComunicacaoIndexRoute,
   }
 
