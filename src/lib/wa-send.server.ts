@@ -102,6 +102,8 @@ export type SendResult = {
   error: string | null;
   /** true quando o erro bate com os padrões conhecidos de shadowban da Z-API. */
   shadowban_suspected: boolean;
+  /** true quando o erro é uma limitação nossa/não implementada, não uma falha real de entrega da Meta. */
+  not_a_delivery_failure?: boolean;
 };
 
 /** Erros documentados pela Z-API como indicativos de shadowban/restrição temporária de envio. */
