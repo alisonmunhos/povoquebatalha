@@ -3070,16 +3070,18 @@ export type Database = {
           created_by: string | null
           example_values: Json
           footer_text: string | null
+          header_example: string | null
           header_text: string | null
           header_type: string
           id: string
           language: string
           meta_template_id: string | null
           name: string
+          parameter_format: string
           rejected_reason: string | null
+          source: string
           status: string
           updated_at: string
-          variable_labels: Json
         }
         Insert: {
           body_text?: string
@@ -3088,16 +3090,18 @@ export type Database = {
           created_by?: string | null
           example_values?: Json
           footer_text?: string | null
+          header_example?: string | null
           header_text?: string | null
           header_type?: string
           id?: string
           language?: string
           meta_template_id?: string | null
           name: string
+          parameter_format?: string
           rejected_reason?: string | null
+          source?: string
           status?: string
           updated_at?: string
-          variable_labels?: Json
         }
         Update: {
           body_text?: string
@@ -3106,16 +3110,18 @@ export type Database = {
           created_by?: string | null
           example_values?: Json
           footer_text?: string | null
+          header_example?: string | null
           header_text?: string | null
           header_type?: string
           id?: string
           language?: string
           meta_template_id?: string | null
           name?: string
+          parameter_format?: string
           rejected_reason?: string | null
+          source?: string
           status?: string
           updated_at?: string
-          variable_labels?: Json
         }
         Relationships: []
       }
