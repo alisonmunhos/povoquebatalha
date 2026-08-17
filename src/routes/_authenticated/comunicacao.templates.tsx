@@ -1,14 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Plus, Send, Trash2, Save, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Plus, Send, Trash2, Save, X, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -17,6 +23,8 @@ import {
   saveWhatsappTemplateDraft,
   deleteWhatsappTemplateDraft,
   submitWhatsappTemplate,
+  importWhatsappTemplatesFromMeta,
+  extractNamedVars,
   TEMPLATE_VARIABLES,
   type WhatsappTemplateRow,
 } from "@/lib/whatsapp-templates.functions";
@@ -65,9 +73,9 @@ type FormState = {
   body_text: string;
   header_type: "NONE" | "TEXT";
   header_text: string;
+  header_example: string;
   footer_text: string;
-  variable_labels: string[];
-  example_values: string[];
+  example_values: Record<string, string>;
 };
 
 const EMPTY: FormState = {
@@ -77,9 +85,9 @@ const EMPTY: FormState = {
   body_text: "",
   header_type: "NONE",
   header_text: "",
+  header_example: "",
   footer_text: "",
-  variable_labels: [],
-  example_values: [],
+  example_values: {},
 };
 
 function Page() {
@@ -88,9 +96,11 @@ function Page() {
   const saveFn = useServerFn(saveWhatsappTemplateDraft);
   const deleteFn = useServerFn(deleteWhatsappTemplateDraft);
   const submitFn = useServerFn(submitWhatsappTemplate);
+  const importFn = useServerFn(importWhatsappTemplatesFromMeta);
 
   const [form, setForm] = useState<FormState | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const q = useQuery({
     queryKey: ["whatsapp-templates"],
@@ -98,21 +108,30 @@ function Page() {
   });
 
   const save = useMutation({
-    mutationFn: (payload: FormState) =>
-      saveFn({
+    mutationFn: (payload: FormState) => {
+      const usedBody = extractNamedVars(payload.body_text);
+      const usedHeader =
+        payload.header_type === "TEXT" ? extractNamedVars(payload.header_text) : [];
+      const examples: Record<string, string> = {};
+      for (const name of usedBody) examples[name] = payload.example_values[name] ?? "";
+      return saveFn({
         data: {
           ...(payload.id ? { id: payload.id } : {}),
           name: payload.name.trim().toLowerCase(),
           language: payload.language,
           category: payload.category,
           body_text: payload.body_text,
-          variable_labels: payload.variable_labels,
-          example_values: payload.example_values,
+          example_values: examples,
           header_type: payload.header_type,
           header_text: payload.header_type === "TEXT" ? payload.header_text : null,
+          header_example:
+            usedHeader.length > 0 && payload.header_example.trim()
+              ? payload.header_example.trim()
+              : null,
           footer_text: payload.footer_text.trim() ? payload.footer_text.trim() : null,
         },
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success("Rascunho salvo.");
       setForm(null);
@@ -152,9 +171,23 @@ function Page() {
     },
   });
 
+  const importMeta = useMutation({
+    mutationFn: () => importFn(),
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success(`${res.imported} importados, ${res.existing} já existiam.`);
+      } else {
+        toast.error(res.error);
+      }
+      void qc.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Não foi possível importar da Meta."),
+  });
+
   function startNew() {
     setSubmitError(null);
-    setForm({ ...EMPTY });
+    setForm({ ...EMPTY, example_values: {} });
   }
 
   function startEdit(t: WhatsappTemplateRow) {
@@ -167,39 +200,41 @@ function Page() {
       body_text: t.body_text,
       header_type: (t.header_type as FormState["header_type"]) ?? "NONE",
       header_text: t.header_text ?? "",
+      header_example: t.header_example ?? "",
       footer_text: t.footer_text ?? "",
-      variable_labels: t.variable_labels,
-      example_values: t.example_values,
+      example_values: { ...t.example_values },
     });
   }
 
-  function addVariable() {
+  /** Insere {{variavel}} na posição do cursor do corpo (ou no final). */
+  function insertBodyVariable(name: string) {
     setForm((f) => {
       if (!f) return f;
-      const n = f.variable_labels.length + 1;
+      const token = `{{${name}}}`;
+      const el = bodyRef.current;
+      const pos = el ? (el.selectionStart ?? f.body_text.length) : f.body_text.length;
+      const body_text = f.body_text.slice(0, pos) + token + f.body_text.slice(pos);
       return {
         ...f,
-        body_text: `${f.body_text}{{${n}}}`,
-        variable_labels: [...f.variable_labels, "primeiro_nome"],
-        example_values: [...f.example_values, ""],
+        body_text,
+        example_values: { ...f.example_values, [name]: f.example_values[name] ?? "" },
       };
     });
   }
 
-  function removeLastVariable() {
+  function insertHeaderVariable(name: string) {
     setForm((f) => {
-      if (!f || f.variable_labels.length === 0) return f;
-      const n = f.variable_labels.length;
-      return {
-        ...f,
-        body_text: f.body_text.replaceAll(`{{${n}}}`, ""),
-        variable_labels: f.variable_labels.slice(0, -1),
-        example_values: f.example_values.slice(0, -1),
-      };
+      if (!f) return f;
+      // A Meta permite apenas uma variável no cabeçalho: substitui a anterior.
+      const cleaned = f.header_text.replace(/\{\{[a-z_]+\}\}/g, "").trimEnd();
+      return { ...f, header_text: `${cleaned}{{${name}}}` };
     });
   }
 
   const templates = q.data?.templates ?? [];
+  const bodyVars = form ? extractNamedVars(form.body_text) : [];
+  const headerVar =
+    form && form.header_type === "TEXT" ? extractNamedVars(form.header_text)[0] : undefined;
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 overflow-y-auto h-full">
@@ -207,15 +242,25 @@ function Page() {
         <h1 className="text-2xl font-bold">Templates oficiais (Meta)</h1>
         <p className="text-sm text-muted-foreground">
           Modelos aprovados pela Meta, necessários para iniciar conversas fora da janela de 24
-          horas. As variáveis são numeradas ({"{{1}}"}, {"{{2}}"}…) e a ordem importa. Isto é
-          separado da biblioteca de mensagens livres.
+          horas. As variáveis usam o nome real (ex.: {"{{primeiro_nome}}"}), iguais aos da
+          biblioteca de mensagens livres. Isto é separado das mensagens livres.
         </p>
       </header>
 
       {!form && (
-        <Button onClick={startNew}>
-          <Plus className="h-4 w-4 mr-1" /> Novo modelo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={startNew}>
+            <Plus className="h-4 w-4 mr-1" /> Novo modelo
+          </Button>
+          <Button
+            variant="outline"
+            disabled={importMeta.isPending}
+            onClick={() => importMeta.mutate()}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            {importMeta.isPending ? "Importando…" : "Importar da Meta"}
+          </Button>
+        </div>
       )}
 
       {form && (
@@ -288,6 +333,31 @@ function Page() {
                   value={form.header_text}
                   onChange={(e) => setForm({ ...form, header_text: e.target.value })}
                 />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" size="sm">
+                      <Plus className="h-4 w-4 mr-1" /> variável no cabeçalho
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {TEMPLATE_VARIABLES.map((v) => (
+                      <DropdownMenuItem key={v} onSelect={() => insertHeaderVariable(v)}>
+                        {v}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <p className="text-xs text-muted-foreground">
+                  A Meta permite apenas uma variável no cabeçalho.
+                </p>
+                {headerVar && (
+                  <Input
+                    aria-label={`Exemplo da variável do cabeçalho ${headerVar}`}
+                    placeholder={`Exemplo para {{${headerVar}}}`}
+                    value={form.header_example}
+                    onChange={(e) => setForm({ ...form, header_example: e.target.value })}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -296,59 +366,42 @@ function Page() {
             <Label htmlFor="tpl-body">Corpo da mensagem</Label>
             <Textarea
               id="tpl-body"
+              ref={bodyRef}
               rows={5}
               value={form.body_text}
               onChange={(e) => setForm({ ...form, body_text: e.target.value })}
-              placeholder="Olá {{1}}, confirme sua presença aqui: {{2}}"
+              placeholder="Olá {{primeiro_nome}}, confirme sua presença aqui: {{link_inscricao}}"
             />
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={addVariable}>
-                <Plus className="h-4 w-4 mr-1" /> variável
-              </Button>
-              {form.variable_labels.length > 0 && (
-                <Button type="button" variant="ghost" size="sm" onClick={removeLastVariable}>
-                  Remover última variável
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  <Plus className="h-4 w-4 mr-1" /> variável
                 </Button>
-              )}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {TEMPLATE_VARIABLES.map((v) => (
+                  <DropdownMenuItem key={v} onSelect={() => insertBodyVariable(v)}>
+                    {v}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {form.variable_labels.length > 0 && (
+          {bodyVars.length > 0 && (
             <div className="space-y-3">
-              <Label>Variáveis</Label>
-              {form.variable_labels.map((label, i) => (
-                <div key={i} className="grid gap-2 md:grid-cols-[auto_1fr_1fr] items-end">
-                  <span className="text-sm font-mono pb-2">{`{{${i + 1}}}`}</span>
-                  <Select
-                    value={label}
-                    onValueChange={(v) =>
-                      setForm({
-                        ...form,
-                        variable_labels: form.variable_labels.map((l, j) => (j === i ? v : l)),
-                      })
-                    }
-                  >
-                    <SelectTrigger aria-label={`Variável ${i + 1}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEMPLATE_VARIABLES.map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <Label>Variáveis usadas no texto</Label>
+              {bodyVars.map((name) => (
+                <div key={name} className="grid gap-2 md:grid-cols-[1fr_1fr] items-center">
+                  <span className="text-sm font-mono">{`{{${name}}}`}</span>
                   <Input
-                    aria-label={`Exemplo da variável ${i + 1}`}
+                    aria-label={`Exemplo da variável ${name}`}
                     placeholder="Valor de exemplo"
-                    value={form.example_values[i] ?? ""}
+                    value={form.example_values[name] ?? ""}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        example_values: form.variable_labels.map((_, j) =>
-                          j === i ? e.target.value : (form.example_values[j] ?? ""),
-                        ),
+                        example_values: { ...form.example_values, [name]: e.target.value },
                       })
                     }
                   />
@@ -397,12 +450,13 @@ function Page() {
         {q.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
         {!q.isLoading && templates.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Nenhum modelo criado ainda. Crie o primeiro para poder iniciar conversas no WhatsApp
-            oficial.
+            Nenhum modelo criado ainda. Crie o primeiro ou use “Importar da Meta” para trazer os
+            que já existem na conta oficial.
           </p>
         )}
         {templates.map((t) => {
           const ui = STATUS_UI[t.status] ?? STATUS_UI["draft"]!;
+          const positional = t.parameter_format === "positional";
           return (
             <div key={t.id} className="rounded-lg border-2 bg-card p-3 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -410,6 +464,11 @@ function Page() {
                 <Badge variant="outline" className={ui.className}>
                   {ui.label}
                 </Badge>
+                {t.source === "meta_import" && (
+                  <Badge variant="outline" className="text-xs">
+                    Importado da Meta
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground">
                   {CATEGORY_LABEL[t.category] ?? t.category} · {t.language}
                 </span>
@@ -418,9 +477,21 @@ function Page() {
               {t.rejected_reason && (
                 <p className="text-xs text-red-700">Motivo: {t.rejected_reason}</p>
               )}
+              {positional && (
+                <p className="text-xs text-muted-foreground">
+                  Este modelo usa variáveis numeradas ({"{{1}}"}, {"{{2}}"}) e não pode ser
+                  editado por aqui. Ele continua visível e o status é atualizado
+                  automaticamente pela Meta.
+                </p>
+              )}
               {t.status === "draft" && (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => startEdit(t)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={positional || t.source !== "app"}
+                    onClick={() => startEdit(t)}
+                  >
                     Editar
                   </Button>
                   <Button
