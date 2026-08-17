@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const GRAPH_VERSION = "v23.0";
 
 const SELECT =
-  "id,name,language,category,body_text,example_values,parameter_format,source,header_type,header_text,header_example,footer_text,meta_template_id,status,rejected_reason,created_at,updated_at";
+  "id,name,language,category,body_text,example_values,parameter_format,source,header_type,header_text,header_example,footer_text,buttons,meta_template_id,status,rejected_reason,created_at,updated_at";
 
 export const TEMPLATE_VARIABLES = [
   "primeiro_nome",
@@ -26,6 +26,28 @@ export function extractNamedVars(text: string): string[] {
   return out;
 }
 
+export type TemplateButton =
+  | { type: "URL"; text: string; url: string }
+  | { type: "QUICK_REPLY"; text: string }
+  | { type: "PHONE_NUMBER"; text: string; phone_number: string };
+
+const buttonSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("URL"),
+    text: z.string().trim().min(1).max(25),
+    url: z.string().trim().min(1).max(2000).url("URL inválida."),
+  }),
+  z.object({
+    type: z.literal("QUICK_REPLY"),
+    text: z.string().trim().min(1).max(25),
+  }),
+  z.object({
+    type: z.literal("PHONE_NUMBER"),
+    text: z.string().trim().min(1).max(25),
+    phone_number: z.string().trim().min(8).max(20),
+  }),
+]);
+
 export type WhatsappTemplateRow = {
   id: string;
   name: string;
@@ -39,6 +61,7 @@ export type WhatsappTemplateRow = {
   header_text: string | null;
   header_example: string | null;
   footer_text: string | null;
+  buttons: TemplateButton[];
   meta_template_id: string | null;
   status: string;
   rejected_reason: string | null;
@@ -55,6 +78,13 @@ function toStringMap(v: unknown): Record<string, string> {
   return out;
 }
 
+/** Coage o valor jsonb da coluna `buttons` pro shape esperado, tolerando
+ * dado inesperado (nunca deve quebrar a listagem por causa disso). */
+function toButtonsArray(v: unknown): TemplateButton[] {
+  const parsed = z.array(buttonSchema).safeParse(v);
+  return parsed.success ? parsed.data : [];
+}
+
 /** Lista todos os templates oficiais, mais recentes primeiro. */
 export const listWhatsappTemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -67,6 +97,7 @@ export const listWhatsappTemplates = createServerFn({ method: "GET" })
     const templates = (data ?? []).map((r) => ({
       ...r,
       example_values: toStringMap(r.example_values),
+      buttons: toButtonsArray(r.buttons),
     })) as WhatsappTemplateRow[];
     return { templates };
   });
@@ -87,6 +118,7 @@ const draftSchema = z.object({
   header_text: z.string().trim().max(60).nullable().default(null),
   header_example: z.string().trim().max(200).nullable().default(null),
   footer_text: z.string().trim().max(60).nullable().default(null),
+  buttons: z.array(buttonSchema).max(3, "No máximo 3 botões.").default([]),
 });
 
 /** Cria ou atualiza um rascunho. Só permite editar registros em status 'draft'. */
@@ -244,6 +276,20 @@ export const submitWhatsappTemplate = createServerFn({ method: "POST" })
 
     if (tpl.footer_text) components.push({ type: "FOOTER", text: tpl.footer_text });
 
+    const buttons = toButtonsArray(tpl.buttons);
+    if (buttons.length > 0) {
+      components.push({
+        type: "BUTTONS",
+        buttons: buttons.map((b) => {
+          if (b.type === "URL") return { type: "URL", text: b.text, url: b.url };
+          if (b.type === "PHONE_NUMBER") {
+            return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone_number };
+          }
+          return { type: "QUICK_REPLY", text: b.text };
+        }),
+      });
+    }
+
     let errorMessage: string | null = null;
     let metaId: string | null = null;
     try {
@@ -321,7 +367,27 @@ type MetaComponent = {
     header_text?: unknown;
     header_text_named_params?: Array<{ param_name?: string; example?: string }>;
   };
+  buttons?: Array<{ type?: string; text?: string; url?: string; phone_number?: string }>;
 };
+
+/** Normaliza o componente BUTTONS que a Meta devolve pro shape interno,
+ * ignorando tipos que não reconhecemos (ex.: COPY_CODE, OTP) em vez de quebrar
+ * a importação inteira por causa de um botão que não sabemos representar ainda. */
+function normalizeMetaButtons(buttonsComp: MetaComponent | undefined): TemplateButton[] {
+  const raw = buttonsComp?.buttons;
+  if (!Array.isArray(raw)) return [];
+  const out: TemplateButton[] = [];
+  for (const b of raw) {
+    const type = (b.type ?? "").toUpperCase();
+    const text = b.text ?? "";
+    if (!text) continue;
+    if (type === "URL" && b.url) out.push({ type: "URL", text, url: b.url });
+    else if (type === "PHONE_NUMBER" && b.phone_number) {
+      out.push({ type: "PHONE_NUMBER", text, phone_number: b.phone_number });
+    } else if (type === "QUICK_REPLY") out.push({ type: "QUICK_REPLY", text });
+  }
+  return out.slice(0, 3);
+}
 
 type ImportResult =
   | { ok: true; imported: number; existing: number }
@@ -385,6 +451,8 @@ export const importWhatsappTemplatesFromMeta = createServerFn({ method: "POST" }
       const bodyComp = components.find((c) => c.type?.toUpperCase() === "BODY");
       const headerComp = components.find((c) => c.type?.toUpperCase() === "HEADER");
       const footerComp = components.find((c) => c.type?.toUpperCase() === "FOOTER");
+      const buttonsComp = components.find((c) => c.type?.toUpperCase() === "BUTTONS");
+      const buttons = normalizeMetaButtons(buttonsComp);
 
       const namedParams = bodyComp?.example?.body_text_named_params;
       const hasNamed = Array.isArray(namedParams) && namedParams.length > 0;
@@ -418,6 +486,7 @@ export const importWhatsappTemplatesFromMeta = createServerFn({ method: "POST" }
         header_example: headerExample,
         footer_text: footerComp?.text ?? null,
         example_values,
+        buttons,
         created_by: context.userId,
       });
       if (insErr) throw insErr;

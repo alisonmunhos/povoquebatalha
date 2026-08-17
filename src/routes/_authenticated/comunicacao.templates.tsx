@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
-import { Plus, Send, Trash2, Save, X, Download } from "lucide-react";
+import { Plus, Send, Trash2, Save, X, Download, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
   extractNamedVars,
   TEMPLATE_VARIABLES,
   type WhatsappTemplateRow,
+  type TemplateButton,
 } from "@/lib/whatsapp-templates.functions";
 
 export const Route = createFileRoute("/_authenticated/comunicacao/templates")({
@@ -76,6 +77,7 @@ type FormState = {
   header_example: string;
   footer_text: string;
   example_values: Record<string, string>;
+  buttons: TemplateButton[];
 };
 
 const EMPTY: FormState = {
@@ -88,6 +90,7 @@ const EMPTY: FormState = {
   header_example: "",
   footer_text: "",
   example_values: {},
+  buttons: [],
 };
 
 function Page() {
@@ -129,6 +132,7 @@ function Page() {
               ? payload.header_example.trim()
               : null,
           footer_text: payload.footer_text.trim() ? payload.footer_text.trim() : null,
+          buttons: payload.buttons,
         },
       });
     },
@@ -203,6 +207,7 @@ function Page() {
       header_example: t.header_example ?? "",
       footer_text: t.footer_text ?? "",
       example_values: { ...t.example_values },
+      buttons: [...(t.buttons ?? [])],
     });
   }
 
@@ -220,6 +225,28 @@ function Page() {
         example_values: { ...f.example_values, [name]: f.example_values[name] ?? "" },
       };
     });
+  }
+
+  // Criação de botão pela UI só suporta tipo URL por enquanto (item 3 do
+  // roteiro) — QUICK_REPLY e PHONE_NUMBER continuam existindo no schema/backend
+  // pra templates importados da Meta com esses tipos, só não têm criação aqui ainda.
+  function addUrlButton() {
+    setForm((f) => {
+      if (!f || f.buttons.length >= 3) return f;
+      return { ...f, buttons: [...f.buttons, { type: "URL", text: "", url: "" }] };
+    });
+  }
+  function updateUrlButton(idx: number, patch: { text?: string; url?: string }) {
+    setForm((f) => {
+      if (!f) return f;
+      return {
+        ...f,
+        buttons: f.buttons.map((b, i) => (i === idx && b.type === "URL" ? { ...b, ...patch } : b)),
+      };
+    });
+  }
+  function removeButton(idx: number) {
+    setForm((f) => (f ? { ...f, buttons: f.buttons.filter((_, i) => i !== idx) } : f));
   }
 
   function insertHeaderVariable(name: string) {
@@ -419,6 +446,53 @@ function Page() {
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>Botões (opcional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Até 3 botões. Criação por aqui só suporta botão de link (URL) por enquanto.
+            </p>
+            {form.buttons.map((b, idx) =>
+              b.type === "URL" ? (
+                <div key={idx} className="grid gap-2 md:grid-cols-[1fr_1fr_auto] items-center border rounded-md p-2">
+                  <Input
+                    aria-label={`Texto do botão ${idx + 1}`}
+                    placeholder="Texto (até 25 caracteres)"
+                    maxLength={25}
+                    value={b.text}
+                    onChange={(e) => updateUrlButton(idx, { text: e.target.value })}
+                  />
+                  <Input
+                    aria-label={`URL do botão ${idx + 1}`}
+                    placeholder="https://…"
+                    value={b.url}
+                    onChange={(e) => updateUrlButton(idx, { url: e.target.value })}
+                  />
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeButton(idx)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div key={idx} className="flex items-center justify-between gap-2 border rounded-md p-2 text-sm">
+                  <span>
+                    {b.text} <span className="text-xs text-muted-foreground">({b.type})</span>
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeButton(idx)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ),
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={form.buttons.length >= 3}
+              onClick={addUrlButton}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Adicionar botão de link
+            </Button>
+          </div>
+
           {submitError && (
             <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
               {submitError}
@@ -474,6 +548,16 @@ function Page() {
                 </span>
               </div>
               <p className="text-sm whitespace-pre-wrap">{t.body_text}</p>
+              {t.buttons && t.buttons.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {t.buttons.map((b, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs gap-1">
+                      {b.type === "URL" && <Link2 className="h-3 w-3" />}
+                      {b.text}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               {t.rejected_reason && (
                 <p className="text-xs text-red-700">Motivo: {t.rejected_reason}</p>
               )}
