@@ -343,7 +343,7 @@ export const importWhatsappTemplatesFromMeta = createServerFn({ method: "POST" }
     let list: Array<Record<string, unknown>> = [];
     try {
       const res = await fetch(
-        `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates?fields=name,language,category,status,components&limit=200`,
+        `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates?fields=id,name,language,category,status,components&limit=200`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       const json = (await res.json()) as Record<string, unknown>;
