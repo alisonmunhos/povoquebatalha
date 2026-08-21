@@ -609,7 +609,7 @@ export function CommunicationInbox() {
           </div>
         ) : (
           <>
-            <div className="border-b p-3 flex items-center gap-2 bg-background">
+            <div className="wa-topbar border-b p-3 flex items-center gap-2 bg-background">
               <button className="md:hidden" onClick={() => setMobilePane("list")}>
                 <ArrowLeft className="h-5 w-5" />
               </button>
