@@ -227,6 +227,20 @@ function CampanhaDetail() {
             )}
           </div>
 
+          {previewData && (
+            <div className="mt-4 border rounded p-3 bg-muted/30 text-xs space-y-1">
+              <div className="font-semibold">Como estes {previewData.elegíveis} contatos vão receber:</div>
+              <div>
+                <b>{previewData.janelaAberta}</b> vão receber a mensagem de texto (já responderam recentemente)
+              </div>
+              <div>
+                <b>{previewData.janelaFechadaComTemplate}</b> vão receber o template oficial
+              </div>
+              <div>
+                <b>{previewData.janelaFechadaSemTemplate}</b> serão pulados (fora da janela de 24h, sem template aprovado nesta campanha)
+              </div>
+            </div>
+          )}
 
           {canCancel && (
             <div className="mt-4 border-t pt-4">
