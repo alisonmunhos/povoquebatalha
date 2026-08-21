@@ -445,12 +445,43 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
 // Mark conversation read (zera unread + marca inbound_messages)
 export const markConversationRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ contact_id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => z.object({
+    contact_id: z.string().uuid().optional(),
+    conversation_id: z.string().uuid().optional(),
+  }).refine((v) => Boolean(v.contact_id || v.conversation_id), {
+    message: "Informe a conversa ou o contato.",
+  }).parse(d))
   .handler(async ({ data, context }) => {
-    await context.supabase.from("inbound_messages")
-      .update({ read_at: new Date().toISOString() })
-      .eq("contact_id", data.contact_id).is("read_at", null);
-    await context.supabase.from("conversations").update({ unread_count: 0 }).eq("contact_id", data.contact_id);
+    const now = new Date().toISOString();
+
+    // Conversas antigas (anteriores à API oficial) frequentemente não têm contato
+    // vinculado — nesse caso marcamos pelo id da conversa e pelo telefone de origem.
+    let contactId = data.contact_id ?? null;
+    let fromPhone: string | null = null;
+    if (data.conversation_id) {
+      const { data: conv } = await context.supabase
+        .from("conversations")
+        .select("id, contact_id, from_phone")
+        .eq("id", data.conversation_id)
+        .maybeSingle();
+      contactId = contactId ?? (conv?.contact_id as string | null) ?? null;
+      fromPhone = (conv?.from_phone as string | null) ?? null;
+    }
+
+    if (contactId) {
+      await context.supabase.from("inbound_messages")
+        .update({ read_at: now })
+        .eq("contact_id", contactId).is("read_at", null);
+      await context.supabase.from("conversations").update({ unread_count: 0 }).eq("contact_id", contactId);
+    }
+    if (data.conversation_id) {
+      if (fromPhone) {
+        await context.supabase.from("inbound_messages")
+          .update({ read_at: now })
+          .eq("from_phone", fromPhone).is("read_at", null);
+      }
+      await context.supabase.from("conversations").update({ unread_count: 0 }).eq("id", data.conversation_id);
+    }
     return { ok: true };
   });
 

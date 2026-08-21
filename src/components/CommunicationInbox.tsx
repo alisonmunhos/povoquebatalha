@@ -111,12 +111,12 @@ type BackendFilter =
 
 type StatusFilter = "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter }[] = [
-  { key: "nao_lidas", label: "Não lidas", backend: "unread" },
-  { key: "abertas", label: "Abertas", backend: "all" },
-  { key: "aguardando", label: "Aguardando", backend: "all" },
-  { key: "resolvidas", label: "Resolvidas", backend: "resolved" },
-  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged" },
+const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter; hint: string }[] = [
+  { key: "nao_lidas", label: "Não lidas", backend: "unread", hint: "Têm mensagem da pessoa que ninguém abriu ainda." },
+  { key: "abertas", label: "Em aberto", backend: "all", hint: "Conversas em andamento: nem resolvidas, nem marcadas como aguardando." },
+  { key: "aguardando", label: "Aguardando", backend: "all", hint: "Você já respondeu e está esperando algo da pessoa." },
+  { key: "resolvidas", label: "Resolvidas", backend: "resolved", hint: "Conversas já encerradas." },
+  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged", hint: "Conversas marcadas com a bandeirinha para revisar depois." },
 ];
 
 export function CommunicationInbox() {
@@ -185,14 +185,14 @@ export function CommunicationInbox() {
 
   const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
 
-  // Mesma fonte do badge numérico da aba "Inbox" na navegação.
+  // Mesma fonte do badge numérico da aba "Inbox" na navegação (mantida para
+  // refetch periódico; a contagem exibida nos chips vem da própria lista).
   const inboxBadgeFn = useServerFn(getMyCommunicationBadge);
-  const inboxBadgeQ = useQuery({
+  useQuery({
     queryKey: ["comm-badge"],
     queryFn: () => inboxBadgeFn(),
     refetchInterval: 20000,
   });
-  const unreadTotal = inboxBadgeQ.data?.mine_unread ?? 0;
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", statusFilter, search],
@@ -207,6 +207,8 @@ export function CommunicationInbox() {
     if (statusFilter === "nao_lidas") return rawList.filter((c) => (c.unread ?? 0) > 0);
     return rawList;
   }, [rawList, statusFilter]);
+  // Contagem real de não lidas visíveis (antes só mostrava as atribuídas a mim).
+  const unreadInList = useMemo(() => rawList.filter((c) => (c.unread ?? 0) > 0).length, [rawList]);
   const selected = useMemo(
     () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
     [list, selectedContactId, selectedConvId],
@@ -265,7 +267,7 @@ export function CommunicationInbox() {
   }, [qc, selectedContactId, selectedConvId, convKey]);
 
   const readMut = useMutation({
-    mutationFn: (contact_id: string) => readFn({ data: { contact_id } }),
+    mutationFn: (vars: { contact_id?: string; conversation_id?: string }) => readFn({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
@@ -345,7 +347,10 @@ export function CommunicationInbox() {
     setSelectedContactId(contactId);
     setSelectedConvId(contactId ? null : convId);
     setMobilePane("thread");
-    if (contactId && unread > 0) readMut.mutate(contactId);
+    // Conversas sem contato vinculado (mensagens antigas) também precisam ser marcadas.
+    if (unread > 0 && (contactId || convId)) {
+      readMut.mutate(contactId ? { contact_id: contactId } : { conversation_id: convId! });
+    }
   }
 
   function submitReply() {
@@ -499,29 +504,35 @@ export function CommunicationInbox() {
               const active = statusFilter === f.key;
               const count =
                 f.key === "nao_lidas"
-                  ? (active ? list.length : unreadTotal)
+                  ? (active ? list.length : unreadInList)
                   : (active ? list.length : undefined);
               return (
-                <button
-                  key={f.key}
-                  onClick={() => setStatusFilter(f.key)}
-                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-foreground border-input hover:bg-muted"
-                  }`}
-                >
-                  {f.label}
-                  {count !== undefined && (
-                    <span
-                      className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
-                        active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                <Tooltip key={f.key}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setStatusFilter(f.key)}
+                      className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                        active
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-foreground border-input hover:bg-muted"
                       }`}
                     >
-                      {count}
-                    </span>
-                  )}
-                </button>
+                      {f.label}
+                      {count !== undefined && (
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
+                            active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[15rem]">
+                    <p>{f.hint}</p>
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </div>
@@ -846,12 +857,28 @@ export function CommunicationInbox() {
                             className="w-full text-left px-2 py-2 rounded-md hover:bg-muted"
                             onClick={() => {
                               setReply((prev) => (prev ? prev + "\n" + t.body : t.body));
+                              // Se a resposta pronta tem arquivo salvo, ele entra como anexo pendente.
+                              if (t.media_path) {
+                                setAttachment((prev) => {
+                                  if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+                                  return {
+                                    path: t.media_path as string,
+                                    mime: (t.media_mime as string | null) ?? "application/octet-stream",
+                                    filename: (t.media_filename as string | null)
+                                      ?? (t.media_path as string).split("/").pop()
+                                      ?? "arquivo",
+                                  };
+                                });
+                              }
                               setQuickOpen(false);
                               setQuickSearch("");
                               requestAnimationFrame(() => replyRef.current?.focus());
                             }}
                           >
-                            <div className="text-sm font-medium truncate">{t.title}</div>
+                            <div className="text-sm font-medium truncate flex items-center gap-1">
+                              {t.media_path && <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                              <span className="truncate">{t.title}</span>
+                            </div>
                             <div className="text-[11px] text-muted-foreground line-clamp-2">{t.body}</div>
                           </button>
                         ))}
