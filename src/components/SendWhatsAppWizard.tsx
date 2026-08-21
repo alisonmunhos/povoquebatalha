@@ -19,6 +19,7 @@ import {
   startCampaign, listCampaigns,
 } from "@/lib/campaigns.functions";
 import { listMessageTemplates } from "@/lib/messages.functions";
+import { listWhatsappTemplates } from "@/lib/whatsapp-templates.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { MessagePreview, type PlannedEndpoint } from "@/components/MessagePreview";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,11 +56,13 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   const startFn = useServerFn(startCampaign);
   const templatesFn = useServerFn(listMessageTemplates);
   const campaignsFn = useServerFn(listCampaigns);
+  const waTemplatesFn = useServerFn(listWhatsappTemplates);
 
   const [step, setStep] = useState(1);
   const [nomeCampanha, setNomeCampanha] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [templateId, setTemplateId] = useState<string>("");
+  const [whatsappTemplateId, setWhatsappTemplateId] = useState<string>("");
   const [saveAsTemplate, setSaveAsTemplate] = useState<{ enabled: boolean; title: string }>({ enabled: false, title: "" });
   const [file, setFile] = useState<File | null>(null);
   const [uploadInfo, setUploadInfo] = useState<{ path: string; filename: string; mime: string } | null>(null);
@@ -81,10 +84,11 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   });
   const templatesQ = useQuery({ queryKey: ["message-templates"], queryFn: () => templatesFn(), enabled: open });
   const prevCampsQ = useQuery({ queryKey: ["campaigns"], queryFn: () => campaignsFn(), enabled: open });
+  const waTemplatesQ = useQuery({ queryKey: ["whatsapp-templates"], queryFn: () => waTemplatesFn(), enabled: open });
 
   useEffect(() => {
     if (!open) {
-      setStep(1); setNomeCampanha(""); setMensagem(""); setTemplateId("");
+      setStep(1); setNomeCampanha(""); setMensagem(""); setTemplateId(""); setWhatsappTemplateId("");
       setSaveAsTemplate({ enabled: false, title: "" });
       setFile(null); setUploadInfo(null); setSchedule("");
       setDelayMin(3000); setDelayMax(8000);
@@ -172,6 +176,11 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
     return hasUrl ? "send-text" : "send-text";
   }, [uploadInfo, mensagem, linkUrl]);
 
+  const officialTemplates = useMemo(
+    () => (waTemplatesQ.data?.templates ?? []).filter((t) => t.status === "approved" && t.parameter_format === "named"),
+    [waTemplatesQ.data?.templates],
+  );
+
   function applyTemplate(id: string) {
     setTemplateId(id);
     const t = (templatesQ.data ?? []).find((x) => x.id === id) as { id: string; body: string; title: string; link?: string | null } | undefined;
@@ -224,6 +233,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
         ids: source.ids,
         filters: source.filters,
         template_id: templateId || null,
+        whatsapp_template_id: whatsappTemplateId || null,
         mensagem_template: mensagem,
         tipo,
         midia_path: uploadInfo?.path ?? null,
@@ -314,6 +324,27 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
                 </select>
               </div>
             </div>
+
+            <div>
+              <Label className="text-xs font-medium">Template Oficial (opcional)</Label>
+              <select
+                className="mt-1 w-full border rounded-md px-2 h-9 text-sm bg-background"
+                value={whatsappTemplateId}
+                onChange={(e) => setWhatsappTemplateId(e.target.value)}
+              >
+                <option value="">— Nenhum —</option>
+                {officialTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Só é usado para contatos <b>fora da janela de 24h</b> (sem mensagem recebida deles
+                nas últimas 24h) — a Meta só permite reabrir a conversa com um template aprovado
+                nesse caso. Dentro da janela, a mensagem de texto livre acima continua sendo
+                usada normalmente, sem mudança.
+              </p>
+            </div>
+
             {/* Barra de formatação estilo WhatsApp */}
             <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-muted/30">
               <FmtBtn title="Negrito (*texto*)" onClick={() => wrapSelection("*")}><Bold className="h-3.5 w-3.5" /></FmtBtn>

@@ -183,6 +183,7 @@ export const createCampaignFromSelection = createServerFn({ method: "POST" })
       tipo: data.tipo,
       mensagem_template: data.mensagem_template,
       template_id: data.template_id ?? null,
+      whatsapp_template_id: data.whatsapp_template_id ?? null,
       midia_path: data.midia_path ?? null,
       midia_filename: data.midia_filename ?? null,
       midia_mime: data.midia_mime ?? null,
