@@ -964,6 +964,7 @@ export function CommunicationInbox() {
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }
 
