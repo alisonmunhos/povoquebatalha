@@ -84,6 +84,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   });
   const templatesQ = useQuery({ queryKey: ["message-templates"], queryFn: () => templatesFn(), enabled: open });
   const prevCampsQ = useQuery({ queryKey: ["campaigns"], queryFn: () => campaignsFn(), enabled: open });
+  const waTemplatesQ = useQuery({ queryKey: ["whatsapp-templates"], queryFn: () => waTemplatesFn(), enabled: open });
 
   useEffect(() => {
     if (!open) {
