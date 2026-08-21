@@ -199,7 +199,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const campaignQuery = effectiveContactId
       ? context.supabase.from("campaign_recipients")
-          .select("id, rendered_message, sent_at, status, endpoint_used, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(buttons))")
+          .select("id, rendered_message, sent_at, status, endpoint_used, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(header_type, header_text, buttons))")
           .eq("contact_id", effectiveContactId).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200)
       : null;
 
