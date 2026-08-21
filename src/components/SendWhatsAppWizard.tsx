@@ -62,6 +62,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   const [nomeCampanha, setNomeCampanha] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [templateId, setTemplateId] = useState<string>("");
+  const [whatsappTemplateId, setWhatsappTemplateId] = useState<string>("");
   const [saveAsTemplate, setSaveAsTemplate] = useState<{ enabled: boolean; title: string }>({ enabled: false, title: "" });
   const [file, setFile] = useState<File | null>(null);
   const [uploadInfo, setUploadInfo] = useState<{ path: string; filename: string; mime: string } | null>(null);
