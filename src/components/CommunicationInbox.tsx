@@ -207,6 +207,8 @@ export function CommunicationInbox() {
     if (statusFilter === "nao_lidas") return rawList.filter((c) => (c.unread ?? 0) > 0);
     return rawList;
   }, [rawList, statusFilter]);
+  // Contagem real de não lidas visíveis (antes só mostrava as atribuídas a mim).
+  const unreadInList = useMemo(() => rawList.filter((c) => (c.unread ?? 0) > 0).length, [rawList]);
   const selected = useMemo(
     () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
     [list, selectedContactId, selectedConvId],
