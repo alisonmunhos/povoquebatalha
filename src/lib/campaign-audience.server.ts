@@ -103,6 +103,52 @@ export async function resolveAudience(db: Db, source: AudienceSource) {
   };
 }
 
+const WINDOW_24H_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Prévia (só exibição): separa os aptos entre dentro da janela de 24h (texto livre)
+ * e fora dela (só entrega com template aprovado + nomeado na campanha).
+ */
+export async function summarizeSendWindow(
+  db: Db,
+  contactIds: string[],
+  campaignTemplateId: string | null | undefined,
+): Promise<{ janelaAberta: number; janelaFechadaComTemplate: number; janelaFechadaSemTemplate: number }> {
+  const ids = uniqueIds(contactIds);
+  const cutoff = new Date(Date.now() - WINDOW_24H_MS).toISOString();
+  const open = new Set<string>();
+  for (let index = 0; index < ids.length; index += 120) {
+    const chunk = ids.slice(index, index + 120);
+    const { data, error } = await db
+      .from("inbound_messages")
+      .select("contact_id")
+      .in("contact_id", chunk)
+      .gte("received_at", cutoff);
+    if (error) throw error;
+    for (const row of data ?? []) if (row.contact_id) open.add(row.contact_id);
+  }
+
+  let templateOk = false;
+  if (campaignTemplateId) {
+    const { data: tpl } = await db
+      .from("whatsapp_templates")
+      .select("id")
+      .eq("id", campaignTemplateId)
+      .eq("status", "approved")
+      .eq("parameter_format", "named")
+      .maybeSingle();
+    templateOk = Boolean(tpl);
+  }
+
+  const janelaAberta = ids.filter((id) => open.has(id)).length;
+  const fechada = ids.length - janelaAberta;
+  return {
+    janelaAberta,
+    janelaFechadaComTemplate: templateOk ? fechada : 0,
+    janelaFechadaSemTemplate: templateOk ? 0 : fechada,
+  };
+}
+
 export function ensureCampaignLink(body: string, linkUrl: string | null | undefined): string {
   if (!linkUrl || body.includes(linkUrl)) return body;
   return `${body}${body.trim() ? "\n\n" : ""}${linkUrl}`;
