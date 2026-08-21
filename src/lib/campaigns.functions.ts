@@ -214,7 +214,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: c, error } = await context.supabase.from("campaigns").select("*").eq("id", data.id).single();
     if (error || !c) throw error ?? new Error("Não encontrada");
-    const { ensureCampaignLink, resolveAudience } = await import("@/lib/campaign-audience.server");
+    const { ensureCampaignLink, resolveAudience, summarizeSendWindow } = await import("@/lib/campaign-audience.server");
     const { renderVars } = await import("@/lib/wa-send.server");
     const savedIds = Array.isArray(c.audience_ids) ? c.audience_ids as string[] : [];
     const source: CampaignSource | null = savedIds.length
@@ -239,6 +239,12 @@ export const previewCampaign = createServerFn({ method: "POST" })
       preview: ensureCampaignLink(renderVars(c.mensagem_template, contact), c.link_url),
     }));
 
+    const janela = await summarizeSendWindow(
+      context.supabase,
+      audience.eligible.map((contact) => contact.id),
+      (c as { whatsapp_template_id?: string | null }).whatsapp_template_id ?? null,
+    );
+
     return {
       totalBruto: audience.ids.length,
       elegíveis: audience.eligible.length,
@@ -246,6 +252,9 @@ export const previewCampaign = createServerFn({ method: "POST" })
       optOut: audience.reasons.opt_out,
       arquivados: audience.reasons.arquivado + audience.reasons.nao_enviar,
       semTelefone: audience.reasons.sem_telefone,
+      janelaAberta: janela.janelaAberta,
+      janelaFechadaComTemplate: janela.janelaFechadaComTemplate,
+      janelaFechadaSemTemplate: janela.janelaFechadaSemTemplate,
       exemplos,
       mensagemExemplo: exemplos[0]?.preview ?? c.mensagem_template,
     };
