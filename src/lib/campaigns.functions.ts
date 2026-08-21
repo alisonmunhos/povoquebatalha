@@ -56,6 +56,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       tipo: payload.tipo,
       mensagem_template: payload.mensagem_template,
       template_id: payload.template_id ?? null,
+      whatsapp_template_id: payload.whatsapp_template_id ?? null,
       midia_url: payload.midia_url ?? null,
       midia_path: payload.midia_path ?? null,
       midia_filename: payload.midia_filename ?? null,

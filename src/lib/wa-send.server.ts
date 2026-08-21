@@ -89,7 +89,15 @@ export type SendInput = {
 
 export type SendResult = {
   ok: boolean;
-  endpoint_used: "send-text" | "send-link" | "send-image" | "send-document" | "send-audio" | "wa.me" | "skipped";
+  endpoint_used:
+    | "send-text"
+    | "send-link"
+    | "send-image"
+    | "send-document"
+    | "send-audio"
+    | "send-template"
+    | "wa.me"
+    | "skipped";
   preview_status: PreviewStatus;
   link_url: string | null;
   link_title: string | null;
@@ -113,7 +121,7 @@ export function isShadowbanError(message: string): boolean {
   return SHADOWBAN_PATTERNS.some((re) => re.test(message));
 }
 
-import { renderMessageVars, type MessageVarOptions } from "@/lib/message-vars";
+import { renderMessageVars, buildMessageVarValues, type MessageVarOptions } from "@/lib/message-vars";
 import { BLOCK_LABELS, messageBlockReason, sendablePhone } from "@/lib/contact-rules";
 
 
@@ -153,6 +161,14 @@ export function getPublicOrigin(): string {
 export function renderVars(body: string, c: ContactCtx, opts: RenderOptions = {}): string {
   const merged: RenderOptions = { ...opts, origin: opts.origin ?? getPublicOrigin() };
   return renderMessageVars(body, c, merged);
+}
+
+/** Mesma resolução de variáveis de renderVars, mas devolve o mapa nome→valor em
+ * vez de interpolar num texto — usado pra montar os parâmetros nomeados de um
+ * template oficial da Meta (ver campaign-batch.server.ts). */
+export function buildVarValues(c: ContactCtx, opts: RenderOptions = {}): Record<string, string> {
+  const merged: RenderOptions = { ...opts, origin: opts.origin ?? getPublicOrigin() };
+  return buildMessageVarValues(c, merged);
 }
 
 

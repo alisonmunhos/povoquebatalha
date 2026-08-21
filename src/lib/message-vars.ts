@@ -41,11 +41,15 @@ export function saudacaoBrasil(): string {
   return "Boa noite";
 }
 
-export function renderMessageVars(
-  body: string,
+/**
+ * Resolve cada variável suportada pro dado real do contato — mesma fonte usada
+ * por renderMessageVars (interpolação em texto livre) e, agora, pra montar os
+ * parâmetros nomeados de um template oficial da Meta (ver campaign-batch.server.ts).
+ */
+export function buildMessageVarValues(
   c: MessageVarContact,
   opts: MessageVarOptions = {},
-): string {
+): Record<string, string> {
   // Nome social tem prioridade sobre o nome comum quando preenchido (só no
   // cálculo da mensagem — não altera nenhum dado salvo do contato).
   const nomeParaExibir = (c.nome_social?.trim() || c.nome) ?? "";
@@ -57,7 +61,7 @@ export function renderMessageVars(
       ? `${origin}/atualizacao`
       : "";
   const linkInscr = origin ? `${origin}/inscrever` : "";
-  const values: Record<string, string> = {
+  return {
     nome: nomeParaExibir,
     primeiro_nome: primeiro,
     primeiro_nome_ou_ola: primeiro || "Olá",
@@ -69,6 +73,14 @@ export function renderMessageVars(
     link_recadastro: linkAtual,
     link_inscricao: linkInscr,
   };
+}
+
+export function renderMessageVars(
+  body: string,
+  c: MessageVarContact,
+  opts: MessageVarOptions = {},
+): string {
+  const values = buildMessageVarValues(c, opts);
   return body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) => {
     if (Object.prototype.hasOwnProperty.call(values, k)) return values[k];
     return opts.unknownAsEmpty ? "" : m;

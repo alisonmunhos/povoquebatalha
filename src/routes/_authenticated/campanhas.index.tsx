@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { listCampaigns, upsertCampaign, deleteCampaign } from "@/lib/campaigns.functions";
 import { listSegments } from "@/lib/segments.functions";
+import { listWhatsappTemplates } from "@/lib/whatsapp-templates.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -33,6 +34,7 @@ type FormMeta = {
   agendado_para: string;
   delay_min_ms: number;
   delay_max_ms: number;
+  whatsapp_template_id: string;
 };
 
 const emptyMeta = (): FormMeta => ({
@@ -41,17 +43,26 @@ const emptyMeta = (): FormMeta => ({
   agendado_para: "",
   delay_min_ms: 3000,
   delay_max_ms: 8000,
+  whatsapp_template_id: "",
 });
 
 function CampanhasPage() {
   const listFn = useServerFn(listCampaigns);
   const segFn = useServerFn(listSegments);
+  const templatesFn = useServerFn(listWhatsappTemplates);
   const upsertFn = useServerFn(upsertCampaign);
   const delFn = useServerFn(deleteCampaign);
   const qc = useQueryClient();
 
   const list = useSuspenseQuery({ queryKey: ["campaigns"], queryFn: () => listFn() });
   const segs = useSuspenseQuery({ queryKey: ["segments"], queryFn: () => segFn() });
+  const templates = useSuspenseQuery({ queryKey: ["whatsapp-templates"], queryFn: () => templatesFn() });
+  // Mesma fonte que a tela de Templates usa — só entram os já aprovados pela
+  // Meta e em formato nomeado (positional fica fora dessa integração por ora).
+  const officialTemplates = useMemo(
+    () => templates.data.templates.filter((t) => t.status === "approved" && t.parameter_format === "named"),
+    [templates.data.templates],
+  );
 
   const [open, setOpen] = useState(false);
   const [meta, setMeta] = useState<FormMeta>(emptyMeta);
@@ -85,6 +96,7 @@ function CampanhasPage() {
           tipo,
           mensagem_template: composer.body,
           segment_id: meta.segment_id || null,
+          whatsapp_template_id: meta.whatsapp_template_id || null,
           agendado_para: meta.agendado_para ? new Date(meta.agendado_para).toISOString() : null,
           delay_min_ms: meta.delay_min_ms,
           delay_max_ms: meta.delay_max_ms,
@@ -175,6 +187,26 @@ function CampanhasPage() {
                   {segmentCountLabel
                     ? `Selecionado: ${segmentCountLabel}.`
                     : "Escolha o grupo de contatos que receberá esta mensagem. Para criar campanhas a partir de contatos filtrados, use a tela Contatos."}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium">Template Oficial (opcional)</label>
+                <select
+                  className="mt-1 w-full border rounded-md px-2 h-9 text-sm bg-background"
+                  value={meta.whatsapp_template_id}
+                  onChange={(e) => setMeta({ ...meta, whatsapp_template_id: e.target.value })}
+                >
+                  <option value="">— Nenhum —</option>
+                  {officialTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Só é usado para contatos <b>fora da janela de 24h</b> (sem mensagem recebida deles
+                  nas últimas 24h) — a Meta só permite reabrir a conversa com um template aprovado
+                  nesse caso. Dentro da janela, a mensagem de texto livre abaixo continua sendo
+                  usada normalmente, sem mudança.
                 </p>
               </div>
 

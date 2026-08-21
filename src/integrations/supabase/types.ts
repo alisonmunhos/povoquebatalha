@@ -656,6 +656,7 @@ export type Database = {
           total_lidos: number
           ultimo_lote_at: string | null
           updated_at: string
+          whatsapp_template_id: string | null
         }
         Insert: {
           agendado_para?: string | null
@@ -699,6 +700,7 @@ export type Database = {
           total_lidos?: number
           ultimo_lote_at?: string | null
           updated_at?: string
+          whatsapp_template_id?: string | null
         }
         Update: {
           agendado_para?: string | null
@@ -742,6 +744,7 @@ export type Database = {
           total_lidos?: number
           ultimo_lote_at?: string | null
           updated_at?: string
+          whatsapp_template_id?: string | null
         }
         Relationships: [
           {
@@ -763,6 +766,13 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_whatsapp_template_id_fkey"
+            columns: ["whatsapp_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
             referencedColumns: ["id"]
           },
         ]
