@@ -484,7 +484,7 @@ function InboxPilot() {
                               <Badge
                                 key={idx}
                                 label={b.text}
-                                variant="outline"
+                                variant="neutral"
                                 icon={b.type === "URL" ? <Link2 /> : undefined}
                               />
                             ))}
