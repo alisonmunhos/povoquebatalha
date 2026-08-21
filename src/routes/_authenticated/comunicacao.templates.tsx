@@ -568,6 +568,12 @@ function Page() {
                   automaticamente pela Meta.
                 </p>
               )}
+              {t.status !== "draft" && !positional && (
+                <p className="text-xs text-muted-foreground">
+                  Já enviado à Meta — não é possível editar. Crie um novo modelo para
+                  alterar o texto.
+                </p>
+              )}
               {t.status === "draft" && (
                 <div className="flex gap-2">
                   <Button
