@@ -278,10 +278,10 @@ export function AppShell() {
 
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Mobile top bar with hamburger */}
-        <header className="md:hidden sticky top-0 z-30 h-12 border-b bg-card flex items-center gap-2 px-3">
+        <header className="md:hidden sticky top-0 z-30 h-14 border-b bg-card flex items-center gap-1.5 px-2">
           <button
             onClick={() => setMobileOpen(true)}
-            className="p-2 -ml-2 rounded-md hover:bg-muted"
+            className="p-2 rounded-md hover:bg-muted shrink-0"
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />
@@ -290,11 +290,14 @@ export function AppShell() {
             <Megaphone className="h-4 w-4 text-primary shrink-0" />
             <span className="text-sm font-semibold truncate">Povo que Batalha</span>
           </div>
-          <NotificationBell />
-          <InboxQuickButton />
-          <InstallAppButton variant="chip" />
-          {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
+          <div className="flex items-center gap-1 shrink-0">
+            <NotificationBell />
+            <InboxQuickButton />
+            <InstallAppButton variant="chip" />
+            {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
+          </div>
         </header>
+
         {/* Desktop top bar */}
         <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center gap-2 px-4">
           <button
