@@ -225,7 +225,11 @@ export const previewCampaign = createServerFn({ method: "POST" })
           ? { filters: c.filtro_adhoc as Partial<CrmFilters> }
           : null;
     if (!source) {
-      return { totalBruto: 0, elegíveis: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0, exemplos: [], mensagemExemplo: c.mensagem_template };
+      return {
+        totalBruto: 0, elegíveis: 0, semConsent: 0, optOut: 0, arquivados: 0, semTelefone: 0,
+        janelaAberta: 0, janelaFechadaComTemplate: 0, janelaFechadaSemTemplate: 0,
+        exemplos: [], mensagemExemplo: c.mensagem_template,
+      };
     }
     const audience = await resolveAudience(context.supabase, source);
     const exemplos = audience.eligible.slice(0, 3).map((contact) => ({
