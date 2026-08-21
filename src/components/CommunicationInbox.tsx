@@ -7,7 +7,7 @@ const routeApi = getRouteApi("/_authenticated/comunicacao/inbox");
 import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
-  Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText, Link2,
+  Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +22,7 @@ import {
   linkConversationToContact,
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
-import { Badge } from "@/components/ui/badge";
+
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 // LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
@@ -544,14 +544,42 @@ export function CommunicationInbox() {
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
                     {m.buttons && m.buttons.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {m.buttons.map((b, idx) => (
-                          <Badge key={idx} variant="outline" className={`text-[10px] gap-1 ${m.kind === "out" ? "border-primary-foreground/30 text-primary-foreground" : ""}`}>
-                            {b.type === "URL" && <Link2 className="h-3 w-3" />}
-                            {b.text}
-                          </Badge>
-                        ))}
-                      </div>
+                      <>
+                        <div className={`h-px w-full my-2 ${m.kind === "out" ? "bg-primary-foreground/20" : "bg-border"}`} />
+                        <div className="-mx-3 -mb-2 flex flex-col rounded-b-lg overflow-hidden">
+                          {m.buttons.map((b, idx) => {
+                            const label = b.text.toUpperCase();
+                            const baseClass = `w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide transition-colors border-t first:border-t-0 ${
+                              m.kind === "out"
+                                ? "text-primary-foreground hover:bg-primary-foreground/10 border-primary-foreground/15"
+                                : "text-primary hover:bg-primary/5 border-border"
+                            }`;
+                            const icon = b.type === "URL" ? <ExternalLink className="h-3.5 w-3.5" /> : null;
+                            if (b.type === "URL") {
+                              return (
+                                <a key={idx} href={b.url} target="_blank" rel="noopener noreferrer" className={baseClass}>
+                                  {icon}
+                                  <span>{label}</span>
+                                </a>
+                              );
+                            }
+                            if (b.type === "PHONE_NUMBER") {
+                              return (
+                                <a key={idx} href={`tel:${b.phone_number}`} className={baseClass}>
+                                  {icon}
+                                  <span>{label}</span>
+                                </a>
+                              );
+                            }
+                            return (
+                              <div key={idx} className={baseClass}>
+                                {icon}
+                                <span>{label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
                     <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
                       {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
