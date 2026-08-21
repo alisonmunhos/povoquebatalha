@@ -620,6 +620,9 @@ export function CommunicationInbox() {
                   <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
                     m.kind === "out" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-background border rounded-bl-none"
                   }`}>
+                    {m.header_type === "TEXT" && m.header_text && (
+                      <div className="font-semibold whitespace-pre-wrap break-words mb-1">{m.header_text}</div>
+                    )}
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
