@@ -64,7 +64,7 @@ export function CommunicationInbox() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { contact: contactParam } = routeApi.useSearch();
-  const [filter, setFilter] = useState<Filter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("abertas");
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(contactParam || null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
