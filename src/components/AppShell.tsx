@@ -15,6 +15,7 @@ import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { AddContactButton } from "@/components/AddContactButton";
 import { BrandMark } from "@/components/BrandMark";
 import { NotificationBell } from "@/components/NotificationBell";
+import { InboxQuickButton } from "@/components/InboxQuickButton";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { AgitacaoTabBar, AgitacaoTabBarSpacer } from "@/components/AgitacaoNav";
 import { isAgitadorOnlyRoles } from "@/hooks/use-agitador-mode";
@@ -153,6 +154,7 @@ export function AppShell() {
             </Link>
             <div className="flex items-center gap-2">
               <NotificationBell />
+          <InboxQuickButton />
               <InstallAppButton variant="chip" />
               <AddContactButton compact userName={user?.email ?? null} />
               <button
@@ -289,6 +291,7 @@ export function AppShell() {
             <span className="text-sm font-semibold truncate">Povo que Batalha</span>
           </div>
           <NotificationBell />
+          <InboxQuickButton />
           <InstallAppButton variant="chip" />
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </header>
@@ -304,6 +307,7 @@ export function AppShell() {
           </button>
           <div className="flex-1" />
           <NotificationBell />
+          <InboxQuickButton />
           <InstallAppButton variant="chip" />
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </div>
