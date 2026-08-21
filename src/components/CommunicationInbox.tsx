@@ -7,7 +7,7 @@ const routeApi = getRouteApi("/_authenticated/comunicacao/inbox");
 import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
-  Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText, Link2,
+  Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +22,7 @@ import {
   linkConversationToContact,
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
-import { Badge } from "@/components/ui/badge";
+
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 // LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
