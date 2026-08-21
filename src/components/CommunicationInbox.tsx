@@ -502,29 +502,35 @@ export function CommunicationInbox() {
               const active = statusFilter === f.key;
               const count =
                 f.key === "nao_lidas"
-                  ? (active ? list.length : unreadTotal)
+                  ? (active ? list.length : unreadInList)
                   : (active ? list.length : undefined);
               return (
-                <button
-                  key={f.key}
-                  onClick={() => setStatusFilter(f.key)}
-                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-foreground border-input hover:bg-muted"
-                  }`}
-                >
-                  {f.label}
-                  {count !== undefined && (
-                    <span
-                      className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
-                        active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                <Tooltip key={f.key}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setStatusFilter(f.key)}
+                      className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                        active
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-foreground border-input hover:bg-muted"
                       }`}
                     >
-                      {count}
-                    </span>
-                  )}
-                </button>
+                      {f.label}
+                      {count !== undefined && (
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
+                            active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[15rem]">
+                    <p>{f.hint}</p>
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </div>
