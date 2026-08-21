@@ -176,6 +176,11 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
     return hasUrl ? "send-text" : "send-text";
   }, [uploadInfo, mensagem, linkUrl]);
 
+  const officialTemplates = useMemo(
+    () => (waTemplatesQ.data?.templates ?? []).filter((t) => t.status === "approved" && t.parameter_format === "named"),
+    [waTemplatesQ.data?.templates],
+  );
+
   function applyTemplate(id: string) {
     setTemplateId(id);
     const t = (templatesQ.data ?? []).find((x) => x.id === id) as { id: string; body: string; title: string; link?: string | null } | undefined;
