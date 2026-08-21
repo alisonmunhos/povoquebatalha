@@ -20,7 +20,7 @@ import {
   listConversations, getConversation, markConversationRead, assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
-  linkConversationToContact,
+  linkConversationToContact, getMyCommunicationBadge,
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
