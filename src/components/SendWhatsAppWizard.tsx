@@ -233,6 +233,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
         ids: source.ids,
         filters: source.filters,
         template_id: templateId || null,
+        whatsapp_template_id: whatsappTemplateId || null,
         mensagem_template: mensagem,
         tipo,
         midia_path: uploadInfo?.path ?? null,
