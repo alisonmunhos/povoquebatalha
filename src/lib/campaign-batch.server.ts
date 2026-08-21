@@ -2,12 +2,116 @@
 // pelo botão manual (campaigns.functions.ts) e pelo cron (campaigns.server.ts).
 // As duas chamadas divergiam em `useSendLink` e no critério de anexo — preservados
 // aqui como parâmetros explícitos em vez de assumidos iguais.
-import { BLOCK_LABELS, messageBlockReason } from "@/lib/contact-rules";
+import { BLOCK_LABELS, messageBlockReason, sendablePhone } from "@/lib/contact-rules";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { sendMessage, recordWhatsappSendOutcome } from "@/lib/wa-send.server";
+import { sendMessage, recordWhatsappSendOutcome, buildVarValues, type SendResult } from "@/lib/wa-send.server";
+import { extractNamedVars } from "@/lib/whatsapp-templates.functions";
 
 type Client = SupabaseClient<Database>;
+
+const WINDOW_24H_MS = 24 * 60 * 60 * 1000;
+const NO_TEMPLATE_REASON = "Fora da janela de 24h e sem template aprovado configurado nesta campanha";
+
+type ApprovedTemplate = {
+  name: string;
+  language: string;
+  body_text: string;
+  header_type: string;
+  header_text: string | null;
+};
+
+function skipResult(rendered: string, reason: string): SendResult {
+  return {
+    ok: false,
+    endpoint_used: "skipped",
+    preview_status: "sem_link",
+    link_url: null,
+    link_title: null,
+    link_description: null,
+    link_image: null,
+    fallback_reason: reason,
+    message_id: null,
+    zaap_id: null,
+    rendered_text: rendered,
+    error: reason,
+    shadowban_suspected: false,
+  };
+}
+
+/** Substitui {{nome}} pelos valores resolvidos — só pra manter um registro
+ * legível em campaign_recipients.rendered_message, não é o que de fato é
+ * enviado (a Meta usa os parâmetros nomeados do template aprovado). */
+function previewTemplateBody(bodyText: string, params: Record<string, string>): string {
+  return bodyText.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(params, k) ? params[k] : m,
+  );
+}
+
+/**
+ * Envia via template oficial aprovado (única forma aceita pela Meta pra
+ * contatos fora da janela de 24h). bodyVars/headerVar já vêm extraídos do
+ * template (extractNamedVars), uma vez por lote — não recalculados por contato.
+ */
+async function sendViaWhatsappTemplate(
+  ct: RecipientContact,
+  template: ApprovedTemplate,
+  bodyVars: string[],
+  headerVar: string | undefined,
+): Promise<SendResult> {
+  const phone = sendablePhone(ct);
+  const values = buildVarValues(ct);
+  const bodyParams: Record<string, string> = {};
+  for (const name of bodyVars) bodyParams[name] = values[name] ?? "";
+  const rendered = previewTemplateBody(template.body_text, bodyParams);
+
+  if (!phone) return skipResult(rendered, BLOCK_LABELS.sem_telefone);
+
+  const headerParam = headerVar ? { name: headerVar, value: values[headerVar] ?? "" } : undefined;
+
+  try {
+    const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
+    const res = await whatsappCloud.sendTemplate(
+      phone,
+      template.name,
+      template.language,
+      bodyParams,
+      headerParam,
+    );
+    return {
+      ok: true,
+      endpoint_used: "send-template",
+      preview_status: "sem_link",
+      link_url: null,
+      link_title: null,
+      link_description: null,
+      link_image: null,
+      fallback_reason: null,
+      message_id: res.messageId,
+      zaap_id: null,
+      rendered_text: rendered,
+      error: null,
+      shadowban_suspected: false,
+    };
+  } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
+    return {
+      ok: false,
+      endpoint_used: "send-template",
+      preview_status: "sem_link",
+      link_url: null,
+      link_title: null,
+      link_description: null,
+      link_image: null,
+      fallback_reason: null,
+      message_id: null,
+      zaap_id: null,
+      rendered_text: rendered,
+      error: errorMsg,
+      shadowban_suspected: false,
+    };
+  }
+}
 
 type RecipientContact = {
   id: string;
@@ -123,6 +227,30 @@ export async function processCampaignBatchShared(
         }
       : null;
 
+  // Template oficial aprovado da campanha (opcional) — buscado uma vez por lote,
+  // não por destinatário. Só usado pra contatos fora da janela de 24h; templates
+  // com parameter_format='positional' ficam fora dessa integração por enquanto.
+  let approvedTemplate: ApprovedTemplate | null = null;
+  let templateBodyVars: string[] = [];
+  let templateHeaderVar: string | undefined;
+  if (c.whatsapp_template_id) {
+    const { data: tpl } = await db
+      .from("whatsapp_templates")
+      .select("name,language,body_text,header_type,header_text,status,parameter_format")
+      .eq("id", c.whatsapp_template_id)
+      .eq("status", "approved")
+      .eq("parameter_format", "named")
+      .maybeSingle();
+    if (tpl) {
+      approvedTemplate = tpl;
+      templateBodyVars = extractNamedVars(tpl.body_text);
+      templateHeaderVar =
+        tpl.header_type === "TEXT" && tpl.header_text
+          ? extractNamedVars(tpl.header_text)[0]
+          : undefined;
+    }
+  }
+
   for (const r of recs) {
     const { data: cur } = await db.from("campaigns").select("status").eq("id", campaignId).single();
     if (!cur || cur.status !== "running") break;
@@ -151,17 +279,38 @@ export async function processCampaignBatchShared(
     // ao delay client-side entre linhas do lote.
     const delayMessage = Math.floor(2 + Math.random() * 4); // 2-6s
 
-    const result = await sendMessage({
-      contact: ct,
-      text: textForSend,
-      textAlreadyRendered: true,
-      link: linkMeta,
-      attachment,
-      origin: "campaign",
-      useSendLink: opts.useSendLink,
-      skipValidations: true, // já validamos acima com o skip específico da campanha
-      delayMessage,
-    });
+    // Regra da Meta: só dá pra iniciar/reabrir conversa com texto livre dentro
+    // da janela de 24h desde a última mensagem recebida do contato. Fora dela,
+    // só um template aprovado consegue entregar — senão a Meta rejeitaria mesmo.
+    const { data: lastInbound } = await db
+      .from("inbound_messages")
+      .select("received_at")
+      .eq("contact_id", r.contact_id)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const withinWindow = lastInbound
+      ? Date.now() - new Date(lastInbound.received_at).getTime() < WINDOW_24H_MS
+      : false;
+
+    let result: SendResult;
+    if (withinWindow) {
+      result = await sendMessage({
+        contact: ct,
+        text: textForSend,
+        textAlreadyRendered: true,
+        link: linkMeta,
+        attachment,
+        origin: "campaign",
+        useSendLink: opts.useSendLink,
+        skipValidations: true, // já validamos acima com o skip específico da campanha
+        delayMessage,
+      });
+    } else if (approvedTemplate) {
+      result = await sendViaWhatsappTemplate(ct, approvedTemplate, templateBodyVars, templateHeaderVar);
+    } else {
+      result = skipResult(textForSend, NO_TEMPLATE_REASON);
+    }
 
     await recordWhatsappSendOutcome(r.contact_id, result);
 

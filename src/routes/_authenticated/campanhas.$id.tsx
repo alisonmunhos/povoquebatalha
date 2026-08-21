@@ -278,6 +278,7 @@ function CampanhaDetail() {
                   "send-link": "Link com prévia forçada",
                   "send-image": "Imagem",
                   "send-document": "Documento",
+                  "send-template": "Template oficial (fora da janela de 24h)",
                 };
                 const psLabel: Record<string, { txt: string; cls: string }> = {
                   "preview_confirmada": { txt: "Confirmada", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },

@@ -8,6 +8,9 @@ export const campaignInput = z.object({
   tipo: z.enum(["text", "image", "document", "link"]).default("text"),
   mensagem_template: z.string().min(1).max(4000),
   template_id: z.string().uuid().optional().nullable(),
+  // Template Oficial (Meta) — só usado pra contatos fora da janela de 24h.
+  // Não confundir com template_id acima (message_templates, texto livre).
+  whatsapp_template_id: z.string().uuid().optional().nullable(),
   midia_url: z.string().url().optional().nullable(),
   midia_path: z.string().max(500).optional().nullable(),
   midia_filename: z.string().max(200).optional().nullable(),

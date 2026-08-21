@@ -116,5 +116,57 @@ export const whatsappCloud = {
       type: "audio",
       audio: { link: url },
     }),
+
+  /**
+   * Template aprovado pela Meta, formato nomeado (`parameter_format: "named"`,
+   * mesmo padrão usado em whatsapp-templates.functions.ts). Único jeito de
+   * iniciar/reabrir conversa com um contato fora da janela de 24h — texto livre
+   * (sendText) é rejeitado pela Meta nesse caso.
+   *
+   * NOTA: o formato exato do envio de template nomeado (`parameter_name` dentro
+   * de cada parâmetro) não está documentado na especificação local
+   * (business-messaging-api_v23.0.yaml) — confirmado via SDKs/documentação viva
+   * da Meta, não do repositório.
+   *
+   * `headerParam` carrega nome+valor (não só o valor) porque a Meta exige o
+   * `parameter_name` também no parâmetro do cabeçalho — só o texto não é
+   * suficiente para montar o payload corretamente.
+   */
+  sendTemplate: (
+    phone: string,
+    templateName: string,
+    languageCode: string,
+    bodyParams: Record<string, string>,
+    headerParam?: { name: string; value: string },
+  ) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: [
+          ...(headerParam
+            ? [
+                {
+                  type: "header",
+                  parameters: [
+                    { type: "text", text: headerParam.value, parameter_name: headerParam.name },
+                  ],
+                },
+              ]
+            : []),
+          {
+            type: "body",
+            parameters: Object.entries(bodyParams).map(([name, value]) => ({
+              type: "text",
+              text: value,
+              parameter_name: name,
+            })),
+          },
+        ],
+      },
+    }),
 };
 
