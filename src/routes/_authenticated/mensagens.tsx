@@ -475,7 +475,7 @@ function AutomationsPanel() {
                 <Label className="text-xs font-medium">Evento</Label>
                 <select value={editing?.event_key ?? ""} onChange={(e) => setEditing({ ...editing!, event_key: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm bg-background">
                   <option value="">—</option>
-                  {SYSTEM_EVENTS.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
+                  {eventOptions.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
