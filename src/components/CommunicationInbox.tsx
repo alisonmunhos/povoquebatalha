@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link, getRouteApi } from "@tanstack/react-router";
@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User,
+  User, Smile,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,9 @@ import {
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
@@ -152,7 +155,10 @@ export function CommunicationInbox() {
   const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const replyRef = useRef<HTMLTextAreaElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const cursorRef = useRef({ start: 0, end: 0 });
 
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
@@ -736,6 +742,46 @@ export function CommunicationInbox() {
                 >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                 </button>
+                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                      title="Inserir emoji"
+                      disabled={!canSend}
+                      type="button"
+                    >
+                      <Smile className="h-4 w-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-auto p-0" sideOffset={8}>
+                    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando emojis…</div>}>
+                      <EmojiPicker
+                        onEmojiClick={(data) => {
+                          const emoji = typeof data.emoji === "string" ? data.emoji : "";
+                          if (!emoji) return;
+                          const el = replyRef.current;
+                          const start = el ? el.selectionStart ?? cursorRef.current.start : cursorRef.current.start;
+                          const end = el ? el.selectionEnd ?? cursorRef.current.end : cursorRef.current.end;
+                          const before = reply.slice(0, start);
+                          const after = reply.slice(end);
+                          const next = before + emoji + after;
+                          setReply(next);
+                          const pos = start + emoji.length;
+                          cursorRef.current = { start: pos, end: pos };
+                          requestAnimationFrame(() => {
+                            el?.focus();
+                            el?.setSelectionRange(pos, pos);
+                          });
+                          setEmojiOpen(false);
+                        }}
+                        width={280}
+                        height={320}
+                        lazyLoadEmojis
+                        searchDisabled
+                      />
+                    </Suspense>
+                  </PopoverContent>
+                </Popover>
                 {tplsQ.data && tplsQ.data.length > 0 && (
                   <select
                     onChange={(e) => {
@@ -751,9 +797,19 @@ export function CommunicationInbox() {
                   </select>
                 )}
                 <textarea
+                  ref={replyRef}
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                   onKeyDown={handleSendKeyDown}
+                  onClick={(e) => {
+                    cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
+                  }}
+                  onKeyUp={(e) => {
+                    cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
+                  }}
+                  onSelect={(e) => {
+                    cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
+                  }}
                   disabled={!canSend}
                   rows={1}
                   placeholder="Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
