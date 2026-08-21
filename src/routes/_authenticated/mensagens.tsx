@@ -310,6 +310,22 @@ function AutomationsPanel() {
 
   const [editing, setEditing] = useState<Partial<Automation> | null>(null);
 
+  const eventOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ev of SYSTEM_EVENTS) map.set(ev.value, ev.label);
+    for (const f of forms.data ?? []) {
+      if (!f.slug) continue;
+      map.set(`formulario:${f.slug}`, `Formulário: ${f.title ?? f.slug}`);
+    }
+    for (const a of q.data ?? []) {
+      if (!a.event_key || map.has(a.event_key)) continue;
+      const slug = a.event_key.startsWith("formulario:") ? a.event_key.slice("formulario:".length) : null;
+      map.set(a.event_key, slug ? `Formulário: ${slug}` : a.event_key);
+    }
+    if (editing?.event_key && !map.has(editing.event_key)) map.set(editing.event_key, editing.event_key);
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [forms.data, q.data, editing?.event_key]);
+
   const toggle = useMutation({
     mutationFn: async (a: Automation) => upsertFn({ data: {
       id: a.id, event_key: a.event_key, template_id: a.template_id,
