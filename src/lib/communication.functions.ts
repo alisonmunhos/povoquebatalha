@@ -37,9 +37,25 @@ export const listConversations = createServerFn({ method: "GET" })
     if (error) throw error;
 
     type ContactShape = { id: string; nome: string | null; phone_e164: string | null; cidade: string | null; uf: string | null; bairro: string | null; opt_out_at: string | null; whatsapp_status: string | null };
+
+    // Resolve nomes dos responsáveis em uma única query secundária (assigned_to não é FK formal).
+    const assigneeIds = Array.from(new Set((rows ?? []).map((r) => r.assigned_to as string | null).filter((x): x is string => Boolean(x))));
+    let assigneeMap = new Map<string, { id: string; nome: string | null }>();
+    if (assigneeIds.length > 0) {
+      const { data: profs } = await context.supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", assigneeIds)
+        .limit(1000);
+      (profs ?? []).forEach((p) => {
+        assigneeMap.set(p.id as string, { id: p.id as string, nome: p.full_name as string | null });
+      });
+    }
+
     let list = (rows ?? []).map((r) => {
       const raw = r.contacts as ContactShape | ContactShape[] | null;
       const c = Array.isArray(raw) ? raw[0] : raw;
+      const assignedTo = r.assigned_to as string | null;
       return {
         id: r.id as string,
         contact_id: r.contact_id as string | null,
@@ -52,7 +68,8 @@ export const listConversations = createServerFn({ method: "GET" })
         opt_out: Boolean(c?.opt_out_at),
         whatsapp_status: c?.whatsapp_status ?? null,
         status: r.status as "aberta" | "aguardando" | "resolvida",
-        assigned_to: r.assigned_to as string | null,
+        assigned_to: assignedTo,
+        assignee: assignedTo ? (assigneeMap.get(assignedTo) ?? { id: assignedTo, nome: null }) : null,
         last_at: r.last_message_at as string | null,
         last_preview: r.last_message_preview as string | null,
         last_dir: r.last_message_direction as "in" | "out" | null,

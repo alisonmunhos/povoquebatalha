@@ -8,6 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,8 @@ import {
   linkConversationToContact,
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
@@ -45,6 +48,58 @@ function describeSendError(erro?: string | null): string {
     return " · fora da janela de 24h — peça pra ele responder, ou use um template";
   }
   return ` · ${raw}`;
+}
+
+/** Cor determinística a partir de uma string (id/nome). */
+function stringToHslColor(str: string, s = 60, l = 45): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash % 360);
+  return `hsl(${h} ${s}% ${l}%)`;
+}
+
+function initialsFromName(name?: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+type Assignee = { id: string; nome: string | null; avatar_url?: string | null } | null;
+
+function AssigneeChip({ assignee }: { assignee: Assignee }) {
+  if (!assignee) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80 bg-muted/60 border border-border/60 rounded-full px-1.5 py-0.5">
+        <User className="h-2.5 w-2.5" />
+        Sem responsável
+      </span>
+    );
+  }
+  const nome = assignee.nome ?? "Usuário";
+  const bg = stringToHslColor(assignee.id + (assignee.nome ?? ""));
+  const textColor = "#ffffff";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center gap-1 text-[10px] bg-muted/40 border border-border/60 rounded-full pl-0.5 pr-1.5 py-0.5 cursor-default">
+          <Avatar className="h-4 w-4 rounded-full" style={{ backgroundColor: bg }}>
+            {assignee.avatar_url && <AvatarImage src={assignee.avatar_url} alt={nome} className="h-4 w-4" />}
+            <AvatarFallback className="h-4 w-4 text-[8px] font-semibold" style={{ backgroundColor: bg, color: textColor }}>
+              {initialsFromName(assignee.nome)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate max-w-[5rem]">{nome}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        <p>Responsável: {nome}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 type BackendFilter =
@@ -388,7 +443,8 @@ export function CommunicationInbox() {
 
 
   return (
-    <div className="flex h-full min-h-0 bg-muted/10">
+    <TooltipProvider delayDuration={200}>
+      <div className="flex h-full min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
       <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col border-r bg-background`}>
         <div className="p-3 border-b space-y-2">
@@ -464,7 +520,9 @@ export function CommunicationInbox() {
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-1">
                 <span className={isLidPhone(c.phone) ? "font-mono" : ""}>{displayPhone(c.phone)}</span>
                 {c.cidade && <span>· {c.cidade}/{c.uf ?? ""}</span>}
-                {c.assigned_to && <span className="ml-auto inline-flex items-center gap-0.5"><UserPlus className="h-2.5 w-2.5" />atribuída</span>}
+                <span className="ml-auto">
+                  <AssigneeChip assignee={c.assignee ?? null} />
+                </span>
               </div>
             </button>
           ))}
@@ -908,6 +966,7 @@ export function CommunicationInbox() {
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }
 
