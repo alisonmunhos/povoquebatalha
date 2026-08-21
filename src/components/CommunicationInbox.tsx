@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User, Smile,
+  User, Smile, MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -157,6 +157,13 @@ export function CommunicationInbox() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const replyRef = useRef<HTMLTextAreaElement | null>(null);
+  // Cresce a caixa de texto conforme o conteúdo, até o limite de max-h-40 (160px).
+  useEffect(() => {
+    const el = replyRef.current;
+    if (!el) return;
+    el.style.height = "40px";
+    if (reply) el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [reply]);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const cursorRef = useRef({ start: 0, end: 0 });
@@ -224,6 +231,16 @@ export function CommunicationInbox() {
   });
 
   const tplsQ = useQuery({ queryKey: ["comm-tpls"], queryFn: () => tplsFn() });
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const filteredQuickReplies = useMemo(() => {
+    const all = tplsQ.data ?? [];
+    const s = quickSearch.trim().toLowerCase();
+    if (!s) return all;
+    return all.filter((t) =>
+      (t.title ?? "").toLowerCase().includes(s) || (t.body ?? "").toLowerCase().includes(s),
+    );
+  }, [tplsQ.data, quickSearch]);
   const staffQ = useQuery({
     queryKey: ["comm-staff"],
     queryFn: () => staffFn(),
@@ -797,18 +814,50 @@ export function CommunicationInbox() {
                   </PopoverContent>
                 </Popover>
                 {tplsQ.data && tplsQ.data.length > 0 && (
-                  <select
-                    onChange={(e) => {
-                      const t = tplsQ.data?.find((x) => x.id === e.target.value);
-                      if (t) setReply((prev) => prev ? prev + "\n" + t.body : t.body);
-                      e.currentTarget.value = "";
-                    }}
-                    className="text-xs px-2 py-2 rounded-md border bg-background shrink-0 hidden sm:block"
-                    title="Resposta pronta"
-                  >
-                    <option value="">📋</option>
-                    {tplsQ.data.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-                  </select>
+                  <Popover open={quickOpen} onOpenChange={(o) => { setQuickOpen(o); if (!o) setQuickSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                        title="Resposta rápida"
+                        disabled={!canSend}
+                        type="button"
+                      >
+                        <MessageSquareText className="h-4 w-4" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 p-0" sideOffset={8}>
+                      <div className="p-2 border-b">
+                        <input
+                          value={quickSearch}
+                          onChange={(e) => setQuickSearch(e.target.value)}
+                          placeholder="Buscar resposta rápida…"
+                          className="w-full text-sm px-2 py-1.5 rounded-md border bg-background"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-1">
+                        {filteredQuickReplies.length === 0 && (
+                          <div className="p-3 text-xs text-muted-foreground">Nenhuma resposta rápida encontrada.</div>
+                        )}
+                        {filteredQuickReplies.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className="w-full text-left px-2 py-2 rounded-md hover:bg-muted"
+                            onClick={() => {
+                              setReply((prev) => (prev ? prev + "\n" + t.body : t.body));
+                              setQuickOpen(false);
+                              setQuickSearch("");
+                              requestAnimationFrame(() => replyRef.current?.focus());
+                            }}
+                          >
+                            <div className="text-sm font-medium truncate">{t.title}</div>
+                            <div className="text-[11px] text-muted-foreground line-clamp-2">{t.body}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
                 <textarea
                   ref={replyRef}
@@ -827,7 +876,7 @@ export function CommunicationInbox() {
                   disabled={!canSend}
                   rows={1}
                   placeholder="Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
-                  className="flex-1 text-sm px-3 py-2 rounded-md border bg-background resize-none max-h-40"
+                  className="flex-1 min-w-0 text-sm px-3 py-2 rounded-md border bg-background resize-none max-h-40 overflow-y-auto"
                   style={{ minHeight: "40px" }}
                 />
                 <button
