@@ -486,7 +486,7 @@ export function CommunicationInbox() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex h-full min-h-0 bg-muted/10">
+      <div className="wa-inbox flex h-full min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
       <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col min-h-0 border-r bg-background`}>
         <div className="p-3 border-b space-y-2">
