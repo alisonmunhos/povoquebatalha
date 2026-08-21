@@ -1118,7 +1118,6 @@ function UnlinkedBanner({
         </div>
       )}
     </div>
-    </TooltipProvider>
   );
 }
 
