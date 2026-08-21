@@ -266,7 +266,7 @@ export const getConversation = createServerFn({ method: "GET" })
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
           nome?: string;
           whatsapp_template_id?: string | null;
-          whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null;
+          whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null;
         } | null;
         const templateRow = campaignRow?.whatsapp_template_id
           ? (Array.isArray(campaignRow.whatsapp_templates) ? campaignRow.whatsapp_templates[0] : campaignRow.whatsapp_templates)
@@ -274,6 +274,16 @@ export const getConversation = createServerFn({ method: "GET" })
         const buttons = (templateRow?.buttons && Array.isArray(templateRow.buttons))
           ? (templateRow.buttons as TemplateButton[])
           : [];
+        const rawHeaderText = templateRow?.header_text ?? null;
+        const headerText = rawHeaderText && contact
+          ? renderMessageVars(rawHeaderText, {
+              nome: contact.nome,
+              nome_social: contact.nome, // nome_social não está no select; reaproveita nome
+              cidade: contact.cidade,
+              bairro: contact.bairro,
+              uf: contact.uf,
+            }, { origin: "" })
+          : rawHeaderText;
         return {
           id: r.id as string,
           rendered_message: r.rendered_message as string | null,
@@ -281,6 +291,8 @@ export const getConversation = createServerFn({ method: "GET" })
           status: r.status as string,
           endpoint_used: r.endpoint_used as string | null,
           campaign_name: campaignRow?.nome ?? null,
+          header_type: templateRow?.header_type ?? null,
+          header_text: headerText,
           buttons: r.endpoint_used === "send-template" ? buttons : [],
         };
       }),
