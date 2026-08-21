@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRole, requireStaff, requireInboxAccess } from "@/lib/authz";
+import { requireRole, requireInboxAccess } from "@/lib/authz";
 import { renderMessageVars } from "@/lib/message-vars";
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 

@@ -55,7 +55,7 @@ export const listUsers = createServerFn({ method: "GET" })
     const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
     const [{ data: roles }, { data: profiles }, { data: scopes }] = await Promise.all([
       supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", safeIds),
-      supabaseAdmin.from("profiles").select("id, full_name, status, invited_by, suspended_at, revoked_at").in("id", safeIds),
+      supabaseAdmin.from("profiles").select("id, full_name, status, invited_by, suspended_at, revoked_at, inbox_access").in("id", safeIds),
       supabaseAdmin.from("user_territory_scopes").select("user_id, uf, cidade, bairro").in("user_id", safeIds),
     ]);
 
@@ -65,8 +65,8 @@ export const listUsers = createServerFn({ method: "GET" })
       arr.push(r.role);
       byUser.set(r.user_id, arr);
     });
-    const profByUser = new Map<string, { full_name: string | null; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }>();
-    (profiles ?? []).forEach((p: { id: string; full_name: string | null; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null }) => {
+    const profByUser = new Map<string, { full_name: string | null; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null; inbox_access?: boolean | null }>();
+    (profiles ?? []).forEach((p: { id: string; full_name: string | null; status: string; invited_by: string | null; suspended_at: string | null; revoked_at: string | null; inbox_access?: boolean | null }) => {
       profByUser.set(p.id, p);
     });
     const scopeCount = new Map<string, number>();
@@ -110,6 +110,7 @@ export const listUsers = createServerFn({ method: "GET" })
           derived_status: derived,
           invited_by: prof?.invited_by ?? null,
           scope_count: scopeCount.get(u.id) ?? 0,
+          inbox_access: Boolean(prof?.inbox_access),
         };
       }),
     };
@@ -241,6 +242,23 @@ export const setUserRole = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     await syncContactSystemRole(supabaseAdmin, data.userId, data.role);
     await audit(context, data.userId, "papel_alterado", { role: data.role });
+    return { ok: true as const };
+  });
+
+export const setInboxAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ userId: z.string().uuid(), enabled: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ inbox_access: data.enabled })
+      .eq("id", data.userId);
+    if (error) throw new Error(error.message);
+    await audit(context, data.userId, "inbox_access_alterado", { enabled: data.enabled });
     return { ok: true as const };
   });
 
