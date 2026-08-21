@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole, requireStaff } from "@/lib/authz";
+import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
 type ConvEventPayload = Record<string, string | number | boolean | null>;
@@ -180,7 +181,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const campaignQuery = effectiveContactId
       ? context.supabase.from("campaign_recipients")
-          .select("id, rendered_message, sent_at, status, campaigns:campaign_id(nome)")
+          .select("id, rendered_message, sent_at, status, endpoint_used, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(buttons))")
           .eq("contact_id", effectiveContactId).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200)
       : null;
 
@@ -193,7 +194,7 @@ export const getConversation = createServerFn({ method: "GET" })
     const [inR, dR, cR, tR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null; media_url: string | null; media_mime: string | null; media_filename: string | null }[] }),
       directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null }[] }),
-      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; campaigns: { nome: string } | { nome: string }[] | null }[] }),
+      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null }[] | null }[] }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
     ]);
     const inbound = inR.data ?? [];
@@ -243,13 +244,28 @@ export const getConversation = createServerFn({ method: "GET" })
       tags,
       inbound,
       direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
-      campaign: campaign.map((r) => ({
-        id: r.id as string,
-        rendered_message: r.rendered_message as string | null,
-        sent_at: r.sent_at as string | null,
-        status: r.status as string,
-        campaign_name: (Array.isArray(r.campaigns) ? r.campaigns[0]?.nome : (r.campaigns as { nome?: string } | null)?.nome) ?? null,
-      })),
+      campaign: campaign.map((r) => {
+        const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
+          nome?: string;
+          whatsapp_template_id?: string | null;
+          whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null;
+        } | null;
+        const templateRow = campaignRow?.whatsapp_template_id
+          ? (Array.isArray(campaignRow.whatsapp_templates) ? campaignRow.whatsapp_templates[0] : campaignRow.whatsapp_templates)
+          : null;
+        const buttons = (templateRow?.buttons && Array.isArray(templateRow.buttons))
+          ? (templateRow.buttons as TemplateButton[])
+          : [];
+        return {
+          id: r.id as string,
+          rendered_message: r.rendered_message as string | null,
+          sent_at: r.sent_at as string | null,
+          status: r.status as string,
+          endpoint_used: r.endpoint_used as string | null,
+          campaign_name: campaignRow?.nome ?? null,
+          buttons: r.endpoint_used === "send-template" ? buttons : [],
+        };
+      }),
       events,
     };
   });

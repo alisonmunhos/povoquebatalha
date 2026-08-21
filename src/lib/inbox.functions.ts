@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
+import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
 // ------- List conversations (grouped by contact) -------
@@ -110,7 +111,7 @@ export const getInboxConversation = createServerFn({ method: "GET" })
 
     // Outbound (direct messages + campaign_recipients + automation_deliveries)
     let direct: { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null }[] = [];
-    let campaign: { id: string; rendered_message: string | null; sent_at: string | null; status: string; campaign_name: string | null }[] = [];
+    let campaign: { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; campaign_name: string | null; buttons: TemplateButton[] }[] = [];
     if (data.contact_id) {
       const { data: d } = await context.supabase
         .from("direct_messages")
@@ -120,17 +121,32 @@ export const getInboxConversation = createServerFn({ method: "GET" })
 
       const { data: cr } = await context.supabase
         .from("campaign_recipients")
-        .select("id, rendered_message, sent_at, status, campaigns:campaign_id(nome)")
+        .select("id, rendered_message, sent_at, status, endpoint_used, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(buttons))")
         .eq("contact_id", data.contact_id)
         .not("sent_at", "is", null)
         .order("sent_at", { ascending: true });
-      campaign = (cr ?? []).map((r) => ({
-        id: r.id,
-        rendered_message: r.rendered_message,
-        sent_at: r.sent_at,
-        status: r.status,
-        campaign_name: (Array.isArray(r.campaigns) ? r.campaigns[0]?.nome : (r.campaigns as { nome?: string } | null)?.nome) ?? null,
-      }));
+      campaign = (cr ?? []).map((r) => {
+        const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
+          nome?: string;
+          whatsapp_template_id?: string | null;
+          whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null;
+        } | null;
+        const templateRow = campaignRow?.whatsapp_template_id
+          ? (Array.isArray(campaignRow.whatsapp_templates) ? campaignRow.whatsapp_templates[0] : campaignRow.whatsapp_templates)
+          : null;
+        const buttons = (templateRow?.buttons && Array.isArray(templateRow.buttons))
+          ? (templateRow.buttons as TemplateButton[])
+          : [];
+        return {
+          id: r.id,
+          rendered_message: r.rendered_message,
+          sent_at: r.sent_at,
+          status: r.status,
+          endpoint_used: r.endpoint_used,
+          campaign_name: campaignRow?.nome ?? null,
+          buttons: r.endpoint_used === "send-template" ? buttons : [],
+        };
+      });
     }
 
     return { contact, inbound: inbound ?? [], direct, campaign };
