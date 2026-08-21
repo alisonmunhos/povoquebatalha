@@ -365,7 +365,14 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
 
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : "erro desconhecido";
-    const notADeliveryFailure = errorMsg.includes("Envio de mídia ainda não disponível no WhatsApp oficial");
+    // 131047 = "Re-engagement message": janela de 24h fechada. Condição temporária
+    // (reabre sozinha quando o contato responde), não é problema real de entrega.
+    const isReengagement =
+      errorMsg.includes("131047") || /re-?engagement/i.test(errorMsg);
+    const notADeliveryFailure =
+      errorMsg.includes("Envio de mídia ainda não disponível no WhatsApp oficial") ||
+      isReengagement;
+
     return {
       ok: false,
       endpoint_used: endpointUsed,
