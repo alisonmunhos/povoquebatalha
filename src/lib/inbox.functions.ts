@@ -111,7 +111,7 @@ export const getInboxConversation = createServerFn({ method: "GET" })
 
     // Outbound (direct messages + campaign_recipients + automation_deliveries)
     let direct: { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null }[] = [];
-    let campaign: { id: string; rendered_message: string | null; sent_at: string | null; status: string; campaign_name: string | null }[] = [];
+    let campaign: { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; campaign_name: string | null; buttons: TemplateButton[] }[] = [];
     if (data.contact_id) {
       const { data: d } = await context.supabase
         .from("direct_messages")
@@ -121,7 +121,7 @@ export const getInboxConversation = createServerFn({ method: "GET" })
 
       const { data: cr } = await context.supabase
         .from("campaign_recipients")
-        .select("id, rendered_message, sent_at, status, campaigns:campaign_id(nome)")
+        .select("id, rendered_message, sent_at, status, endpoint_used, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(buttons))")
         .eq("contact_id", data.contact_id)
         .not("sent_at", "is", null)
         .order("sent_at", { ascending: true });

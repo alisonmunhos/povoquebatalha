@@ -194,7 +194,7 @@ export const getConversation = createServerFn({ method: "GET" })
     const [inR, dR, cR, tR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null; media_url: string | null; media_mime: string | null; media_filename: string | null }[] }),
       directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null }[] }),
-      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; campaigns: { nome: string } | { nome: string }[] | null }[] }),
+      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null }[] | null }[] }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
     ]);
     const inbound = inR.data ?? [];
