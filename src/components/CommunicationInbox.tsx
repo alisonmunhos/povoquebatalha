@@ -34,6 +34,17 @@ function displayPhone(v?: string | null): string {
   return v;
 }
 
+/** Mostra a razão real da falha; traduz o erro de janela de 24h da Meta. */
+function describeSendError(erro?: string | null): string {
+  const raw = (erro ?? "").trim();
+  if (!raw) return " · erro";
+  const low = raw.toLowerCase();
+  if (low.includes("131047") || low.includes("re-engagement") || low.includes("reengagement")) {
+    return " · fora da janela de 24h — peça pra ele responder, ou use um template";
+  }
+  return ` · ${raw}`;
+}
+
 type Filter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
   | "in_service" | "unlinked" | "with_error" | "opt_out";
