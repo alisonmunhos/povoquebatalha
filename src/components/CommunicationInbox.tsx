@@ -345,7 +345,10 @@ export function CommunicationInbox() {
     setSelectedContactId(contactId);
     setSelectedConvId(contactId ? null : convId);
     setMobilePane("thread");
-    if (contactId && unread > 0) readMut.mutate(contactId);
+    // Conversas sem contato vinculado (mensagens antigas) também precisam ser marcadas.
+    if (unread > 0 && (contactId || convId)) {
+      readMut.mutate(contactId ? { contact_id: contactId } : { conversation_id: convId! });
+    }
   }
 
   function submitReply() {
