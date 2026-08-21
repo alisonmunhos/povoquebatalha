@@ -12,6 +12,15 @@ import {
 import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
 import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue } from "@/components/MessageComposer";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/_authenticated/mensagens")({
   head: () => ({ meta: [{ title: "Mensagens e automações" }] }),
@@ -436,50 +445,58 @@ function AutomationsPanel() {
       </div>
 
 
-      {editing && (
-        <div className="border rounded-xl bg-card p-5 space-y-3">
-          <h2 className="text-sm font-semibold">Editar automação</h2>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium">Evento</label>
-              <select value={editing.event_key ?? ""} onChange={(e) => setEditing({ ...editing, event_key: e.target.value })} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background">
-                <option value="">—</option>
-                {SYSTEM_EVENTS.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium">Mensagem do sistema</label>
-              <select value={editing.template_id ?? ""} onChange={(e) => setEditing({ ...editing, template_id: e.target.value })} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background">
-                <option value="">—</option>
-                {systemTpls.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium">Delay (segundos)</label>
-              <input type="number" min={0} value={editing.delay_seconds ?? 0} onChange={(e) => setEditing({ ...editing, delay_seconds: Number(e.target.value) })} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background" />
-              <p className="text-[10px] text-muted-foreground mt-1">Nesta versão o envio é imediato após o evento — este campo será respeitado quando a fila com delay for ativada.</p>
-            </div>
-            <label className="flex items-center gap-2 text-sm mt-6">
-              <input type="checkbox" checked={editing.require_consent ?? true} onChange={(e) => setEditing({ ...editing, require_consent: e.target.checked })} />
-              Só enviar com consentimento WhatsApp
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={editing.active ?? false} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
-              Ativa
-            </label>
-            <div className="md:col-span-2">
-              <label className="text-xs font-medium">Notas (opcional)</label>
-              <textarea value={editing.notes ?? ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} rows={2} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background" />
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing?.id ? "Editar automação" : "Nova automação"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Evento</Label>
+                <select value={editing?.event_key ?? ""} onChange={(e) => setEditing({ ...editing!, event_key: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm bg-background">
+                  <option value="">—</option>
+                  {SYSTEM_EVENTS.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Mensagem do sistema</Label>
+                <select value={editing?.template_id ?? ""} onChange={(e) => setEditing({ ...editing!, template_id: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm bg-background">
+                  <option value="">—</option>
+                  {systemTpls.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Delay (segundos)</Label>
+                <input type="number" min={0} value={editing?.delay_seconds ?? 0} onChange={(e) => setEditing({ ...editing!, delay_seconds: Number(e.target.value) })} className="w-full rounded-md border px-3 py-2 text-sm bg-background" />
+                <p className="text-[10px] text-muted-foreground">Nesta versão o envio é imediato após o evento — este campo será respeitado quando a fila com delay for ativada.</p>
+              </div>
+              <div className="flex flex-col justify-end gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={editing?.require_consent ?? true} onChange={(e) => setEditing({ ...editing!, require_consent: e.target.checked })} />
+                  Só enviar com consentimento WhatsApp
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={editing?.active ?? false} onChange={(e) => setEditing({ ...editing!, active: e.target.checked })} />
+                  Ativa
+                </label>
+              </div>
+              <div className="md:col-span-2 space-y-1">
+                <Label className="text-xs font-medium">Notas (opcional)</Label>
+                <textarea value={editing?.notes ?? ""} onChange={(e) => setEditing({ ...editing!, notes: e.target.value })} rows={2} className="w-full rounded-md border px-3 py-2 text-sm bg-background" />
+              </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={save} className="inline-flex items-center gap-1 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm">
-              <Save className="h-4 w-4" /> Salvar
-            </button>
-            <button onClick={() => setEditing(null)} className="rounded-md border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
-          </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={save}>
+              <Save className="h-4 w-4 mr-1" /> Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
