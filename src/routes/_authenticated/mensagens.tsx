@@ -291,6 +291,8 @@ type Automation = {
 
 function AutomationsPanel() {
   const listFn = useServerFn(listAutomations);
+  const formsFn = useServerFn(listFormDefinitions);
+  const forms = useQuery({ queryKey: ["form-definitions", "automation-events"], queryFn: () => formsFn() });
   const tplFn = useServerFn(listMessageTemplates);
   const upsertFn = useServerFn(upsertAutomation);
   const delFn = useServerFn(deleteAutomation);
