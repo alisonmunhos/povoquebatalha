@@ -362,7 +362,7 @@ function UsuariosPage() {
                       <th className="px-4 py-2">WhatsApp</th>
                       <th className="px-4 py-2">Cadastrado em</th>
                       <th className="px-4 py-2">Papel</th>
-                      <th className="px-4 py-2">Acesso ao Inbox</th>
+                      
                       <th className="px-4 py-2"></th>
                     </tr>
                   </thead>
