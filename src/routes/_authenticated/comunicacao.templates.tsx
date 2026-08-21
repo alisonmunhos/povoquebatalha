@@ -18,6 +18,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { TemplateBodyPreview } from "@/components/TemplateBodyPreview";
 import {
   listWhatsappTemplates,
   saveWhatsappTemplateDraft,
@@ -437,6 +438,13 @@ function Page() {
             </div>
           )}
 
+          <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+            <Label>Pré-visualização do corpo</Label>
+            <p className="text-sm whitespace-pre-wrap">
+              <TemplateBodyPreview text={form.body_text} />
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="tpl-footer">Rodapé (opcional)</Label>
             <Input
@@ -547,7 +555,9 @@ function Page() {
                   {CATEGORY_LABEL[t.category] ?? t.category} · {t.language}
                 </span>
               </div>
-              <p className="text-sm whitespace-pre-wrap">{t.body_text}</p>
+              <p className="text-sm whitespace-pre-wrap">
+                <TemplateBodyPreview text={t.body_text} />
+              </p>
               {t.buttons && t.buttons.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {t.buttons.map((b, idx) => (
