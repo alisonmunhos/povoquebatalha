@@ -157,6 +157,13 @@ export function CommunicationInbox() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const replyRef = useRef<HTMLTextAreaElement | null>(null);
+  // Cresce a caixa de texto conforme o conteúdo, até o limite de max-h-40 (160px).
+  useEffect(() => {
+    const el = replyRef.current;
+    if (!el) return;
+    el.style.height = "40px";
+    if (reply) el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [reply]);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const cursorRef = useRef({ start: 0, end: 0 });
