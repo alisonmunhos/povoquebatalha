@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/comunicacao")({
 
 function CommunicationLayout() {
   return (
-    <div className="flex flex-col h-dvh min-h-0">
+    <div className="flex flex-col h-full min-h-0">
       <CommunicationTabs />
       <div className="flex-1 min-h-0 overflow-hidden">
         <Outlet />

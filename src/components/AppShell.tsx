@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
   MessageCircle, Menu, X, Zap, ClipboardList, Calendar, BarChart3,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +88,22 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { setMobileOpen(false); }, [currentPath]);
 
+  // Sidebar recolhida (só ícones) — lembrada entre sessões.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setCollapsed(window.localStorage.getItem("appshell.sidebarCollapsed") === "1");
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      const next = !v;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("appshell.sidebarCollapsed", next ? "1" : "0");
+      }
+      return next;
+    });
+  }
+
   const isAgitadorOnly = isAgitadorOnlyRoles(rolesRaw);
 
   const canAddContact = roles.length > 0;
@@ -124,7 +141,7 @@ export function AppShell() {
   // Agitador-only: mini-app shell (só Agitação)
   if (isAgitadorOnly) {
     return (
-      <div className="min-h-dvh bg-background flex flex-col">
+      <div className="h-dvh overflow-hidden bg-background flex flex-col">
         <header className="border-b bg-card sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
             <Link to="/agitacao" className="flex items-center gap-2 min-w-0 rounded-md hover:bg-muted px-1 -ml-1">
@@ -149,7 +166,7 @@ export function AppShell() {
 
           </div>
         </header>
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 min-h-0 overflow-y-auto">
           <Outlet />
           <AgitacaoTabBarSpacer />
         </main>
@@ -158,15 +175,18 @@ export function AppShell() {
     );
   }
 
-  const SidebarInner = (
+  function renderSidebar(mini: boolean) {
+   return (
     <>
-      <div className="flex items-center gap-2 px-4 h-16 border-b border-sidebar-border">
-        <BrandMark className="h-7 w-7" />
-        <div className="font-display text-base leading-tight tracking-wide">
-          Povo que
-          <br />
-          Batalha
-        </div>
+      <div className={`flex items-center h-16 border-b border-sidebar-border ${mini ? "justify-center px-2" : "gap-2 px-4"}`}>
+        <BrandMark className="h-7 w-7 shrink-0" />
+        {!mini && (
+          <div className="font-display text-base leading-tight tracking-wide">
+            Povo que
+            <br />
+            Batalha
+          </div>
+        )}
       </div>
       <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
         {groups.map((group, gi) => {
@@ -174,7 +194,7 @@ export function AppShell() {
           if (visibleItems.length === 0) return null;
           return (
             <div key={gi} className="space-y-1">
-              {group.label && (
+              {group.label && !mini && (
                 <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                   {group.label}
                 </div>
@@ -187,15 +207,16 @@ export function AppShell() {
                   <Link
                     key={item.to}
                     to={item.to}
-                    title={item.hint}
-                    className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
+                    title={mini ? item.label : item.hint}
+                    aria-label={item.label}
+                    className={`flex items-center ${mini ? "justify-center px-2" : "gap-3 px-3"} py-2 text-sm rounded-md transition-colors ${
                       active
                         ? "bg-sidebar-primary text-sidebar-primary-foreground"
                         : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate flex-1">{item.label}</span>
+                    {!mini && <span className="truncate flex-1">{item.label}</span>}
                     {badge > 0 && (
                       <span className="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
                         {badge}
@@ -209,22 +230,27 @@ export function AppShell() {
         })}
       </nav>
       <div className="border-t border-sidebar-border p-3 space-y-2">
-        <div className="text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>
+        {!mini && <div className="text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 text-xs text-sidebar-foreground/80 hover:text-sidebar-foreground"
+          title="Sair"
+          aria-label="Sair"
+          className={`flex items-center gap-2 text-xs text-sidebar-foreground/80 hover:text-sidebar-foreground ${mini ? "justify-center w-full" : ""}`}
         >
-          <LogOut className="h-3.5 w-3.5" /> Sair
+          <LogOut className="h-3.5 w-3.5" /> {!mini && "Sair"}
         </button>
       </div>
     </>
-  );
+   );
+  }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
-        {SidebarInner}
+      <aside
+        className={`hidden md:flex ${collapsed ? "w-16" : "w-64"} flex-col border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200`}
+      >
+        {renderSidebar(collapsed)}
       </aside>
 
       {/* Mobile drawer */}
@@ -243,7 +269,7 @@ export function AppShell() {
             >
               <X className="h-4 w-4" />
             </button>
-            {SidebarInner}
+            {renderSidebar(false)}
           </aside>
         </div>
       )}
@@ -267,13 +293,22 @@ export function AppShell() {
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </header>
         {/* Desktop top bar */}
-        <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center justify-end gap-2 px-4">
+        <div className="hidden md:flex sticky top-0 z-30 h-12 border-b bg-card items-center gap-2 px-4">
+          <button
+            onClick={toggleCollapsed}
+            className="p-2 -ml-2 rounded-md hover:bg-muted text-muted-foreground"
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+            aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+          <div className="flex-1" />
           <NotificationBell />
           <InstallAppButton variant="chip" />
           {canAddContact && <AddContactButton compact userName={user?.email ?? null} />}
         </div>
 
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 min-h-0 overflow-y-auto">
           <Outlet />
           <AgitacaoTabBarSpacer />
         </main>
