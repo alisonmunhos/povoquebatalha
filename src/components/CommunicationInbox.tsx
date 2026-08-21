@@ -155,7 +155,10 @@ export function CommunicationInbox() {
   const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const replyRef = useRef<HTMLTextAreaElement | null>(null);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const cursorRef = useRef({ start: 0, end: 0 });
 
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
