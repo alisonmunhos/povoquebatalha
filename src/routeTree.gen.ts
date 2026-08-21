@@ -61,6 +61,7 @@ import { Route as AuthenticatedMissoesAgitacaoMissionIdRouteImport } from './rou
 import { Route as AuthenticatedEntradaDadosIdRouteImport } from './routes/_authenticated/entrada-dados.$id'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos.$id'
 import { Route as AuthenticatedComunicacaoTemplatesRouteImport } from './routes/_authenticated/comunicacao.templates'
+import { Route as AuthenticatedComunicacaoInboxAstryxRouteImport } from './routes/_authenticated/comunicacao.inbox-astryx'
 import { Route as AuthenticatedComunicacaoInboxRouteImport } from './routes/_authenticated/comunicacao.inbox'
 import { Route as AuthenticatedComunicacaoContatosRouteImport } from './routes/_authenticated/comunicacao.contatos'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
@@ -370,6 +371,12 @@ const AuthenticatedComunicacaoTemplatesRoute =
     path: '/templates',
     getParentRoute: () => AuthenticatedComunicacaoRoute,
   } as any)
+const AuthenticatedComunicacaoInboxAstryxRoute =
+  AuthenticatedComunicacaoInboxAstryxRouteImport.update({
+    id: '/inbox-astryx',
+    path: '/inbox-astryx',
+    getParentRoute: () => AuthenticatedComunicacaoRoute,
+  } as any)
 const AuthenticatedComunicacaoInboxRoute =
   AuthenticatedComunicacaoInboxRouteImport.update({
     id: '/inbox',
@@ -587,6 +594,7 @@ export interface FileRoutesByFullPath {
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
+  '/comunicacao/inbox-astryx': typeof AuthenticatedComunicacaoInboxAstryxRoute
   '/comunicacao/templates': typeof AuthenticatedComunicacaoTemplatesRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
@@ -670,6 +678,7 @@ export interface FileRoutesByTo {
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
+  '/comunicacao/inbox-astryx': typeof AuthenticatedComunicacaoInboxAstryxRoute
   '/comunicacao/templates': typeof AuthenticatedComunicacaoTemplatesRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
@@ -756,6 +765,7 @@ export interface FileRoutesById {
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
+  '/_authenticated/comunicacao/inbox-astryx': typeof AuthenticatedComunicacaoInboxAstryxRoute
   '/_authenticated/comunicacao/templates': typeof AuthenticatedComunicacaoTemplatesRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/_authenticated/entrada-dados/$id': typeof AuthenticatedEntradaDadosIdRoute
@@ -842,6 +852,7 @@ export interface FileRouteTypes {
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
+    | '/comunicacao/inbox-astryx'
     | '/comunicacao/templates'
     | '/contatos/$id'
     | '/entrada-dados/$id'
@@ -925,6 +936,7 @@ export interface FileRouteTypes {
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
+    | '/comunicacao/inbox-astryx'
     | '/comunicacao/templates'
     | '/contatos/$id'
     | '/entrada-dados/$id'
@@ -1010,6 +1022,7 @@ export interface FileRouteTypes {
     | '/_authenticated/campanhas/$id'
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
+    | '/_authenticated/comunicacao/inbox-astryx'
     | '/_authenticated/comunicacao/templates'
     | '/_authenticated/contatos/$id'
     | '/_authenticated/entrada-dados/$id'
@@ -1461,6 +1474,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComunicacaoTemplatesRouteImport
       parentRoute: typeof AuthenticatedComunicacaoRoute
     }
+    '/_authenticated/comunicacao/inbox-astryx': {
+      id: '/_authenticated/comunicacao/inbox-astryx'
+      path: '/inbox-astryx'
+      fullPath: '/comunicacao/inbox-astryx'
+      preLoaderRoute: typeof AuthenticatedComunicacaoInboxAstryxRouteImport
+      parentRoute: typeof AuthenticatedComunicacaoRoute
+    }
     '/_authenticated/comunicacao/inbox': {
       id: '/_authenticated/comunicacao/inbox'
       path: '/inbox'
@@ -1684,6 +1704,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedComunicacaoRouteChildren {
   AuthenticatedComunicacaoContatosRoute: typeof AuthenticatedComunicacaoContatosRoute
   AuthenticatedComunicacaoInboxRoute: typeof AuthenticatedComunicacaoInboxRoute
+  AuthenticatedComunicacaoInboxAstryxRoute: typeof AuthenticatedComunicacaoInboxAstryxRoute
   AuthenticatedComunicacaoTemplatesRoute: typeof AuthenticatedComunicacaoTemplatesRoute
   AuthenticatedComunicacaoIndexRoute: typeof AuthenticatedComunicacaoIndexRoute
 }
@@ -1693,6 +1714,8 @@ const AuthenticatedComunicacaoRouteChildren: AuthenticatedComunicacaoRouteChildr
     AuthenticatedComunicacaoContatosRoute:
       AuthenticatedComunicacaoContatosRoute,
     AuthenticatedComunicacaoInboxRoute: AuthenticatedComunicacaoInboxRoute,
+    AuthenticatedComunicacaoInboxAstryxRoute:
+      AuthenticatedComunicacaoInboxAstryxRoute,
     AuthenticatedComunicacaoTemplatesRoute:
       AuthenticatedComunicacaoTemplatesRoute,
     AuthenticatedComunicacaoIndexRoute: AuthenticatedComunicacaoIndexRoute,
