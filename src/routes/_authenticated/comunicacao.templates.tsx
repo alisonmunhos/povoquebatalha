@@ -548,7 +548,9 @@ function Page() {
                   {CATEGORY_LABEL[t.category] ?? t.category} · {t.language}
                 </span>
               </div>
-              <p className="text-sm whitespace-pre-wrap">{t.body_text}</p>
+              <p className="text-sm whitespace-pre-wrap">
+                <TemplateBodyPreview text={t.body_text} />
+              </p>
               {t.buttons && t.buttons.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {t.buttons.map((b, idx) => (
