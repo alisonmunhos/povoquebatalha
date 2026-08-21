@@ -401,18 +401,33 @@ export function CommunicationInbox() {
               className="w-full text-sm pl-8 pr-2 py-2 rounded-md border border-input bg-background"
             />
           </div>
-          <div className="flex flex-wrap gap-1">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`text-xs px-2 py-1 rounded-md border transition-colors ${
-                  filter === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((f) => {
+              const active = statusFilter === f.key;
+              const count = active ? list.length : undefined;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setStatusFilter(f.key)}
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-input hover:bg-muted"
+                  }`}
+                >
+                  {f.label}
+                  {count !== undefined && (
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
+                        active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
