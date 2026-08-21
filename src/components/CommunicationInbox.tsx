@@ -109,9 +109,10 @@ type BackendFilter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
   | "in_service" | "unlinked" | "with_error" | "opt_out";
 
-type StatusFilter = "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
+type StatusFilter = "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
 
 const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter }[] = [
+  { key: "nao_lidas", label: "Não lidas", backend: "unread" },
   { key: "abertas", label: "Abertas", backend: "all" },
   { key: "aguardando", label: "Aguardando", backend: "all" },
   { key: "resolvidas", label: "Resolvidas", backend: "resolved" },
@@ -177,6 +178,15 @@ export function CommunicationInbox() {
 
   const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
 
+  // Mesma fonte do badge numérico da aba "Inbox" na navegação.
+  const inboxBadgeFn = useServerFn(getMyCommunicationBadge);
+  const inboxBadgeQ = useQuery({
+    queryKey: ["comm-badge"],
+    queryFn: () => inboxBadgeFn(),
+    refetchInterval: 20000,
+  });
+  const unreadTotal = inboxBadgeQ.data?.mine_unread ?? 0;
+
   const listQ = useQuery({
     queryKey: ["comm-conv-list", statusFilter, search],
     queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined } }),
@@ -187,6 +197,7 @@ export function CommunicationInbox() {
   const list = useMemo(() => {
     if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
     if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
+    if (statusFilter === "nao_lidas") return rawList.filter((c) => (c.unread ?? 0) > 0);
     return rawList;
   }, [rawList, statusFilter]);
   const selected = useMemo(
@@ -455,7 +466,7 @@ export function CommunicationInbox() {
     <TooltipProvider delayDuration={200}>
       <div className="flex h-full min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
-      <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col border-r bg-background`}>
+      <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col min-h-0 border-r bg-background`}>
         <div className="p-3 border-b space-y-2">
           <div className="relative">
             <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -469,7 +480,10 @@ export function CommunicationInbox() {
           <div className="flex flex-wrap gap-1.5">
             {STATUS_FILTERS.map((f) => {
               const active = statusFilter === f.key;
-              const count = active ? list.length : undefined;
+              const count =
+                f.key === "nao_lidas"
+                  ? (active ? list.length : unreadTotal)
+                  : (active ? list.length : undefined);
               return (
                 <button
                   key={f.key}
@@ -495,7 +509,7 @@ export function CommunicationInbox() {
             })}
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {listQ.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
           {list.length === 0 && !listQ.isLoading && (
             <div className="p-6 text-center text-sm text-muted-foreground">Nenhuma conversa neste filtro.</div>
@@ -557,7 +571,7 @@ export function CommunicationInbox() {
       </div>
 
       {/* CENTER: thread */}
-      <div className={`${mobilePane === "thread" ? "flex" : "hidden"} md:flex flex-1 flex-col min-w-0`}>
+      <div className={`${mobilePane === "thread" ? "flex" : "hidden"} md:flex flex-1 flex-col min-w-0 min-h-0`}>
         {!active ? (
           <div className="flex-1 grid place-items-center text-center text-sm text-muted-foreground p-8">
             <div>
@@ -616,7 +630,7 @@ export function CommunicationInbox() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2260%22%3E%3Ccircle%20cx%3D%221%22%20cy%3D%221%22%20r%3D%221%22%20fill%3D%22%23e5e7eb%22%20fill-opacity%3D%22.4%22%2F%3E%3C%2Fsvg%3E')]">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2260%22%3E%3Ccircle%20cx%3D%221%22%20cy%3D%221%22%20r%3D%221%22%20fill%3D%22%23e5e7eb%22%20fill-opacity%3D%22.4%22%2F%3E%3C%2Fsvg%3E')]">
               {convQ.isLoading && <div className="text-sm text-muted-foreground text-center py-4">Carregando…</div>}
               {timeline.length === 0 && !convQ.isLoading && (
                 <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
