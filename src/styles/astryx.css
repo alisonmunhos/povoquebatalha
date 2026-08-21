@@ -1,0 +1,13 @@
+/*
+ * CSS do Astryx (design system da Meta) — usado APENAS no piloto do Inbox.
+ *
+ * Importado dinamicamente pelo provider do piloto (AstryxProvider), então só
+ * entra na página quando a rota /comunicacao/inbox-astryx é aberta.
+ *
+ * Propositalmente NÃO importamos "@astryxdesign/core/reset.css": ele é um reset
+ * global e brigaria com o preflight do Tailwind no resto do painel. O astryx.css
+ * são estilos de componente (classes .xds-*) e o theme.css é escopado em
+ * [data-astryx-theme="neutral"] + tokens, então nada vaza para as outras telas.
+ */
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/theme.css";
