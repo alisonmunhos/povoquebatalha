@@ -265,7 +265,7 @@ export function CommunicationInbox() {
   }, [qc, selectedContactId, selectedConvId, convKey]);
 
   const readMut = useMutation({
-    mutationFn: (contact_id: string) => readFn({ data: { contact_id } }),
+    mutationFn: (vars: { contact_id?: string; conversation_id?: string }) => readFn({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
