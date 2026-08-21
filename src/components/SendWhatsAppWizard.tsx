@@ -19,6 +19,7 @@ import {
   startCampaign, listCampaigns,
 } from "@/lib/campaigns.functions";
 import { listMessageTemplates } from "@/lib/messages.functions";
+import { listWhatsappTemplates } from "@/lib/whatsapp-templates.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { MessagePreview, type PlannedEndpoint } from "@/components/MessagePreview";
 import { supabase } from "@/integrations/supabase/client";
