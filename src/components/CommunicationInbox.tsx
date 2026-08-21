@@ -486,7 +486,7 @@ export function CommunicationInbox() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex h-full min-h-0 bg-muted/10">
+      <div className="wa-inbox flex h-full min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
       <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col min-h-0 border-r bg-background`}>
         <div className="p-3 border-b space-y-2">
@@ -609,7 +609,7 @@ export function CommunicationInbox() {
           </div>
         ) : (
           <>
-            <div className="border-b p-3 flex items-center gap-2 bg-background">
+            <div className="wa-topbar border-b p-3 flex items-center gap-2 bg-background">
               <button className="md:hidden" onClick={() => setMobilePane("list")}>
                 <ArrowLeft className="h-5 w-5" />
               </button>
@@ -658,7 +658,7 @@ export function CommunicationInbox() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2260%22%3E%3Ccircle%20cx%3D%221%22%20cy%3D%221%22%20r%3D%221%22%20fill%3D%22%23e5e7eb%22%20fill-opacity%3D%22.4%22%2F%3E%3C%2Fsvg%3E')]">
+            <div className="wa-chat-area flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2">
               {convQ.isLoading && <div className="text-sm text-muted-foreground text-center py-4">Carregando…</div>}
               {timeline.length === 0 && !convQ.isLoading && (
                 <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
@@ -666,8 +666,9 @@ export function CommunicationInbox() {
               {timeline.map((m) => (
                 <div key={m.id} className={`flex ${m.kind === "out" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
-                    m.kind === "out" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-background border rounded-bl-none"
+                    m.kind === "out" ? "wa-bubble-out rounded-br-none" : "wa-bubble-in border rounded-bl-none"
                   }`}>
+
                     {m.header_type === "TEXT" && m.header_text && (
                       <div className="font-semibold whitespace-pre-wrap break-words mb-1">{m.header_text}</div>
                     )}
