@@ -88,7 +88,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
 
   useEffect(() => {
     if (!open) {
-      setStep(1); setNomeCampanha(""); setMensagem(""); setTemplateId("");
+      setStep(1); setNomeCampanha(""); setMensagem(""); setTemplateId(""); setWhatsappTemplateId("");
       setSaveAsTemplate({ enabled: false, title: "" });
       setFile(null); setUploadInfo(null); setSchedule("");
       setDelayMin(3000); setDelayMax(8000);
