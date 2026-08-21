@@ -520,7 +520,9 @@ export function CommunicationInbox() {
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-1">
                 <span className={isLidPhone(c.phone) ? "font-mono" : ""}>{displayPhone(c.phone)}</span>
                 {c.cidade && <span>· {c.cidade}/{c.uf ?? ""}</span>}
-                {c.assigned_to && <span className="ml-auto inline-flex items-center gap-0.5"><UserPlus className="h-2.5 w-2.5" />atribuída</span>}
+                <span className="ml-auto">
+                  <AssigneeChip assignee={c.assignee ?? null} />
+                </span>
               </div>
             </button>
           ))}
