@@ -42,7 +42,6 @@ export function CommunicationTabs() {
 
   function isActive(to: string) {
     if (to === "/comunicacao/inbox") {
-      if (path.startsWith("/comunicacao/inbox-astryx")) return false;
       return path === "/" || path.startsWith("/comunicacao/inbox") || path === "/comunicacao";
     }
     return path === to || path.startsWith(to + "/");
