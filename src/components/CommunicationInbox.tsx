@@ -47,20 +47,17 @@ function describeSendError(erro?: string | null): string {
   return ` · ${raw}`;
 }
 
-type Filter =
+type BackendFilter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
   | "in_service" | "unlinked" | "with_error" | "opt_out";
 
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "Todas" },
-  { key: "mine", label: "Minhas" },
-  { key: "unread", label: "Não lidas" },
-  { key: "flagged", label: "Sinalizadas" },
-  { key: "in_service", label: "Em atendimento" },
-  { key: "unlinked", label: "Não vinculadas" },
-  { key: "with_error", label: "Com erro" },
-  { key: "opt_out", label: "Opt-out" },
-  { key: "resolved", label: "Resolvidas" },
+type StatusFilter = "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
+
+const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter }[] = [
+  { key: "abertas", label: "Abertas", backend: "all" },
+  { key: "aguardando", label: "Aguardando", backend: "all" },
+  { key: "resolvidas", label: "Resolvidas", backend: "resolved" },
+  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged" },
 ];
 
 export function CommunicationInbox() {
