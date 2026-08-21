@@ -49,6 +49,10 @@ function CampanhaDetail() {
   const autoRef = useRef(false);
   autoRef.current = autoRun;
 
+  const [previewData, setPreviewData] = useState<{
+    janelaAberta: number; janelaFechadaComTemplate: number; janelaFechadaSemTemplate: number; elegíveis: number;
+  } | null>(null);
+
   const preview = useMutation({
     mutationFn: () => previewFn({ data: { id } }),
     onSuccess: (r) => {
@@ -57,6 +61,12 @@ function CampanhaDetail() {
       if (r.optOut) detalhes.push(`${r.optOut} opt-out`);
       if (r.arquivados) detalhes.push(`${r.arquivados} arquivados`);
       if (r.semTelefone) detalhes.push(`${r.semTelefone} sem telefone`);
+      setPreviewData({
+        elegíveis: r.elegíveis,
+        janelaAberta: r.janelaAberta,
+        janelaFechadaComTemplate: r.janelaFechadaComTemplate,
+        janelaFechadaSemTemplate: r.janelaFechadaSemTemplate,
+      });
       toast.success(`Prévia: ${r.elegíveis} aptos de ${r.totalBruto}${detalhes.length ? ` · ${detalhes.join(" · ")}` : ""}`);
     },
     onError: (e: Error) => toast.error(e.message),
