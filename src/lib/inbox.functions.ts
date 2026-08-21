@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
+import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
 // ------- List conversations (grouped by contact) -------
@@ -124,13 +125,28 @@ export const getInboxConversation = createServerFn({ method: "GET" })
         .eq("contact_id", data.contact_id)
         .not("sent_at", "is", null)
         .order("sent_at", { ascending: true });
-      campaign = (cr ?? []).map((r) => ({
-        id: r.id,
-        rendered_message: r.rendered_message,
-        sent_at: r.sent_at,
-        status: r.status,
-        campaign_name: (Array.isArray(r.campaigns) ? r.campaigns[0]?.nome : (r.campaigns as { nome?: string } | null)?.nome) ?? null,
-      }));
+      campaign = (cr ?? []).map((r) => {
+        const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
+          nome?: string;
+          whatsapp_template_id?: string | null;
+          whatsapp_templates?: { buttons?: unknown } | { buttons?: unknown }[] | null;
+        } | null;
+        const templateRow = campaignRow?.whatsapp_template_id
+          ? (Array.isArray(campaignRow.whatsapp_templates) ? campaignRow.whatsapp_templates[0] : campaignRow.whatsapp_templates)
+          : null;
+        const buttons = (templateRow?.buttons && Array.isArray(templateRow.buttons))
+          ? (templateRow.buttons as TemplateButton[])
+          : [];
+        return {
+          id: r.id,
+          rendered_message: r.rendered_message,
+          sent_at: r.sent_at,
+          status: r.status,
+          endpoint_used: r.endpoint_used,
+          campaign_name: campaignRow?.nome ?? null,
+          buttons: r.endpoint_used === "send-template" ? buttons : [],
+        };
+      });
     }
 
     return { contact, inbound: inbound ?? [], direct, campaign };
