@@ -438,6 +438,13 @@ function Page() {
             </div>
           )}
 
+          <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+            <Label>Pré-visualização do corpo</Label>
+            <p className="text-sm whitespace-pre-wrap">
+              <TemplateBodyPreview text={form.body_text} />
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="tpl-footer">Rodapé (opcional)</Label>
             <Input
