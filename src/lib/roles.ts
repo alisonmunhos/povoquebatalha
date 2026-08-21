@@ -25,7 +25,7 @@ export const ROLE_LABEL: Record<string, string> = {
   admin: "Admin",
   operador: "Operador",
   vrm: "VRM (Relacionamento)",
-  comunicacao: "Comunicação",
+  comunicacao: "Comunicação (acesso ao Inbox de mensagens)",
   agitador: "Agitador",
   leitor: "Leitor",
 };

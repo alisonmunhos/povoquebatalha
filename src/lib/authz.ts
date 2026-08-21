@@ -34,8 +34,8 @@ export async function requireStaff(supabase: Client, userId: string): Promise<vo
   await requireRole(
     supabase,
     userId,
-    ["admin", "vrm", "operador"],
-    "Apenas admin/vrm/operador podem executar esta ação.",
+    ["admin", "vrm", "operador", "comunicacao"],
+    "Apenas admin/vrm/operador/comunicação podem executar esta ação.",
   );
 }
 
