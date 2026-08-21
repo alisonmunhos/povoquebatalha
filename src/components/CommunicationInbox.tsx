@@ -404,6 +404,7 @@ export function CommunicationInbox() {
     type Msg = {
       id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
       media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+      header_type?: string | null; header_text?: string | null;
       buttons?: TemplateButton[];
     };
     const t: Msg[] = [];
