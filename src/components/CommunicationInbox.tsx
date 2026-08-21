@@ -742,6 +742,46 @@ export function CommunicationInbox() {
                 >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                 </button>
+                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                      title="Inserir emoji"
+                      disabled={!canSend}
+                      type="button"
+                    >
+                      <Smile className="h-4 w-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-auto p-0" sideOffset={8}>
+                    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando emojis…</div>}>
+                      <EmojiPicker
+                        onEmojiClick={(data) => {
+                          const emoji = typeof data.emoji === "string" ? data.emoji : "";
+                          if (!emoji) return;
+                          const el = replyRef.current;
+                          const start = el ? el.selectionStart ?? cursorRef.current.start : cursorRef.current.start;
+                          const end = el ? el.selectionEnd ?? cursorRef.current.end : cursorRef.current.end;
+                          const before = reply.slice(0, start);
+                          const after = reply.slice(end);
+                          const next = before + emoji + after;
+                          setReply(next);
+                          const pos = start + emoji.length;
+                          cursorRef.current = { start: pos, end: pos };
+                          requestAnimationFrame(() => {
+                            el?.focus();
+                            el?.setSelectionRange(pos, pos);
+                          });
+                          setEmojiOpen(false);
+                        }}
+                        width={280}
+                        height={320}
+                        lazyLoadEmojis
+                        searchDisabled
+                      />
+                    </Suspense>
+                  </PopoverContent>
+                </Popover>
                 {tplsQ.data && tplsQ.data.length > 0 && (
                   <select
                     onChange={(e) => {
@@ -757,9 +797,19 @@ export function CommunicationInbox() {
                   </select>
                 )}
                 <textarea
+                  ref={replyRef}
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                   onKeyDown={handleSendKeyDown}
+                  onClick={(e) => {
+                    cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
+                  }}
+                  onKeyUp={(e) => {
+                    cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
+                  }}
+                  onSelect={(e) => {
+                    cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
+                  }}
                   disabled={!canSend}
                   rows={1}
                   placeholder="Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
