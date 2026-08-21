@@ -475,9 +475,6 @@ export const markConversationRead = createServerFn({ method: "POST" })
       await context.supabase.from("conversations").update({ unread_count: 0 }).eq("contact_id", contactId);
     }
     if (data.conversation_id) {
-      await context.supabase.from("inbound_messages")
-        .update({ read_at: now })
-        .eq("conversation_id", data.conversation_id).is("read_at", null);
       if (fromPhone) {
         await context.supabase.from("inbound_messages")
           .update({ read_at: now })
