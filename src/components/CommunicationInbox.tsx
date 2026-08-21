@@ -111,12 +111,12 @@ type BackendFilter =
 
 type StatusFilter = "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter }[] = [
-  { key: "nao_lidas", label: "Não lidas", backend: "unread" },
-  { key: "abertas", label: "Abertas", backend: "all" },
-  { key: "aguardando", label: "Aguardando", backend: "all" },
-  { key: "resolvidas", label: "Resolvidas", backend: "resolved" },
-  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged" },
+const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter; hint: string }[] = [
+  { key: "nao_lidas", label: "Não lidas", backend: "unread", hint: "Têm mensagem da pessoa que ninguém abriu ainda." },
+  { key: "abertas", label: "Em aberto", backend: "all", hint: "Conversas em andamento: nem resolvidas, nem marcadas como aguardando." },
+  { key: "aguardando", label: "Aguardando", backend: "all", hint: "Você já respondeu e está esperando algo da pessoa." },
+  { key: "resolvidas", label: "Resolvidas", backend: "resolved", hint: "Conversas já encerradas." },
+  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged", hint: "Conversas marcadas com a bandeirinha para revisar depois." },
 ];
 
 export function CommunicationInbox() {
