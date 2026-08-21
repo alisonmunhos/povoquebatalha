@@ -55,3 +55,21 @@ export async function isAgitadorOnly(supabase: Client, userId: string): Promise<
   );
 }
 
+
+// ---- Acesso ao Inbox (flag independente por usuário) ----
+// Passa se o usuário já é staff (admin/vrm/operador/comunicação) OU se o perfil
+// dele tem a flag `profiles.inbox_access` ligada na Central de Acesso.
+export async function hasInboxAccess(supabase: Client, userId: string): Promise<boolean> {
+  if (await hasRole(supabase, userId, ["admin", "vrm", "operador", "comunicacao"])) return true;
+  const { data } = await supabase
+    .from("profiles")
+    .select("inbox_access")
+    .eq("id", userId)
+    .maybeSingle();
+  return Boolean((data as { inbox_access?: boolean } | null)?.inbox_access);
+}
+
+export async function requireInboxAccess(supabase: Client, userId: string): Promise<void> {
+  const ok = await hasInboxAccess(supabase, userId);
+  if (!ok) throw new Error("Você não tem acesso ao Inbox. Peça a um administrador para liberar.");
+}

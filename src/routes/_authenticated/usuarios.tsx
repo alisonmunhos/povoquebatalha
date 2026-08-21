@@ -5,6 +5,7 @@ import {
   listUsers,
   deleteUser,
   setUserRole,
+  setInboxAccess,
   setUserStatus,
   resendInvite,
   generateInviteLink,
@@ -63,6 +64,7 @@ type Row = {
     | "suspenso"
     | "revogado"
     | "pendente_aprovacao";
+  inbox_access?: boolean;
 };
 
 type PendingRow = {
@@ -90,6 +92,7 @@ function UsuariosPage() {
   const fetchList = useServerFn(listUsers);
   const remove = useServerFn(deleteUser);
   const updateRole = useServerFn(setUserRole);
+  const updateInboxAccess = useServerFn(setInboxAccess);
   const setStatus = useServerFn(setUserStatus);
   const resend = useServerFn(resendInvite);
   const genLink = useServerFn(generateInviteLink);
@@ -359,6 +362,7 @@ function UsuariosPage() {
                       <th className="px-4 py-2">WhatsApp</th>
                       <th className="px-4 py-2">Cadastrado em</th>
                       <th className="px-4 py-2">Papel</th>
+                      
                       <th className="px-4 py-2"></th>
                     </tr>
                   </thead>
@@ -428,6 +432,7 @@ function UsuariosPage() {
                       <th className="px-4 py-2">Nome</th>
                       <th className="px-4 py-2">E-mail</th>
                       <th className="px-4 py-2">Papel</th>
+                      <th className="px-4 py-2">Acesso ao Inbox</th>
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2">Último acesso</th>
                       <th className="px-4 py-2">Criado</th>
@@ -449,6 +454,24 @@ function UsuariosPage() {
                             >
                               {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                             </select>
+                          </td>
+                          <td className="px-4 py-2">
+                            <label className="flex items-start gap-2 text-xs max-w-[230px] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4 accent-primary"
+                                checked={Boolean(u.inbox_access)}
+                                onChange={(e) =>
+                                  act(
+                                    () => updateInboxAccess({ data: { userId: u.id, enabled: e.target.checked } }),
+                                    e.target.checked ? "Acesso ao Inbox liberado." : "Acesso ao Inbox removido.",
+                                  )
+                                }
+                              />
+                              <span className="text-muted-foreground leading-snug">
+                                Permite ver e responder mensagens no Inbox e editar fichas de contato, mesmo sem ser admin
+                              </span>
+                            </label>
                           </td>
                           <td className="px-4 py-2"><StatusPill status={u.derived_status} /></td>
                           <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">

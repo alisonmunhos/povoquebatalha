@@ -2576,6 +2576,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          inbox_access: boolean
           invited_by: string | null
           requested_role: Database["public"]["Enums"]["app_role"] | null
           revoked_at: string | null
@@ -2588,6 +2589,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          inbox_access?: boolean
           invited_by?: string | null
           requested_role?: Database["public"]["Enums"]["app_role"] | null
           revoked_at?: string | null
@@ -2600,6 +2602,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          inbox_access?: boolean
           invited_by?: string | null
           requested_role?: Database["public"]["Enums"]["app_role"] | null
           revoked_at?: string | null

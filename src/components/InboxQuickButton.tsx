@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -5,28 +6,46 @@ import { MessageCircle } from "lucide-react";
 
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
+import { useInboxAccessFlag } from "@/hooks/use-inbox-access";
+import { playPqbNotificationSound } from "@/lib/notification-sound";
 
 /**
- * Atalho para o Inbox — visível apenas para quem tem o papel "comunicacao".
- * Reaproveita a mesma contagem (query "comm-badge") usada pelo menu lateral.
+ * Atalho para o Inbox — visível para staff de comunicação (admin/vrm/operador/comunicacao)
+ * e para quem tem a flag avulsa "Acesso ao Inbox" no perfil.
+ * Reaproveita a mesma contagem (query "comm-badge") usada pelas abas de Comunicação.
  */
 export function InboxQuickButton() {
   const role = useCurrentUserRole();
+  const inboxFlag = useInboxAccessFlag();
   const navigate = useNavigate();
   const badgeFn = useServerFn(getMyCommunicationBadge);
 
-  const isComunicacao = role === "comunicacao";
+  const canSee =
+    inboxFlag ||
+    role === "comunicacao" ||
+    role === "admin" ||
+    role === "vrm" ||
+    role === "operador";
 
   const badgeQ = useQuery({
     queryKey: ["comm-badge"],
     queryFn: () => badgeFn(),
-    enabled: isComunicacao,
+    enabled: canSee,
     refetchInterval: 30000,
   });
 
-  if (!isComunicacao) return null;
+  const unread = badgeQ.data?.mine_unread ?? 0;
+  const prev = useRef<number | null>(null);
 
-  const unread = badgeQ.data?.total_unread ?? 0;
+  useEffect(() => {
+    if (!canSee) return;
+    if (prev.current !== null && unread > prev.current) {
+      void playPqbNotificationSound();
+    }
+    prev.current = unread;
+  }, [unread, canSee]);
+
+  if (!canSee) return null;
 
   return (
     <button
