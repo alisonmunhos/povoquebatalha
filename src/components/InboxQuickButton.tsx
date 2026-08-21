@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { MessageCircle } from "lucide-react";
+import whatsappLogo from "@/assets/whatsapp-logo.png.asset.json";
 
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import { useCurrentUserRole } from "@/hooks/use-current-role";
