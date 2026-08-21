@@ -857,12 +857,28 @@ export function CommunicationInbox() {
                             className="w-full text-left px-2 py-2 rounded-md hover:bg-muted"
                             onClick={() => {
                               setReply((prev) => (prev ? prev + "\n" + t.body : t.body));
+                              // Se a resposta pronta tem arquivo salvo, ele entra como anexo pendente.
+                              if (t.media_path) {
+                                setAttachment((prev) => {
+                                  if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+                                  return {
+                                    path: t.media_path as string,
+                                    mime: (t.media_mime as string | null) ?? "application/octet-stream",
+                                    filename: (t.media_filename as string | null)
+                                      ?? (t.media_path as string).split("/").pop()
+                                      ?? "arquivo",
+                                  };
+                                });
+                              }
                               setQuickOpen(false);
                               setQuickSearch("");
                               requestAnimationFrame(() => replyRef.current?.focus());
                             }}
                           >
-                            <div className="text-sm font-medium truncate">{t.title}</div>
+                            <div className="text-sm font-medium truncate flex items-center gap-1">
+                              {t.media_path && <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                              <span className="truncate">{t.title}</span>
+                            </div>
                             <div className="text-[11px] text-muted-foreground line-clamp-2">{t.body}</div>
                           </button>
                         ))}
