@@ -321,7 +321,7 @@ export const listQuickReplies = createServerFn({ method: "GET" })
       .select("id,title,body,category,variables")
       .eq("active", true)
       .is("archived_at", null)
-      .in("kind", ["quick_reply", "system"])
+      .eq("kind", "quick_reply")
       .order("title");
     if (error) throw error;
     return data ?? [];

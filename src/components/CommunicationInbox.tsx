@@ -797,18 +797,50 @@ export function CommunicationInbox() {
                   </PopoverContent>
                 </Popover>
                 {tplsQ.data && tplsQ.data.length > 0 && (
-                  <select
-                    onChange={(e) => {
-                      const t = tplsQ.data?.find((x) => x.id === e.target.value);
-                      if (t) setReply((prev) => prev ? prev + "\n" + t.body : t.body);
-                      e.currentTarget.value = "";
-                    }}
-                    className="text-xs px-2 py-2 rounded-md border bg-background shrink-0 hidden sm:block"
-                    title="Resposta pronta"
-                  >
-                    <option value="">📋</option>
-                    {tplsQ.data.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-                  </select>
+                  <Popover open={quickOpen} onOpenChange={(o) => { setQuickOpen(o); if (!o) setQuickSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                        title="Resposta rápida"
+                        disabled={!canSend}
+                        type="button"
+                      >
+                        <MessageSquareText className="h-4 w-4" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 p-0" sideOffset={8}>
+                      <div className="p-2 border-b">
+                        <input
+                          value={quickSearch}
+                          onChange={(e) => setQuickSearch(e.target.value)}
+                          placeholder="Buscar resposta rápida…"
+                          className="w-full text-sm px-2 py-1.5 rounded-md border bg-background"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-1">
+                        {filteredQuickReplies.length === 0 && (
+                          <div className="p-3 text-xs text-muted-foreground">Nenhuma resposta rápida encontrada.</div>
+                        )}
+                        {filteredQuickReplies.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className="w-full text-left px-2 py-2 rounded-md hover:bg-muted"
+                            onClick={() => {
+                              setReply((prev) => (prev ? prev + "\n" + t.body : t.body));
+                              setQuickOpen(false);
+                              setQuickSearch("");
+                              requestAnimationFrame(() => replyRef.current?.focus());
+                            }}
+                          >
+                            <div className="text-sm font-medium truncate">{t.title}</div>
+                            <div className="text-[11px] text-muted-foreground line-clamp-2">{t.body}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
                 <textarea
                   ref={replyRef}
