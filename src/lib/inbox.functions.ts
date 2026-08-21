@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireStaff } from "@/lib/authz";
+import { requireInboxAccess } from "@/lib/authz";
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
@@ -203,7 +203,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     media_filename: z.string().trim().max(200).optional().nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireStaff(context.supabase, context.userId);
+    await requireInboxAccess(context.supabase, context.userId);
 
 
 

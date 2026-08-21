@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRole, requireStaff } from "@/lib/authz";
+import { requireRole, requireStaff, requireInboxAccess } from "@/lib/authz";
 import { renderMessageVars } from "@/lib/message-vars";
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
@@ -369,7 +369,7 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
     consentimento_whatsapp: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireStaff(context.supabase, context.userId);
+    await requireInboxAccess(context.supabase, context.userId);
 
 
 
