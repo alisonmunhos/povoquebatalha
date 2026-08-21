@@ -335,6 +335,10 @@ function AutomationsPanel() {
   });
 
   async function save() {
+    if (editing?.id && !editing.event_key) {
+      const original = (q.data ?? []).find((a) => a.id === editing.id);
+      if (original?.event_key) return toast.error("Selecione um evento antes de salvar");
+    }
     if (!editing?.event_key || !editing.template_id) return toast.error("Evento e mensagem são obrigatórios");
     await upsertFn({ data: {
       id: editing.id,
