@@ -185,14 +185,14 @@ export function CommunicationInbox() {
 
   const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
 
-  // Mesma fonte do badge numérico da aba "Inbox" na navegação.
+  // Mesma fonte do badge numérico da aba "Inbox" na navegação (mantida para
+  // refetch periódico; a contagem exibida nos chips vem da própria lista).
   const inboxBadgeFn = useServerFn(getMyCommunicationBadge);
-  const inboxBadgeQ = useQuery({
+  useQuery({
     queryKey: ["comm-badge"],
     queryFn: () => inboxBadgeFn(),
     refetchInterval: 20000,
   });
-  const unreadTotal = inboxBadgeQ.data?.mine_unread ?? 0;
 
   const listQ = useQuery({
     queryKey: ["comm-conv-list", statusFilter, search],
