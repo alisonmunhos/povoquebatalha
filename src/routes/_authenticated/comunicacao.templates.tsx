@@ -18,6 +18,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { TemplateBodyPreview } from "@/components/TemplateBodyPreview";
 import {
   listWhatsappTemplates,
   saveWhatsappTemplateDraft,
