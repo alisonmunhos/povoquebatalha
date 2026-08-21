@@ -18,8 +18,6 @@ const TABS: Tab[] = [
   { to: "/relacionamento", label: "Relacionamento", icon: Heart },
   { to: "/comunicacao/templates", label: "Templates", icon: FileCheck2, adminOnly: true },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
-  // Piloto visual do novo Inbox — visível só para admin enquanto está em teste.
-  { to: "/comunicacao/inbox-astryx", label: "Inbox (piloto)", icon: Inbox, adminOnly: true },
 ];
 
 
@@ -44,7 +42,6 @@ export function CommunicationTabs() {
 
   function isActive(to: string) {
     if (to === "/comunicacao/inbox") {
-      if (path.startsWith("/comunicacao/inbox-astryx")) return false;
       return path === "/" || path.startsWith("/comunicacao/inbox") || path === "/comunicacao";
     }
     return path === to || path.startsWith(to + "/");
