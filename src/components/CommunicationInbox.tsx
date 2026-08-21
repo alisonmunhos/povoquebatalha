@@ -34,6 +34,17 @@ function displayPhone(v?: string | null): string {
   return v;
 }
 
+/** Mostra a razão real da falha; traduz o erro de janela de 24h da Meta. */
+function describeSendError(erro?: string | null): string {
+  const raw = (erro ?? "").trim();
+  if (!raw) return " · erro";
+  const low = raw.toLowerCase();
+  if (low.includes("131047") || low.includes("re-engagement") || low.includes("reengagement")) {
+    return " · fora da janela de 24h — peça pra ele responder, ou use um template";
+  }
+  return ` · ${raw}`;
+}
+
 type Filter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
   | "in_service" | "unlinked" | "with_error" | "opt_out";
@@ -348,7 +359,7 @@ export function CommunicationInbox() {
     }
     for (const m of convQ.data?.direct ?? []) t.push({
       id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
-      meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? " · erro" : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
+      meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? describeSendError((m as { erro?: string | null }).erro) : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
       media_path: (m as { media_path?: string | null }).media_path ?? null,
       media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
       media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
@@ -489,8 +500,8 @@ export function CommunicationInbox() {
                 <button
                   onClick={() => conv && flagMut.mutate({ conversation_id: conv.id, flagged: !convQ.data?.conversation?.flagged })}
                   className="p-2 rounded-md hover:bg-muted"
-                  aria-label="Sinalizar conversa"
-                  title="Sinalizar"
+                  aria-label={convQ.data?.conversation?.flagged ? "Remover sinalização da conversa" : "Sinalizar conversa"}
+                  title={convQ.data?.conversation?.flagged ? "Remover sinalização" : "Sinalizar"}
                 >
                   {convQ.data?.conversation?.flagged ? <Star className="h-4 w-4 text-amber-500 fill-amber-500" /> : <StarOff className="h-4 w-4" />}
                 </button>

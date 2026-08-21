@@ -49,6 +49,10 @@ function CampanhaDetail() {
   const autoRef = useRef(false);
   autoRef.current = autoRun;
 
+  const [previewData, setPreviewData] = useState<{
+    janelaAberta: number; janelaFechadaComTemplate: number; janelaFechadaSemTemplate: number; elegíveis: number;
+  } | null>(null);
+
   const preview = useMutation({
     mutationFn: () => previewFn({ data: { id } }),
     onSuccess: (r) => {
@@ -57,6 +61,12 @@ function CampanhaDetail() {
       if (r.optOut) detalhes.push(`${r.optOut} opt-out`);
       if (r.arquivados) detalhes.push(`${r.arquivados} arquivados`);
       if (r.semTelefone) detalhes.push(`${r.semTelefone} sem telefone`);
+      setPreviewData({
+        elegíveis: r.elegíveis,
+        janelaAberta: r.janelaAberta,
+        janelaFechadaComTemplate: r.janelaFechadaComTemplate,
+        janelaFechadaSemTemplate: r.janelaFechadaSemTemplate,
+      });
       toast.success(`Prévia: ${r.elegíveis} aptos de ${r.totalBruto}${detalhes.length ? ` · ${detalhes.join(" · ")}` : ""}`);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -217,6 +227,20 @@ function CampanhaDetail() {
             )}
           </div>
 
+          {previewData && (
+            <div className="mt-4 border rounded p-3 bg-muted/30 text-xs space-y-1">
+              <div className="font-semibold">Como estes {previewData.elegíveis} contatos vão receber:</div>
+              <div>
+                <b>{previewData.janelaAberta}</b> vão receber a mensagem de texto (já responderam recentemente)
+              </div>
+              <div>
+                <b>{previewData.janelaFechadaComTemplate}</b> vão receber o template oficial
+              </div>
+              <div>
+                <b>{previewData.janelaFechadaSemTemplate}</b> serão pulados (fora da janela de 24h, sem template aprovado nesta campanha)
+              </div>
+            </div>
+          )}
 
           {canCancel && (
             <div className="mt-4 border-t pt-4">
