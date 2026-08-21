@@ -114,13 +114,20 @@ export function CommunicationInbox() {
   const linkFn = useServerFn(linkConversationToContact);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
+  const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
+
   const listQ = useQuery({
-    queryKey: ["comm-conv-list", filter, search],
-    queryFn: () => listFn({ data: { filter, search: search || undefined } }),
+    queryKey: ["comm-conv-list", statusFilter, search],
+    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined } }),
     refetchInterval: 15000,
   });
 
-  const list = listQ.data ?? [];
+  const rawList = listQ.data ?? [];
+  const list = useMemo(() => {
+    if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
+    if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
+    return rawList;
+  }, [rawList, statusFilter]);
   const selected = useMemo(
     () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
     [list, selectedContactId, selectedConvId],
