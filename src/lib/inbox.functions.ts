@@ -109,12 +109,12 @@ export const getInboxConversation = createServerFn({ method: "GET" })
       : await inQ.eq("from_phone", data.phone ?? "");
 
     // Outbound (direct messages + campaign_recipients + automation_deliveries)
-    let direct: { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string }[] = [];
+    let direct: { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null }[] = [];
     let campaign: { id: string; rendered_message: string | null; sent_at: string | null; status: string; campaign_name: string | null }[] = [];
     if (data.contact_id) {
       const { data: d } = await context.supabase
         .from("direct_messages")
-        .select("id,conteudo,created_at,sent_by,origem,status")
+        .select("id,conteudo,created_at,sent_by,origem,status,erro")
         .eq("contact_id", data.contact_id).order("created_at", { ascending: true });
       direct = d ?? [];
 
