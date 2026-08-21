@@ -9,6 +9,7 @@ import {
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
   retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
+import { listFormDefinitions } from "@/lib/form-definitions.functions";
 import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
 import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue } from "@/components/MessageComposer";
