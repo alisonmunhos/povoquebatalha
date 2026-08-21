@@ -2,20 +2,21 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth, useRoles } from "@/hooks/use-auth";
+import { useInboxAccessFlag } from "@/hooks/use-inbox-access";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import {
   Inbox, Users, Send, MessageSquareText, Calendar, Heart, MessageCircle, FileCheck2,
 } from "lucide-react";
 
-type Tab = { to: string; label: string; icon: typeof Inbox; adminOnly?: boolean };
+type Tab = { to: string; label: string; icon: typeof Inbox; adminOnly?: boolean; staffOnly?: boolean };
 
 const TABS: Tab[] = [
   { to: "/comunicacao/inbox", label: "Inbox", icon: Inbox },
   { to: "/comunicacao/contatos", label: "Contatos", icon: Users },
-  { to: "/campanhas", label: "Campanhas", icon: Send },
-  { to: "/mensagens", label: "Mensagens", icon: MessageSquareText },
-  { to: "/calendario", label: "Calendário", icon: Calendar },
-  { to: "/relacionamento", label: "Relacionamento", icon: Heart },
+  { to: "/campanhas", label: "Campanhas", staffOnly: true, icon: Send },
+  { to: "/mensagens", label: "Mensagens", staffOnly: true, icon: MessageSquareText },
+  { to: "/calendario", label: "Calendário", staffOnly: true, icon: Calendar },
+  { to: "/relacionamento", label: "Relacionamento", staffOnly: true, icon: Heart },
   { to: "/comunicacao/templates", label: "Templates", icon: FileCheck2, adminOnly: true },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
 ];
@@ -31,6 +32,10 @@ export function CommunicationTabs() {
   const { user } = useAuth();
   const roles = useRoles(user?.id) ?? [];
   const isAdmin = roles.includes("admin");
+  const inboxFlag = useInboxAccessFlag();
+  const isStaff = roles.some((r) => r === "admin" || r === "vrm" || r === "operador" || r === "comunicacao");
+  // Quem entrou só pela flag "Acesso ao Inbox" vê apenas Inbox e Contatos.
+  const isInboxOnly = inboxFlag && !isStaff;
   const badgeFn = useServerFn(getMyCommunicationBadge);
   const badgeQ = useQuery({
     queryKey: ["comm-badge"],
@@ -38,7 +43,7 @@ export function CommunicationTabs() {
     refetchInterval: 20000,
   });
 
-  const visible = TABS.filter((t) => !t.adminOnly || isAdmin);
+  const visible = TABS.filter((t) => (!t.adminOnly || isAdmin) && (!t.staffOnly || !isInboxOnly));
 
   function isActive(to: string) {
     if (to === "/comunicacao/inbox") {
