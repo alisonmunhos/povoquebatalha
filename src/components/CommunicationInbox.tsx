@@ -430,6 +430,8 @@ export function CommunicationInbox() {
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
       meta: `campanha · ${m.campaign_name ?? ""}`,
+      header_type: m.header_type,
+      header_text: m.header_text,
       buttons: m.buttons,
     });
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
