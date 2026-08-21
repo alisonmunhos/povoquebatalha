@@ -56,6 +56,7 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
   const startFn = useServerFn(startCampaign);
   const templatesFn = useServerFn(listMessageTemplates);
   const campaignsFn = useServerFn(listCampaigns);
+  const waTemplatesFn = useServerFn(listWhatsappTemplates);
 
   const [step, setStep] = useState(1);
   const [nomeCampanha, setNomeCampanha] = useState("");
