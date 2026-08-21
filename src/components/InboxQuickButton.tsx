@@ -53,15 +53,15 @@ export function InboxQuickButton() {
       onClick={() => navigate({ to: "/comunicacao/inbox" })}
       title="Abrir Inbox de mensagens"
       aria-label={unread > 0 ? `Abrir Inbox (${unread} conversas não lidas)` : "Abrir Inbox de mensagens"}
-      className="relative p-2 rounded-md hover:bg-muted transition-colors"
-      style={{ color: "#25D366" }}
+      className="relative inline-flex items-center justify-center h-11 w-11 rounded-full hover:bg-success/10 active:bg-success/20 transition-colors shrink-0"
     >
-      <MessageCircle className="h-5 w-5" />
+      <img src={whatsappLogo.url} alt="" aria-hidden className="h-7 w-7" />
       {unread > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+        <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[1.25rem] h-[1.25rem] px-1 rounded-full bg-card text-foreground border-2 border-card shadow-sm text-[10px] font-bold ring-1 ring-border">
           {unread > 99 ? "99+" : unread}
         </span>
       )}
     </button>
   );
 }
+
