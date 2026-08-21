@@ -22,6 +22,8 @@ import {
   linkConversationToContact,
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
+import { Badge } from "@/components/ui/badge";
+import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 // LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
 // Ex.: "217879546974326@lid".
@@ -343,6 +345,7 @@ export function CommunicationInbox() {
     type Msg = {
       id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
       media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+      buttons?: TemplateButton[];
     };
     const t: Msg[] = [];
     for (const m of convQ.data?.inbound ?? []) {
@@ -367,6 +370,7 @@ export function CommunicationInbox() {
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
       meta: `campanha · ${m.campaign_name ?? ""}`,
+      buttons: m.buttons,
     });
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [convQ.data]);
@@ -539,6 +543,16 @@ export function CommunicationInbox() {
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
+                    {m.buttons && m.buttons.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {m.buttons.map((b, idx) => (
+                          <Badge key={idx} variant="outline" className={`text-[10px] gap-1 ${m.kind === "out" ? "border-primary-foreground/30 text-primary-foreground" : ""}`}>
+                            {b.type === "URL" && <Link2 className="h-3 w-3" />}
+                            {b.text}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                     <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
                       {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
                     </div>
