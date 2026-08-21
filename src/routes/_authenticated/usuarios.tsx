@@ -432,6 +432,7 @@ function UsuariosPage() {
                       <th className="px-4 py-2">Nome</th>
                       <th className="px-4 py-2">E-mail</th>
                       <th className="px-4 py-2">Papel</th>
+                      <th className="px-4 py-2">Acesso ao Inbox</th>
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2">Último acesso</th>
                       <th className="px-4 py-2">Criado</th>
