@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User, Smile,
+  User, Smile, MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -224,6 +224,16 @@ export function CommunicationInbox() {
   });
 
   const tplsQ = useQuery({ queryKey: ["comm-tpls"], queryFn: () => tplsFn() });
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const filteredQuickReplies = useMemo(() => {
+    const all = tplsQ.data ?? [];
+    const s = quickSearch.trim().toLowerCase();
+    if (!s) return all;
+    return all.filter((t) =>
+      (t.title ?? "").toLowerCase().includes(s) || (t.body ?? "").toLowerCase().includes(s),
+    );
+  }, [tplsQ.data, quickSearch]);
   const staffQ = useQuery({
     queryKey: ["comm-staff"],
     queryFn: () => staffFn(),
