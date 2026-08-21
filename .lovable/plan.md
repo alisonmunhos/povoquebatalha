@@ -1,62 +1,26 @@
-# Avaliação: Astryx (Meta) para reconstruir o Inbox
+# Desligar a confirmação automática nas seções de transição "VAMOS CONTINUAR?"
 
-## Resposta direta sobre o React
+## Situação atual
 
-O projeto **já está no React 19+**. No `package.json`:
+As 3 seções chamadas "VAMOS CONTINUAR?" (uma em cada formulário) estão hoje com a confirmação automática **ligada**. Elas ficaram assim porque a regra aplicada no ajuste anterior ligava a confirmação em qualquer seção que tivesse pelo menos uma pergunta — e essas seções têm uma pergunta: "COMO VOCÊ QUER PARTICIPAR?", com as opções QUERO SER UM APOIADOR / QUERO RECEBER INFORMAÇÕES / SOU DO COLETIVO ALICERCE.
 
-- `react: ^19.2.0`
-- `react-dom: ^19.2.0`
-- `@types/react` e `@types/react-dom`: `^19.2.0`
+Essa pergunta serve apenas para escolher o caminho seguinte do formulário (ramificação). A seção não encerra o preenchimento, então disparar confirmação ali é indevido.
 
-Ou seja, o peer dependency de React 19+ do Astryx já está satisfeito — **nenhum upgrade de React é necessário**.
+## O que vai ser feito
 
-## O que existe no Astryx
+Definir `confirmation_active = false` nas 3 seções "VAMOS CONTINUAR?" (ids `0580e8e6…`, `26d7d563…`, `faa84c35…`), sem tocar em nenhuma outra seção nem nas automações.
 
-Confirmado na documentação oficial (astryx.atmeta.com / facebook/astryx, beta, MIT): há uma família de componentes de Chat — Chat Layout, Chat Composer, Chat Message / Chat Message Bubble, Chat Message List, Chat Message Metadata, Chat System Message, Chat Tool Calls. Estilo via StyleX + pacote de tema (`@astryxdesign/theme-neutral`).
+Resultado esperado após a mudança:
 
-## Ponto de atenção principal (antes de decidir)
+- Seções com confirmação ligada: 6 (as de coleta real de dados — "SEU CADASTRO", "SEU PERFIL", "SEU PERFIL DE APOIADOR(A)")
+- Seções com confirmação desligada: 8 (as 3 de transição, as 3 "VOCÊ VAI RECEBER NOSSAS ATUALIZAÇÕES!" e as 2 finais "E AÍ, COMPA!")
 
-O projeto todo é estilizado com **Tailwind v4 + shadcn/Radix** e um design system próprio da campanha (amarelo/ink/roxo, `shadow-punch`, fontes Anton/Archivo). Astryx traz **StyleX**, um segundo motor de estilo, com tema neutro próprio. Consequências:
+## Detalhes técnicos
 
-- Duas engines de estilo no mesmo bundle (peso e complexidade de build no Vite/Cloudflare Worker).
-- O Inbox passaria a ter aparência "neutra Meta", diferente do resto do painel, a menos que se invista em customizar o tema Astryx com as cores da campanha.
-- StyleX normalmente exige plugin de build; é preciso validar compatibilidade com o preset Vite gerenciado (`@lovable.dev/vite-tanstack-config`) e com SSR do TanStack Start.
+- Atualização de dados na tabela `form_sections`, filtrando pelos 3 ids exatos das seções de transição (não por título, para não pegar seções futuras por acaso).
+- Nenhuma mudança de schema, de código ou de automações.
+- Ao final, uma consulta de verificação confirma a contagem de seções com confirmação ligada/desligada.
 
-Recomendação: fazer um **piloto isolado só na tela do Inbox** (rota nova, sem mexer no Inbox atual) antes de adotar de vez.
+## Observação para o futuro
 
-## Plano de instalação e integração (a executar só após sua aprovação)
-
-1. **Instalar dependências**
-   - `@astryxdesign/core`, `@astryxdesign/theme-neutral`, `@stylexjs/stylex`
-   - `@astryxdesign/cli` como dev dependency e rodar o `init` para gerar a documentação de componentes.
-
-2. **Build / StyleX**
-   - Usar o CSS pré-compilado do Astryx (sem compilador StyleX no build), carregando-o via `links` no `head()` da rota do piloto ou no `__root.tsx`.
-   - Só adicionar plugin StyleX ao Vite se o pré-compilado não bastar — e nunca duplicando plugins do preset gerenciado.
-
-3. **Provider de tema**
-   - Envolver apenas a subárvore do piloto com o provider de tema do Astryx + `theme-neutral`, para não afetar o restante do app.
-   - Se o piloto for aprovado, avaliar mover o provider para `src/routes/__root.tsx`.
-
-4. **Piloto do Inbox**
-   - Nova rota `/_authenticated/comunicacao/inbox-astryx` (o `/comunicacao/inbox` atual continua intacto).
-   - Reaproveitar 100% da lógica existente: `src/lib/inbox.functions.ts`, `src/lib/communication.functions.ts`, o parâmetro de busca `contact`, janela de 24h (`describeSendError`), templates e botões.
-   - Trocar apenas a camada visual: `ChatLayout` (lista de conversas + painel), `ChatMessageList` + `ChatMessageBubble` (histórico, incluindo botões de template) e `ChatComposer` (envio).
-
-5. **Verificação**
-   - Typecheck + build de produção (para pegar erro de SSR/Worker cedo).
-   - Teste da tela no preview: seleção por `?contact=`, envio, aviso de janela de 24h, botões de template.
-
-6. **Decisão**
-   - Comparar piloto vs. Inbox atual (aparência, peso do bundle, esforço de tematização). Se aprovado, redirecionar a rota antiga; se não, remover a rota e as dependências.
-
-## Riscos e como reagimos
-
-- **StyleX incompatível com o build gerenciado** → ficamos só no CSS pré-compilado; se ainda falhar, abortamos o piloto sem impacto no app.
-- **Conflito visual com o design da campanha** → tematizar o Astryx com os tokens atuais (amarelo `#F0AA04`, ink, roxo) ou manter a adoção restrita ao Inbox.
-- **Astryx em beta** → fixar versões exatas para evitar quebras em atualizações.
-
-## Cuidados
-
-- Nada do Inbox atual é alterado no piloto; nenhuma rota pública é quebrada.
-- Nenhuma mudança de banco, RLS ou regras de envio nesta etapa — é só camada visual.
+A regra "tem pergunta = tem confirmação" não distingue perguntas de conteúdo de perguntas de roteamento. Se surgirem mais seções de transição, o ideal é marcar a seção como "transição" no construtor de formulários e deixar a confirmação sempre desligada nelas — isso não está incluído neste ajuste.
