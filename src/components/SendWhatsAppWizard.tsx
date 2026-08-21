@@ -323,6 +323,27 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
                 </select>
               </div>
             </div>
+
+            <div>
+              <Label className="text-xs font-medium">Template Oficial (opcional)</Label>
+              <select
+                className="mt-1 w-full border rounded-md px-2 h-9 text-sm bg-background"
+                value={whatsappTemplateId}
+                onChange={(e) => setWhatsappTemplateId(e.target.value)}
+              >
+                <option value="">— Nenhum —</option>
+                {officialTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Só é usado para contatos <b>fora da janela de 24h</b> (sem mensagem recebida deles
+                nas últimas 24h) — a Meta só permite reabrir a conversa com um template aprovado
+                nesse caso. Dentro da janela, a mensagem de texto livre acima continua sendo
+                usada normalmente, sem mudança.
+              </p>
+            </div>
+
             {/* Barra de formatação estilo WhatsApp */}
             <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-muted/30">
               <FmtBtn title="Negrito (*texto*)" onClick={() => wrapSelection("*")}><Bold className="h-3.5 w-3.5" /></FmtBtn>
