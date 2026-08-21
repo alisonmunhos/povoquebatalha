@@ -2,13 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CommunicationTabs } from "@/components/CommunicationTabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   listMessageTemplates, upsertMessageTemplate, archiveMessageTemplate,
   duplicateMessageTemplate, sendTestTemplate,
   listAutomations, upsertAutomation, deleteAutomation, listRecentAutomationDeliveries,
   retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
+import { listFormDefinitions } from "@/lib/form-definitions.functions";
 import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
 import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue } from "@/components/MessageComposer";
@@ -291,6 +292,8 @@ type Automation = {
 
 function AutomationsPanel() {
   const listFn = useServerFn(listAutomations);
+  const formsFn = useServerFn(listFormDefinitions);
+  const forms = useQuery({ queryKey: ["form-definitions", "automation-events"], queryFn: () => formsFn() });
   const tplFn = useServerFn(listMessageTemplates);
   const upsertFn = useServerFn(upsertAutomation);
   const delFn = useServerFn(deleteAutomation);
@@ -307,6 +310,22 @@ function AutomationsPanel() {
 
   const [editing, setEditing] = useState<Partial<Automation> | null>(null);
 
+  const eventOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ev of SYSTEM_EVENTS) map.set(ev.value, ev.label);
+    for (const f of forms.data ?? []) {
+      if (!f.slug) continue;
+      map.set(`formulario:${f.slug}`, `Formulário: ${f.title ?? f.slug}`);
+    }
+    for (const a of q.data ?? []) {
+      if (!a.event_key || map.has(a.event_key)) continue;
+      const slug = a.event_key.startsWith("formulario:") ? a.event_key.slice("formulario:".length) : null;
+      map.set(a.event_key, slug ? `Formulário: ${slug}` : a.event_key);
+    }
+    if (editing?.event_key && !map.has(editing.event_key)) map.set(editing.event_key, editing.event_key);
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [forms.data, q.data, editing?.event_key]);
+
   const toggle = useMutation({
     mutationFn: async (a: Automation) => upsertFn({ data: {
       id: a.id, event_key: a.event_key, template_id: a.template_id,
@@ -316,6 +335,10 @@ function AutomationsPanel() {
   });
 
   async function save() {
+    if (editing?.id && !editing.event_key) {
+      const original = (q.data ?? []).find((a) => a.id === editing.id);
+      if (original?.event_key) return toast.error("Selecione um evento antes de salvar");
+    }
     if (!editing?.event_key || !editing.template_id) return toast.error("Evento e mensagem são obrigatórios");
     await upsertFn({ data: {
       id: editing.id,
@@ -456,7 +479,7 @@ function AutomationsPanel() {
                 <Label className="text-xs font-medium">Evento</Label>
                 <select value={editing?.event_key ?? ""} onChange={(e) => setEditing({ ...editing!, event_key: e.target.value })} className="w-full rounded-md border px-3 py-2 text-sm bg-background">
                   <option value="">—</option>
-                  {SYSTEM_EVENTS.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
+                  {eventOptions.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
