@@ -876,7 +876,7 @@ export function CommunicationInbox() {
                   disabled={!canSend}
                   rows={1}
                   placeholder="Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
-                  className="flex-1 text-sm px-3 py-2 rounded-md border bg-background resize-none max-h-40"
+                  className="flex-1 min-w-0 text-sm px-3 py-2 rounded-md border bg-background resize-none max-h-40 overflow-y-auto"
                   style={{ minHeight: "40px" }}
                 />
                 <button
