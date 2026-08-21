@@ -404,6 +404,7 @@ export function CommunicationInbox() {
     type Msg = {
       id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
       media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+      header_type?: string | null; header_text?: string | null;
       buttons?: TemplateButton[];
     };
     const t: Msg[] = [];
@@ -429,6 +430,8 @@ export function CommunicationInbox() {
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
       meta: `campanha · ${m.campaign_name ?? ""}`,
+      header_type: m.header_type,
+      header_text: m.header_text,
       buttons: m.buttons,
     });
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
@@ -617,6 +620,9 @@ export function CommunicationInbox() {
                   <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
                     m.kind === "out" ? "bg-primary text-primary-foreground rounded-br-none" : "bg-background border rounded-bl-none"
                   }`}>
+                    {m.header_type === "TEXT" && m.header_text && (
+                      <div className="font-semibold whitespace-pre-wrap break-words mb-1">{m.header_text}</div>
+                    )}
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
