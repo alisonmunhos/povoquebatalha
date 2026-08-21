@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link } from "@tanstack/react-router";
+import { Link, getRouteApi } from "@tanstack/react-router";
+
+const routeApi = getRouteApi("/_authenticated/comunicacao/inbox");
 import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
@@ -51,9 +53,10 @@ const FILTERS: { key: Filter; label: string }[] = [
 export function CommunicationInbox() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { contact: contactParam } = routeApi.useSearch();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(contactParam || null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
@@ -65,6 +68,15 @@ export function CommunicationInbox() {
     if (v === null) return window.innerWidth >= 1024;
     return v === "1";
   });
+
+  // Sincroniza seleção com o search param ?contact=... vindo de links externos (ex: "Abrir chat").
+  useEffect(() => {
+    if (contactParam) {
+      setSelectedContactId(contactParam);
+      setSelectedConvId(null);
+      setMobilePane("thread");
+    }
+  }, [contactParam]);
   useEffect(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("inbox.infoOpen", infoOpen ? "1" : "0");
