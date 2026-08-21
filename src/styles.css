@@ -170,6 +170,68 @@
   font-family: var(--font-accent);
 }
 
+/* ---- Paleta WhatsApp (escopo: Inbox) ---- */
+.wa-inbox {
+  --wa-teal-dark: #075e54;
+  --wa-teal: #128c7e;
+  --wa-green: #25d366;
+  --wa-green-soft: #dcf8c6;
+  --wa-chat-bg: #ece5dd;
+  --wa-blue: #34b7f1;
+  --wa-ink: #111b21;
+
+  --primary: var(--wa-green);
+  --primary-foreground: #ffffff;
+  --accent: var(--wa-blue);
+  --accent-foreground: #ffffff;
+  --ring: var(--wa-teal);
+}
+
+.dark .wa-inbox {
+  --wa-chat-bg: #0b141a;
+  --wa-green-soft: #005c4b;
+  --wa-ink: #e9edef;
+}
+
+/* Barra superior da conversa (verde escuro do WhatsApp) */
+.wa-inbox .wa-topbar {
+  --background: var(--wa-teal-dark);
+  --foreground: #ffffff;
+  --muted: rgba(255, 255, 255, 0.14);
+  --muted-foreground: rgba(255, 255, 255, 0.78);
+  --border: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+/* Fundo da área de conversa */
+.wa-inbox .wa-chat-area {
+  background-color: var(--wa-chat-bg);
+}
+
+/* Bolha enviada (verde claro) */
+.wa-inbox .wa-bubble-out {
+  background-color: var(--wa-green-soft);
+  color: var(--wa-ink);
+  --primary: var(--wa-teal-dark);
+  --primary-foreground: var(--wa-ink);
+  --border: color-mix(in oklab, var(--wa-ink) 15%, transparent);
+}
+
+/* Bolha recebida */
+.wa-inbox .wa-bubble-in {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  --primary: var(--wa-teal);
+}
+
+.wa-inbox .wa-title {
+  color: var(--wa-teal-dark);
+}
+.dark .wa-inbox .wa-title {
+  color: var(--wa-green);
+}
+
+
 @layer base {
   * {
     border-color: var(--color-border);
