@@ -318,7 +318,7 @@ export const listQuickReplies = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("message_templates")
-      .select("id,title,body,category,variables")
+      .select("id,title,body,category,variables,media_path,media_mime,media_filename")
       .eq("active", true)
       .is("archived_at", null)
       .eq("kind", "quick_reply")
