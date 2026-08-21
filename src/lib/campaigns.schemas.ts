@@ -38,6 +38,7 @@ export const createFromSelectionSchema = z.object({
   ids: z.array(z.string().uuid()).max(20000).optional(),
   filters: crmFilterSchema.partial().optional(),
   template_id: z.string().uuid().optional().nullable(),
+  whatsapp_template_id: z.string().uuid().optional().nullable(),
   mensagem_template: z.string().min(1).max(4000),
   tipo: z.enum(["text", "image", "document", "link"]).default("text"),
   midia_path: z.string().max(500).optional().nullable(),
