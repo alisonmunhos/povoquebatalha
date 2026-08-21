@@ -47,27 +47,24 @@ function describeSendError(erro?: string | null): string {
   return ` · ${raw}`;
 }
 
-type Filter =
+type BackendFilter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
   | "in_service" | "unlinked" | "with_error" | "opt_out";
 
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "Todas" },
-  { key: "mine", label: "Minhas" },
-  { key: "unread", label: "Não lidas" },
-  { key: "flagged", label: "Sinalizadas" },
-  { key: "in_service", label: "Em atendimento" },
-  { key: "unlinked", label: "Não vinculadas" },
-  { key: "with_error", label: "Com erro" },
-  { key: "opt_out", label: "Opt-out" },
-  { key: "resolved", label: "Resolvidas" },
+type StatusFilter = "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
+
+const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter }[] = [
+  { key: "abertas", label: "Abertas", backend: "all" },
+  { key: "aguardando", label: "Aguardando", backend: "all" },
+  { key: "resolvidas", label: "Resolvidas", backend: "resolved" },
+  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged" },
 ];
 
 export function CommunicationInbox() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { contact: contactParam } = routeApi.useSearch();
-  const [filter, setFilter] = useState<Filter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("abertas");
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(contactParam || null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -117,13 +114,20 @@ export function CommunicationInbox() {
   const linkFn = useServerFn(linkConversationToContact);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
+  const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
+
   const listQ = useQuery({
-    queryKey: ["comm-conv-list", filter, search],
-    queryFn: () => listFn({ data: { filter, search: search || undefined } }),
+    queryKey: ["comm-conv-list", statusFilter, search],
+    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined } }),
     refetchInterval: 15000,
   });
 
-  const list = listQ.data ?? [];
+  const rawList = listQ.data ?? [];
+  const list = useMemo(() => {
+    if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
+    if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
+    return rawList;
+  }, [rawList, statusFilter]);
   const selected = useMemo(
     () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
     [list, selectedContactId, selectedConvId],
@@ -397,18 +401,33 @@ export function CommunicationInbox() {
               className="w-full text-sm pl-8 pr-2 py-2 rounded-md border border-input bg-background"
             />
           </div>
-          <div className="flex flex-wrap gap-1">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`text-xs px-2 py-1 rounded-md border transition-colors ${
-                  filter === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((f) => {
+              const active = statusFilter === f.key;
+              const count = active ? list.length : undefined;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setStatusFilter(f.key)}
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-input hover:bg-muted"
+                  }`}
+                >
+                  {f.label}
+                  {count !== undefined && (
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
+                        active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
