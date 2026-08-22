@@ -725,9 +725,8 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
         session.current_step_index + 1,
       );
     }
-
-    }
   };
+
 
   const skipRequested = isSkip(input.text) || replyId === FLOW_MULTI_DONE_ID;
 
