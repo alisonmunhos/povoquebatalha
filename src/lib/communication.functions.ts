@@ -286,6 +286,7 @@ export const getConversation = createServerFn({ method: "GET" })
       contact,
       tags,
       inbound,
+      automation,
       direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
