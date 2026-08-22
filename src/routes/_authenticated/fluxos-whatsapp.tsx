@@ -77,7 +77,15 @@ type StepDraft = {
   prompt: string;
   required: boolean;
   response_kind: FlowResponseKind;
+  /** question = pergunta normal; menu = ramificação; handoff = atendimento humano; finish = encerra e salva. */
+  kind: "question" | "menu" | "handoff" | "finish";
+  /** Caminho (ramificação) a que a etapa pertence. */
+  path_key: string;
+  /** Para menus: opção -> caminho de destino. Para "finish": tipo de cadastro. */
+  option_routes: Record<string, string>;
+  options: Array<{ value: string; label: string }>;
 };
+
 
 type FlowDraft = {
   id?: string;
