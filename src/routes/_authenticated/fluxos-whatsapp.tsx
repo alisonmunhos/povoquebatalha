@@ -318,6 +318,13 @@ function FluxosWhatsappPage() {
                       aria-label="Ligar ou desligar o fluxo"
                     />
                     <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setSendTarget({ id: flow.id, nome: flow.nome })}
+                    >
+                      <Send className="mr-2 h-4 w-4" /> Enviar para quem falou nas últimas 24h
+                    </Button>
+                    <Button
                       variant="secondary"
                       size="sm"
                       disabled={startMutation.isPending}
