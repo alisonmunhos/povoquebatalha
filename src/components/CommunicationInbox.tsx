@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  Smile, MessageSquareText, Image as ImageIcon, ChevronDown,
+  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,8 @@ import {
   listCommunicationStaff, searchContactsForNewChat,
   linkConversationToContact, getMyCommunicationBadge,
 } from "@/lib/communication.functions";
+import { listWhatsappFlows, startWhatsappFlowManually } from "@/lib/whatsapp-flows.functions";
+
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -203,6 +205,30 @@ export function CommunicationInbox() {
       (t.title ?? "").toLowerCase().includes(s) || (t.body ?? "").toLowerCase().includes(s),
     );
   }, [tplsQ.data, quickSearch]);
+
+  // Fluxos de cadastro (robô) disponíveis para iniciar dentro da conversa.
+  const flowsFn = useServerFn(listWhatsappFlows);
+  const startFlowFn = useServerFn(startWhatsappFlowManually);
+  const [flowOpen, setFlowOpen] = useState(false);
+  const [flowSearch, setFlowSearch] = useState("");
+  const flowsQ = useQuery({
+    queryKey: ["comm-flows"],
+    queryFn: () => flowsFn(),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const activeFlows = useMemo(() => {
+    const all = (flowsQ.data?.flows ?? []) as {
+      id: string; nome: string; descricao: string | null; active: boolean;
+    }[];
+    const s = flowSearch.trim().toLowerCase();
+    const on = all.filter((f) => f.active);
+    if (!s) return on;
+    return on.filter(
+      (f) => f.nome.toLowerCase().includes(s) || (f.descricao ?? "").toLowerCase().includes(s),
+    );
+  }, [flowsQ.data, flowSearch]);
+
   const staffQ = useQuery({
     queryKey: ["comm-staff"],
     queryFn: () => staffFn(),
@@ -439,6 +465,45 @@ export function CommunicationInbox() {
   const contact = convQ.data?.contact;
   const conv = convQ.data?.conversation;
   const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
+
+  // Janela de 24h da Meta: só dá pra iniciar o robô se a pessoa escreveu recentemente.
+  const lastInboundAt = useMemo(() => {
+    let last = 0;
+    for (const m of convQ.data?.inbound ?? []) {
+      const t = new Date((m as { received_at: string }).received_at).getTime();
+      if (Number.isFinite(t) && t > last) last = t;
+    }
+    return last;
+  }, [convQ.data?.inbound]);
+  const windowOpen = lastInboundAt > 0 && Date.now() - lastInboundAt < 24 * 60 * 60 * 1000;
+  const flowPhone =
+    contact?.phone_e164 ?? contact?.phone_whatsapp_candidate ?? selected?.phone ?? null;
+
+  const startFlowMut = useMutation({
+    mutationFn: (flowId: string) =>
+      startFlowFn({ data: { flow_id: flowId, phone: flowPhone ?? "" } }),
+    onSuccess: () => {
+      toast.success("Fluxo iniciado — o robô já mandou a abertura e a 1ª pergunta.");
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Não foi possível iniciar o fluxo."),
+  });
+
+  const startFlow = (flow: { id: string; nome: string }) => {
+    if (!flowPhone) {
+      toast.error("Esta conversa não tem um número válido para iniciar o fluxo.");
+      return;
+    }
+    const quem = active?.nome ?? displayPhone(flowPhone);
+    const ok = window.confirm(
+      `Iniciar o fluxo “${flow.nome}” com ${quem}? A pessoa recebe agora a mensagem de abertura e a 1ª pergunta, e o robô assume as próximas respostas.`,
+    );
+    if (ok) startFlowMut.mutate(flow.id);
+  };
+
+
 
   // Contato ativo do painel direito: usa a conversa existente OU o contato carregado
   // (caso de "iniciar nova conversa" antes da 1ª mensagem sair).
@@ -1126,6 +1191,69 @@ export function CommunicationInbox() {
                     </PopoverContent>
                   </Popover>
                 )}
+                {(flowsQ.data?.flows ?? []).some((f) => f.active) && (
+                  <Popover open={flowOpen} onOpenChange={(o) => { setFlowOpen(o); if (!o) setFlowSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                        title={
+                          windowOpen
+                            ? "Iniciar fluxo de cadastro (robô)"
+                            : "Só é possível iniciar o fluxo até 24h depois da última mensagem da pessoa"
+                        }
+                        disabled={!canSend || !windowOpen || startFlowMut.isPending}
+                        type="button"
+                      >
+                        {startFlowMut.isPending
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Bot className="h-4 w-4" />}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 p-0" sideOffset={8}>
+                      <div className="p-2 border-b">
+                        <div className="text-xs font-medium mb-1.5">Iniciar fluxo de cadastro</div>
+                        <input
+                          value={flowSearch}
+                          onChange={(e) => setFlowSearch(e.target.value)}
+                          placeholder="Buscar fluxo…"
+                          className="w-full text-sm px-2 py-1.5 rounded-md border bg-background"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-1">
+                        {activeFlows.length === 0 && (
+                          <div className="p-3 text-xs text-muted-foreground">
+                            Nenhum fluxo ligado. Ligue um em “Cadastro pelo WhatsApp”.
+                          </div>
+                        )}
+                        {activeFlows.map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            className="w-full text-left px-2 py-2 rounded-md hover:bg-muted"
+                            onClick={() => {
+                              setFlowOpen(false);
+                              setFlowSearch("");
+                              startFlow(f);
+                            }}
+                          >
+                            <div className="text-sm font-medium truncate">{f.nome}</div>
+                            {f.descricao && (
+                              <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                {f.descricao}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="border-t p-2 text-[11px] text-muted-foreground">
+                        O robô assume a conversa até concluir o cadastro ou a pessoa pedir
+                        atendimento humano.
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
                 <textarea
                   ref={replyRef}
                   value={reply}

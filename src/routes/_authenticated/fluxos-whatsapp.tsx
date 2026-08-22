@@ -288,8 +288,11 @@ function FluxosWhatsappPage() {
         </h1>
         <p className="text-muted-foreground text-sm">
           O robô conduz as perguntas na conversa e salva a pessoa na base com as mesmas regras dos
-          formulários públicos. Só entra em ação quando o gatilho que você escolher acontecer.
+          formulários públicos. Para disparar na mão, use os botões do cartão do fluxo — ou o botão
+          do robô no composer do Inbox, dentro da conversa. Em qualquer caso, só funciona até 24h
+          depois da última mensagem da pessoa.
         </p>
+
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -319,7 +322,7 @@ function FluxosWhatsappPage() {
             const done = sessions.filter((s) => s.status === "completed").length;
             return (
               <Card key={flow.id}>
-                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+                <CardHeader className="space-y-3">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2">
                       {flow.nome}
@@ -334,15 +337,13 @@ function FluxosWhatsappPage() {
                       concluídos
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={flow.active}
-                      onCheckedChange={(v) => toggleMutation.mutate({ id: flow.id, active: v })}
-                      aria-label="Ligar ou desligar o fluxo"
-                    />
+
+                  {/* Ações de envio manual: linha própria que quebra em telas estreitas. */}
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="default"
                       size="sm"
+                      className="w-full sm:w-auto"
                       onClick={() => setSendTarget({ id: flow.id, nome: flow.nome })}
                     >
                       <Send className="mr-2 h-4 w-4" /> Enviar para quem falou nas últimas 24h
@@ -350,11 +351,31 @@ function FluxosWhatsappPage() {
                     <Button
                       variant="secondary"
                       size="sm"
+                      className="w-full sm:w-auto"
                       disabled={startMutation.isPending}
                       onClick={() => askPhoneAndStart(flow.id)}
                     >
-                      Testar no meu WhatsApp
+                      Testar em um número
                     </Button>
+                  </div>
+                  {!flow.active ? (
+                    <p className="text-muted-foreground text-xs">
+                      Este fluxo está desligado: ele não começa sozinho pelos gatilhos, mas o envio
+                      manual acima continua funcionando.
+                    </p>
+                  ) : null}
+
+                  <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                    <div className="mr-2 flex items-center gap-2">
+                      <Switch
+                        checked={flow.active}
+                        onCheckedChange={(v) => toggleMutation.mutate({ id: flow.id, active: v })}
+                        aria-label="Ligar ou desligar o fluxo"
+                      />
+                      <span className="text-muted-foreground text-xs">
+                        {flow.active ? "Gatilhos ligados" : "Gatilhos desligados"}
+                      </span>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -396,6 +417,7 @@ function FluxosWhatsappPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
+
                   <div className="flex flex-wrap gap-2">
                     {(flow.trigger_keywords ?? []).map((k) => (
                       <Badge key={k} variant="outline">
