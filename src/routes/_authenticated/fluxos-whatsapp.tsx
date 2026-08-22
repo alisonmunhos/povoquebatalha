@@ -645,6 +645,17 @@ function FluxosWhatsappPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {sendTarget ? (
+        <FlowSendDialog
+          flowId={sendTarget.id}
+          flowName={sendTarget.nome}
+          open
+          onOpenChange={(v) => {
+            if (!v) setSendTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
