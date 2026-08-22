@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Plus,
   Save,
+  Send,
   Trash2,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -47,6 +48,7 @@ import {
   type FlowSessionStatus,
 } from "@/lib/whatsapp-flow-shared";
 import { getCatalogField } from "@/lib/form-field-catalog";
+import { FlowSendDialog } from "@/components/whatsapp-flows/FlowSendDialog";
 
 export const Route = createFileRoute("/_authenticated/fluxos-whatsapp")({
   head: () => ({
@@ -151,6 +153,7 @@ function FluxosWhatsappPage() {
   const [draft, setDraft] = useState<FlowDraft | null>(null);
   const [keywordText, setKeywordText] = useState("");
   const [adIdsText, setAdIdsText] = useState("");
+  const [sendTarget, setSendTarget] = useState<{ id: string; nome: string } | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: (payload: FlowDraft) => save({ data: payload }),
@@ -317,6 +320,13 @@ function FluxosWhatsappPage() {
                       onCheckedChange={(v) => toggleMutation.mutate({ id: flow.id, active: v })}
                       aria-label="Ligar ou desligar o fluxo"
                     />
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setSendTarget({ id: flow.id, nome: flow.nome })}
+                    >
+                      <Send className="mr-2 h-4 w-4" /> Enviar para quem falou nas últimas 24h
+                    </Button>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -636,6 +646,17 @@ function FluxosWhatsappPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {sendTarget ? (
+        <FlowSendDialog
+          flowId={sendTarget.id}
+          flowName={sendTarget.nome}
+          open
+          onOpenChange={(v) => {
+            if (!v) setSendTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
