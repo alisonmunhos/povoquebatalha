@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Plus,
   Save,
+  Send,
   Trash2,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
