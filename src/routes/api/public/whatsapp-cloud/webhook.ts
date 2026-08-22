@@ -6,6 +6,7 @@
 //   Verify token: valor do secret META_WEBHOOK_VERIFY_TOKEN
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
+import { parseCloudMessage, cloudMediaRef } from "@/lib/inbound-message-parse.server";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -172,16 +173,19 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                     );
                     const file = await downloadCloudMedia(ref.id);
                     if (file) {
-                      mediaMime = ref.mime ?? file.mime ?? "application/octet-stream";
-                      const ext = (mediaMime.split("/")[1] ?? "bin").split(";")[0];
-                      mediaFilename = ref.filename ?? `${ref.tipo}.${ext}`;
+                      const mime = ref.mime ?? file.mime ?? "application/octet-stream";
+                      mediaMime = mime;
+                      const ext = (mime.split("/")[1] ?? "bin").split(";")[0];
+                      const filename = ref.filename ?? `${ref.tipo}.${ext}`;
+                      mediaFilename = filename;
                       mediaSize = file.size;
-                      const path = `${contactId ?? "sem-contato"}/${ref.id}-${mediaFilename}`;
+                      const path = `${contactId ?? "sem-contato"}/${ref.id}-${filename}`;
                       const up = await supabaseAdmin.storage
                         .from("inbox-media")
-                        .upload(path, file.bytes, { contentType: mediaMime, upsert: true });
+                        .upload(path, file.bytes, { contentType: mime, upsert: true });
                       if (!up.error) mediaPath = path;
                     }
+
                   } catch {
                     /* falha de download não bloqueia o registro da mensagem */
                   }
