@@ -196,18 +196,57 @@ function Page() {
       toast.error(e instanceof Error ? e.message : "Não foi possível importar da Meta."),
   });
 
+  const duplicate = useMutation({
+    mutationFn: (id: string) => duplicateFn({ data: { id } }),
+    onSuccess: async (res) => {
+      toast.success(`Cópia criada como rascunho: ${res.name}. Corrija o texto e envie de novo.`);
+      await qc.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Não foi possível duplicar o modelo."),
+  });
+
+  const metaEdit = useMutation({
+    mutationFn: (payload: FormState) =>
+      metaEditFn({
+        data: {
+          id: payload.id!,
+          body_text: payload.body_text,
+          footer_text: payload.footer_text.trim() ? payload.footer_text.trim() : null,
+          example_values: payload.example_values,
+        },
+      }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success("Alteração enviada à Meta — o modelo volta para análise.");
+        setSubmitError(null);
+        setForm(null);
+      } else {
+        setSubmitError(res.error);
+        toast.error("A Meta recusou a edição.");
+      }
+      void qc.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Falha ao editar na Meta.";
+      setSubmitError(msg);
+      toast.error(msg);
+    },
+  });
+
   function startNew() {
     setSubmitError(null);
     setForm({ ...EMPTY, example_values: {} });
   }
 
-  function startEdit(t: WhatsappTemplateRow) {
+  function startEdit(t: WhatsappTemplateRow, metaEditMode = false) {
     setSubmitError(t.rejected_reason ?? null);
     setForm({
       id: t.id,
       name: t.name,
       category: (t.category as FormState["category"]) ?? "UTILITY",
       language: t.language,
+      metaEdit: metaEditMode,
       body_text: t.body_text,
       header_type: (t.header_type as FormState["header_type"]) ?? "NONE",
       header_text: t.header_text ?? "",
@@ -217,6 +256,7 @@ function Page() {
       buttons: [...(t.buttons ?? [])],
     });
   }
+
 
   /** Insere {{variavel}} na posição do cursor do corpo (ou no final). */
   function insertBodyVariable(name: string) {
