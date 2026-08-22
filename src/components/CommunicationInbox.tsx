@@ -466,6 +466,45 @@ export function CommunicationInbox() {
   const conv = convQ.data?.conversation;
   const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
 
+  // Janela de 24h da Meta: só dá pra iniciar o robô se a pessoa escreveu recentemente.
+  const lastInboundAt = useMemo(() => {
+    let last = 0;
+    for (const m of convQ.data?.inbound ?? []) {
+      const t = new Date((m as { received_at: string }).received_at).getTime();
+      if (Number.isFinite(t) && t > last) last = t;
+    }
+    return last;
+  }, [convQ.data?.inbound]);
+  const windowOpen = lastInboundAt > 0 && Date.now() - lastInboundAt < 24 * 60 * 60 * 1000;
+  const flowPhone =
+    contact?.phone_e164 ?? contact?.phone_whatsapp_candidate ?? selected?.phone ?? null;
+
+  const startFlowMut = useMutation({
+    mutationFn: (flowId: string) =>
+      startFlowFn({ data: { flow_id: flowId, phone: flowPhone ?? "" } }),
+    onSuccess: () => {
+      toast.success("Fluxo iniciado — o robô já mandou a abertura e a 1ª pergunta.");
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Não foi possível iniciar o fluxo."),
+  });
+
+  const startFlow = (flow: { id: string; nome: string }) => {
+    if (!flowPhone) {
+      toast.error("Esta conversa não tem um número válido para iniciar o fluxo.");
+      return;
+    }
+    const quem = active?.nome ?? displayPhone(flowPhone);
+    const ok = window.confirm(
+      `Iniciar o fluxo “${flow.nome}” com ${quem}? A pessoa recebe agora a mensagem de abertura e a 1ª pergunta, e o robô assume as próximas respostas.`,
+    );
+    if (ok) startFlowMut.mutate(flow.id);
+  };
+
+
+
   // Contato ativo do painel direito: usa a conversa existente OU o contato carregado
   // (caso de "iniciar nova conversa" antes da 1ª mensagem sair).
   type ActiveShape = {
