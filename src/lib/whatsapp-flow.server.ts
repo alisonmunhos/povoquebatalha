@@ -165,7 +165,12 @@ function optionsWithNumbers(options: FormCatalogOption[]): string {
 function buildPrompt(
   step: FlowStep,
   session: SessionRow,
-): { body: string; buttons?: Array<{ id: string; title: string }>; listRows?: Array<{ id: string; title: string }>; listButtonText?: string } {
+): {
+  body: string;
+  buttons?: Array<{ id: string; title: string }>;
+  listRows?: Array<{ id: string; title: string; description?: string }>;
+  listButtonText?: string;
+} {
   if (step.response_kind === "yes_no") {
     return {
       body: step.prompt,
