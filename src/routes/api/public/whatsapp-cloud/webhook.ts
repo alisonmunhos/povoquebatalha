@@ -139,8 +139,8 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
 
               for (const message of asArray(value.messages)) {
                 const from = safeStr(message.from);
-                const tipo = safeStr(message.type) ?? "text";
-                const text = safeStr(asRecord(message.text)?.body);
+                const parsed = parseCloudMessage(message);
+                const text = parsed.tipo === "text" ? parsed.conteudo : null;
 
                 // Vincula ao contato apenas se ele já existir (nunca cria).
                 let contactId: string | null = null;
@@ -158,19 +158,56 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                   }
                 }
 
+                // Mídia: a Cloud API entrega só um media ID — baixamos o arquivo
+                // e guardamos no bucket privado `inbox-media`.
+                let mediaPath: string | null = null;
+                let mediaMime: string | null = null;
+                let mediaFilename: string | null = null;
+                let mediaSize: number | null = null;
+                const ref = cloudMediaRef(message);
+                if (ref) {
+                  try {
+                    const { downloadCloudMedia } = await import(
+                      "@/integrations/whatsapp-cloud/client.server"
+                    );
+                    const file = await downloadCloudMedia(ref.id);
+                    if (file) {
+                      mediaMime = ref.mime ?? file.mime ?? "application/octet-stream";
+                      const ext = (mediaMime.split("/")[1] ?? "bin").split(";")[0];
+                      mediaFilename = ref.filename ?? `${ref.tipo}.${ext}`;
+                      mediaSize = file.size;
+                      const path = `${contactId ?? "sem-contato"}/${ref.id}-${mediaFilename}`;
+                      const up = await supabaseAdmin.storage
+                        .from("inbox-media")
+                        .upload(path, file.bytes, { contentType: mediaMime, upsert: true });
+                      if (!up.error) mediaPath = path;
+                    }
+                  } catch {
+                    /* falha de download não bloqueia o registro da mensagem */
+                  }
+                }
+
                 await supabaseAdmin.from("inbound_messages").insert({
                   from_phone: from,
                   from_name: contactName,
-                  conteudo: text,
-                  tipo,
+                  conteudo: parsed.conteudo,
+                  tipo: parsed.tipo,
                   payload: message as never,
                   contact_id: contactId,
-                  // Mídia da Cloud API vem como media ID e exige download
-                  // autenticado — fica para uma etapa posterior.
                   media_url: null,
-                  media_mime: null,
-                  media_filename: null,
-                  media_size: null,
+                  media_path: mediaPath,
+                  media_mime: mediaMime,
+                  media_filename: mediaFilename,
+                  media_size: mediaSize,
+                  wa_message_id: parsed.wa_message_id,
+                  reply_to_wa_id: parsed.reply_to_wa_id,
+                  reaction_emoji: parsed.reaction_emoji,
+                  reaction_target_wa_id: parsed.reaction_target_wa_id,
+                  latitude: parsed.latitude,
+                  longitude: parsed.longitude,
+                  location_name: parsed.location_name,
+                  shared_contacts: (parsed.shared_contacts ?? null) as never,
+                  is_system_event: parsed.is_system_event,
                 });
 
                 if (text && contactId) {
@@ -188,6 +225,7 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                   }
                 }
               }
+
 
               // ---- Status de mensagens enviadas ----
               for (const status of asArray(value.statuses)) {
