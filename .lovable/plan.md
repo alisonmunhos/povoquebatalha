@@ -82,8 +82,28 @@ Comportamentos que atrapalham:
 - Alertas de consentimento e opt-out ficam ancorados no composer, onde a decisão acontece.
 - Nada de atribuição, status, notas, tags, campanhas ou opt-out muda de comportamento.
 
+### 11. Foto de perfil do WhatsApp (resposta direta)
+
+Não é possível puxar a foto de perfil dos contatos. Verifiquei os dois webhooks: a API oficial da Meta entrega apenas o **nome** do perfil (`contacts[0].profile.name`, já usado hoje) e não existe endpoint na Cloud API para baixar a foto de perfil de quem escreve — a Meta só expõe a foto do **seu próprio** número de negócio. A Z-API entrega nome (`senderName`/`notifyName`), não foto.
+
+O que faço no lugar disso, para a lista deixar de ser "cinza":
+- Avatar com iniciais e cor determinística por contato (igual ao que já uso no chip de responsável).
+- Usar o nome do perfil do WhatsApp quando o contato ainda não tem nome no CRM (hoje esse dado chega e é descartado na exibição).
+- Campo opcional de foto do contato no CRM (upload manual), exibido no avatar quando existir. Isso exige uma coluna nova em `contacts` — só faço se você quiser; sem isso, ficam as iniciais.
+
+### 12. Padrões aproveitados dos prints do WhatsApp Web
+
+- Prévia da conversa com ícone de tipo antes do texto (🎥 ligação de vídeo, 🎤 áudio com duração, 📄 documento, 📷 foto) e tiquinho de status quando a última mensagem é sua — exatamente o que aparece nas linhas "Aline Comercial" e "Rafael Alicerce".
+- Chips de filtro no topo da lista, com contagem ao lado do rótulo (padrão "Não lidas 19"), no lugar dos chips atuais mais pesados.
+- Mensagens longas truncadas com "Ler mais" em vez de bolha gigante.
+- Menu único de anexo (botão "+") agrupando Documento / Foto e vídeo / Contato, em vez de vários ícones soltos no composer — dentro do que a API já permite enviar.
+- Cabeçalho da conversa mais limpo, com nome e ações à direita; ações de CRM viram chips discretos.
+
+Observação: o HTML que você mencionou não chegou junto da mensagem (só as duas imagens). Se quiser que eu use marcação/CSS específica como referência, cole o arquivo e eu incorporo antes de construir. De todo modo, nada de componente proprietário é copiado — só os padrões de leitura.
+
 ## Fora do escopo
-Astryx fica intocado; nenhum Inbox paralelo; nenhuma coluna nova de banco (apenas leitura do que já existe); nenhum recurso novo do WhatsApp que a API não entregue hoje (gravar áudio, enviar figurinha, reagir pelo app).
+Astryx fica intocado; nenhum Inbox paralelo; nenhuma coluna nova de banco (apenas leitura do que já existe); nenhum recurso novo do WhatsApp que a API não entregue hoje (gravar áudio, enviar figurinha, reagir pelo app, foto de perfil de terceiros).
+
 
 ## Detalhes técnicos
 - `src/components/CommunicationInbox.tsx` passa a orquestrar componentes em `src/components/inbox/`; assinaturas de `useServerFn` e queries mantidas.
