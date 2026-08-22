@@ -694,10 +694,17 @@ export function CommunicationInbox() {
               {timeline.length === 0 && !convQ.isLoading && (
                 <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
               )}
-              {timeline.map((m) => (
+              {timeline.map((m) => m.kind === "system" ? (
+                <div key={m.id} className="flex justify-center">
+                  <div className="rounded-md bg-background/70 border px-3 py-1 text-[11px] text-muted-foreground text-center max-w-[85%]">
+                    {m.text} · {fmtDate(m.at)}
+                  </div>
+                </div>
+              ) : (
                 <div key={m.id} className={`flex ${m.kind === "out" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
+                  <div className={`relative max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
                     m.kind === "out" ? "wa-bubble-out rounded-br-none" : "wa-bubble-in border rounded-bl-none"
+
                   }`}>
 
                     {m.header_type === "TEXT" && m.header_text && (
