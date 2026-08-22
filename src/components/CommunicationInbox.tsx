@@ -1191,6 +1191,69 @@ export function CommunicationInbox() {
                     </PopoverContent>
                   </Popover>
                 )}
+                {(flowsQ.data?.flows ?? []).some((f) => f.active) && (
+                  <Popover open={flowOpen} onOpenChange={(o) => { setFlowOpen(o); if (!o) setFlowSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                        title={
+                          windowOpen
+                            ? "Iniciar fluxo de cadastro (robô)"
+                            : "Só é possível iniciar o fluxo até 24h depois da última mensagem da pessoa"
+                        }
+                        disabled={!canSend || !windowOpen || startFlowMut.isPending}
+                        type="button"
+                      >
+                        {startFlowMut.isPending
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Bot className="h-4 w-4" />}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 p-0" sideOffset={8}>
+                      <div className="p-2 border-b">
+                        <div className="text-xs font-medium mb-1.5">Iniciar fluxo de cadastro</div>
+                        <input
+                          value={flowSearch}
+                          onChange={(e) => setFlowSearch(e.target.value)}
+                          placeholder="Buscar fluxo…"
+                          className="w-full text-sm px-2 py-1.5 rounded-md border bg-background"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-1">
+                        {activeFlows.length === 0 && (
+                          <div className="p-3 text-xs text-muted-foreground">
+                            Nenhum fluxo ligado. Ligue um em “Cadastro pelo WhatsApp”.
+                          </div>
+                        )}
+                        {activeFlows.map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            className="w-full text-left px-2 py-2 rounded-md hover:bg-muted"
+                            onClick={() => {
+                              setFlowOpen(false);
+                              setFlowSearch("");
+                              startFlow(f);
+                            }}
+                          >
+                            <div className="text-sm font-medium truncate">{f.nome}</div>
+                            {f.descricao && (
+                              <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                {f.descricao}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="border-t p-2 text-[11px] text-muted-foreground">
+                        O robô assume a conversa até concluir o cadastro ou a pessoa pedir
+                        atendimento humano.
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
                 <textarea
                   ref={replyRef}
                   value={reply}
