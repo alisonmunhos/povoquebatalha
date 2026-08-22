@@ -205,6 +205,30 @@ export function CommunicationInbox() {
       (t.title ?? "").toLowerCase().includes(s) || (t.body ?? "").toLowerCase().includes(s),
     );
   }, [tplsQ.data, quickSearch]);
+
+  // Fluxos de cadastro (robô) disponíveis para iniciar dentro da conversa.
+  const flowsFn = useServerFn(listWhatsappFlows);
+  const startFlowFn = useServerFn(startWhatsappFlowManually);
+  const [flowOpen, setFlowOpen] = useState(false);
+  const [flowSearch, setFlowSearch] = useState("");
+  const flowsQ = useQuery({
+    queryKey: ["comm-flows"],
+    queryFn: () => flowsFn(),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const activeFlows = useMemo(() => {
+    const all = (flowsQ.data?.flows ?? []) as {
+      id: string; nome: string; descricao: string | null; active: boolean;
+    }[];
+    const s = flowSearch.trim().toLowerCase();
+    const on = all.filter((f) => f.active);
+    if (!s) return on;
+    return on.filter(
+      (f) => f.nome.toLowerCase().includes(s) || (f.descricao ?? "").toLowerCase().includes(s),
+    );
+  }, [flowsQ.data, flowSearch]);
+
   const staffQ = useQuery({
     queryKey: ["comm-staff"],
     queryFn: () => staffFn(),
