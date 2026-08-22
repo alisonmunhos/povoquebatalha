@@ -1,11 +1,11 @@
 // Tela de configuração dos Fluxos de cadastro pelo chat do WhatsApp.
+// Construtor em duas colunas: caminhos da conversa + prévia no WhatsApp.
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowDown,
-  ArrowUp,
+  AlertTriangle,
   Bot,
   Loader2,
   MessageSquarePlus,
@@ -30,7 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   deleteWhatsappFlow,
   listWhatsappFlows,
@@ -41,14 +40,19 @@ import {
 import {
   DEFAULT_FLOW_STEPS,
   FLOW_AVAILABLE_FIELDS,
-  FLOW_RESPONSE_KIND_LABELS,
+  FLOW_DEFAULT_PATH,
   FLOW_SESSION_STATUS_LABELS,
+  groupStepsByPath,
+  pathLabel,
   suggestedResponseKind,
-  type FlowResponseKind,
+  validateFlowDraft,
   type FlowSessionStatus,
+  type FlowStepLike,
 } from "@/lib/whatsapp-flow-shared";
-import { getCatalogField } from "@/lib/form-field-catalog";
 import { FlowSendDialog } from "@/components/whatsapp-flows/FlowSendDialog";
+import { FlowChatPreview } from "@/components/whatsapp-flows/FlowChatPreview";
+import { FlowPathList } from "@/components/whatsapp-flows/FlowPathList";
+import { FlowStepEditor } from "@/components/whatsapp-flows/FlowStepEditor";
 
 export const Route = createFileRoute("/_authenticated/fluxos-whatsapp")({
   head: () => ({
@@ -71,21 +75,7 @@ export const Route = createFileRoute("/_authenticated/fluxos-whatsapp")({
   component: FluxosWhatsappPage,
 });
 
-type StepDraft = {
-  id?: string;
-  catalog_field_key: string;
-  prompt: string;
-  required: boolean;
-  response_kind: FlowResponseKind;
-  /** question = pergunta normal; menu = ramificação; handoff = atendimento humano; finish = encerra e salva. */
-  kind: "question" | "menu" | "handoff" | "finish";
-  /** Caminho (ramificação) a que a etapa pertence. */
-  path_key: string;
-  /** Para menus: opção -> caminho de destino. Para "finish": tipo de cadastro. */
-  option_routes: Record<string, string>;
-  options: Array<{ value: string; label: string }>;
-};
-
+type StepDraft = FlowStepLike;
 
 type FlowDraft = {
   id?: string;
@@ -103,7 +93,7 @@ type FlowDraft = {
   steps: StepDraft[];
 };
 
-function emptyDraft(): FlowDraft {
+function baseDraft(steps: StepDraft[]): FlowDraft {
   return {
     nome: "FAÇA PARTE DA NOSSA CAMPANHA!",
     descricao: null,
@@ -117,17 +107,39 @@ function emptyDraft(): FlowDraft {
     trigger_on_ad: true,
     trigger_ad_ids: [],
     trigger_on_first_contact: false,
-    steps: DEFAULT_FLOW_STEPS.map((s) => ({
+    steps,
+  };
+}
+
+function templateDraft(): FlowDraft {
+  return baseDraft(
+    DEFAULT_FLOW_STEPS.map((s) => ({
       catalog_field_key: s.catalog_field_key,
       prompt: s.prompt,
       required: s.required,
       response_kind: suggestedResponseKind(s.catalog_field_key),
       kind: s.kind ?? "question",
-      path_key: s.path_key ?? "principal",
+      path_key: s.path_key ?? FLOW_DEFAULT_PATH,
       option_routes: s.option_routes ?? {},
       options: s.options ?? [],
     })),
-  };
+  );
+}
+
+function blankDraft(): FlowDraft {
+  const field = FLOW_AVAILABLE_FIELDS.find((f) => f.key === "nome") ?? FLOW_AVAILABLE_FIELDS[0]!;
+  return baseDraft([
+    {
+      catalog_field_key: field.key,
+      prompt: "Pra começar, qual é o seu nome completo?",
+      required: true,
+      response_kind: suggestedResponseKind(field.key),
+      kind: "question",
+      path_key: FLOW_DEFAULT_PATH,
+      option_routes: {},
+      options: [],
+    },
+  ]);
 }
 
 function FluxosWhatsappPage() {
@@ -166,6 +178,7 @@ function FluxosWhatsappPage() {
   const [keywordText, setKeywordText] = useState("");
   const [adIdsText, setAdIdsText] = useState("");
   const [sendTarget, setSendTarget] = useState<{ id: string; nome: string } | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string>(FLOW_DEFAULT_PATH);
 
   const saveMutation = useMutation({
     mutationFn: (payload: FlowDraft) => save({ data: payload }),
@@ -201,9 +214,9 @@ function FluxosWhatsappPage() {
         catalog_field_key: s.catalog_field_key,
         prompt: s.prompt,
         required: s.required,
-        response_kind: s.response_kind as FlowResponseKind,
+        response_kind: s.response_kind as StepDraft["response_kind"],
         kind: (s.kind ?? "question") as StepDraft["kind"],
-        path_key: s.path_key ?? "principal",
+        path_key: s.path_key ?? FLOW_DEFAULT_PATH,
         option_routes: (s.option_routes ?? {}) as Record<string, string>,
         options: (s.options ?? []) as Array<{ value: string; label: string }>,
       });
@@ -216,60 +229,154 @@ function FluxosWhatsappPage() {
     setDraft(draftValue);
     setKeywordText(draftValue.trigger_keywords.join(", "));
     setAdIdsText(draftValue.trigger_ad_ids.join(", "));
+    setSelectedPath(FLOW_DEFAULT_PATH);
   };
 
-  const updateStep = (index: number, patch: Partial<StepDraft>) => {
+  const groups = useMemo(
+    () => (draft ? groupStepsByPath(draft.steps) : []),
+    [draft],
+  );
+  const currentGroup = groups.find((g) => g.key === selectedPath) ?? groups[0];
+  const validation = useMemo(
+    () => (draft ? validateFlowDraft(draft.steps) : { errors: [], warnings: [] }),
+    [draft],
+  );
+
+  const updateStepAt = (globalIndex: number, patch: Partial<StepDraft>) => {
     setDraft((d) =>
-      d ? { ...d, steps: d.steps.map((s, i) => (i === index ? { ...s, ...patch } : s)) } : d,
+      d ? { ...d, steps: d.steps.map((s, i) => (i === globalIndex ? { ...s, ...patch } : s)) } : d,
     );
   };
 
-  const moveStep = (index: number, dir: -1 | 1) => {
+  const removeStepAt = (globalIndex: number) => {
+    setDraft((d) => (d ? { ...d, steps: d.steps.filter((_, i) => i !== globalIndex) } : d));
+  };
+
+  /** Move dentro do caminho: troca com o vizinho do mesmo caminho. */
+  const moveWithinPath = (positionInPath: number, dir: -1 | 1) => {
+    if (!currentGroup) return;
+    const from = currentGroup.indexes[positionInPath];
+    const to = currentGroup.indexes[positionInPath + dir];
+    if (from == null || to == null) return;
     setDraft((d) => {
       if (!d) return d;
-      const target = index + dir;
-      if (target < 0 || target >= d.steps.length) return d;
       const steps = [...d.steps];
-      const [item] = steps.splice(index, 1);
-      steps.splice(target, 0, item!);
+      const a = steps[from]!;
+      steps[from] = steps[to]!;
+      steps[to] = a;
       return { ...d, steps };
     });
   };
 
-  const addStep = () => {
+  const addStepToPath = () => {
     setDraft((d) => {
       if (!d) return d;
-      const used = new Set(d.steps.map((s) => s.catalog_field_key));
+      const used = new Set(
+        d.steps.filter((s) => s.path_key === selectedPath).map((s) => s.catalog_field_key),
+      );
       const field = FLOW_AVAILABLE_FIELDS.find((f) => !used.has(f.key)) ?? FLOW_AVAILABLE_FIELDS[0]!;
-      return {
-        ...d,
-        steps: [
-          ...d.steps,
-          {
-            catalog_field_key: field.key,
-            prompt: field.defaultLabel,
-            required: Boolean(field.alwaysRequired),
-            response_kind: suggestedResponseKind(field.key),
-            kind: "question" as const,
-            path_key: "principal",
-            option_routes: {},
-            options: [],
-          },
+      const step: StepDraft = {
+        catalog_field_key: field.key,
+        prompt: field.defaultLabel,
+        required: Boolean(field.alwaysRequired),
+        response_kind: suggestedResponseKind(field.key),
+        kind: "question",
+        path_key: selectedPath,
+        option_routes: {},
+        options: [],
+      };
+      // Insere logo depois da última etapa deste caminho, para manter a leitura.
+      const lastIndex = d.steps.reduce(
+        (acc, s, i) => (s.path_key === selectedPath ? i : acc),
+        -1,
+      );
+      const steps = [...d.steps];
+      steps.splice(lastIndex + 1, 0, step);
+      return { ...d, steps };
+    });
+  };
+
+  const addMenuToPath = () => {
+    setDraft((d) => {
+      if (!d) return d;
+      const step: StepDraft = {
+        catalog_field_key: "__menu__",
+        prompt: "Como podemos te ajudar hoje?",
+        required: true,
+        response_kind: "single_choice",
+        kind: "menu",
+        path_key: selectedPath,
+        option_routes: {},
+        options: [
+          { value: "opcao_1", label: "Primeira opção" },
+          { value: "opcao_2", label: "Segunda opção" },
         ],
       };
+      const lastIndex = d.steps.reduce(
+        (acc, s, i) => (s.path_key === selectedPath ? i : acc),
+        -1,
+      );
+      const steps = [...d.steps];
+      steps.splice(lastIndex + 1, 0, step);
+      return { ...d, steps };
     });
+  };
+
+  /** Cria um caminho novo pedindo o nome; devolve a chave criada. */
+  const createPath = (): string | null => {
+    const name = window.prompt("Nome do novo caminho (ex.: Só informações)", "");
+    const key = name?.trim();
+    if (!key) return null;
+    if (groups.some((g) => g.key === key)) {
+      toast.error("Já existe um caminho com esse nome.");
+      return null;
+    }
+    setDraft((d) => {
+      if (!d) return d;
+      const step: StepDraft = {
+        catalog_field_key: "__menu__",
+        prompt: "Prontinho! Vou salvar seu cadastro. 💜",
+        required: false,
+        response_kind: "text",
+        kind: "finish",
+        path_key: key,
+        option_routes: { source_form_type: "cadastro_completo" },
+        options: [],
+      };
+      return { ...d, steps: [...d.steps, step] };
+    });
+    return key;
+  };
+
+  const renamePath = (key: string) => {
+    const name = window.prompt("Novo nome do caminho", pathLabel(key));
+    const next = name?.trim();
+    if (!next || next === key) return;
+    setDraft((d) => {
+      if (!d) return d;
+      const steps = d.steps.map((s) => ({
+        ...s,
+        path_key: s.path_key === key ? next : s.path_key,
+        option_routes: Object.fromEntries(
+          Object.entries(s.option_routes ?? {}).map(([k, v]) => [k, v === key ? next : v]),
+        ),
+      }));
+      return { ...d, steps };
+    });
+    setSelectedPath((cur) => (cur === key ? next : cur));
   };
 
   const submit = () => {
     if (!draft) return;
-    if (!draft.steps.length) {
-      toast.error("Adicione pelo menos uma pergunta ao roteiro.");
-      return;
-    }
     const keywords = keywordText.split(",").map((k) => k.trim()).filter(Boolean);
     const adIds = adIdsText.split(",").map((k) => k.trim()).filter(Boolean);
     if (!keywords.length && !draft.trigger_on_ad && !draft.trigger_on_first_contact) {
       toast.error("Escolha ao menos um gatilho: palavra-chave, anúncio ou primeiro contato.");
+      return;
+    }
+    const { errors } = validateFlowDraft(draft.steps);
+    if (errors.length) {
+      toast.error(errors[0]!);
       return;
     }
     saveMutation.mutate({
@@ -282,22 +389,33 @@ function FluxosWhatsappPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <header className="space-y-1">
+      <header className="space-y-2">
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Bot className="h-6 w-6" /> Cadastro pelo chat do WhatsApp
         </h1>
-        <p className="text-muted-foreground text-sm">
-          O robô conduz as perguntas na conversa e salva a pessoa na base com as mesmas regras dos
-          formulários públicos. Para disparar na mão, use os botões do cartão do fluxo — ou o botão
-          do robô no composer do Inbox, dentro da conversa. Em qualquer caso, só funciona até 24h
-          depois da última mensagem da pessoa.
-        </p>
-
+        <div className="text-muted-foreground space-y-1 text-sm">
+          <p>
+            <strong>1. Gatilho:</strong> algo faz o robô começar a conversar (palavra-chave, clique
+            em anúncio, primeira mensagem ou envio manual).
+          </p>
+          <p>
+            <strong>2. Caminhos:</strong> a conversa segue por trilhas. Um menu de opções manda a
+            pessoa para o caminho certo — é a mesma lógica das seções e ramificações do construtor de
+            formulário.
+          </p>
+          <p>
+            <strong>3. Fim:</strong> a pessoa é salva na base igual a quem preenche o link público, ou
+            a conversa vai para atendimento humano.
+          </p>
+        </div>
       </header>
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => openEditor(emptyDraft())}>
-          <MessageSquarePlus className="mr-2 h-4 w-4" /> Novo fluxo (roteiro pronto)
+        <Button onClick={() => openEditor(templateDraft())}>
+          <MessageSquarePlus className="mr-2 h-4 w-4" /> Começar do modelo pronto
+        </Button>
+        <Button variant="outline" onClick={() => openEditor(blankDraft())}>
+          <Plus className="mr-2 h-4 w-4" /> Começar do zero
         </Button>
       </div>
 
@@ -308,15 +426,16 @@ function FluxosWhatsappPage() {
       ) : (data?.flows ?? []).length === 0 ? (
         <Card>
           <CardContent className="text-muted-foreground p-6 text-sm">
-            Nenhum fluxo criado ainda. Clique em “Novo fluxo” — ele já vem com o roteiro completo
-            (nome, nome social, WhatsApp, endereço por CEP, formas de ajuda, Coletivo Alicerce e os
-            consentimentos) e você ajusta o que quiser.
+            Nenhum fluxo criado ainda. O modelo pronto já vem com menu de entrada e três caminhos
+            (apoiar a campanha, só receber informações e falar com alguém) — você ajusta o que
+            quiser.
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4">
           {(data?.flows ?? []).map((flow) => {
             const steps = stepsByFlow.get(flow.id) ?? [];
+            const flowGroups = groupStepsByPath(steps).filter((g) => g.steps.length);
             const sessions = (data?.sessions ?? []).filter((s) => s.flow_id === flow.id);
             const running = sessions.filter((s) => s.status === "running" || s.status === "opening").length;
             const done = sessions.filter((s) => s.status === "completed").length;
@@ -333,8 +452,9 @@ function FluxosWhatsappPage() {
                       )}
                     </CardTitle>
                     <CardDescription>
-                      {steps.length} perguntas · {running} conversas em andamento · {done} cadastros
-                      concluídos
+                      {steps.length} etapas em {flowGroups.length} caminho
+                      {flowGroups.length === 1 ? "" : "s"} · {running} conversas em andamento ·{" "}
+                      {done} cadastros concluídos
                     </CardDescription>
                   </div>
 
@@ -397,7 +517,7 @@ function FluxosWhatsappPage() {
                         })
                       }
                     >
-                      Editar
+                      Editar roteiro
                     </Button>
                     <Button
                       variant="ghost"
@@ -417,7 +537,6 @@ function FluxosWhatsappPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-
                   <div className="flex flex-wrap gap-2">
                     {(flow.trigger_keywords ?? []).map((k) => (
                       <Badge key={k} variant="outline">
@@ -429,6 +548,15 @@ function FluxosWhatsappPage() {
                       <Badge variant="outline">primeira mensagem</Badge>
                     ) : null}
                   </div>
+                  {flowGroups.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {flowGroups.map((g) => (
+                        <Badge key={g.key} variant="secondary">
+                          {pathLabel(g.key)} · {g.steps.length}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
                   {sessions.length ? (
                     <div className="space-y-1">
                       <p className="font-medium">Últimas conversas</p>
@@ -437,7 +565,7 @@ function FluxosWhatsappPage() {
                           <li key={s.id}>
                             {s.phone} ·{" "}
                             {FLOW_SESSION_STATUS_LABELS[s.status as FlowSessionStatus] ?? s.status} ·
-                            pergunta {s.current_step_index + 1}
+                            etapa {s.current_step_index + 1}
                           </li>
                         ))}
                       </ul>
@@ -451,12 +579,12 @@ function FluxosWhatsappPage() {
       )}
 
       <Dialog open={draft != null} onOpenChange={(open) => (open ? null : setDraft(null))}>
-        <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
+        <DialogContent className="max-h-[92dvh] max-w-6xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{draft?.id ? "Editar fluxo" : "Novo fluxo de cadastro"}</DialogTitle>
             <DialogDescription>
-              As respostas caem direto na ficha do contato. Perguntas obrigatórias travam o cadastro
-              até serem respondidas — use com cuidado.
+              Escolha o caminho à esquerda, monte as etapas no meio e veja como fica na conversa à
+              direita.
             </DialogDescription>
           </DialogHeader>
 
@@ -487,23 +615,25 @@ function FluxosWhatsappPage() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="flow-abertura">Mensagem de abertura</Label>
-                <Textarea
-                  id="flow-abertura"
-                  rows={3}
-                  value={draft.opening_message}
-                  onChange={(e) => setDraft({ ...draft, opening_message: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="flow-fim">Mensagem final</Label>
-                <Textarea
-                  id="flow-fim"
-                  rows={2}
-                  value={draft.closing_message}
-                  onChange={(e) => setDraft({ ...draft, closing_message: e.target.value })}
-                />
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="flow-abertura">Mensagem de abertura</Label>
+                  <Textarea
+                    id="flow-abertura"
+                    rows={3}
+                    value={draft.opening_message}
+                    onChange={(e) => setDraft({ ...draft, opening_message: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="flow-fim">Mensagem final</Label>
+                  <Textarea
+                    id="flow-fim"
+                    rows={3}
+                    value={draft.closing_message}
+                    onChange={(e) => setDraft({ ...draft, closing_message: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div className="space-y-3 rounded-lg border-2 p-3">
@@ -569,121 +699,77 @@ function FluxosWhatsappPage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold">Roteiro de perguntas ({draft.steps.length})</p>
-                  <Button variant="outline" size="sm" onClick={addStep}>
-                    <Plus className="mr-2 h-4 w-4" /> Adicionar pergunta
-                  </Button>
+              {validation.errors.length || validation.warnings.length ? (
+                <div className="space-y-1 rounded-lg border-2 border-amber-500/60 bg-amber-500/10 p-3 text-sm">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <AlertTriangle className="h-4 w-4" /> Revise o roteiro
+                  </p>
+                  <ul className="space-y-0.5 text-xs">
+                    {validation.errors.map((e) => (
+                      <li key={e}>• {e}</li>
+                    ))}
+                    {validation.warnings.map((w) => (
+                      <li key={w} className="text-muted-foreground">
+                        • {w}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_minmax(0,2fr)_minmax(260px,1.2fr)]">
+                <FlowPathList
+                  groups={groups}
+                  selected={currentGroup?.key ?? FLOW_DEFAULT_PATH}
+                  onSelect={setSelectedPath}
+                  onRename={renamePath}
+                  onCreate={() => {
+                    const key = createPath();
+                    if (key) setSelectedPath(key);
+                  }}
+                />
+
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold">
+                      Etapas de “{pathLabel(currentGroup?.key ?? FLOW_DEFAULT_PATH)}”
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={addStepToPath}>
+                        <Plus className="mr-1 h-3 w-3" /> Pergunta
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={addMenuToPath}>
+                        <Plus className="mr-1 h-3 w-3" /> Menu
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(currentGroup?.steps ?? []).length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      Este caminho está vazio. Adicione uma pergunta ou um menu de opções.
+                    </p>
+                  ) : null}
+
+                  {(currentGroup?.steps ?? []).map((step, position) => (
+                    <FlowStepEditor
+                      key={step.id ?? `${step.catalog_field_key}-${position}`}
+                      step={step}
+                      position={position}
+                      total={currentGroup!.steps.length}
+                      paths={groups.map((g) => g.key)}
+                      onChange={(patch) => updateStepAt(currentGroup!.indexes[position]!, patch)}
+                      onRemove={() => removeStepAt(currentGroup!.indexes[position]!)}
+                      onMove={(dir) => moveWithinPath(position, dir)}
+                      onCreatePath={createPath}
+                    />
+                  ))}
                 </div>
 
-                {draft.steps.map((step, index) => {
-                  const field = getCatalogField(step.catalog_field_key);
-                  return (
-                    <div key={`${step.catalog_field_key}-${index}`} className="space-y-2 rounded-lg border-2 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                          {index + 1}. {field?.defaultLabel ?? step.catalog_field_key}
-                          {step.kind !== "question" ? (
-                            <span className="rounded-full border-2 px-2 py-0.5 text-[11px] font-bold uppercase">
-                              {step.kind === "menu"
-                                ? "Menu de opções"
-                                : step.kind === "handoff"
-                                  ? "Falar com a equipe"
-                                  : "Encerra e salva"}
-                            </span>
-                          ) : null}
-                          {step.path_key !== "principal" ? (
-                            <span className="text-muted-foreground text-[11px] font-medium">
-                              caminho: {step.path_key}
-                            </span>
-                          ) : null}
-                        </span>
-
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => moveStep(index, -1)} aria-label="Subir">
-                            <ArrowUp className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => moveStep(index, 1)} aria-label="Descer">
-                            <ArrowDown className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Remover pergunta"
-                            onClick={() =>
-                              setDraft({ ...draft, steps: draft.steps.filter((_, i) => i !== index) })
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <Label>Campo da ficha</Label>
-                          <Select
-                            value={step.catalog_field_key}
-                            onValueChange={(v) =>
-                              updateStep(index, {
-                                catalog_field_key: v,
-                                response_kind: suggestedResponseKind(v),
-                                prompt: getCatalogField(v)?.defaultLabel ?? step.prompt,
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FLOW_AVAILABLE_FIELDS.map((f) => (
-                                <SelectItem key={f.key} value={f.key}>
-                                  {f.defaultLabel}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Tipo de resposta</Label>
-                          <Select
-                            value={step.response_kind}
-                            onValueChange={(v) => updateStep(index, { response_kind: v as FlowResponseKind })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(FLOW_RESPONSE_KIND_LABELS).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label>Pergunta que a pessoa vai ler</Label>
-                        <Textarea
-                          rows={2}
-                          value={step.prompt}
-                          onChange={(e) => updateStep(index, { prompt: e.target.value })}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm">Obrigatória</span>
-                        <Switch
-                          checked={step.required}
-                          onCheckedChange={(v) => updateStep(index, { required: v })}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                <FlowChatPreview
+                  openingMessage={draft.opening_message}
+                  showOpening={(currentGroup?.key ?? FLOW_DEFAULT_PATH) === FLOW_DEFAULT_PATH}
+                  steps={currentGroup?.steps ?? []}
+                />
               </div>
             </div>
           ) : null}
