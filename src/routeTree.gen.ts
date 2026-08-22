@@ -39,6 +39,7 @@ import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/m
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedImportarRouteImport } from './routes/_authenticated/importar'
+import { Route as AuthenticatedFluxosWhatsappRouteImport } from './routes/_authenticated/fluxos-whatsapp'
 import { Route as AuthenticatedEventosRouteImport } from './routes/_authenticated/eventos'
 import { Route as AuthenticatedDuplicidadesRouteImport } from './routes/_authenticated/duplicidades'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -246,6 +247,12 @@ const AuthenticatedImportarRoute = AuthenticatedImportarRouteImport.update({
   path: '/importar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFluxosWhatsappRoute =
+  AuthenticatedFluxosWhatsappRouteImport.update({
+    id: '/fluxos-whatsapp',
+    path: '/fluxos-whatsapp',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedEventosRoute = AuthenticatedEventosRouteImport.update({
   id: '/eventos',
   path: '/eventos',
@@ -573,6 +580,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/eventos': typeof AuthenticatedEventosRoute
+  '/fluxos-whatsapp': typeof AuthenticatedFluxosWhatsappRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
@@ -657,6 +665,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/eventos': typeof AuthenticatedEventosRoute
+  '/fluxos-whatsapp': typeof AuthenticatedFluxosWhatsappRoute
   '/importar': typeof AuthenticatedImportarRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/links': typeof AuthenticatedLinksRoute
@@ -744,6 +753,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/duplicidades': typeof AuthenticatedDuplicidadesRoute
   '/_authenticated/eventos': typeof AuthenticatedEventosRoute
+  '/_authenticated/fluxos-whatsapp': typeof AuthenticatedFluxosWhatsappRoute
   '/_authenticated/importar': typeof AuthenticatedImportarRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
@@ -831,6 +841,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/duplicidades'
     | '/eventos'
+    | '/fluxos-whatsapp'
     | '/importar'
     | '/inbox'
     | '/links'
@@ -915,6 +926,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/duplicidades'
     | '/eventos'
+    | '/fluxos-whatsapp'
     | '/importar'
     | '/inbox'
     | '/links'
@@ -1001,6 +1013,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/duplicidades'
     | '/_authenticated/eventos'
+    | '/_authenticated/fluxos-whatsapp'
     | '/_authenticated/importar'
     | '/_authenticated/inbox'
     | '/_authenticated/links'
@@ -1318,6 +1331,13 @@ declare module '@tanstack/react-router' {
       path: '/importar'
       fullPath: '/importar'
       preLoaderRoute: typeof AuthenticatedImportarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/fluxos-whatsapp': {
+      id: '/_authenticated/fluxos-whatsapp'
+      path: '/fluxos-whatsapp'
+      fullPath: '/fluxos-whatsapp'
+      preLoaderRoute: typeof AuthenticatedFluxosWhatsappRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/eventos': {
@@ -1748,6 +1768,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDuplicidadesRoute: typeof AuthenticatedDuplicidadesRoute
   AuthenticatedEventosRoute: typeof AuthenticatedEventosRoute
+  AuthenticatedFluxosWhatsappRoute: typeof AuthenticatedFluxosWhatsappRoute
   AuthenticatedImportarRoute: typeof AuthenticatedImportarRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
@@ -1785,6 +1806,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDuplicidadesRoute: AuthenticatedDuplicidadesRoute,
   AuthenticatedEventosRoute: AuthenticatedEventosRoute,
+  AuthenticatedFluxosWhatsappRoute: AuthenticatedFluxosWhatsappRoute,
   AuthenticatedImportarRoute: AuthenticatedImportarRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
