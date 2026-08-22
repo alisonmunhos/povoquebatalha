@@ -286,3 +286,150 @@ export const DEFAULT_FLOW_STEPS: FlowStepTemplate[] = [
   },
 ];
 
+
+// ------------------------------------------------------------- caminhos e regras
+// Helpers puros usados pelo construtor (tela) e pela validação no servidor.
+// Espelham a lógica de ramificação do construtor de formulários.
+
+/** Destino especial de uma opção: encerrar a conversa e salvar o cadastro. */
+export const FLOW_FINISH_ROUTE = "__finish__";
+
+/** Nome amigável de um caminho (roteiro padrão tem nomes fixos; o resto é livre). */
+export function pathLabel(key: string): string {
+  return FLOW_PATH_LABELS[key] ?? key;
+}
+
+export type FlowStepLike = {
+  id?: string;
+  catalog_field_key: string;
+  prompt: string;
+  required: boolean;
+  response_kind: FlowResponseKind;
+  kind: FlowStepKind;
+  path_key: string;
+  option_routes: Record<string, string>;
+  options: FormCatalogOption[];
+};
+
+export type FlowPathGroup<T extends FlowStepLike = FlowStepLike> = {
+  key: string;
+  label: string;
+  steps: T[];
+  /** Índices originais das etapas dentro da lista completa. */
+  indexes: number[];
+};
+
+/**
+ * Agrupa as etapas por caminho, mantendo a ordem de aparição. O caminho padrão
+ * (início) vem sempre primeiro, mesmo que não tenha etapas.
+ */
+export function groupStepsByPath<T extends FlowStepLike>(steps: T[]): FlowPathGroup<T>[] {
+  const groups = new Map<string, FlowPathGroup<T>>();
+  const ensure = (key: string) => {
+    let g = groups.get(key);
+    if (!g) {
+      g = { key, label: pathLabel(key), steps: [], indexes: [] };
+      groups.set(key, g);
+    }
+    return g;
+  };
+  ensure(FLOW_DEFAULT_PATH);
+  steps.forEach((s, i) => {
+    const g = ensure(s.path_key || FLOW_DEFAULT_PATH);
+    g.steps.push(s);
+    g.indexes.push(i);
+  });
+  // Caminhos citados em menus, mesmo vazios, precisam aparecer para edição.
+  for (const s of steps) {
+    for (const target of Object.values(s.option_routes ?? {})) {
+      if (target && target !== FLOW_FINISH_ROUTE) ensure(target);
+    }
+  }
+  return [...groups.values()];
+}
+
+/** Todas as chaves de caminho conhecidas de um roteiro. */
+export function flowPathKeys(steps: FlowStepLike[]): string[] {
+  return groupStepsByPath(steps).map((g) => g.key);
+}
+
+/** Etapas que podem ter destino por opção (menu ou escolha única). */
+export function stepHasRoutes(step: FlowStepLike): boolean {
+  return step.kind === "menu" || (step.kind === "question" && step.response_kind === "single_choice");
+}
+
+export type FlowValidationResult = { errors: string[]; warnings: string[] };
+
+/** Confere o roteiro e devolve mensagens em português para a tela e o servidor. */
+export function validateFlowDraft(steps: FlowStepLike[]): FlowValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!steps.length) {
+    errors.push("O roteiro está vazio: adicione ao menos uma etapa.");
+    return { errors, warnings };
+  }
+
+  const groups = groupStepsByPath(steps);
+  const reached = new Set<string>([FLOW_DEFAULT_PATH]);
+  for (const s of steps) {
+    for (const target of Object.values(s.option_routes ?? {})) {
+      if (target && target !== FLOW_FINISH_ROUTE) reached.add(target);
+    }
+  }
+
+  for (const g of groups) {
+    if (!g.steps.length) {
+      errors.push(`O caminho “${g.label}” não tem nenhuma etapa.`);
+      continue;
+    }
+    if (!reached.has(g.key)) {
+      warnings.push(
+        `Ninguém chega no caminho “${g.label}”: nenhum menu ou opção aponta para ele.`,
+      );
+    }
+    const last = g.steps[g.steps.length - 1]!;
+    const endsWell =
+      last.kind === "finish" ||
+      last.kind === "handoff" ||
+      last.kind === "menu" ||
+      g.steps.some((s) => stepHasRoutes(s) && Object.keys(s.option_routes ?? {}).length > 0);
+    if (!endsWell) {
+      warnings.push(
+        `O caminho “${g.label}” termina sem etapa de encerramento: o cadastro é salvo automaticamente no fim.`,
+      );
+    }
+  }
+
+  for (const s of steps) {
+    if (s.kind === "menu") {
+      const opts = stepOptions(s);
+      if (opts.length < 2) {
+        errors.push(`O menu “${s.prompt || "(sem texto)"}” precisa de ao menos 2 opções.`);
+      }
+      const missing = opts.filter((o) => !s.option_routes?.[o.value]);
+      if (missing.length) {
+        errors.push(
+          `No menu “${s.prompt || "(sem texto)"}”, estas opções estão sem destino: ${missing
+            .map((o) => o.label)
+            .join(", ")}.`,
+        );
+      }
+      if (opts.length > 10) {
+        errors.push("O WhatsApp aceita no máximo 10 opções por lista.");
+      }
+    }
+    if (!s.prompt?.trim()) {
+      errors.push("Existe uma etapa sem texto para a pessoa ler.");
+    }
+    for (const o of stepOptions(s)) {
+      if (o.label.length > 72) {
+        warnings.push(
+          `A opção “${o.label.slice(0, 40)}…” é longa: o WhatsApp mostra até 72 caracteres.`,
+        );
+      }
+    }
+  }
+
+  return { errors, warnings };
+}
