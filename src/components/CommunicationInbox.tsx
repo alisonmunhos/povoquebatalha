@@ -29,7 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
 import {
-  buildTimelineItems, receiptFrom, type InboxMsg,
+  buildTimelineItems, receiptFrom, fmtBytes, type InboxMsg,
 } from "@/lib/inbox-timeline";
 import {
   MessageBubble, DaySeparator, UnreadDivider, SystemMessage,
@@ -417,7 +417,7 @@ export function CommunicationInbox() {
       });
       if (up.error) throw up.error;
       const previewUrl = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-      setAttachment({ path: s.path, filename: s.filename, mime: f.type, previewUrl });
+      setAttachment({ path: s.path, filename: s.filename, mime: f.type, size: f.size, previewUrl });
       toast.success("Anexo pronto — clique enviar");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao anexar");
