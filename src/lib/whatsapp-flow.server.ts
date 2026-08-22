@@ -995,7 +995,7 @@ async function finishSession(
     form: {
       id: session.flow_id,
       title: flow?.nome ? `WhatsApp: ${flow.nome}` : "Cadastro pelo WhatsApp",
-      source_form_type: "cadastro_completo",
+      source_form_type: formType,
       tracking_name: flow?.nome ?? null,
     },
     questions,
