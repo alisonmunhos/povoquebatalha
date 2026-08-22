@@ -45,7 +45,10 @@ type SessionRow = {
   pending_multi: string[];
   invalid_attempts: number;
   expires_at: string;
+  /** Caminho (ramificação) em que a pessoa está. */
+  path_key: string;
 };
+
 
 const ADDR_SUBSTEPS = ["cep", "endereco", "numero", "complemento", "bairro", "cidade", "uf"] as const;
 type AddrSub = (typeof ADDR_SUBSTEPS)[number];
