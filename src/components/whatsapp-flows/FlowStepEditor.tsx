@@ -251,15 +251,9 @@ export function FlowStepEditor({
         <div className="space-y-2 rounded-md border p-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs uppercase">Opções e destinos</Label>
-            {step.kind === "menu" || step.options.length ? (
-              <Button variant="outline" size="sm" onClick={addOption}>
-                <Plus className="mr-1 h-3 w-3" /> Opção
-              </Button>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => onChange({ options })}>
-                Usar opções do campo
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={addOption}>
+              <Plus className="mr-1 h-3 w-3" /> Opção
+            </Button>
           </div>
 
           {options.length === 0 ? (
@@ -307,18 +301,14 @@ export function FlowStepEditor({
                   </SelectContent>
                 </Select>
               </div>
-              {step.kind === "menu" || step.options.length ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Remover opção"
-                  onClick={() => removeOption(i)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              ) : (
-                <span />
-              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Remover opção"
+                onClick={() => removeOption(i)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           ))}
         </div>
