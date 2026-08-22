@@ -34,6 +34,16 @@ export const listConversations = createServerFn({ method: "GET" })
     if (data.filter === "in_service") q = q.not("assigned_to", "is", null);
     if (data.filter === "unlinked") q = q.is("contact_id", null);
 
+    if (data.search) {
+      const s = data.search;
+      const digits = s.replace(/\D+/g, "");
+      // Busca no nome/telefone do contato e no preview da última mensagem.
+      const phoneOr = digits.length >= 4
+        ? `contacts.phone_e164.ilike.%${digits}%,contacts.nome.ilike.%${s}%`
+        : `contacts.nome.ilike.%${s}%`;
+      q = q.or(`${phoneOr},last_message_preview.ilike.%${s}%`);
+    }
+
     const { data: rows, error } = await q;
     if (error) throw error;
 
@@ -93,15 +103,28 @@ export const listConversations = createServerFn({ method: "GET" })
       }
     }
 
-    if (data.search) {
-      const s = data.search.toLowerCase();
-      list = list.filter((c) =>
-        (c.nome ?? "").toLowerCase().includes(s) ||
-        (c.phone ?? "").toLowerCase().includes(s) ||
-        (c.last_preview ?? "").toLowerCase().includes(s),
-      );
+    // Contagens reais para os chips de filtro (uma única query agregada).
+    const { data: countsRows } = await context.supabase
+      .from("conversations")
+      .select("status, unread_count, flagged, assigned_to, contact_id")
+      .in("status", ["aberta", "aguardando", "resolvida"]);
+
+    const counts = {
+      nao_lidas: 0,
+      abertas: 0,
+      aguardando: 0,
+      resolvidas: 0,
+      sinalizadas: 0,
+    };
+    for (const r of countsRows ?? []) {
+      if ((r.unread_count ?? 0) > 0) counts.nao_lidas++;
+      if (r.status === "aberta") counts.abertas++;
+      if (r.status === "aguardando") counts.aguardando++;
+      if (r.status === "resolvida") counts.resolvidas++;
+      if (r.flagged) counts.sinalizadas++;
     }
-    return list;
+
+    return { list, counts };
   });
 
 // Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
