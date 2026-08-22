@@ -3063,6 +3063,179 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_flow_sessions: {
+        Row: {
+          ad_referral: Json | null
+          answers: Json
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          current_step_index: number
+          expires_at: string
+          flow_id: string
+          id: string
+          invalid_attempts: number
+          last_prompt_at: string | null
+          pending_multi: Json
+          phone: string
+          status: string
+          trigger_kind: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_referral?: Json | null
+          answers?: Json
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          current_step_index?: number
+          expires_at?: string
+          flow_id: string
+          id?: string
+          invalid_attempts?: number
+          last_prompt_at?: string | null
+          pending_multi?: Json
+          phone: string
+          status?: string
+          trigger_kind?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_referral?: Json | null
+          answers?: Json
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          current_step_index?: number
+          expires_at?: string
+          flow_id?: string
+          id?: string
+          invalid_attempts?: number
+          last_prompt_at?: string | null
+          pending_multi?: Json
+          phone?: string
+          status?: string
+          trigger_kind?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_flow_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_flow_sessions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_flow_steps: {
+        Row: {
+          catalog_field_key: string
+          created_at: string
+          flow_id: string
+          id: string
+          options: Json
+          order_index: number
+          prompt: string
+          required: boolean
+          response_kind: string
+          updated_at: string
+        }
+        Insert: {
+          catalog_field_key: string
+          created_at?: string
+          flow_id: string
+          id?: string
+          options?: Json
+          order_index?: number
+          prompt: string
+          required?: boolean
+          response_kind?: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_field_key?: string
+          created_at?: string
+          flow_id?: string
+          id?: string
+          options?: Json
+          order_index?: number
+          prompt?: string
+          required?: boolean
+          response_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_flow_steps_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_flows: {
+        Row: {
+          active: boolean
+          allow_update_existing: boolean
+          closing_message: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          opening_message: string
+          priority: number
+          trigger_ad_ids: string[]
+          trigger_keywords: string[]
+          trigger_on_ad: boolean
+          trigger_on_first_contact: boolean
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          allow_update_existing?: boolean
+          closing_message?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          opening_message?: string
+          priority?: number
+          trigger_ad_ids?: string[]
+          trigger_keywords?: string[]
+          trigger_on_ad?: boolean
+          trigger_on_first_contact?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          allow_update_existing?: boolean
+          closing_message?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          opening_message?: string
+          priority?: number
+          trigger_ad_ids?: string[]
+          trigger_keywords?: string[]
+          trigger_on_ad?: boolean
+          trigger_on_first_contact?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           config: Json
