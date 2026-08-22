@@ -565,6 +565,9 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
       await context.supabase.from("inbound_messages")
         .update({ contact_id: novo.id })
         .eq("from_phone", conv.from_phone).is("contact_id", null);
+      await context.supabase.from("direct_messages")
+        .update({ contact_id: novo.id, to_phone: null })
+        .eq("to_phone", conv.from_phone.replace(/\D+/g, "")).is("contact_id", null);
     }
     await context.supabase.from("conversations")
       .update({ contact_id: novo.id, from_phone: null }).eq("id", conv.id);
