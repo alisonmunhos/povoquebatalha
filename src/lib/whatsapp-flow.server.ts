@@ -605,14 +605,100 @@ async function askStep(
     .eq("id", session.id);
 }
 
+/**
+ * Coloca a sessão numa etapa do caminho atual: pergunta, encerra com cadastro
+ * ou passa para atendimento humano.
+ */
+async function proceedTo(
+  input: FlowInboundInput,
+  session: SessionRow,
+  allSteps: FlowStep[],
+  index: number,
+): Promise<void> {
+  const { admin } = input;
+  const list = pathSteps(allSteps, session.path_key);
+  const step = list[index];
+
+  if (!step) {
+    await finishSession(input, session, list);
+    return;
+  }
+
+  await admin
+    .from("whatsapp_flow_sessions")
+    .update({
+      current_step_index: index,
+      path_key: session.path_key,
+      answers: session.answers,
+      pending_multi: session.pending_multi,
+      invalid_attempts: 0,
+    })
+    .eq("id", session.id);
+
+  const next: SessionRow = { ...session, current_step_index: index };
+
+  if (step.kind === "handoff") {
+    await sendFlowMessage(admin, {
+      phone: session.phone,
+      contactId: session.contact_id ?? input.contactId,
+      body: step.prompt,
+    });
+    await handoffToHuman(admin, {
+      phone: session.phone,
+      contactId: session.contact_id ?? input.contactId,
+      motivo: "pediu para falar com alguém",
+    });
+    await admin
+      .from("whatsapp_flow_sessions")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", session.id);
+    return;
+  }
+
+  if (step.kind === "finish") {
+    await finishSession(input, next, list, step);
+    return;
+  }
+
+  await askStep(admin, next, step, input.contactId);
+}
+
 async function advanceSession(input: FlowInboundInput, session: SessionRow): Promise<void> {
   const { admin } = input;
-  const steps = await loadSteps(admin, session.flow_id);
+  const allSteps = await loadSteps(admin, session.flow_id);
+  const steps = pathSteps(allSteps, session.path_key);
   const step = steps[session.current_step_index];
   if (!step) {
     await finishSession(input, session, steps);
     return;
   }
+
+  // ---- menu de ramificação: escolhe o caminho e segue por lá
+  if (step.kind === "menu") {
+    const opts = stepOptions(step);
+    const replyId = interactiveReplyId(input.message);
+    const value =
+      replyId && opts.some((o) => o.value === replyId) ? replyId : matchOption(input.text, opts);
+    if (!value) {
+      await admin
+        .from("whatsapp_flow_sessions")
+        .update({ invalid_attempts: (session.invalid_attempts ?? 0) + 1 })
+        .eq("id", session.id);
+      await askStep(
+        admin,
+        session,
+        { ...step, prompt: `Não entendi. ${step.prompt}` },
+        input.contactId,
+      );
+      return;
+    }
+    const answers = { ...session.answers, [`__menu__${step.id}`]: value };
+    const target = step.option_routes?.[value] ?? FLOW_DEFAULT_PATH;
+    await proceedTo(input, { ...session, answers, path_key: target, pending_multi: [] }, allSteps, 0);
+    return;
+  }
+
+
 
   const replyId = interactiveReplyId(input.message);
   const answers: AnyRecord = { ...session.answers };
