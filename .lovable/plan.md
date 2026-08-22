@@ -25,7 +25,8 @@ Duas regras da Meta que moldam o fluxo:
 
 ### 1. Roteiro configurável (tela nova em Entrada de Dados → "Fluxos no WhatsApp")
 - Nome do fluxo, mensagem de abertura ("FAÇA PARTE DA NOSSA CAMPANHA!") e mensagem final.
-- Lista de perguntas arrastáveis. Cada pergunta escolhe um campo do catálogo que já existe (nome, WhatsApp, e-mail, cidade, bairro, rua, número, CEP, aniversário, etiquetas, interesses, consentimentos etc.), o texto da pergunta, se é obrigatória e as opções quando for escolha.
+- Lista de perguntas arrastáveis. Cada pergunta escolhe um campo do catálogo que já existe (nome, nome social, WhatsApp, e-mail, endereço completo, formas de ajuda, Alicerce, etiquetas, consentimentos etc.), o texto da pergunta, se é obrigatória e as opções quando for escolha.
+- Perguntas obrigatórias do fluxo "FAÇA PARTE DA NOSSA CAMPANHA": nome, nome social, WhatsApp (confirmação do próprio número), consentimentos, endereço (CEP → rua/bairro/cidade preenchidos automaticamente, pedindo só número e complemento), **formas de ajuda** e **se faz parte do Alicerce (Sim/Não)**.
 - Gatilhos do fluxo, cada um ligável/desligável:
   - palavras-chave (ex.: "campanha", "quero participar");
   - conversa iniciada por anúncio Click-to-WhatsApp (opcionalmente restrito a um anúncio específico);
