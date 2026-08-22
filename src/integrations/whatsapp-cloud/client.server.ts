@@ -118,6 +118,62 @@ export const whatsappCloud = {
     }),
 
   /**
+   * Botões de resposta rápida (máx. 3, título até 20 caracteres cada).
+   * Só funciona dentro da janela de 24h — mesma regra do texto livre.
+   */
+  sendButtons: (
+    phone: string,
+    body: string,
+    buttons: Array<{ id: string; title: string }>,
+  ) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: body },
+        action: {
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "reply",
+            reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+          })),
+        },
+      },
+    }),
+
+  /**
+   * Lista clicável (máx. 10 itens no total, distribuídos em seções).
+   * `buttonText` é o rótulo do botão que abre a lista (até 20 caracteres).
+   */
+  sendList: (
+    phone: string,
+    body: string,
+    buttonText: string,
+    sections: Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }>,
+  ) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: body },
+        action: {
+          button: buttonText.slice(0, 20),
+          sections: sections.map((s) => ({
+            title: s.title.slice(0, 24),
+            rows: s.rows.map((r) => ({
+              id: r.id.slice(0, 200),
+              title: r.title.slice(0, 24),
+              ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+            })),
+          })),
+        },
+      },
+    }),
+
+  /**
    * Template aprovado pela Meta, formato nomeado (`parameter_format: "named"`,
    * mesmo padrão usado em whatsapp-templates.functions.ts). Único jeito de
    * iniciar/reabrir conversa com um contato fora da janela de 24h — texto livre
