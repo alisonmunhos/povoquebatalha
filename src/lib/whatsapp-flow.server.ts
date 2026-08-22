@@ -829,21 +829,44 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
       answers[step.id] = value;
     }
   }
-  // ---- múltipla escolha (rodadas)
+  // ---- múltipla escolha: aceita várias numa só mensagem, ou toques somando
   else if (step.response_kind === "multi_choice") {
     const opts = stepOptions(step);
-    if (replyId === FLOW_MULTI_DONE_ID || isSkip(input.text) || norm(input.text) === "pronto") {
+    const doneAsked =
+      replyId === FLOW_MULTI_DONE_ID || isSkip(input.text) || norm(input.text) === "pronto";
+
+    if (doneAsked) {
       if (pendingMulti.length) answers[step.id] = pendingMulti;
       pendingMulti = [];
     } else {
-      const value = replyId ?? matchOption(input.text, opts);
-      if (!value || !opts.some((o) => o.value === value)) {
-        await invalid(`Não achei essa opção. Responda com o número, ou toque em "${FLOW_MULTI_DONE_LABEL}" pra seguir.`);
+      const picked =
+        replyId && opts.some((o) => o.value === replyId)
+          ? [replyId]
+          : matchManyOptions(input.text, opts);
+
+      if (!picked.length) {
+        await invalid(
+          `Não achei essa opção. Pode responder com os números separados por vírgula (ex.: 1, 3), ou tocar em "${FLOW_MULTI_DONE_LABEL}" pra seguir.`,
+        );
         return;
       }
-      if (!pendingMulti.includes(value)) pendingMulti.push(value);
+
+      for (const v of picked) if (!pendingMulti.includes(v)) pendingMulti.push(v);
+      const labels = opts.filter((o) => pendingMulti.includes(o.value)).map((o) => o.label);
       const remaining = opts.filter((o) => !pendingMulti.includes(o.value));
-      if (remaining.length > 0) {
+
+      // Veio por texto com mais de uma opção: já entendi tudo, confirmo e sigo.
+      const answeredByText = !replyId && picked.length > 1;
+      if (answeredByText || remaining.length === 0) {
+        await sendFlowMessage(admin, {
+          phone: session.phone,
+          contactId: session.contact_id ?? input.contactId,
+          body: `Anotei: ${labels.join(", ")}.`,
+        });
+        answers[step.id] = pendingMulti;
+        pendingMulti = [];
+      } else {
+        // Um toque só (ou uma opção escrita): guarda e oferece somar mais.
         await admin
           .from("whatsapp_flow_sessions")
           .update({ pending_multi: pendingMulti, answers })
@@ -851,10 +874,9 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
         await askStep(admin, { ...session, pending_multi: pendingMulti, answers }, step, input.contactId);
         return;
       }
-      answers[step.id] = pendingMulti;
-      pendingMulti = [];
     }
   }
+
   // ---- texto / e-mail / número / data
   else {
     const raw = (input.text ?? "").trim();
