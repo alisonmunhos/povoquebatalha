@@ -74,6 +74,16 @@ function isSkip(text: string | null): boolean {
   return FLOW_SKIP_WORDS.some((w) => t === w);
 }
 
+/**
+ * Últimos 8 dígitos do número: é a única parte estável entre o formato do
+ * sistema (com nono dígito, ex. 5551998902337) e o que a Meta entrega
+ * (ex. 555198902337). Usado pra achar a sessão certa em qualquer formato.
+ */
+function last8(phone: string | null | undefined): string {
+  const d = (phone ?? "").replace(/\D+/g, "");
+  return d.slice(-8);
+}
+
 // ---------------------------------------------------------------- envio
 
 async function sendFlowMessage(
@@ -86,7 +96,7 @@ async function sendFlowMessage(
     listButtonText?: string;
     listRows?: Array<{ id: string; title: string; description?: string }>;
   },
-): Promise<void> {
+): Promise<{ waId: string | null }> {
   const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
   let messageId: string | null = null;
   let erro: string | null = null;
