@@ -118,6 +118,7 @@ export function CommunicationInbox() {
     if (reply) el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [reply]);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const cursorRef = useRef({ start: 0, end: 0 });
 
@@ -370,6 +371,8 @@ export function CommunicationInbox() {
       else if (k === "e" && cur) { e.preventDefault(); resolveAndNext(); }
       else if (k === "u" && cur) { e.preventDefault(); unreadMut.mutate({ conversation_id: cur.id }); }
       else if (k === "f" && cur) { e.preventDefault(); flagMut.mutate({ conversation_id: cur.id, flagged: !cur.flagged }); }
+      else if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); }
+      else if (e.key === "Escape") { setMobilePane("list"); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -631,7 +634,7 @@ export function CommunicationInbox() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="wa-inbox flex h-full min-h-0 bg-muted/10">
+      <div className="wa-inbox flex h-full max-h-[100dvh] min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
       <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col min-h-0 border-r bg-background`}>
         <div className="p-3 border-b space-y-2">
@@ -640,7 +643,15 @@ export function CommunicationInbox() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar nome, telefone…"
+              ref={searchRef}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setSearch("");
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Buscar nome, telefone… (atalho: /)"
               className="w-full text-sm pl-8 pr-2 py-2 rounded-md border border-input bg-background"
             />
           </div>
@@ -915,7 +926,7 @@ export function CommunicationInbox() {
               />
             )}
 
-            <div className="border-t p-3 bg-background space-y-2">
+            <div className="border-t p-3 bg-background space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               {!canSend && (
                 <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
                   {contact?.opt_out_at
