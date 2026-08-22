@@ -641,44 +641,30 @@ export function CommunicationInbox() {
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          {listQ.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
-          {list.length === 0 && !listQ.isLoading && (
-            <div className="p-6 text-center text-sm text-muted-foreground">Nenhuma conversa neste filtro.</div>
+          {listQ.isLoading && (
+            <div>{[0, 1, 2, 3, 4].map((i) => <ConversationSkeleton key={i} />)}</div>
+          )}
+          {listQ.isError && !listQ.isLoading && (
+            <div className="p-6 text-center text-sm">
+              <p className="text-muted-foreground">Não foi possível carregar as conversas.</p>
+              <button
+                onClick={() => listQ.refetch()}
+                className="mt-2 rounded-md border px-3 py-1.5 text-xs hover:bg-muted"
+              >
+                Tentar de novo
+              </button>
+            </div>
+          )}
+          {list.length === 0 && !listQ.isLoading && !listQ.isError && (
+            <div className="p-6 text-center text-sm text-muted-foreground">{emptyListText}</div>
           )}
           {list.map((c) => (
-            <button
+            <ConversationRow
               key={c.id}
-              onClick={() => openConversation(c.contact_id, c.id, c.unread)}
-              className={`w-full text-left px-3 py-2.5 border-b hover:bg-muted/40 transition-colors ${
-                (selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id) ? "bg-muted/60" : ""
-              }`}
-            >
-              <div className="flex justify-between items-baseline gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {c.flagged && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
-                  <span className="font-medium text-sm truncate">
-                    {c.nome ?? (isLidPhone(c.phone) ? "Sem contato vinculado" : (c.phone ?? "Sem nome"))}
-                  </span>
-                </div>
-                <span className="text-[10px] text-muted-foreground shrink-0">{fmtRel(c.last_at)}</span>
-              </div>
-              <div className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1.5">
-                {c.unread > 0 && (
-                  <span className="inline-flex items-center justify-center bg-primary text-primary-foreground rounded-full text-[10px] px-1.5 min-w-[1rem] font-semibold">
-                    {c.unread}
-                  </span>
-                )}
-                {c.last_dir === "out" && <span className="text-muted-foreground/60">↩</span>}
-                <span className="truncate">{c.last_preview ?? "(sem prévia)"}</span>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-1">
-                <span className={isLidPhone(c.phone) ? "font-mono" : ""}>{displayPhone(c.phone)}</span>
-                {c.cidade && <span>· {c.cidade}/{c.uf ?? ""}</span>}
-                <span className="ml-auto">
-                  <AssigneeChip assignee={c.assignee ?? null} />
-                </span>
-              </div>
-            </button>
+              c={c}
+              selected={selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id}
+              onOpen={() => openConversation(c.contact_id, c.id, c.unread)}
+            />
           ))}
 
           {hasMore && (
@@ -694,8 +680,6 @@ export function CommunicationInbox() {
             </div>
           )}
 
-
-
           {search.trim().length >= 2 && (searchNewQ.data?.length ?? 0) > 0 && (
             <div className="border-t bg-muted/10">
               <div className="px-3 py-2 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
@@ -705,15 +689,21 @@ export function CommunicationInbox() {
                 <button
                   key={c.id}
                   onClick={() => openConversation(c.id, null, 0)}
-                  className="w-full text-left px-3 py-2 border-b hover:bg-background/50"
+                  className="flex w-full items-center gap-3 border-b px-3 py-2 text-left hover:bg-background/50"
                 >
-                  <div className="text-sm font-medium truncate">{c.nome ?? "Sem nome"}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c.phone}{c.cidade ? ` · ${c.cidade}/${c.uf ?? ""}` : ""}</div>
+                  <InboxAvatar name={c.nome ?? c.phone} seed={c.id} size={32} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{c.nome ?? "Sem nome"}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {c.phone}{c.cidade ? ` · ${c.cidade}/${c.uf ?? ""}` : ""}
+                    </span>
+                  </span>
                 </button>
               ))}
             </div>
           )}
         </div>
+
       </div>
 
       {/* CENTER: thread */}
