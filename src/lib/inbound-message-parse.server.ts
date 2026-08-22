@@ -102,7 +102,7 @@ export function parseCloudMessage(message: AnyRecord): ParsedInbound {
   }
   // Mídias: legenda quando houver
   const mediaRec = asRecord(message[tipo]) ?? {};
-  out.conteudo = safeStr(mediaRec.caption) ?? mediaPlaceholder(tipo) || null;
+  out.conteudo = safeStr(mediaRec.caption) ?? (mediaPlaceholder(tipo) || null);
   return out;
 }
 
