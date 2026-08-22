@@ -181,21 +181,24 @@ export const getConversation = createServerFn({ method: "GET" })
       contact = c as Contact | null;
     }
 
+    const INBOUND_COLS =
+      "id, conteudo, tipo, received_at, read_at, media_url, media_path, media_mime, media_filename, media_size, wa_message_id, reply_to_wa_id, reaction_emoji, reaction_target_wa_id, latitude, longitude, location_name, shared_contacts, is_system_event";
     const inboundQuery = effectiveContactId
       ? context.supabase.from("inbound_messages")
-          .select("id, conteudo, tipo, received_at, read_at, media_url, media_mime, media_filename")
+          .select(INBOUND_COLS)
           .eq("contact_id", effectiveContactId).order("received_at", { ascending: true }).limit(500)
       : convRow?.from_phone
         ? context.supabase.from("inbound_messages")
-            .select("id, conteudo, tipo, received_at, read_at, media_url, media_mime, media_filename")
+            .select(INBOUND_COLS)
             .eq("from_phone", convRow.from_phone).is("contact_id", null).order("received_at", { ascending: true }).limit(500)
         : null;
 
     const directQuery = effectiveContactId
       ? context.supabase.from("direct_messages")
-          .select("id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename")
+          .select("id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id")
           .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(500)
       : null;
+
 
     const campaignQuery = effectiveContactId
       ? context.supabase.from("campaign_recipients")
