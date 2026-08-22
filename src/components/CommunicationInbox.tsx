@@ -103,9 +103,12 @@ export function CommunicationInbox() {
   }, [infoOpen]);
 
   // Anexo pendente (upload feito, aguardando envio)
-  const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
+  const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; size?: number | null; previewUrl?: string } | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [fileAccept, setFileAccept] = useState("image/png,image/jpeg,image/jpg,image/webp,application/pdf");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const replyRef = useRef<HTMLTextAreaElement | null>(null);
   // Cresce a caixa de texto conforme o conteúdo, até o limite de max-h-40 (160px).
   useEffect(() => {
