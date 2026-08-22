@@ -192,35 +192,58 @@ function buildPrompt(
   }
 
   const opts = stepOptions(step);
-  if (step.response_kind === "single_choice") {
+
+  // Menu de ramificação: até 3 opções cabem em botões; acima disso vira lista.
+  if (step.kind === "menu") {
     if (opts.length <= 3) {
-      return { body: step.prompt, buttons: opts.map((o) => ({ id: o.value, title: o.label })) };
+      return {
+        body: step.prompt,
+        buttons: opts.map((o) => ({ id: o.value, title: o.label.slice(0, 20) })),
+      };
     }
-    const rows = opts.slice(0, 10).map((o) => ({ id: o.value, title: o.label }));
     return {
       body: `${step.prompt}\n\n${optionsWithNumbers(opts)}\n\nToque em "Ver opções" ou responda com o número.`,
-      listRows: rows,
+      listRows: opts.slice(0, 10).map((o) => listRowFor(o.value, o.label)),
+      listButtonText: "Ver opções",
+    };
+  }
+
+  if (step.response_kind === "single_choice") {
+    if (opts.length <= 3) {
+      return {
+        body: step.prompt,
+        buttons: opts.map((o) => ({ id: o.value, title: o.label.slice(0, 20) })),
+      };
+    }
+    return {
+      body: `${step.prompt}\n\n${optionsWithNumbers(opts)}\n\nToque em "Ver opções" ou responda com o número.`,
+      listRows: opts.slice(0, 10).map((o) => listRowFor(o.value, o.label)),
       listButtonText: "Ver opções",
     };
   }
 
   if (step.response_kind === "multi_choice") {
     const chosen = session.pending_multi ?? [];
-    const remaining = opts.filter((o) => !chosen.includes(o.value));
     const chosenLabels = opts.filter((o) => chosen.includes(o.value)).map((o) => o.label);
+    // Numeração sempre da lista completa (marcando o que já entrou), pra resposta
+    // por número nunca mudar de significado entre uma rodada e outra.
+    const numbered = opts
+      .map((o, i) => `${i + 1}. ${chosen.includes(o.value) ? "✅ " : ""}${o.label}`)
+      .join("\n");
     const header = chosenLabels.length
-      ? `Já anotei: ${chosenLabels.join(", ")}.\nQuer marcar mais alguma? Se terminou, toque em "${FLOW_MULTI_DONE_LABEL}".`
-      : `${step.prompt}\nPode escolher uma por vez — quando terminar, toque em "${FLOW_MULTI_DONE_LABEL}".`;
+      ? `Já anotei: ${chosenLabels.join(", ")}.\nQuer marcar mais alguma? Responda com os números (ex.: 2, 4) ou toque em "${FLOW_MULTI_DONE_LABEL}".`
+      : `${step.prompt}\n\nPode marcar várias de uma vez: responda com os números separados por vírgula (ex.: 1, 3, 5). Se preferir tocar, use "Ver opções" — dá pra ir somando.`;
     const rows = [
-      ...remaining.slice(0, 9).map((o) => ({ id: o.value, title: o.label })),
+      ...opts.filter((o) => !chosen.includes(o.value)).slice(0, 9).map((o) => listRowFor(o.value, o.label)),
       { id: FLOW_MULTI_DONE_ID, title: FLOW_MULTI_DONE_LABEL },
     ];
     return {
-      body: `${header}\n\n${optionsWithNumbers(remaining)}`,
+      body: `${header}\n\n${numbered}`,
       listRows: rows,
       listButtonText: "Ver opções",
     };
   }
+
 
   const suffix = step.required ? "" : '\n\n(Se preferir não responder, escreva "pular".)';
   return { body: `${step.prompt}${suffix}` };
