@@ -918,32 +918,28 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
 
   if (!moveOn) return;
 
-  const nextIndex = session.current_step_index + 1;
-  await admin
-    .from("whatsapp_flow_sessions")
-    .update({ answers, pending_multi: pendingMulti, current_step_index: nextIndex, invalid_attempts: 0 })
-    .eq("id", session.id);
-
-  const next = steps[nextIndex];
-  const updated: SessionRow = {
-    ...session,
-    answers,
-    pending_multi: pendingMulti,
-    current_step_index: nextIndex,
-  };
-  if (next) {
-    await askStep(admin, updated, next, input.contactId);
-    return;
-  }
-  await finishSession(input, updated, steps);
+  await proceedTo(
+    input,
+    { ...session, answers, pending_multi: pendingMulti },
+    allSteps,
+    session.current_step_index + 1,
+  );
 }
 
 async function finishSession(
   input: FlowInboundInput,
   session: SessionRow,
-  steps: FlowStep[],
+  pathStepList: FlowStep[],
+  finishStep?: FlowStep,
 ): Promise<void> {
   const { admin } = input;
+  const steps = pathStepList.filter((s) => (s.kind ?? "question") === "question");
+  const formType =
+    (finishStep?.option_routes?.["source_form_type"] as
+      | "cadastro_completo"
+      | "receber_informacoes"
+      | undefined) ?? "cadastro_completo";
+
   const { data: flowData } = await admin
     .from("whatsapp_flows")
     .select("*")
