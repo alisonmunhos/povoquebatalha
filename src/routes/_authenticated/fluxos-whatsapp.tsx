@@ -77,7 +77,15 @@ type StepDraft = {
   prompt: string;
   required: boolean;
   response_kind: FlowResponseKind;
+  /** question = pergunta normal; menu = ramificação; handoff = atendimento humano; finish = encerra e salva. */
+  kind: "question" | "menu" | "handoff" | "finish";
+  /** Caminho (ramificação) a que a etapa pertence. */
+  path_key: string;
+  /** Para menus: opção -> caminho de destino. Para "finish": tipo de cadastro. */
+  option_routes: Record<string, string>;
+  options: Array<{ value: string; label: string }>;
 };
+
 
 type FlowDraft = {
   id?: string;
@@ -114,6 +122,10 @@ function emptyDraft(): FlowDraft {
       prompt: s.prompt,
       required: s.required,
       response_kind: suggestedResponseKind(s.catalog_field_key),
+      kind: s.kind ?? "question",
+      path_key: s.path_key ?? "principal",
+      option_routes: s.option_routes ?? {},
+      options: s.options ?? [],
     })),
   };
 }
@@ -190,6 +202,10 @@ function FluxosWhatsappPage() {
         prompt: s.prompt,
         required: s.required,
         response_kind: s.response_kind as FlowResponseKind,
+        kind: (s.kind ?? "question") as StepDraft["kind"],
+        path_key: s.path_key ?? "principal",
+        option_routes: (s.option_routes ?? {}) as Record<string, string>,
+        options: (s.options ?? []) as Array<{ value: string; label: string }>,
       });
       map.set(s.flow_id, list);
     }
@@ -234,6 +250,10 @@ function FluxosWhatsappPage() {
             prompt: field.defaultLabel,
             required: Boolean(field.alwaysRequired),
             response_kind: suggestedResponseKind(field.key),
+            kind: "question" as const,
+            path_key: "principal",
+            option_routes: {},
+            options: [],
           },
         ],
       };
@@ -256,7 +276,7 @@ function FluxosWhatsappPage() {
       ...draft,
       trigger_keywords: keywords,
       trigger_ad_ids: adIds,
-      steps: draft.steps.map((s) => ({ ...s, options: [] })) as never,
+      steps: draft.steps as never,
     });
   };
 
@@ -540,9 +560,24 @@ function FluxosWhatsappPage() {
                   return (
                     <div key={`${step.catalog_field_key}-${index}`} className="space-y-2 rounded-lg border-2 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-semibold">
+                        <span className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                           {index + 1}. {field?.defaultLabel ?? step.catalog_field_key}
+                          {step.kind !== "question" ? (
+                            <span className="rounded-full border-2 px-2 py-0.5 text-[11px] font-bold uppercase">
+                              {step.kind === "menu"
+                                ? "Menu de opções"
+                                : step.kind === "handoff"
+                                  ? "Falar com a equipe"
+                                  : "Encerra e salva"}
+                            </span>
+                          ) : null}
+                          {step.path_key !== "principal" ? (
+                            <span className="text-muted-foreground text-[11px] font-medium">
+                              caminho: {step.path_key}
+                            </span>
+                          ) : null}
                         </span>
+
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" onClick={() => moveStep(index, -1)} aria-label="Subir">
                             <ArrowUp className="h-4 w-4" />

@@ -13,15 +13,18 @@ import { getCatalogField } from "@/lib/form-field-catalog";
 import type { FormQuestionRow } from "@/lib/public-form-contact.server";
 import {
   FLOW_CANCEL_WORDS,
+  FLOW_DEFAULT_PATH,
   FLOW_MULTI_DONE_ID,
   FLOW_MULTI_DONE_LABEL,
   FLOW_SKIP_WORDS,
+  listRowFor,
   stepOptions,
   type Flow,
   type FlowResponseKind,
   type FlowStep,
   type FlowTriggerKind,
 } from "@/lib/whatsapp-flow-shared";
+
 
 type AnyRecord = Record<string, unknown>;
 // O client admin é tipado no módulo gerado; aqui usamos uma forma estrutural mínima
@@ -42,7 +45,10 @@ type SessionRow = {
   pending_multi: string[];
   invalid_attempts: number;
   expires_at: string;
+  /** Caminho (ramificação) em que a pessoa está. */
+  path_key: string;
 };
+
 
 const ADDR_SUBSTEPS = ["cep", "endereco", "numero", "complemento", "bairro", "cidade", "uf"] as const;
 type AddrSub = (typeof ADDR_SUBSTEPS)[number];
@@ -159,7 +165,12 @@ function optionsWithNumbers(options: FormCatalogOption[]): string {
 function buildPrompt(
   step: FlowStep,
   session: SessionRow,
-): { body: string; buttons?: Array<{ id: string; title: string }>; listRows?: Array<{ id: string; title: string }>; listButtonText?: string } {
+): {
+  body: string;
+  buttons?: Array<{ id: string; title: string }>;
+  listRows?: Array<{ id: string; title: string; description?: string }>;
+  listButtonText?: string;
+} {
   if (step.response_kind === "yes_no") {
     return {
       body: step.prompt,
@@ -186,35 +197,58 @@ function buildPrompt(
   }
 
   const opts = stepOptions(step);
-  if (step.response_kind === "single_choice") {
+
+  // Menu de ramificação: até 3 opções cabem em botões; acima disso vira lista.
+  if (step.kind === "menu") {
     if (opts.length <= 3) {
-      return { body: step.prompt, buttons: opts.map((o) => ({ id: o.value, title: o.label })) };
+      return {
+        body: step.prompt,
+        buttons: opts.map((o) => ({ id: o.value, title: o.label.slice(0, 20) })),
+      };
     }
-    const rows = opts.slice(0, 10).map((o) => ({ id: o.value, title: o.label }));
     return {
       body: `${step.prompt}\n\n${optionsWithNumbers(opts)}\n\nToque em "Ver opções" ou responda com o número.`,
-      listRows: rows,
+      listRows: opts.slice(0, 10).map((o) => listRowFor(o.value, o.label)),
+      listButtonText: "Ver opções",
+    };
+  }
+
+  if (step.response_kind === "single_choice") {
+    if (opts.length <= 3) {
+      return {
+        body: step.prompt,
+        buttons: opts.map((o) => ({ id: o.value, title: o.label.slice(0, 20) })),
+      };
+    }
+    return {
+      body: `${step.prompt}\n\n${optionsWithNumbers(opts)}\n\nToque em "Ver opções" ou responda com o número.`,
+      listRows: opts.slice(0, 10).map((o) => listRowFor(o.value, o.label)),
       listButtonText: "Ver opções",
     };
   }
 
   if (step.response_kind === "multi_choice") {
     const chosen = session.pending_multi ?? [];
-    const remaining = opts.filter((o) => !chosen.includes(o.value));
     const chosenLabels = opts.filter((o) => chosen.includes(o.value)).map((o) => o.label);
+    // Numeração sempre da lista completa (marcando o que já entrou), pra resposta
+    // por número nunca mudar de significado entre uma rodada e outra.
+    const numbered = opts
+      .map((o, i) => `${i + 1}. ${chosen.includes(o.value) ? "✅ " : ""}${o.label}`)
+      .join("\n");
     const header = chosenLabels.length
-      ? `Já anotei: ${chosenLabels.join(", ")}.\nQuer marcar mais alguma? Se terminou, toque em "${FLOW_MULTI_DONE_LABEL}".`
-      : `${step.prompt}\nPode escolher uma por vez — quando terminar, toque em "${FLOW_MULTI_DONE_LABEL}".`;
+      ? `Já anotei: ${chosenLabels.join(", ")}.\nQuer marcar mais alguma? Responda com os números (ex.: 2, 4) ou toque em "${FLOW_MULTI_DONE_LABEL}".`
+      : `${step.prompt}\n\nPode marcar várias de uma vez: responda com os números separados por vírgula (ex.: 1, 3, 5). Se preferir tocar, use "Ver opções" — dá pra ir somando.`;
     const rows = [
-      ...remaining.slice(0, 9).map((o) => ({ id: o.value, title: o.label })),
+      ...opts.filter((o) => !chosen.includes(o.value)).slice(0, 9).map((o) => listRowFor(o.value, o.label)),
       { id: FLOW_MULTI_DONE_ID, title: FLOW_MULTI_DONE_LABEL },
     ];
     return {
-      body: `${header}\n\n${optionsWithNumbers(remaining)}`,
+      body: `${header}\n\n${numbered}`,
       listRows: rows,
       listButtonText: "Ver opções",
     };
   }
+
 
   const suffix = step.required ? "" : '\n\n(Se preferir não responder, escreva "pular".)';
   return { body: `${step.prompt}${suffix}` };
@@ -251,6 +285,47 @@ function matchOption(text: string | null, options: FormCatalogOption[]): string 
   const partial = options.filter((o) => norm(o.label).includes(t));
   return partial.length === 1 ? partial[0]!.value : null;
 }
+
+/**
+ * Casa uma resposta escrita com VÁRIAS opções de uma vez:
+ * "1,3,5", "1 3 5", "1-3", "panfletagem e doação".
+ */
+function matchManyOptions(text: string | null, options: FormCatalogOption[]): string[] {
+  const raw = (text ?? "").trim();
+  if (!raw) return [];
+  const found: string[] = [];
+  const push = (v: string | null) => {
+    if (v && !found.includes(v)) found.push(v);
+  };
+
+  // Intervalos: 1-3 / 2 a 4
+  for (const m of raw.matchAll(/(\d+)\s*(?:-|a até|a|–|até)\s*(\d+)/gi)) {
+    const from = Number(m[1]);
+    const to = Number(m[2]);
+    if (Number.isInteger(from) && Number.isInteger(to) && from >= 1 && to >= from && to <= options.length) {
+      for (let i = from; i <= to; i += 1) push(options[i - 1]!.value);
+    }
+  }
+
+  // Números soltos (só quando a resposta é basicamente numérica)
+  if (/^[\d\s,;./+e-]+$/i.test(raw)) {
+    for (const m of raw.matchAll(/\d+/g)) {
+      const n = Number(m[0]);
+      if (Number.isInteger(n) && n >= 1 && n <= options.length) push(options[n - 1]!.value);
+    }
+    if (found.length) return found;
+  }
+
+  // Texto: separa por vírgula, ponto e vírgula, barra ou " e "
+  const parts = raw
+    .split(/[,;/\n]| e /i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  for (const part of parts) push(matchOption(part, options));
+  return found;
+}
+
+
 
 // ---------------------------------------------------------------- fluxo principal
 
@@ -320,8 +395,39 @@ async function loadSteps(admin: Admin, flowId: string): Promise<FlowStep[]> {
     .select("*")
     .eq("flow_id", flowId)
     .order("order_index", { ascending: true });
-  return ((data ?? []) as FlowStep[]).map((s) => ({ ...s, options: (s.options ?? []) as FormCatalogOption[] }));
+  return ((data ?? []) as FlowStep[]).map((s) => ({
+    ...s,
+    options: (s.options ?? []) as FormCatalogOption[],
+    kind: s.kind ?? "question",
+    path_key: s.path_key ?? FLOW_DEFAULT_PATH,
+    option_routes: (s.option_routes ?? {}) as Record<string, string>,
+  }));
 }
+
+/** Etapas de um caminho, na ordem. */
+function pathSteps(steps: FlowStep[], pathKey: string): FlowStep[] {
+  const key = pathKey || FLOW_DEFAULT_PATH;
+  const inPath = steps.filter((s) => (s.path_key || FLOW_DEFAULT_PATH) === key);
+  // Fluxo antigo (tudo no caminho padrão) continua funcionando igual.
+  return inPath.length ? inPath : key === FLOW_DEFAULT_PATH ? steps : [];
+}
+
+/** Marca a conversa como "Em aberto" e sinalizada, para atendimento humano. */
+async function handoffToHuman(
+  admin: Admin,
+  args: { phone: string; contactId: string | null; motivo: string },
+): Promise<void> {
+  try {
+    let q = admin
+      .from("conversations")
+      .update({ status: "aberta", flagged: true, last_message_at: new Date().toISOString() });
+    q = args.contactId ? q.eq("contact_id", args.contactId) : q.eq("from_phone", args.phone);
+    await q;
+  } catch {
+    /* atendimento humano não pode derrubar o fluxo */
+  }
+}
+
 
 async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
   const { admin, phone, text, referral } = input;
@@ -391,7 +497,8 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
   }
 
   const steps = await loadSteps(admin, chosen.flow.id);
-  if (!steps.length) return false;
+  const first = pathSteps(steps, FLOW_DEFAULT_PATH)[0];
+  if (!first) return false;
 
   const { data: created } = await admin
     .from("whatsapp_flow_sessions")
@@ -401,6 +508,7 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
       phone,
       status: "running",
       current_step_index: 0,
+      path_key: FLOW_DEFAULT_PATH,
       trigger_kind: chosen.trigger,
       ad_referral: referral,
       last_prompt_at: new Date().toISOString(),
@@ -416,7 +524,8 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
     contactId: input.contactId,
     body: chosen.flow.opening_message,
   });
-  await askStep(admin, session, steps[0]!, input.contactId);
+  await askStep(admin, session, first, input.contactId);
+
   return true;
 }
 
@@ -442,7 +551,8 @@ export async function startFlowManually(args: {
   if (!flow) throw new Error("Fluxo não encontrado.");
 
   const steps = await loadSteps(admin, flowId);
-  if (!steps.length) throw new Error("Este fluxo ainda não tem perguntas.");
+  const first = pathSteps(steps, FLOW_DEFAULT_PATH)[0];
+  if (!first) throw new Error("Este fluxo ainda não tem perguntas.");
 
   await admin
     .from("whatsapp_flow_sessions")
@@ -458,6 +568,7 @@ export async function startFlowManually(args: {
       phone,
       status: "running",
       current_step_index: 0,
+      path_key: FLOW_DEFAULT_PATH,
       trigger_kind: "manual",
       last_prompt_at: new Date().toISOString(),
     })
@@ -468,7 +579,8 @@ export async function startFlowManually(args: {
   if (!session) throw new Error("Não consegui abrir a sessão do fluxo.");
 
   await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
-  await askStep(admin, session, steps[0]!, contactId);
+  await askStep(admin, session, first, contactId);
+
   return { ok: true };
 }
 
@@ -493,14 +605,100 @@ async function askStep(
     .eq("id", session.id);
 }
 
+/**
+ * Coloca a sessão numa etapa do caminho atual: pergunta, encerra com cadastro
+ * ou passa para atendimento humano.
+ */
+async function proceedTo(
+  input: FlowInboundInput,
+  session: SessionRow,
+  allSteps: FlowStep[],
+  index: number,
+): Promise<void> {
+  const { admin } = input;
+  const list = pathSteps(allSteps, session.path_key);
+  const step = list[index];
+
+  if (!step) {
+    await finishSession(input, session, list);
+    return;
+  }
+
+  await admin
+    .from("whatsapp_flow_sessions")
+    .update({
+      current_step_index: index,
+      path_key: session.path_key,
+      answers: session.answers,
+      pending_multi: session.pending_multi,
+      invalid_attempts: 0,
+    })
+    .eq("id", session.id);
+
+  const next: SessionRow = { ...session, current_step_index: index };
+
+  if (step.kind === "handoff") {
+    await sendFlowMessage(admin, {
+      phone: session.phone,
+      contactId: session.contact_id ?? input.contactId,
+      body: step.prompt,
+    });
+    await handoffToHuman(admin, {
+      phone: session.phone,
+      contactId: session.contact_id ?? input.contactId,
+      motivo: "pediu para falar com alguém",
+    });
+    await admin
+      .from("whatsapp_flow_sessions")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", session.id);
+    return;
+  }
+
+  if (step.kind === "finish") {
+    await finishSession(input, next, list, step);
+    return;
+  }
+
+  await askStep(admin, next, step, input.contactId);
+}
+
 async function advanceSession(input: FlowInboundInput, session: SessionRow): Promise<void> {
   const { admin } = input;
-  const steps = await loadSteps(admin, session.flow_id);
+  const allSteps = await loadSteps(admin, session.flow_id);
+  const steps = pathSteps(allSteps, session.path_key);
   const step = steps[session.current_step_index];
   if (!step) {
     await finishSession(input, session, steps);
     return;
   }
+
+  // ---- menu de ramificação: escolhe o caminho e segue por lá
+  if (step.kind === "menu") {
+    const opts = stepOptions(step);
+    const replyId = interactiveReplyId(input.message);
+    const value =
+      replyId && opts.some((o) => o.value === replyId) ? replyId : matchOption(input.text, opts);
+    if (!value) {
+      await admin
+        .from("whatsapp_flow_sessions")
+        .update({ invalid_attempts: (session.invalid_attempts ?? 0) + 1 })
+        .eq("id", session.id);
+      await askStep(
+        admin,
+        session,
+        { ...step, prompt: `Não entendi. ${step.prompt}` },
+        input.contactId,
+      );
+      return;
+    }
+    const answers = { ...session.answers, [`__menu__${step.id}`]: value };
+    const target = step.option_routes?.[value] ?? FLOW_DEFAULT_PATH;
+    await proceedTo(input, { ...session, answers, path_key: target, pending_multi: [] }, allSteps, 0);
+    return;
+  }
+
+
 
   const replyId = interactiveReplyId(input.message);
   const answers: AnyRecord = { ...session.answers };
@@ -520,18 +718,15 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
     });
     if (attempts >= 3 && !step.required) {
       // Não trava a pessoa numa pergunta opcional.
-      await admin
-        .from("whatsapp_flow_sessions")
-        .update({ current_step_index: session.current_step_index + 1, invalid_attempts: 0 })
-        .eq("id", session.id);
-      const next = steps[session.current_step_index + 1];
-      if (next) {
-        await askStep(admin, { ...session, current_step_index: session.current_step_index + 1, answers, pending_multi: [] }, next, input.contactId);
-      } else {
-        await finishSession(input, { ...session, answers }, steps);
-      }
+      await proceedTo(
+        input,
+        { ...session, answers, pending_multi: [] },
+        allSteps,
+        session.current_step_index + 1,
+      );
     }
   };
+
 
   const skipRequested = isSkip(input.text) || replyId === FLOW_MULTI_DONE_ID;
 
@@ -634,21 +829,44 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
       answers[step.id] = value;
     }
   }
-  // ---- múltipla escolha (rodadas)
+  // ---- múltipla escolha: aceita várias numa só mensagem, ou toques somando
   else if (step.response_kind === "multi_choice") {
     const opts = stepOptions(step);
-    if (replyId === FLOW_MULTI_DONE_ID || isSkip(input.text) || norm(input.text) === "pronto") {
+    const doneAsked =
+      replyId === FLOW_MULTI_DONE_ID || isSkip(input.text) || norm(input.text) === "pronto";
+
+    if (doneAsked) {
       if (pendingMulti.length) answers[step.id] = pendingMulti;
       pendingMulti = [];
     } else {
-      const value = replyId ?? matchOption(input.text, opts);
-      if (!value || !opts.some((o) => o.value === value)) {
-        await invalid(`Não achei essa opção. Responda com o número, ou toque em "${FLOW_MULTI_DONE_LABEL}" pra seguir.`);
+      const picked =
+        replyId && opts.some((o) => o.value === replyId)
+          ? [replyId]
+          : matchManyOptions(input.text, opts);
+
+      if (!picked.length) {
+        await invalid(
+          `Não achei essa opção. Pode responder com os números separados por vírgula (ex.: 1, 3), ou tocar em "${FLOW_MULTI_DONE_LABEL}" pra seguir.`,
+        );
         return;
       }
-      if (!pendingMulti.includes(value)) pendingMulti.push(value);
+
+      for (const v of picked) if (!pendingMulti.includes(v)) pendingMulti.push(v);
+      const labels = opts.filter((o) => pendingMulti.includes(o.value)).map((o) => o.label);
       const remaining = opts.filter((o) => !pendingMulti.includes(o.value));
-      if (remaining.length > 0) {
+
+      // Veio por texto com mais de uma opção: já entendi tudo, confirmo e sigo.
+      const answeredByText = !replyId && picked.length > 1;
+      if (answeredByText || remaining.length === 0) {
+        await sendFlowMessage(admin, {
+          phone: session.phone,
+          contactId: session.contact_id ?? input.contactId,
+          body: `Anotei: ${labels.join(", ")}.`,
+        });
+        answers[step.id] = pendingMulti;
+        pendingMulti = [];
+      } else {
+        // Um toque só (ou uma opção escrita): guarda e oferece somar mais.
         await admin
           .from("whatsapp_flow_sessions")
           .update({ pending_multi: pendingMulti, answers })
@@ -656,10 +874,9 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
         await askStep(admin, { ...session, pending_multi: pendingMulti, answers }, step, input.contactId);
         return;
       }
-      answers[step.id] = pendingMulti;
-      pendingMulti = [];
     }
   }
+
   // ---- texto / e-mail / número / data
   else {
     const raw = (input.text ?? "").trim();
@@ -701,32 +918,28 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
 
   if (!moveOn) return;
 
-  const nextIndex = session.current_step_index + 1;
-  await admin
-    .from("whatsapp_flow_sessions")
-    .update({ answers, pending_multi: pendingMulti, current_step_index: nextIndex, invalid_attempts: 0 })
-    .eq("id", session.id);
-
-  const next = steps[nextIndex];
-  const updated: SessionRow = {
-    ...session,
-    answers,
-    pending_multi: pendingMulti,
-    current_step_index: nextIndex,
-  };
-  if (next) {
-    await askStep(admin, updated, next, input.contactId);
-    return;
-  }
-  await finishSession(input, updated, steps);
+  await proceedTo(
+    input,
+    { ...session, answers, pending_multi: pendingMulti },
+    allSteps,
+    session.current_step_index + 1,
+  );
 }
 
 async function finishSession(
   input: FlowInboundInput,
   session: SessionRow,
-  steps: FlowStep[],
+  pathStepList: FlowStep[],
+  finishStep?: FlowStep,
 ): Promise<void> {
   const { admin } = input;
+  const steps = pathStepList.filter((s) => (s.kind ?? "question") === "question");
+  const formType =
+    (finishStep?.option_routes?.["source_form_type"] as
+      | "cadastro_completo"
+      | "receber_informacoes"
+      | undefined) ?? "cadastro_completo";
+
   const { data: flowData } = await admin
     .from("whatsapp_flows")
     .select("*")
@@ -782,7 +995,7 @@ async function finishSession(
     form: {
       id: session.flow_id,
       title: flow?.nome ? `WhatsApp: ${flow.nome}` : "Cadastro pelo WhatsApp",
-      source_form_type: "cadastro_completo",
+      source_form_type: formType,
       tracking_name: flow?.nome ?? null,
     },
     questions,
@@ -813,6 +1026,8 @@ async function finishSession(
     contactId: contactId ?? input.contactId,
     body: failed
       ? "Recebi tudo, mas deu um problema aqui pra salvar seu cadastro. Nossa equipe vai te chamar pra finalizar. 🙏"
-      : (flow?.closing_message ?? "Prontinho! Seu cadastro foi feito. Obrigado por fazer parte. 💪"),
+      : (finishStep?.prompt?.trim() ||
+        flow?.closing_message ||
+        "Prontinho! Seu cadastro foi feito. Obrigado por fazer parte. 💪"),
   });
 }
