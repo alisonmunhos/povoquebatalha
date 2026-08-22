@@ -223,6 +223,7 @@ export const getConversation = createServerFn({ method: "GET" })
           .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(200)
       : null;
 
+    type SharedContact = { nome?: string | null; phone?: string | null };
     type InboundRow = {
       id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null;
       media_url: string | null; media_path: string | null; media_mime: string | null;
@@ -230,7 +231,7 @@ export const getConversation = createServerFn({ method: "GET" })
       wa_message_id: string | null; reply_to_wa_id: string | null;
       reaction_emoji: string | null; reaction_target_wa_id: string | null;
       latitude: number | null; longitude: number | null; location_name: string | null;
-      shared_contacts: unknown | null; is_system_event: boolean | null;
+      shared_contacts: SharedContact[] | null; is_system_event: boolean | null;
     };
 
     const [inR, dR, cR, tR, aR] = await Promise.all([
@@ -333,6 +334,8 @@ export const getConversation = createServerFn({ method: "GET" })
       contact,
       tags,
       inbound,
+      reactions,
+      systemEvents,
       automation,
       direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {

@@ -24,7 +24,7 @@ export type ParsedInbound = {
   latitude: number | null;
   longitude: number | null;
   location_name: string | null;
-  shared_contacts: unknown | null;
+  shared_contacts: { nome?: string | null; phone?: string | null }[] | null;
   is_system_event: boolean;
 };
 
@@ -81,7 +81,7 @@ export function parseCloudMessage(message: AnyRecord): ParsedInbound {
     return out;
   }
   if (tipo === "contacts") {
-    out.shared_contacts = message.contacts ?? null;
+    out.shared_contacts = (message.contacts as { nome?: string | null; phone?: string | null }[] | undefined) ?? null;
     out.conteudo = mediaPlaceholder("contacts");
     return out;
   }
