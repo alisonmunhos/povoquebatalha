@@ -151,11 +151,12 @@ export async function linkFlowHistoryToContact(
   phone: string,
   contactId: string,
 ): Promise<void> {
+  const tail = last8(phone);
   try {
     await admin
       .from("direct_messages")
       .update({ contact_id: contactId, to_phone: null })
-      .eq("to_phone", phone)
+      .like("to_phone", `%${tail}`)
       .is("contact_id", null);
   } catch {
     /* não bloqueia o fluxo */
@@ -164,7 +165,7 @@ export async function linkFlowHistoryToContact(
     await admin
       .from("whatsapp_flow_sessions")
       .update({ contact_id: contactId })
-      .eq("phone", phone)
+      .like("phone", `%${tail}`)
       .is("contact_id", null);
   } catch {
     /* não bloqueia o fluxo */
