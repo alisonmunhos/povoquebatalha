@@ -129,48 +129,160 @@ export const FLOW_AVAILABLE_FIELDS = FORM_FIELD_CATALOG.filter(
   (f) => f.key !== "formas_ajuda_outro",
 );
 
-/** Roteiro padrão do fluxo "FAÇA PARTE DA NOSSA CAMPANHA!". */
-export const DEFAULT_FLOW_STEPS: Array<{
+/** Caminhos nomeados do roteiro padrão. */
+export const FLOW_PATH_LABELS: Record<string, string> = {
+  [FLOW_DEFAULT_PATH]: "Início (menu)",
+  cadastro: "Quero apoiar (cadastro completo)",
+  info: "Quero receber informações",
+  humano: "Quero falar com alguém",
+};
+
+export type FlowStepTemplate = {
   catalog_field_key: string;
   prompt: string;
   required: boolean;
-}> = [
-  { catalog_field_key: "nome", prompt: "Pra começar, qual é o seu nome completo?", required: true },
+  kind?: FlowStepKind;
+  path_key?: string;
+  option_routes?: Record<string, string>;
+  options?: FormCatalogOption[];
+};
+
+/**
+ * Encurta o título de um item de lista (limite de 24 caracteres da Meta) sem
+ * perder o texto: o completo vai na descrição do item.
+ */
+export function shortRowTitle(label: string): string {
+  const clean = label.trim();
+  if (clean.length <= 24) return clean;
+  const cut = clean.slice(0, 24);
+  const space = cut.lastIndexOf(" ");
+  return (space > 12 ? cut.slice(0, space) : cut.slice(0, 23)).trim() + "…";
+}
+
+/** Monta um item de lista sem cortar frases longas (título curto + descrição). */
+export function listRowFor(
+  id: string,
+  label: string,
+): { id: string; title: string; description?: string } {
+  const clean = label.trim();
+  if (clean.length <= 24) return { id, title: clean };
+  return { id, title: shortRowTitle(clean), description: clean.slice(0, 72) };
+}
+
+/** Roteiro padrão do fluxo "FAÇA PARTE DA NOSSA CAMPANHA!". */
+export const DEFAULT_FLOW_STEPS: FlowStepTemplate[] = [
+  // ---- menu de entrada
+  {
+    catalog_field_key: FLOW_NO_FIELD_KEY,
+    kind: "menu",
+    path_key: FLOW_DEFAULT_PATH,
+    prompt: "Como podemos te ajudar hoje?",
+    required: true,
+    options: [
+      { value: "apoiar", label: "Quero apoiar a campanha" },
+      { value: "informacoes", label: "Quero receber informações" },
+      { value: "falar", label: "Quero falar com alguém" },
+    ],
+    option_routes: { apoiar: "cadastro", informacoes: "info", falar: "humano" },
+  },
+
+  // ---- caminho: cadastro completo
+  {
+    catalog_field_key: "nome",
+    path_key: "cadastro",
+    prompt: "Pra começar, qual é o seu nome completo?",
+    required: true,
+  },
   {
     catalog_field_key: "nome_social",
+    path_key: "cadastro",
     prompt: 'Você usa nome social ou apelido? Se sim, escreva aqui. Se não, responda "pular".',
     required: false,
   },
   {
     catalog_field_key: "whatsapp",
+    path_key: "cadastro",
     prompt:
       "Esse WhatsApp que você está usando é o melhor número pra gente te chamar? Se sim, escreva SIM. Se não, escreva o número com DDD.",
     required: true,
   },
   {
     catalog_field_key: "endereco_completo",
+    path_key: "cadastro",
     prompt: "Agora o endereço. Qual é o seu CEP? (só os números)",
     required: false,
   },
   {
     catalog_field_key: "formas_ajuda",
-    prompt: "Como você pode ajudar a campanha? Escolha quantas quiser.",
+    path_key: "cadastro",
+    prompt: "Como você pode ajudar a campanha? Pode marcar mais de uma.",
     required: false,
   },
   {
     catalog_field_key: "coletivo_alicerce",
+    path_key: "cadastro",
     prompt: "Você faz parte do Coletivo Alicerce?",
     required: false,
   },
   {
     catalog_field_key: "consentimento",
+    path_key: "cadastro",
     prompt: "Você aceita receber mensagens da campanha por aqui, no WhatsApp?",
     required: true,
   },
   {
     catalog_field_key: "consentimento_lgpd",
+    path_key: "cadastro",
     prompt:
       "Por último: você autoriza o uso dos seus dados pela campanha, conforme a Lei Geral de Proteção de Dados (LGPD), só para os fins deste cadastro?",
     required: true,
   },
+
+  // ---- caminho: só receber informações
+  {
+    catalog_field_key: "nome",
+    path_key: "info",
+    prompt: "Combinado! Só preciso confirmar: qual é o seu nome?",
+    required: true,
+  },
+  {
+    catalog_field_key: "whatsapp",
+    path_key: "info",
+    prompt:
+      "É neste número que você quer receber as informações? Se sim, escreva SIM. Se preferir outro, escreva o número com DDD.",
+    required: true,
+  },
+  {
+    catalog_field_key: "consentimento",
+    path_key: "info",
+    prompt: "Você autoriza a campanha te mandar novidades por WhatsApp?",
+    required: true,
+  },
+  {
+    catalog_field_key: "consentimento_lgpd",
+    path_key: "info",
+    prompt:
+      "E autoriza o uso dos seus dados pela campanha, conforme a Lei Geral de Proteção de Dados (LGPD), só para te manter informado?",
+    required: true,
+  },
+  {
+    catalog_field_key: FLOW_NO_FIELD_KEY,
+    kind: "finish",
+    path_key: "info",
+    prompt:
+      "Prontinho! A partir de agora você recebe as novidades da campanha por aqui. Se quiser fazer parte de verdade, é só me chamar. 💜",
+    required: false,
+    option_routes: { source_form_type: "receber_informacoes" },
+  },
+
+  // ---- caminho: falar com alguém
+  {
+    catalog_field_key: FLOW_NO_FIELD_KEY,
+    kind: "handoff",
+    path_key: "humano",
+    prompt:
+      "Já avisei nossa equipe! Alguém vai te responder por aqui mesmo, o mais rápido possível. 💪",
+    required: false,
+  },
 ];
+
