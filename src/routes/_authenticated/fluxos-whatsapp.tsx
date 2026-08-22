@@ -318,6 +318,14 @@ function FluxosWhatsappPage() {
                       aria-label="Ligar ou desligar o fluxo"
                     />
                     <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={startMutation.isPending}
+                      onClick={() => askPhoneAndStart(flow.id)}
+                    >
+                      Testar no meu WhatsApp
+                    </Button>
+                    <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
