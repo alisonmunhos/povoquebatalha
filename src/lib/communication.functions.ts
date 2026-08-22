@@ -186,7 +186,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     // Recupera histórico mesmo quando a vinculação entre mensagem e contato
     // divergiu (período anterior à API oficial, 9º dígito, DDI, etc.).
-    let inboundQuery: Promise<{ data: InboundRow[] }> | null = null;
+    let inboundQuery = null;
     if (effectiveContactId) {
       const phoneFilter = contact?.phone_e164 ? `,from_phone.eq.${encodeURIComponent(contact.phone_e164)}` : "";
       inboundQuery = context.supabase.from("inbound_messages")
