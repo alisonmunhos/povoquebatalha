@@ -202,7 +202,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const campaignQuery = effectiveContactId
       ? context.supabase.from("campaign_recipients")
-          .select("id, rendered_message, sent_at, status, endpoint_used, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(header_type, header_text, buttons))")
+          .select("id, rendered_message, sent_at, status, endpoint_used, message_id, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(header_type, header_text, buttons))")
           .eq("contact_id", effectiveContactId).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200)
       : null;
 
@@ -223,17 +223,61 @@ export const getConversation = createServerFn({ method: "GET" })
           .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(200)
       : null;
 
+    type InboundRow = {
+      id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null;
+      media_url: string | null; media_path: string | null; media_mime: string | null;
+      media_filename: string | null; media_size: number | null;
+      wa_message_id: string | null; reply_to_wa_id: string | null;
+      reaction_emoji: string | null; reaction_target_wa_id: string | null;
+      latitude: number | null; longitude: number | null; location_name: string | null;
+      shared_contacts: unknown | null; is_system_event: boolean | null;
+    };
+
     const [inR, dR, cR, tR, aR] = await Promise.all([
-      inboundQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null; media_url: string | null; media_mime: string | null; media_filename: string | null }[] }),
-      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null }[] }),
-      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[] }),
+      inboundQuery ?? Promise.resolve({ data: [] as InboundRow[] }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null }[] }),
+      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[] }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
       automationQuery ?? Promise.resolve({ data: [] as AutoRow[] }),
     ]);
-    const inbound = inR.data ?? [];
+    const inboundRaw = ((inR.data ?? []) as InboundRow[]);
     const direct = dR.data ?? [];
     const campaign = cR.data ?? [];
     const tagRows = tR.data ?? [];
+
+    // Mídia recebida guardada no bucket privado: gera URL assinada para exibir.
+    const mediaPaths = inboundRaw.map((m) => m.media_path).filter((p): p is string => Boolean(p));
+    const signedByPath: Record<string, string> = {};
+    if (mediaPaths.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: signed } = await supabaseAdmin
+        .storage.from("inbox-media").createSignedUrls(mediaPaths, 60 * 60);
+      (signed ?? []).forEach((s) => {
+        if (s.path && s.signedUrl) signedByPath[s.path] = s.signedUrl;
+      });
+    }
+
+    // Reações não viram bolha: vão presas na mensagem reagida (como no WhatsApp).
+    const reactions = inboundRaw
+      .filter((m) => m.tipo === "reaction" && m.reaction_emoji)
+      .map((m) => ({
+        id: m.id,
+        emoji: m.reaction_emoji as string,
+        target_wa_id: m.reaction_target_wa_id,
+        at: m.received_at,
+      }));
+
+    const inbound = inboundRaw
+      .filter((m) => m.tipo !== "reaction" && !m.is_system_event)
+      .map((m) => ({
+        ...m,
+        media_url: m.media_path ? (signedByPath[m.media_path] ?? null) : m.media_url,
+      }));
+
+    const systemEvents = inboundRaw
+      .filter((m) => m.is_system_event)
+      .map((m) => ({ id: m.id, at: m.received_at, text: m.conteudo }));
+
     const automation = ((aR.data ?? []) as AutoRow[])
       .filter((a) => a.status !== "skipped")
       .map((a) => {
