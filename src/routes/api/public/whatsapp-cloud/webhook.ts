@@ -217,6 +217,35 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                       .in("status", ["queued", "sending"]);
                   }
                 }
+
+                // ---- Fluxo de cadastro pelo chat (robô) ----
+                // Texto livre, botões e itens de lista alimentam o motor; mídia não.
+                const flowText =
+                  parsed.tipo === "text" || parsed.tipo === "interactive" || parsed.tipo === "button"
+                    ? parsed.conteudo
+                    : null;
+                if (from && !parsed.is_system_event && !parsed.reaction_emoji) {
+                  try {
+                    const { handleFlowInbound } = await import("@/lib/whatsapp-flow.server");
+                    await handleFlowInbound({
+                      admin: supabaseAdmin as never,
+                      phone: from,
+                      contactId,
+                      message,
+                      text: flowText,
+                      referral: asRecord(message.referral),
+                    });
+                  } catch (flowError) {
+                    const msg = flowError instanceof Error ? flowError.message : String(flowError);
+                    await supabaseAdmin.from("webhook_log").insert({
+                      evento: "whatsapp_flow:error",
+                      provider: "whatsapp_cloud",
+                      payload: { phone: from, message: msg } as never,
+                      processado: false,
+                      erro: msg,
+                    });
+                  }
+                }
               }
 
 
