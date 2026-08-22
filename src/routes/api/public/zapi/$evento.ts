@@ -174,24 +174,10 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
             const text = parsed.tipo === "text" ? parsed.conteudo : null;
 
             // Vincula ao contato APENAS se já existir na base (não cria mais contato automaticamente).
-            // Usado tanto pelo registro no Inbox/opt-out abaixo quanto pela resposta
-            // automática por gatilho — nenhum dos dois exige que o contato já exista.
-            let contactId: string | null = null;
-            if (phone) {
-              const digits = phone.replace(/\D+/g, "");
-              const last8 = digits.length >= 8 ? digits.slice(-8) : null;
-              if (last8) {
-                // Casa contra o telefone principal OU secundário — evita duplicar
-                // contato quando a pessoa manda mensagem pelo número secundário.
-                const { data: c } = await supabaseAdmin
-                  .from("contacts")
-                  .select("id, phone_last8, phone_secundario_last8")
-                  .or(`phone_last8.eq.${last8},phone_secundario_last8.eq.${last8}`)
-                  .limit(1)
-                  .maybeSingle();
-                contactId = c?.id ?? null;
-              }
-            }
+            // Mesma regra do recebedor oficial: telefone principal primeiro,
+            // telefone secundário só como segunda tentativa.
+            const { matchInboundContactId } = await import("@/lib/inbound-contact-match.server");
+            const contactId = await matchInboundContactId(phone);
 
             if (inboundEnabled) {
               const senderName =
