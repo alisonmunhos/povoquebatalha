@@ -105,6 +105,8 @@ function Page() {
   const deleteFn = useServerFn(deleteWhatsappTemplateDraft);
   const submitFn = useServerFn(submitWhatsappTemplate);
   const importFn = useServerFn(importWhatsappTemplatesFromMeta);
+  const duplicateFn = useServerFn(duplicateWhatsappTemplateAsDraft);
+  const metaEditFn = useServerFn(editWhatsappTemplateOnMeta);
 
   const [form, setForm] = useState<FormState | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
