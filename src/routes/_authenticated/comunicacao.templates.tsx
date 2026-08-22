@@ -25,6 +25,8 @@ import {
   deleteWhatsappTemplateDraft,
   submitWhatsappTemplate,
   importWhatsappTemplatesFromMeta,
+  duplicateWhatsappTemplateAsDraft,
+  editWhatsappTemplateOnMeta,
   extractNamedVars,
   TEMPLATE_VARIABLES,
   type WhatsappTemplateRow,
@@ -72,6 +74,8 @@ type FormState = {
   name: string;
   category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   language: string;
+  /** true quando estamos editando direto na Meta um modelo já existente. */
+  metaEdit?: boolean;
   body_text: string;
   header_type: "NONE" | "TEXT";
   header_text: string;
@@ -101,6 +105,8 @@ function Page() {
   const deleteFn = useServerFn(deleteWhatsappTemplateDraft);
   const submitFn = useServerFn(submitWhatsappTemplate);
   const importFn = useServerFn(importWhatsappTemplatesFromMeta);
+  const duplicateFn = useServerFn(duplicateWhatsappTemplateAsDraft);
+  const metaEditFn = useServerFn(editWhatsappTemplateOnMeta);
 
   const [form, setForm] = useState<FormState | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -190,18 +196,57 @@ function Page() {
       toast.error(e instanceof Error ? e.message : "Não foi possível importar da Meta."),
   });
 
+  const duplicate = useMutation({
+    mutationFn: (id: string) => duplicateFn({ data: { id } }),
+    onSuccess: async (res) => {
+      toast.success(`Cópia criada como rascunho: ${res.name}. Corrija o texto e envie de novo.`);
+      await qc.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Não foi possível duplicar o modelo."),
+  });
+
+  const metaEdit = useMutation({
+    mutationFn: (payload: FormState) =>
+      metaEditFn({
+        data: {
+          id: payload.id!,
+          body_text: payload.body_text,
+          footer_text: payload.footer_text.trim() ? payload.footer_text.trim() : null,
+          example_values: payload.example_values,
+        },
+      }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success("Alteração enviada à Meta — o modelo volta para análise.");
+        setSubmitError(null);
+        setForm(null);
+      } else {
+        setSubmitError(res.error);
+        toast.error("A Meta recusou a edição.");
+      }
+      void qc.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Falha ao editar na Meta.";
+      setSubmitError(msg);
+      toast.error(msg);
+    },
+  });
+
   function startNew() {
     setSubmitError(null);
     setForm({ ...EMPTY, example_values: {} });
   }
 
-  function startEdit(t: WhatsappTemplateRow) {
+  function startEdit(t: WhatsappTemplateRow, metaEditMode = false) {
     setSubmitError(t.rejected_reason ?? null);
     setForm({
       id: t.id,
       name: t.name,
       category: (t.category as FormState["category"]) ?? "UTILITY",
       language: t.language,
+      metaEdit: metaEditMode,
       body_text: t.body_text,
       header_type: (t.header_type as FormState["header_type"]) ?? "NONE",
       header_text: t.header_text ?? "",
@@ -211,6 +256,7 @@ function Page() {
       buttons: [...(t.buttons ?? [])],
     });
   }
+
 
   /** Insere {{variavel}} na posição do cursor do corpo (ou no final). */
   function insertBodyVariable(name: string) {
@@ -507,23 +553,42 @@ function Page() {
             </p>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
-              <Save className="h-4 w-4 mr-1" /> Salvar rascunho
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!form.id || submit.isPending}
-              onClick={() => form.id && submit.mutate(form.id)}
-            >
-              <Send className="h-4 w-4 mr-1" /> Enviar para aprovação
-            </Button>
-            {!form.id && (
+          <p className="text-xs text-muted-foreground">
+            Revise a acentuação antes de enviar (ex.: “Olá”, “você”, “atribuída”, “responsável”).
+            Depois de aprovado, o texto só muda com uma nova edição na Meta.
+          </p>
+
+          {form.metaEdit ? (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={metaEdit.isPending} onClick={() => metaEdit.mutate(form)}>
+                <Send className="h-4 w-4 mr-1" /> Salvar alteração na Meta
+              </Button>
+              <Button variant="ghost" onClick={() => setForm(null)}>
+                Cancelar
+              </Button>
               <span className="text-xs text-muted-foreground self-center">
-                Salve o rascunho antes de enviar para a Meta.
+                Só o corpo e o rodapé podem ser alterados; o modelo volta para análise.
               </span>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
+                <Save className="h-4 w-4 mr-1" /> Salvar rascunho
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={!form.id || submit.isPending}
+                onClick={() => form.id && submit.mutate(form.id)}
+              >
+                <Send className="h-4 w-4 mr-1" /> Enviar para aprovação
+              </Button>
+              {!form.id && (
+                <span className="text-xs text-muted-foreground self-center">
+                  Salve o rascunho antes de enviar para a Meta.
+                </span>
+              )}
+            </div>
+          )}
         </section>
       )}
 
@@ -579,10 +644,31 @@ function Page() {
                 </p>
               )}
               {t.status !== "draft" && !positional && (
-                <p className="text-xs text-muted-foreground">
-                  Já enviado à Meta — não é possível editar. Crie um novo modelo para
-                  alterar o texto.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {t.status === "pending"
+                      ? "Em análise na Meta — nesse estado a Meta não permite editar. Use “Duplicar e corrigir” para preparar uma versão nova."
+                      : "Você pode editar o texto direto na Meta (o modelo volta para análise) ou duplicar como rascunho."}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={duplicate.isPending}
+                      onClick={() => duplicate.mutate(t.id)}
+                    >
+                      Duplicar e corrigir
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!["approved", "rejected", "paused"].includes(t.status)}
+                      onClick={() => startEdit(t, true)}
+                    >
+                      Editar na Meta
+                    </Button>
+                  </div>
+                </div>
               )}
               {t.status === "draft" && (
                 <div className="flex gap-2">

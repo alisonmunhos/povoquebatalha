@@ -496,3 +496,208 @@ export const importWhatsappTemplatesFromMeta = createServerFn({ method: "POST" }
 
     return { ok: true, imported, existing };
   });
+
+/** Monta os components (HEADER/BODY/FOOTER/BUTTONS) no formato da Meta. */
+function buildMetaComponents(tpl: {
+  header_type: string;
+  header_text: string | null;
+  header_example: string | null;
+  body_text: string;
+  footer_text: string | null;
+  example_values: unknown;
+  buttons: unknown;
+}): Array<Record<string, unknown>> {
+  const examples = toStringMap(tpl.example_values);
+  const components: Array<Record<string, unknown>> = [];
+
+  if (tpl.header_type === "TEXT" && tpl.header_text) {
+    const header: Record<string, unknown> = {
+      type: "HEADER",
+      format: "TEXT",
+      text: tpl.header_text,
+    };
+    const headerVar = extractNamedVars(tpl.header_text)[0];
+    if (headerVar) {
+      header["example"] = {
+        header_text_named_params: [
+          { param_name: headerVar, example: tpl.header_example ?? examples[headerVar] ?? "" },
+        ],
+      };
+    }
+    components.push(header);
+  }
+
+  const bodyVars = extractNamedVars(tpl.body_text);
+  const body: Record<string, unknown> = { type: "BODY", text: tpl.body_text };
+  if (bodyVars.length > 0) {
+    body["example"] = {
+      body_text_named_params: bodyVars.map((name) => ({
+        param_name: name,
+        example: examples[name] ?? "",
+      })),
+    };
+  }
+  components.push(body);
+
+  if (tpl.footer_text) components.push({ type: "FOOTER", text: tpl.footer_text });
+
+  const buttons = toButtonsArray(tpl.buttons);
+  if (buttons.length > 0) {
+    components.push({
+      type: "BUTTONS",
+      buttons: buttons.map((b) => {
+        if (b.type === "URL") return { type: "URL", text: b.text, url: b.url };
+        if (b.type === "PHONE_NUMBER") {
+          return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone_number };
+        }
+        return { type: "QUICK_REPLY", text: b.text };
+      }),
+    });
+  }
+  return components;
+}
+
+/** Copia um modelo já enviado para um novo rascunho editável (nome com sufixo livre). */
+export const duplicateWhatsappTemplateAsDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: tpl, error } = await context.supabase
+      .from("whatsapp_templates")
+      .select(SELECT)
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!tpl) throw new Error("Modelo não encontrado.");
+    if (tpl.parameter_format !== "named") {
+      throw new Error(
+        "Modelos com variáveis numeradas não podem ser duplicados aqui. Crie um novo modelo.",
+      );
+    }
+
+    const base = tpl.name.replace(/_v\d+$/, "");
+    let name = "";
+    for (let i = 2; i < 40; i += 1) {
+      const candidate = `${base}_v${i}`;
+      const { data: exists } = await context.supabase
+        .from("whatsapp_templates")
+        .select("id")
+        .eq("name", candidate)
+        .eq("language", tpl.language)
+        .maybeSingle();
+      if (!exists) {
+        name = candidate;
+        break;
+      }
+    }
+    if (!name) throw new Error("Não foi possível gerar um nome novo para a cópia.");
+
+    const { data: row, error: insErr } = await context.supabase
+      .from("whatsapp_templates")
+      .insert({
+        name,
+        language: tpl.language,
+        category: tpl.category,
+        body_text: tpl.body_text,
+        header_type: tpl.header_type,
+        header_text: tpl.header_text,
+        header_example: tpl.header_example,
+        footer_text: tpl.footer_text,
+        example_values: tpl.example_values,
+        buttons: tpl.buttons,
+        parameter_format: "named",
+        source: "app",
+        status: "draft",
+        created_by: context.userId,
+      })
+      .select("id,name")
+      .single();
+    if (insErr) throw insErr;
+    return { id: row.id, name: row.name };
+  });
+
+type EditResult = { ok: true } | { ok: false; error: string };
+
+/** Edita na Meta um modelo já existente — permitido só quando aprovado, reprovado ou pausado. */
+export const editWhatsappTemplateOnMeta = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        body_text: z.string().trim().min(2).max(1024),
+        footer_text: z.string().trim().max(60).nullable().optional(),
+        example_values: z.record(z.string(), z.string()).default({}),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<EditResult> => {
+    const token = process.env["WHATSAPP_TOKEN"];
+    if (!token) return { ok: false, error: "Falta o segredo WHATSAPP_TOKEN para falar com a Meta." };
+
+    const { data: tpl, error } = await context.supabase
+      .from("whatsapp_templates")
+      .select(SELECT)
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!tpl) return { ok: false, error: "Modelo não encontrado." };
+    if (!tpl.meta_template_id) {
+      return { ok: false, error: "Este modelo ainda não existe na Meta. Envie para aprovação." };
+    }
+    if (!["approved", "rejected", "paused"].includes(tpl.status)) {
+      return {
+        ok: false,
+        error:
+          "A Meta só permite editar modelos aprovados, reprovados ou pausados. Enquanto estiver em análise, use “Duplicar e corrigir”.",
+      };
+    }
+    if (tpl.parameter_format !== "named") {
+      return { ok: false, error: "Modelos com variáveis numeradas não podem ser editados aqui." };
+    }
+
+    const components = buildMetaComponents({
+      header_type: tpl.header_type,
+      header_text: tpl.header_text,
+      header_example: tpl.header_example,
+      body_text: data.body_text,
+      footer_text: data.footer_text ?? tpl.footer_text,
+      example_values: { ...toStringMap(tpl.example_values), ...data.example_values },
+      buttons: tpl.buttons,
+    });
+
+    try {
+      const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${tpl.meta_template_id}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ components }),
+      });
+      const json = (await res.json()) as Record<string, unknown>;
+      const err = json?.["error"] as { message?: string; error_user_msg?: string } | undefined;
+      if (!res.ok || err) {
+        return {
+          ok: false,
+          error: err?.error_user_msg ?? err?.message ?? `A Meta respondeu HTTP ${res.status}`,
+        };
+      }
+    } catch (e) {
+      return {
+        ok: false,
+        error: e instanceof Error ? `Não foi possível falar com a Meta: ${e.message}` : "Falha de rede.",
+      };
+    }
+
+    const { error: updErr } = await context.supabase
+      .from("whatsapp_templates")
+      .update({
+        body_text: data.body_text,
+        footer_text: data.footer_text ?? tpl.footer_text,
+        example_values: { ...toStringMap(tpl.example_values), ...data.example_values },
+        status: "pending",
+        rejected_reason: null,
+      })
+      .eq("id", tpl.id);
+    if (updErr) throw updErr;
+
+    return { ok: true };
+  });
