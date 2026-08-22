@@ -1312,64 +1312,8 @@ function fmtDate(iso: string) {
     return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch { return iso; }
 }
-function fmtRel(iso: string | null) {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "agora";
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  try {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  } catch { return `${d}d`; }
-}
 
-// ---- Renderiza anexo enviado (imagem/pdf/áudio) via URL assinada temporária.
-function MessageMedia({ path, mime, filename }: { path: string; mime: string; filename: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    supabase.storage.from("campaign-media").createSignedUrl(path, 60 * 60).then(({ data, error }) => {
-      if (!alive) return;
-      if (error || !data?.signedUrl) setErr(true); else setUrl(data.signedUrl);
-    });
-    return () => { alive = false; };
-  }, [path]);
 
-  if (err) return <div className="text-xs opacity-70 mb-1">[anexo indisponível]</div>;
-  if (!url) return <div className="text-xs opacity-70 mb-1">carregando anexo…</div>;
-
-  if (mime.startsWith("image/")) {
-    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
-  }
-  if (mime.startsWith("audio/")) {
-    return <audio controls src={url} className="mb-1 max-w-full" />;
-  }
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
-      <FileText className="h-4 w-4" /> {filename}
-    </a>
-  );
-}
-
-// ---- Renderiza mídia recebida (Z-API entrega URL pública temporária).
-function InboundMedia({ url, mime, filename }: { url: string; mime: string; filename: string }) {
-  if (mime.startsWith("image/")) {
-    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
-  }
-  if (mime.startsWith("audio/")) {
-    return <audio controls src={url} className="mb-1 max-w-full" />;
-  }
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
-      <FileText className="h-4 w-4" /> {filename}
-    </a>
-  );
-}
 
 // ---- Banner de conversa "não vinculada": salvar como contato OU vincular a contato existente.
 function UnlinkedBanner({
