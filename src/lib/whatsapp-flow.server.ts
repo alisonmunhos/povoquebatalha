@@ -718,16 +718,14 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
     });
     if (attempts >= 3 && !step.required) {
       // Não trava a pessoa numa pergunta opcional.
-      await admin
-        .from("whatsapp_flow_sessions")
-        .update({ current_step_index: session.current_step_index + 1, invalid_attempts: 0 })
-        .eq("id", session.id);
-      const next = steps[session.current_step_index + 1];
-      if (next) {
-        await askStep(admin, { ...session, current_step_index: session.current_step_index + 1, answers, pending_multi: [] }, next, input.contactId);
-      } else {
-        await finishSession(input, { ...session, answers }, steps);
-      }
+      await proceedTo(
+        input,
+        { ...session, answers, pending_multi: [] },
+        allSteps,
+        session.current_step_index + 1,
+      );
+    }
+
     }
   };
 
