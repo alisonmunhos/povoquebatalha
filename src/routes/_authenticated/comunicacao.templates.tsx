@@ -74,6 +74,8 @@ type FormState = {
   name: string;
   category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   language: string;
+  /** true quando estamos editando direto na Meta um modelo já existente. */
+  metaEdit?: boolean;
   body_text: string;
   header_type: "NONE" | "TEXT";
   header_text: string;
