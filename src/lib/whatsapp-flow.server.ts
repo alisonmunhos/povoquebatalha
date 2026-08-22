@@ -482,7 +482,7 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
     const { count } = await admin
       .from("inbound_messages")
       .select("id", { count: "exact", head: true })
-      .eq("from_phone", phone);
+      .like("from_phone", `%${last8(phone)}`);
     // A mensagem atual já foi gravada antes de chegar aqui.
     isFirstContact = (count ?? 0) <= 1;
     return isFirstContact;
