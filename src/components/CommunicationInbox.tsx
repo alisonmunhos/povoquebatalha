@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User, Smile, MessageSquareText,
+  User, Smile, MessageSquareText, MapPin, UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
