@@ -22,6 +22,8 @@ import {
   listCommunicationStaff, searchContactsForNewChat,
   linkConversationToContact, getMyCommunicationBadge,
 } from "@/lib/communication.functions";
+import { listWhatsappFlows, startWhatsappFlowManually } from "@/lib/whatsapp-flows.functions";
+
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
