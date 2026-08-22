@@ -48,6 +48,7 @@ import {
   type FlowSessionStatus,
 } from "@/lib/whatsapp-flow-shared";
 import { getCatalogField } from "@/lib/form-field-catalog";
+import { FlowSendDialog } from "@/components/whatsapp-flows/FlowSendDialog";
 
 export const Route = createFileRoute("/_authenticated/fluxos-whatsapp")({
   head: () => ({
