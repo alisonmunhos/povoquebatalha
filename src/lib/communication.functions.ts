@@ -618,6 +618,48 @@ export const markConversationRead = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Marca a conversa como NÃO lida (guardar para depois): desmarca a leitura da
+// última mensagem recebida e recoloca o contador em 1.
+export const markConversationUnread = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    conversation_id: z.string().uuid(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: conv } = await context.supabase
+      .from("conversations")
+      .select("id, contact_id, from_phone")
+      .eq("id", data.conversation_id)
+      .maybeSingle();
+    if (!conv) throw new Error("Conversa não encontrada.");
+
+    const contactId = (conv.contact_id as string | null) ?? null;
+    const fromPhone = (conv.from_phone as string | null) ?? null;
+
+    let lastQ = context.supabase
+      .from("inbound_messages")
+      .select("id")
+      .order("received_at", { ascending: false })
+      .limit(1);
+    lastQ = contactId
+      ? lastQ.eq("contact_id", contactId)
+      : lastQ.eq("from_phone", fromPhone ?? "");
+
+    const { data: last } = await lastQ;
+    const lastId = (last ?? [])[0]?.id as string | undefined;
+    if (lastId) {
+      await context.supabase.from("inbound_messages")
+        .update({ read_at: null })
+        .eq("id", lastId);
+    }
+    await context.supabase.from("conversations")
+      .update({ unread_count: 1 })
+      .eq("id", data.conversation_id);
+    return { ok: true };
+  });
+
+
+
 export const assignConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
