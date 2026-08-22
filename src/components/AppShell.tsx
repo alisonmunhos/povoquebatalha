@@ -41,6 +41,7 @@ const groups: NavGroup[] = [
       { to: "/tags", label: "Tags", icon: Tags, roles: ["admin"] },
       { to: "/segmentos", label: "Segmentos", icon: Filter, hint: "Listas de contatos + triagem por Swipe.", roles: ["admin", "operador", "vrm"] },
       { to: "/entrada-dados", label: "Entrada de Dados", icon: ClipboardList, hint: "Monte formulários públicos personalizados.", roles: ["admin"] },
+      { to: "/fluxos-whatsapp", label: "Cadastro pelo WhatsApp", icon: Bot, hint: "Robô que cadastra a pessoa conversando no WhatsApp.", roles: ["admin"] },
     ],
   },
   {
