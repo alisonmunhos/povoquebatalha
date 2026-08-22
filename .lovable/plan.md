@@ -49,7 +49,7 @@ Duas regras da Meta que moldam o fluxo:
 
 ## Cuidados
 
-- Cadastro por chat pergunta uma coisa por vez; com "todos os campos" o roteiro fica longo e a desistência no meio é alta. Sugiro marcar como obrigatórias só nome, cidade e consentimento, e deixar o resto como "pergunta se a pessoa continuar" — o cadastro parcial já fica salvo.
+- O roteiro obrigatório (identificação + consentimentos + endereço + formas de ajuda + Alicerce) dá cerca de 8 a 10 interações. Para reduzir desistência: CEP resolve rua/bairro/cidade de uma vez, e as perguntas opcionais (e-mail, aniversário, outros interesses) ficam depois do ponto em que o cadastro já é considerado válido — se a pessoa parar ali, o cadastro está completo o suficiente.
 - Nada é apagado: fluxo interrompido gera contato parcial, nunca contato fantasma sem identificação.
 - Gatilho "primeira mensagem de número novo" responde a qualquer pessoa que escrever; recomendo ligar primeiro só palavra-chave e anúncio.
 
