@@ -793,6 +793,11 @@ async function finishSession(
   const failed = "ok" in result && result.ok === false;
   const contactId = failed ? session.contact_id : (result as { contactId: string | null }).contactId;
 
+  // Cadastro criado agora: adota as mensagens que o robô mandou antes disso.
+  if (contactId) await linkFlowHistoryToContact(admin, session.phone, contactId);
+
+
+
   await admin
     .from("whatsapp_flow_sessions")
     .update({
