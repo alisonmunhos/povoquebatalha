@@ -179,3 +179,132 @@ export const startWhatsappFlowManually = createServerFn({ method: "POST" })
     });
     return { ok: true, phone: e164 };
   });
+
+/**
+ * Lista quem mandou mensagem nas últimas 24h (janela da Meta para texto livre),
+ * com nome do cadastro (quando existir) e situação atual no fluxo.
+ */
+export const listFlowEligibleRecipients = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    await requireAdmin(supabase, userId, "Só administradores podem disparar fluxos.");
+
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: inbound } = await supabase
+      .from("inbound_messages")
+      .select("from_phone, conteudo, received_at, contact_id")
+      .gte("received_at", cutoff)
+      .order("received_at", { ascending: false })
+      .limit(1000);
+
+    type Row = {
+      phone: string;
+      last_message: string | null;
+      last_at: string;
+      contact_id: string | null;
+      nome: string | null;
+      cidade: string | null;
+      session_status: string | null;
+      session_step: number | null;
+    };
+    const byPhone = new Map<string, Row>();
+    for (const m of inbound ?? []) {
+      const phone = (m.from_phone ?? "").replace(/\D+/g, "");
+      if (!phone || byPhone.has(phone)) continue;
+      byPhone.set(phone, {
+        phone,
+        last_message: m.conteudo ?? null,
+        last_at: m.received_at,
+        contact_id: m.contact_id ?? null,
+        nome: null,
+        cidade: null,
+        session_status: null,
+        session_step: null,
+      });
+    }
+    const rows = [...byPhone.values()];
+    if (!rows.length) return { recipients: [] as Row[] };
+
+    const contactIds = rows.map((r) => r.contact_id).filter(Boolean) as string[];
+    if (contactIds.length) {
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("id, nome, nome_social, cidade")
+        .in("id", contactIds);
+      const map = new Map((contacts ?? []).map((c) => [c.id, c]));
+      for (const r of rows) {
+        const c = r.contact_id ? map.get(r.contact_id) : null;
+        if (c) {
+          r.nome = c.nome_social ?? c.nome ?? null;
+          r.cidade = c.cidade ?? null;
+        }
+      }
+    }
+
+    const { data: sessions } = await supabase
+      .from("whatsapp_flow_sessions")
+      .select("phone, status, current_step_index, created_at")
+      .in("phone", rows.map((r) => r.phone))
+      .order("created_at", { ascending: false });
+    const seen = new Set<string>();
+    for (const s of sessions ?? []) {
+      const phone = (s.phone ?? "").replace(/\D+/g, "");
+      if (!phone || seen.has(phone)) continue;
+      seen.add(phone);
+      const row = byPhone.get(phone);
+      if (row) {
+        row.session_status = s.status ?? null;
+        row.session_step = s.current_step_index ?? null;
+      }
+    }
+
+    return { recipients: rows };
+  });
+
+/** Dispara o fluxo para vários números de uma vez (máx. 200 por chamada). */
+export const startWhatsappFlowForMany = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({
+        flow_id: z.string().uuid(),
+        phones: z.array(z.string().trim().min(8).max(30)).min(1).max(200),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireAdmin(supabase, userId, "Só administradores podem disparar fluxos.");
+
+    const { normalizePhoneBR } = await import("@/lib/phone");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { matchInboundContactId } = await import("@/lib/inbound-contact-match.server");
+    const { startFlowManually } = await import("@/lib/whatsapp-flow.server");
+
+    let enviados = 0;
+    const falhas: { phone: string; motivo: string }[] = [];
+
+    for (const raw of data.phones) {
+      const e164 = normalizePhoneBR(raw);
+      if (!e164) {
+        falhas.push({ phone: raw, motivo: "Número inválido (precisa de DDD)." });
+        continue;
+      }
+      try {
+        const digits = e164.replace(/\D+/g, "");
+        const contactId = await matchInboundContactId(e164);
+        await startFlowManually({
+          admin: supabaseAdmin as never,
+          flowId: data.flow_id,
+          phone: digits,
+          contactId,
+        });
+        enviados += 1;
+      } catch (e) {
+        falhas.push({ phone: raw, motivo: e instanceof Error ? e.message : "Falha no envio." });
+      }
+    }
+
+    return { enviados, falhas };
+  });
