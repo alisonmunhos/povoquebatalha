@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Upload, Copy, Tags, Filter,
   LogOut, Megaphone, Compass, ShieldCheck, Link as LinkIcon,
   MessageCircle, Menu, X, Zap, ClipboardList, Calendar, BarChart3,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Bot,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
