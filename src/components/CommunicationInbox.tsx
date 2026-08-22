@@ -794,102 +794,79 @@ export function CommunicationInbox() {
               </div>
             </div>
 
-            <div className="wa-chat-area flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2">
-              {convQ.isLoading && <div className="text-sm text-muted-foreground text-center py-4">Carregando…</div>}
-              {timeline.length === 0 && !convQ.isLoading && (
-                <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
-              )}
-              {timeline.map((m) => m.kind === "system" ? (
-                <div key={m.id} className="flex justify-center">
-                  <div className="rounded-md bg-background/70 border px-3 py-1 text-[11px] text-muted-foreground text-center max-w-[85%]">
-                    {m.text} · {fmtDate(m.at)}
-                  </div>
-                </div>
-              ) : (
-                <div key={m.id} className={`flex ${m.kind === "out" ? "justify-end" : "justify-start"}`}>
-                  <div className={`relative max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
-                    m.kind === "out" ? "wa-bubble-out rounded-br-none" : "wa-bubble-in border rounded-bl-none"
-
-                  }`}>
-
-                    {m.header_type === "TEXT" && m.header_text && (
-                      <div className="font-semibold whitespace-pre-wrap break-words mb-1">{m.header_text}</div>
-                    )}
-                    {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
-                    {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
-                    {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
-                    {m.location && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${m.location.lat},${m.location.lng}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="mt-1 flex items-center gap-2 underline"
-                      >
-                        <MapPin className="h-4 w-4 shrink-0" />
-                        <span>{m.location.name ?? "Localização enviada"}</span>
-                      </a>
-                    )}
-                    {m.shared_contacts && m.shared_contacts.length > 0 && (
-                      <div className="mt-1 space-y-1">
-                        {m.shared_contacts.map((sc, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <UserRound className="h-4 w-4 shrink-0" />
-                            <span>{sc.nome ?? "Contato"}{sc.phone ? ` · ${sc.phone}` : ""}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {m.reactions && m.reactions.length > 0 && (
-                      <div className={`absolute -bottom-3 ${m.kind === "out" ? "right-2" : "left-2"} rounded-full border bg-background px-1.5 py-0.5 text-xs shadow-sm`}>
-                        {m.reactions.join(" ")}
-                      </div>
-                    )}
-
-                    {m.buttons && m.buttons.length > 0 && (
-                      <>
-                        <div className={`h-px w-full my-2 ${m.kind === "out" ? "bg-primary-foreground/20" : "bg-border"}`} />
-                        <div className="-mx-3 -mb-2 flex flex-col rounded-b-lg overflow-hidden">
-                          {m.buttons.map((b, idx) => {
-                            const label = b.text.toUpperCase();
-                            const baseClass = `w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide transition-colors border-t first:border-t-0 ${
-                              m.kind === "out"
-                                ? "text-primary-foreground hover:bg-primary-foreground/10 border-primary-foreground/15"
-                                : "text-primary hover:bg-primary/5 border-border"
-                            }`;
-                            const icon = b.type === "URL" ? <ExternalLink className="h-3.5 w-3.5" /> : null;
-                            if (b.type === "URL") {
-                              return (
-                                <a key={idx} href={b.url} target="_blank" rel="noopener noreferrer" className={baseClass}>
-                                  {icon}
-                                  <span>{label}</span>
-                                </a>
-                              );
-                            }
-                            if (b.type === "PHONE_NUMBER") {
-                              return (
-                                <a key={idx} href={`tel:${b.phone_number}`} className={baseClass}>
-                                  {icon}
-                                  <span>{label}</span>
-                                </a>
-                              );
-                            }
-                            return (
-                              <div key={idx} className={baseClass}>
-                                {icon}
-                                <span>{label}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-                    <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
-                      {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
+            <div
+              ref={scrollerRef}
+              onScroll={onThreadScroll}
+              className="wa-chat-area relative flex-1 min-h-0 overflow-y-auto overscroll-contain p-4"
+            >
+              {convQ.isLoading && (
+                <div className="space-y-3">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
+                      <div className="h-12 w-1/2 animate-pulse rounded-2xl bg-muted" />
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {timeline.length === 0 && !convQ.isLoading && (
+                <div className="py-8 text-center text-sm text-muted-foreground">Sem mensagens ainda. Envie a primeira!</div>
+              )}
+
+              {hiddenOlder > 0 && (
+                <div className="flex justify-center pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((v) => v + THREAD_PAGE)}
+                    className="rounded-full border bg-background px-3 py-1 text-xs hover:bg-muted"
+                  >
+                    Carregar mensagens anteriores ({hiddenOlder})
+                  </button>
+                </div>
+              )}
+
+              {timelineItems.map((item) => {
+                if (item.type === "day") return <DaySeparator key={item.id} label={item.label} />;
+                if (item.type === "unread") return <UnreadDivider key={item.id} />;
+                if (item.msg.kind === "system") {
+                  return <SystemMessage key={item.id} text={item.msg.text} at={item.msg.at} />;
+                }
+                return (
+                  <MessageBubble
+                    key={item.id}
+                    msg={item.msg}
+                    groupStart={item.groupStart}
+                    groupEnd={item.groupEnd}
+                    onQuoteClick={(id) => {
+                      const el = document.getElementById(`msg-${id}`);
+                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      el?.classList.add("ring-2", "ring-primary/60");
+                      window.setTimeout(() => el?.classList.remove("ring-2", "ring-primary/60"), 1200);
+                    }}
+                    onReply={(m) => {
+                      setReply((prev) => {
+                        const quote = m.text ? `> ${m.text.slice(0, 200)}\n` : "";
+                        return prev ? `${quote}${prev}` : quote;
+                      });
+                      replyRef.current?.focus();
+                    }}
+                  />
+                );
+              })}
               <div ref={threadEndRef} />
             </div>
+
+            {!atBottom && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => scrollThreadToEnd("smooth")}
+                  className="absolute bottom-2 right-4 z-10 inline-flex items-center gap-1 rounded-full border bg-background px-3 py-1.5 text-xs shadow-md hover:bg-muted"
+                >
+                  {newCount > 0 ? `${newCount} nova${newCount > 1 ? "s" : ""} mensagem${newCount > 1 ? "s" : ""} ↓` : "Ir para a última mensagem ↓"}
+                </button>
+              </div>
+            )}
+
 
             {conv && !conv.contact_id && (
               <UnlinkedBanner
