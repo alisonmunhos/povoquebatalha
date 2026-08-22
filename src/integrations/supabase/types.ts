@@ -2292,16 +2292,26 @@ export type Database = {
           from_phone: string | null
           id: string
           instance_id: string | null
+          is_system_event: boolean
+          latitude: number | null
+          location_name: string | null
+          longitude: number | null
           media_filename: string | null
           media_mime: string | null
+          media_path: string | null
           media_size: number | null
           media_url: string | null
           payload: Json | null
+          reaction_emoji: string | null
+          reaction_target_wa_id: string | null
           read_at: string | null
           received_at: string
+          reply_to_wa_id: string | null
           resolved_at: string | null
           resolved_by: string | null
+          shared_contacts: Json | null
           tipo: string | null
+          wa_message_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -2311,16 +2321,26 @@ export type Database = {
           from_phone?: string | null
           id?: string
           instance_id?: string | null
+          is_system_event?: boolean
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
           media_filename?: string | null
           media_mime?: string | null
+          media_path?: string | null
           media_size?: number | null
           media_url?: string | null
           payload?: Json | null
+          reaction_emoji?: string | null
+          reaction_target_wa_id?: string | null
           read_at?: string | null
           received_at?: string
+          reply_to_wa_id?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          shared_contacts?: Json | null
           tipo?: string | null
+          wa_message_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -2330,16 +2350,26 @@ export type Database = {
           from_phone?: string | null
           id?: string
           instance_id?: string | null
+          is_system_event?: boolean
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
           media_filename?: string | null
           media_mime?: string | null
+          media_path?: string | null
           media_size?: number | null
           media_url?: string | null
           payload?: Json | null
+          reaction_emoji?: string | null
+          reaction_target_wa_id?: string | null
           read_at?: string | null
           received_at?: string
+          reply_to_wa_id?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          shared_contacts?: Json | null
           tipo?: string | null
+          wa_message_id?: string | null
         }
         Relationships: [
           {
