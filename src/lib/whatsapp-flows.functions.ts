@@ -145,3 +145,37 @@ export const setWhatsappFlowActive = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * Dispara um fluxo manualmente para um número (teste com o próprio WhatsApp).
+ * A pessoa precisa ter mandado mensagem para o número da campanha nas últimas
+ * 24h — regra da Meta para texto livre.
+ */
+export const startWhatsappFlowManually = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({ flow_id: z.string().uuid(), phone: z.string().trim().min(8).max(30) })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await requireAdmin(supabase, userId, "Só administradores podem disparar fluxos manualmente.");
+
+    const { normalizePhoneBR } = await import("@/lib/phone");
+    const e164 = normalizePhoneBR(data.phone);
+    if (!e164) throw new Error("Número inválido. Escreva com DDD, ex.: 51 99890-2337.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { matchInboundContactId } = await import("@/lib/inbound-contact-match.server");
+    const { startFlowManually } = await import("@/lib/whatsapp-flow.server");
+
+    const contactId = await matchInboundContactId(e164);
+    await startFlowManually({
+      admin: supabaseAdmin as never,
+      flowId: data.flow_id,
+      phone: e164.replace(/\D+/g, ""),
+      contactId,
+    });
+    return { ok: true, phone: e164 };
+  });

@@ -386,6 +386,58 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
   return true;
 }
 
+/**
+ * Início manual de um fluxo (teste ou disparo pela equipe): encerra sessões
+ * abertas do número, cria uma nova e manda abertura + 1ª pergunta.
+ * Só funciona dentro da janela de 24h da Meta (a pessoa precisa ter falado antes).
+ */
+export async function startFlowManually(args: {
+  admin: Admin;
+  flowId: string;
+  phone: string;
+  contactId: string | null;
+}): Promise<{ ok: true }> {
+  const { admin, flowId, phone, contactId } = args;
+
+  const { data: flowData } = await admin
+    .from("whatsapp_flows")
+    .select("*")
+    .eq("id", flowId)
+    .maybeSingle();
+  const flow = flowData as Flow | null;
+  if (!flow) throw new Error("Fluxo não encontrado.");
+
+  const steps = await loadSteps(admin, flowId);
+  if (!steps.length) throw new Error("Este fluxo ainda não tem perguntas.");
+
+  await admin
+    .from("whatsapp_flow_sessions")
+    .update({ status: "abandoned" })
+    .eq("phone", phone)
+    .in("status", ["opening", "running", "paused"]);
+
+  const { data: created } = await admin
+    .from("whatsapp_flow_sessions")
+    .insert({
+      flow_id: flowId,
+      contact_id: contactId,
+      phone,
+      status: "running",
+      current_step_index: 0,
+      trigger_kind: "manual",
+      last_prompt_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single();
+
+  const session = created as SessionRow | null;
+  if (!session) throw new Error("Não consegui abrir a sessão do fluxo.");
+
+  await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
+  await askStep(admin, session, steps[0]!, contactId);
+  return { ok: true };
+}
+
 async function askStep(
   admin: Admin,
   session: SessionRow,
