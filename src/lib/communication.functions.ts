@@ -460,6 +460,10 @@ export const linkConversationToContact = createServerFn({ method: "POST" })
       await context.supabase.from("inbound_messages")
         .update({ contact_id: data.contact_id })
         .eq("from_phone", conv.from_phone).is("contact_id", null);
+      // Mensagens do robô de cadastro gravadas só com o número.
+      await context.supabase.from("direct_messages")
+        .update({ contact_id: data.contact_id, to_phone: null })
+        .eq("to_phone", conv.from_phone.replace(/\D+/g, "")).is("contact_id", null);
     }
 
     if (existing) {
