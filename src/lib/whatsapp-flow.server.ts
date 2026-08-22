@@ -450,7 +450,9 @@ async function handoffToHuman(
     let q = admin
       .from("conversations")
       .update({ status: "aberta", flagged: true, last_message_at: new Date().toISOString() });
-    q = args.contactId ? q.eq("contact_id", args.contactId) : q.eq("from_phone", args.phone);
+    q = args.contactId
+      ? q.eq("contact_id", args.contactId)
+      : q.like("from_phone", `%${last8(args.phone)}`);
     await q;
   } catch {
     /* atendimento humano não pode derrubar o fluxo */
