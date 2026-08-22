@@ -941,11 +941,18 @@ export function CommunicationInbox() {
                   )}
                   <div className="flex-1 min-w-0 text-xs">
                     <div className="truncate font-medium">{attachment.filename}</div>
-                    <div className="text-muted-foreground truncate">{attachment.mime}</div>
+                    <div className="text-muted-foreground truncate">
+                      {[attachment.mime.split("/").pop()?.toUpperCase(), fmtBytes(attachment.size)].filter(Boolean).join(" · ")}
+                    </div>
                   </div>
-                  <button onClick={clearAttachment} className="p-1 rounded hover:bg-background" title="Remover anexo">
+                  <button onClick={clearAttachment} className="p-1 rounded hover:bg-background" title="Remover anexo" aria-label="Remover anexo">
                     <X className="h-4 w-4" />
                   </button>
+                </div>
+              )}
+              {uploading && (
+                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
                 </div>
               )}
               <div className="flex items-end gap-2">
@@ -953,18 +960,53 @@ export function CommunicationInbox() {
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                  accept={fileAccept}
                   onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
                 />
-                <button
-                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
-                  title="Anexar imagem ou PDF"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={!canSend || uploading}
-                  type="button"
-                >
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                </button>
+                <Popover open={attachOpen} onOpenChange={setAttachOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                      title="Anexar arquivo"
+                      aria-label="Anexar arquivo"
+                      disabled={!canSend || uploading}
+                      type="button"
+                    >
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" side="top" className="w-52 p-1" sideOffset={8}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                      onClick={() => {
+                        setFileAccept("image/png,image/jpeg,image/jpg,image/webp");
+                        setAttachOpen(false);
+                        requestAnimationFrame(() => fileInputRef.current?.click());
+                      }}
+                    >
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-violet-100 text-violet-700">
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      </span>
+                      Foto
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                      onClick={() => {
+                        setFileAccept("application/pdf");
+                        setAttachOpen(false);
+                        requestAnimationFrame(() => fileInputRef.current?.click());
+                      }}
+                    >
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-sky-100 text-sky-700">
+                        <FileText className="h-3.5 w-3.5" />
+                      </span>
+                      Documento (PDF)
+                    </button>
+                  </PopoverContent>
+                </Popover>
+
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                   <PopoverTrigger asChild>
                     <button
