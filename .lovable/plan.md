@@ -1,45 +1,52 @@
-# Aviso no WhatsApp quando alguém é atribuído a uma conversa
+# Corrigir o português dos avisos e permitir editar modelos
 
-## Como está hoje (verificado no código)
+## Respondendo direto
 
-- A atribuição acontece em uma única função (`assignConversation`): ela grava `assigned_to` na conversa e registra o evento (`assigned` / `unassigned`) no histórico. Hoje ela **não avisa ninguém**.
-- Quem pode usar o Inbox: papéis de sistema (admin, operador, comunicação) **ou** qualquer usuário com a liberação avulsa `inbox_access` ligada na Central de Acesso — inclusive agitador. Esse mecanismo já funciona e é a regra que vamos usar para decidir quem pode ser atribuído.
-- O telefone pessoal do usuário já existe no sistema: o perfil aponta para uma ficha de contato, e é dela que sai o WhatsApp (`phone_e164`). Alguns usuários podem não ter ficha/telefone — isso precisa ser tratado.
+- **Sim, acentos são permitidos** nos modelos oficiais. Os textos foram enviados sem acento por descuido meu, não por limitação da Meta.
+- **Editar depende do status.** A Meta só aceita edição de modelo com status aprovado, reprovado ou pausado. Os dois avisos estão **em análise (pending)**, e nesse estado a Meta não permite editar. No sistema também não: hoje a tela de Templates só deixa editar rascunhos (modelo já enviado fica travado).
+- Existe um detalhe importante: quando um modelo é apagado na Meta, **o mesmo nome fica bloqueado por 30 dias**. Então não vale apagar e recriar com o mesmo nome.
 
-## Ponto importante da API oficial
+## Textos corrigidos (com acentuação e "App do Povo que Batalha")
 
-A Meta só permite mandar texto livre para alguém que falou com o número nas últimas 24h. O WhatsApp pessoal da equipe normalmente **não** está nessa janela, então o aviso precisa ser enviado como **template oficial aprovado** (categoria UTILITY). Sem template aprovado, a mensagem é recusada pela Meta.
+Aviso 1 — nova atribuição:
 
-Serão dois templates (nomes sugeridos):
+```text
+Olá {{responsavel}}! A conversa com {{contato}} foi atribuída a você no App do Povo que Batalha.
 
-1. `inbox_conversa_atribuida` — "Olá {{responsavel}}, a conversa com {{contato}} foi atribuída a você. Última mensagem: {{resumo}}. Abrir: {{link}}"
-2. `inbox_conversa_repassada` — "Olá {{responsavel}}, a conversa com {{contato}} foi repassada para {{novo_responsavel}}."
+Última mensagem: {{resumo}}
 
-## Comportamento proposto
+Abra o Inbox para responder.
+```
 
-Ao salvar uma atribuição:
+Aviso 2 — conversa repassada:
 
-- Atribuiu para alguém (antes estava sem responsável) → o novo responsável recebe o aviso 1.
-- Trocou de pessoa → o novo responsável recebe o aviso 1 e o anterior recebe o aviso 2 (com o nome de quem assumiu).
-- Removeu o responsável → o anterior recebe o aviso 2 dizendo que a conversa voltou para a fila.
-- Se a pessoa atribuiu a si mesma, não recebe aviso (evita spam).
-- Nunca envia se o usuário não tiver telefone cadastrado, se estiver em opt-out, ou se o aviso estiver desligado.
+```text
+Olá {{responsavel}}, a conversa com {{contato}} foi repassada para {{novo_responsavel}}. Você não é mais o responsável por ela.
+```
 
-O envio é feito depois de salvar, sem travar a tela: se o WhatsApp falhar, a atribuição continua valendo e o erro fica registrado no log.
+Rodapé dos dois: `App do Povo que Batalha`. Botão do aviso 1: `Abrir Inbox`.
 
-## Sugestões de melhoria
+## O que vou fazer
 
-- **Preferência por usuário**: um botão "Receber avisos de atribuição no meu WhatsApp" no perfil/Central de Acesso, ligado por padrão. Quem não quiser, desliga.
-- **Anti-repique**: se a mesma conversa for reatribuída para a mesma pessoa em poucos minutos, não reenviar.
-- **Aviso interno junto**: além do WhatsApp, criar a notificação no sininho + push do app (já existe infraestrutura), para quem estiver com o app aberto.
-- **Só atribuir a quem tem acesso**: o seletor de responsável deve listar apenas usuários com acesso ao Inbox (papel ou flag), evitando atribuir para alguém que não consegue abrir a conversa.
-- **Link direto**: o aviso leva um link que já abre a conversa certa no Inbox.
-- **Segunda fase possível**: lembrete se a conversa atribuída ficar sem resposta por X horas.
+1. Apagar na Meta os dois modelos em análise (ainda não foram usados, nada se perde).
+2. Enviar de novo, já com a acentuação correta, sob **nomes novos** (para não cair no bloqueio de 30 dias):
+   - `inbox_conversa_atribuida_br`
+   - `inbox_conversa_repassada_br`
+3. Atualizar o registro na tela de Templates: remover as duas linhas antigas e cadastrar as novas, com status "em análise".
+4. Melhorar a tela de Templates para o futuro:
+   - Botão **"Duplicar e corrigir"** em qualquer modelo já enviado: cria um rascunho com o mesmo conteúdo para você ajustar o texto e enviar novamente.
+   - Botão **"Editar na Meta"** habilitado apenas quando o modelo estiver aprovado ou reprovado (é quando a Meta aceita edição), avisando em português quando não for possível.
+   - Aviso visual no editor lembrando de usar acentuação correta antes de enviar.
+
+## Cuidados
+
+- Aprovação da Meta é externa: os modelos novos voltam para "em análise" e podem levar de minutos a algumas horas.
+- Enquanto não estiverem aprovados, o aviso automático de atribuição não pode ser disparado.
+- Nenhum dado de contato, conversa ou campanha é afetado.
 
 ## Detalhes técnicos
 
-- `src/lib/communication.functions.ts` → `assignConversation`: ler `assigned_to` anterior antes do update; após gravar, chamar um helper novo `notifyConversationAssignment` (server-only) com `{ conversationId, previousAssignee, newAssignee, actorId }`.
-- Novo `src/lib/inbox-assignment-notify.server.ts`: resolve nome/telefone via `profiles.contact_id → contacts.phone_e164`, checa opt-out e a preferência, monta as variáveis e envia via `whatsappCloud.sendTemplate` (parâmetros nomeados, como já é feito no projeto). Erros só logados.
-- Migração: coluna booleana `notify_assignment_whatsapp` em `profiles` (default true) e registro dos dois templates para envio à Meta pela tela de Templates (aprovação da Meta é externa e leva alguns minutos/horas).
-- Seletor de responsável: filtrar candidatos por papel de sistema OU `inbox_access`.
-- Verificação: atribuir/reatribuir/desatribuir uma conversa de teste e conferir eventos, log de envio e recebimento no WhatsApp.
+- `DELETE /v23.0/{waba_id}/message_templates?hsm_id={id}&name={nome}` para remover os dois pendentes; depois `POST /v23.0/{waba_id}/message_templates` com `parameter_format: "named"` e os textos acentuados.
+- `whatsapp_templates`: remover as linhas `inbox_conversa_*` e inserir as versões `_br` com `status='pending'`, `meta_template_id` retornado pela Meta, `example_values` nomeados e `buttons` do aviso 1.
+- `src/lib/whatsapp-templates.functions.ts`: nova função `duplicateWhatsappTemplateAsDraft` (copia conteúdo para um rascunho com nome livre) e `editWhatsappTemplateOnMeta` (POST em `/{meta_template_id}` com components, permitido só para status `approved`/`rejected`/`paused`).
+- `src/routes/_authenticated/comunicacao.templates.tsx`: botões "Duplicar e corrigir" e "Editar na Meta" (habilitado conforme status), com mensagens de erro em português.
