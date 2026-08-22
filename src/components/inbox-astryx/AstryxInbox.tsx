@@ -142,7 +142,7 @@ function InboxPilot() {
     queryFn: () => listFn({ data: { filter, search: search || undefined } }),
     refetchInterval: 15000,
   });
-  const list = listQ.data ?? [];
+  const list = listQ.data?.list ?? [];
 
   const searchNewQ = useQuery({
     queryKey: ["comm-search-new", search],
