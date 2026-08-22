@@ -25,6 +25,8 @@ import {
   deleteWhatsappTemplateDraft,
   submitWhatsappTemplate,
   importWhatsappTemplatesFromMeta,
+  duplicateWhatsappTemplateAsDraft,
+  editWhatsappTemplateOnMeta,
   extractNamedVars,
   TEMPLATE_VARIABLES,
   type WhatsappTemplateRow,
