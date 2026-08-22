@@ -288,8 +288,11 @@ function FluxosWhatsappPage() {
         </h1>
         <p className="text-muted-foreground text-sm">
           O robô conduz as perguntas na conversa e salva a pessoa na base com as mesmas regras dos
-          formulários públicos. Só entra em ação quando o gatilho que você escolher acontecer.
+          formulários públicos. Para disparar na mão, use os botões do cartão do fluxo — ou o botão
+          do robô no composer do Inbox, dentro da conversa. Em qualquer caso, só funciona até 24h
+          depois da última mensagem da pessoa.
         </p>
+
       </header>
 
       <div className="flex flex-wrap gap-2">
