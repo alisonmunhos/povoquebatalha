@@ -713,6 +713,32 @@ export function CommunicationInbox() {
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
+                    {m.location && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${m.location.lat},${m.location.lng}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="mt-1 flex items-center gap-2 underline"
+                      >
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        <span>{m.location.name ?? "Localização enviada"}</span>
+                      </a>
+                    )}
+                    {m.shared_contacts && m.shared_contacts.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {m.shared_contacts.map((sc, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <UserRound className="h-4 w-4 shrink-0" />
+                            <span>{sc.nome ?? "Contato"}{sc.phone ? ` · ${sc.phone}` : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {m.reactions && m.reactions.length > 0 && (
+                      <div className={`absolute -bottom-3 ${m.kind === "out" ? "right-2" : "left-2"} rounded-full border bg-background px-1.5 py-0.5 text-xs shadow-sm`}>
+                        {m.reactions.join(" ")}
+                      </div>
+                    )}
+
                     {m.buttons && m.buttons.length > 0 && (
                       <>
                         <div className={`h-px w-full my-2 ${m.kind === "out" ? "bg-primary-foreground/20" : "bg-border"}`} />
