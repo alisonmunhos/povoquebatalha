@@ -74,6 +74,16 @@ function isSkip(text: string | null): boolean {
   return FLOW_SKIP_WORDS.some((w) => t === w);
 }
 
+/**
+ * Últimos 8 dígitos do número: é a única parte estável entre o formato do
+ * sistema (com nono dígito, ex. 5551998902337) e o que a Meta entrega
+ * (ex. 555198902337). Usado pra achar a sessão certa em qualquer formato.
+ */
+function last8(phone: string | null | undefined): string {
+  const d = (phone ?? "").replace(/\D+/g, "");
+  return d.slice(-8);
+}
+
 // ---------------------------------------------------------------- envio
 
 async function sendFlowMessage(
@@ -86,14 +96,16 @@ async function sendFlowMessage(
     listButtonText?: string;
     listRows?: Array<{ id: string; title: string; description?: string }>;
   },
-): Promise<void> {
+): Promise<{ waId: string | null }> {
   const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
   let messageId: string | null = null;
+  let waId: string | null = null;
   let erro: string | null = null;
   try {
     if (args.buttons?.length) {
       const r = await whatsappCloud.sendButtons(args.phone, args.body, args.buttons);
       messageId = r.messageId;
+      waId = r.waId;
     } else if (args.listRows?.length) {
       const r = await whatsappCloud.sendList(
         args.phone,
@@ -102,9 +114,11 @@ async function sendFlowMessage(
         [{ title: "Opções", rows: args.listRows }],
       );
       messageId = r.messageId;
+      waId = r.waId;
     } else {
       const r = await whatsappCloud.sendText(args.phone, args.body, false);
       messageId = r.messageId;
+      waId = r.waId;
     }
   } catch (e) {
     erro = e instanceof Error ? e.message : String(e);
@@ -127,6 +141,8 @@ async function sendFlowMessage(
   } catch {
     /* histórico não pode derrubar o fluxo */
   }
+
+  return { waId };
 }
 
 /** Liga sessão e mensagens do robô ao contato assim que ele passa a existir. */
@@ -135,11 +151,12 @@ export async function linkFlowHistoryToContact(
   phone: string,
   contactId: string,
 ): Promise<void> {
+  const tail = last8(phone);
   try {
     await admin
       .from("direct_messages")
       .update({ contact_id: contactId, to_phone: null })
-      .eq("to_phone", phone)
+      .like("to_phone", `%${tail}`)
       .is("contact_id", null);
   } catch {
     /* não bloqueia o fluxo */
@@ -148,7 +165,7 @@ export async function linkFlowHistoryToContact(
     await admin
       .from("whatsapp_flow_sessions")
       .update({ contact_id: contactId })
-      .eq("phone", phone)
+      .like("phone", `%${tail}`)
       .is("contact_id", null);
   } catch {
     /* não bloqueia o fluxo */
@@ -345,10 +362,12 @@ export type FlowInboundInput = {
 export async function handleFlowInbound(input: FlowInboundInput): Promise<boolean> {
   const { admin, phone } = input;
 
+  // A Meta entrega o número no formato dela (às vezes sem o nono dígito), então
+  // a sessão é localizada pelos 8 últimos dígitos, não por igualdade exata.
   const { data: openSession } = await admin
     .from("whatsapp_flow_sessions")
     .select("*")
-    .eq("phone", phone)
+    .like("phone", `%${last8(phone)}`)
     .in("status", ["opening", "running", "paused"])
     .order("created_at", { ascending: false })
     .limit(1)
@@ -362,6 +381,16 @@ export async function handleFlowInbound(input: FlowInboundInput): Promise<boolea
       .update({ status: "abandoned" })
       .eq("id", session.id);
     session = null;
+  }
+
+  // Passa a usar o número que a Meta reconhece, pra próxima comparação ser exata.
+  if (session && session.phone !== phone) {
+    try {
+      await admin.from("whatsapp_flow_sessions").update({ phone }).eq("id", session.id);
+    } catch {
+      /* não bloqueia o fluxo */
+    }
+    session = { ...session, phone };
   }
 
   // O contato pode ter nascido depois do disparo: liga o histórico já existente.
@@ -421,7 +450,9 @@ async function handoffToHuman(
     let q = admin
       .from("conversations")
       .update({ status: "aberta", flagged: true, last_message_at: new Date().toISOString() });
-    q = args.contactId ? q.eq("contact_id", args.contactId) : q.eq("from_phone", args.phone);
+    q = args.contactId
+      ? q.eq("contact_id", args.contactId)
+      : q.like("from_phone", `%${last8(args.phone)}`);
     await q;
   } catch {
     /* atendimento humano não pode derrubar o fluxo */
@@ -451,7 +482,7 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
     const { count } = await admin
       .from("inbound_messages")
       .select("id", { count: "exact", head: true })
-      .eq("from_phone", phone);
+      .like("from_phone", `%${last8(phone)}`);
     // A mensagem atual já foi gravada antes de chegar aqui.
     isFirstContact = (count ?? 0) <= 1;
     return isFirstContact;
@@ -557,15 +588,20 @@ export async function startFlowManually(args: {
   await admin
     .from("whatsapp_flow_sessions")
     .update({ status: "abandoned" })
-    .eq("phone", phone)
+    .like("phone", `%${last8(phone)}`)
     .in("status", ["opening", "running", "paused"]);
+
+  // A abertura vai primeiro porque a Meta devolve o número real do WhatsApp
+  // (wa_id) — é ele que a sessão guarda, pra casar com as respostas recebidas.
+  const opening = await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
+  const canonicalPhone = opening.waId && last8(opening.waId) === last8(phone) ? opening.waId : phone;
 
   const { data: created } = await admin
     .from("whatsapp_flow_sessions")
     .insert({
       flow_id: flowId,
       contact_id: contactId,
-      phone,
+      phone: canonicalPhone,
       status: "running",
       current_step_index: 0,
       path_key: FLOW_DEFAULT_PATH,
@@ -578,7 +614,6 @@ export async function startFlowManually(args: {
   const session = created as SessionRow | null;
   if (!session) throw new Error("Não consegui abrir a sessão do fluxo.");
 
-  await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
   await askStep(admin, session, first, contactId);
 
   return { ok: true };
