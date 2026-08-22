@@ -588,15 +588,20 @@ export async function startFlowManually(args: {
   await admin
     .from("whatsapp_flow_sessions")
     .update({ status: "abandoned" })
-    .eq("phone", phone)
+    .like("phone", `%${last8(phone)}`)
     .in("status", ["opening", "running", "paused"]);
+
+  // A abertura vai primeiro porque a Meta devolve o número real do WhatsApp
+  // (wa_id) — é ele que a sessão guarda, pra casar com as respostas recebidas.
+  const opening = await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
+  const canonicalPhone = opening.waId && last8(opening.waId) === last8(phone) ? opening.waId : phone;
 
   const { data: created } = await admin
     .from("whatsapp_flow_sessions")
     .insert({
       flow_id: flowId,
       contact_id: contactId,
-      phone,
+      phone: canonicalPhone,
       status: "running",
       current_step_index: 0,
       path_key: FLOW_DEFAULT_PATH,
@@ -609,7 +614,6 @@ export async function startFlowManually(args: {
   const session = created as SessionRow | null;
   if (!session) throw new Error("Não consegui abrir a sessão do fluxo.");
 
-  await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
   await askStep(admin, session, first, contactId);
 
   return { ok: true };
