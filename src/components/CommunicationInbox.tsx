@@ -200,15 +200,14 @@ export function CommunicationInbox() {
     refetchInterval: 15000,
   });
 
-  const rawList = listQ.data ?? [];
+  const rawList = listQ.data?.list ?? [];
+  const chipCounts = listQ.data?.counts;
   const list = useMemo(() => {
     if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
     if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
     if (statusFilter === "nao_lidas") return rawList.filter((c) => (c.unread ?? 0) > 0);
     return rawList;
   }, [rawList, statusFilter]);
-  // Contagem real de não lidas visíveis (antes só mostrava as atribuídas a mim).
-  const unreadInList = useMemo(() => rawList.filter((c) => (c.unread ?? 0) > 0).length, [rawList]);
   const selected = useMemo(
     () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
     [list, selectedContactId, selectedConvId],
