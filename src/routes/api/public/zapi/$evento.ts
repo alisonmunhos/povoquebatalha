@@ -4,6 +4,7 @@
 // Também aceita `on-test` (usado pelo botão de diagnóstico interno em /whatsapp).
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
+import { parseZapiMessage } from "@/lib/inbound-message-parse.server";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -169,12 +170,8 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
             const inboundEnabled = inst?.inbound_to_inbox_enabled === true;
 
             const phone = pickPhone(body);
-            const text =
-              safeStr(asRecord(body.text)?.message) ??
-              safeStr(asRecord(body.message)?.text) ??
-              safeStr(body.text) ??
-              safeStr(body.message) ??
-              null;
+            const parsed = parseZapiMessage(body);
+            const text = parsed.tipo === "text" ? parsed.conteudo : null;
 
             // Vincula ao contato APENAS se já existir na base (não cria mais contato automaticamente).
             // Usado tanto pelo registro no Inbox/opt-out abaixo quanto pela resposta
@@ -204,15 +201,25 @@ export const Route = createFileRoute("/api/public/zapi/$evento")({
               await supabaseAdmin.from("inbound_messages").insert({
                 from_phone: phone,
                 from_name: senderName,
-                conteudo: text,
-                tipo: media.tipo ?? safeStr(body.type) ?? "text",
+                conteudo: parsed.conteudo,
+                tipo: media.tipo ?? parsed.tipo,
                 payload: body as never,
                 contact_id: contactId,
                 media_url: media.url,
                 media_mime: media.mime,
                 media_filename: media.filename,
                 media_size: media.size,
+                wa_message_id: parsed.wa_message_id,
+                reply_to_wa_id: parsed.reply_to_wa_id,
+                reaction_emoji: parsed.reaction_emoji,
+                reaction_target_wa_id: parsed.reaction_target_wa_id,
+                latitude: parsed.latitude,
+                longitude: parsed.longitude,
+                location_name: parsed.location_name,
+                shared_contacts: (parsed.shared_contacts ?? null) as never,
+                is_system_event: parsed.is_system_event,
               });
+
 
               // Opt-out via palavra-chave (apenas se vinculado)
               if (text && contactId) {

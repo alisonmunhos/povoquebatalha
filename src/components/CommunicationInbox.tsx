@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User, Smile, MessageSquareText,
+  User, Smile, MessageSquareText, MapPin, UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -441,22 +441,33 @@ export function CommunicationInbox() {
 
   const timeline = useMemo(() => {
     type Msg = {
-      id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
+      id: string; kind: "in" | "out" | "system"; text: string; at: string; meta?: string;
       media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
       header_type?: string | null; header_text?: string | null;
       buttons?: TemplateButton[];
+      wa_id?: string | null;
+      reactions?: string[];
+      location?: { lat: number; lng: number; name: string | null } | null;
+      shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
     };
     const t: Msg[] = [];
     for (const m of convQ.data?.inbound ?? []) {
       const inb = m as {
-        id: string; conteudo: string | null; received_at: string;
+        id: string; conteudo: string | null; received_at: string; tipo?: string | null;
         media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+        wa_message_id?: string | null; latitude?: number | null; longitude?: number | null;
+        location_name?: string | null; shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
       };
       t.push({
         id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
         media_url: inb.media_url ?? null,
         media_mime: inb.media_mime ?? null,
         media_filename: inb.media_filename ?? null,
+        wa_id: inb.wa_message_id ?? null,
+        location: inb.latitude != null && inb.longitude != null
+          ? { lat: inb.latitude, lng: inb.longitude, name: inb.location_name ?? null }
+          : null,
+        shared_contacts: inb.shared_contacts ?? null,
       });
     }
     for (const m of convQ.data?.direct ?? []) t.push({
@@ -465,6 +476,7 @@ export function CommunicationInbox() {
       media_path: (m as { media_path?: string | null }).media_path ?? null,
       media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
       media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
+      wa_id: (m as { message_id?: string | null }).message_id ?? null,
     });
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
@@ -472,13 +484,28 @@ export function CommunicationInbox() {
       header_type: m.header_type,
       header_text: m.header_text,
       buttons: m.buttons,
+      wa_id: (m as { message_id?: string | null }).message_id ?? null,
     });
     for (const m of convQ.data?.automation ?? []) t.push({
       id: `a-${m.id}`, kind: "out", text: m.rendered_body ?? "", at: m.sent_at ?? "",
       meta: `automação${m.automation_name ? ` · ${m.automation_name}` : ""}${m.status === "error" ? describeSendError(m.error) : ""}`,
     });
+    // Avisos do WhatsApp (chamada, grupo etc.) entram como faixa central, não bolha.
+    for (const e of convQ.data?.systemEvents ?? []) {
+      if (!e.text) continue;
+      t.push({ id: `sys-${e.id}`, kind: "system", text: e.text, at: e.at });
+    }
+    // Reações ficam colodas na bolha da mensagem reagida, como no WhatsApp.
+    const byWaId = new Map<string, Msg>();
+    for (const m of t) if (m.wa_id) byWaId.set(m.wa_id, m);
+    for (const r of convQ.data?.reactions ?? []) {
+      const target = r.target_wa_id ? byWaId.get(r.target_wa_id) : undefined;
+      if (target) target.reactions = [...(target.reactions ?? []), r.emoji];
+      else t.push({ id: `r-${r.id}`, kind: "in", text: r.emoji, at: r.at, meta: "reação" });
+    }
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [convQ.data]);
+
 
   // Auto-scroll: quando chega mensagem nova (in ou out), rolar thread até o fim.
   useEffect(() => {
@@ -667,10 +694,17 @@ export function CommunicationInbox() {
               {timeline.length === 0 && !convQ.isLoading && (
                 <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
               )}
-              {timeline.map((m) => (
+              {timeline.map((m) => m.kind === "system" ? (
+                <div key={m.id} className="flex justify-center">
+                  <div className="rounded-md bg-background/70 border px-3 py-1 text-[11px] text-muted-foreground text-center max-w-[85%]">
+                    {m.text} · {fmtDate(m.at)}
+                  </div>
+                </div>
+              ) : (
                 <div key={m.id} className={`flex ${m.kind === "out" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
+                  <div className={`relative max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
                     m.kind === "out" ? "wa-bubble-out rounded-br-none" : "wa-bubble-in border rounded-bl-none"
+
                   }`}>
 
                     {m.header_type === "TEXT" && m.header_text && (
@@ -679,6 +713,32 @@ export function CommunicationInbox() {
                     {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
                     {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
+                    {m.location && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${m.location.lat},${m.location.lng}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="mt-1 flex items-center gap-2 underline"
+                      >
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        <span>{m.location.name ?? "Localização enviada"}</span>
+                      </a>
+                    )}
+                    {m.shared_contacts && m.shared_contacts.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {m.shared_contacts.map((sc, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <UserRound className="h-4 w-4 shrink-0" />
+                            <span>{sc.nome ?? "Contato"}{sc.phone ? ` · ${sc.phone}` : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {m.reactions && m.reactions.length > 0 && (
+                      <div className={`absolute -bottom-3 ${m.kind === "out" ? "right-2" : "left-2"} rounded-full border bg-background px-1.5 py-0.5 text-xs shadow-sm`}>
+                        {m.reactions.join(" ")}
+                      </div>
+                    )}
+
                     {m.buttons && m.buttons.length > 0 && (
                       <>
                         <div className={`h-px w-full my-2 ${m.kind === "out" ? "bg-primary-foreground/20" : "bg-border"}`} />

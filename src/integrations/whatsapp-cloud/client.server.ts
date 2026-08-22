@@ -170,3 +170,26 @@ export const whatsappCloud = {
     }),
 };
 
+/**
+ * Baixa uma mídia recebida (a Cloud API entrega só um media ID).
+ * Passo 1: consulta a URL temporária; passo 2: baixa o binário com o token.
+ */
+export async function downloadCloudMedia(mediaId: string): Promise<{
+  bytes: Uint8Array;
+  mime: string | null;
+  size: number | null;
+} | null> {
+  const env = readEnv();
+  const metaRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${env.token}` },
+  });
+  if (!metaRes.ok) return null;
+  const meta = (await metaRes.json()) as { url?: string; mime_type?: string; file_size?: number };
+  if (!meta.url) return null;
+  const binRes = await fetch(meta.url, { headers: { Authorization: `Bearer ${env.token}` } });
+  if (!binRes.ok) return null;
+  const buf = new Uint8Array(await binRes.arrayBuffer());
+  return { bytes: buf, mime: meta.mime_type ?? null, size: meta.file_size ?? buf.byteLength };
+}
+
+
