@@ -237,11 +237,26 @@ export const getConversation = createServerFn({ method: "GET" })
         .order("received_at", { ascending: true }).limit(500);
     }
 
-    const directQuery = effectiveContactId
-      ? context.supabase.from("direct_messages")
-          .select("id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id")
-          .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(500)
-      : null;
+    const DIRECT_COLS =
+      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used";
+
+    // Mensagens do robô de cadastro podem ter sido gravadas só com o número
+    // (quando o contato ainda não existia): busca também por to_phone.
+    let directQuery = null;
+    if (effectiveContactId) {
+      const phoneOr = contact?.phone_e164
+        ? `,to_phone.eq.${encodeURIComponent(contact.phone_e164.replace(/\D+/g, ""))}`
+        : "";
+      directQuery = context.supabase.from("direct_messages")
+        .select(DIRECT_COLS)
+        .or(`contact_id.eq.${effectiveContactId}${phoneOr}`)
+        .order("created_at", { ascending: true }).limit(500);
+    } else if (convRow?.from_phone) {
+      directQuery = context.supabase.from("direct_messages")
+        .select(DIRECT_COLS)
+        .eq("to_phone", convRow.from_phone.replace(/\D+/g, ""))
+        .order("created_at", { ascending: true }).limit(500);
+    }
 
 
     const campaignQuery = effectiveContactId
@@ -280,7 +295,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const [inR, dR, cR, tR, aR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as InboundRow[] }),
-      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null }[] }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null }[] }),
       campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[] }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
       automationQuery ?? Promise.resolve({ data: [] as AutoRow[] }),
@@ -445,6 +460,10 @@ export const linkConversationToContact = createServerFn({ method: "POST" })
       await context.supabase.from("inbound_messages")
         .update({ contact_id: data.contact_id })
         .eq("from_phone", conv.from_phone).is("contact_id", null);
+      // Mensagens do robô de cadastro gravadas só com o número.
+      await context.supabase.from("direct_messages")
+        .update({ contact_id: data.contact_id, to_phone: null })
+        .eq("to_phone", conv.from_phone.replace(/\D+/g, "")).is("contact_id", null);
     }
 
     if (existing) {
@@ -546,6 +565,9 @@ export const createQuickContactFromConversation = createServerFn({ method: "POST
       await context.supabase.from("inbound_messages")
         .update({ contact_id: novo.id })
         .eq("from_phone", conv.from_phone).is("contact_id", null);
+      await context.supabase.from("direct_messages")
+        .update({ contact_id: novo.id, to_phone: null })
+        .eq("to_phone", conv.from_phone.replace(/\D+/g, "")).is("contact_id", null);
     }
     await context.supabase.from("conversations")
       .update({ contact_id: novo.id, from_phone: null }).eq("id", conv.id);

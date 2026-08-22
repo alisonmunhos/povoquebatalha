@@ -104,22 +104,48 @@ async function sendFlowMessage(
     erro = e instanceof Error ? e.message : String(e);
   }
 
-  // Histórico no Inbox só é possível com contato vinculado (coluna obrigatória).
-  if (args.contactId) {
-    try {
-      await admin.from("direct_messages").insert({
-        contact_id: args.contactId,
-        sent_by: null,
-        origem: "outro",
-        conteudo: args.body,
-        status: erro ? "erro" : "enviado",
-        erro,
-        message_id: messageId,
-        endpoint_used: "send-text",
-      });
-    } catch {
-      /* histórico não pode derrubar o fluxo */
-    }
+  // Histórico no Inbox: grava sempre. Sem contato ainda, identifica pelo número
+  // (to_phone) e o vínculo acontece quando o cadastro é criado.
+  try {
+    await admin.from("direct_messages").insert({
+      contact_id: args.contactId,
+      to_phone: args.contactId ? null : args.phone,
+      sent_by: null,
+      origem: "outro",
+      conteudo: args.body,
+      status: erro ? "erro" : "enviado",
+      erro,
+      message_id: messageId,
+      endpoint_used: "whatsapp-flow",
+    });
+  } catch {
+    /* histórico não pode derrubar o fluxo */
+  }
+}
+
+/** Liga sessão e mensagens do robô ao contato assim que ele passa a existir. */
+export async function linkFlowHistoryToContact(
+  admin: Admin,
+  phone: string,
+  contactId: string,
+): Promise<void> {
+  try {
+    await admin
+      .from("direct_messages")
+      .update({ contact_id: contactId, to_phone: null })
+      .eq("to_phone", phone)
+      .is("contact_id", null);
+  } catch {
+    /* não bloqueia o fluxo */
+  }
+  try {
+    await admin
+      .from("whatsapp_flow_sessions")
+      .update({ contact_id: contactId })
+      .eq("phone", phone)
+      .is("contact_id", null);
+  } catch {
+    /* não bloqueia o fluxo */
   }
 }
 
@@ -262,6 +288,14 @@ export async function handleFlowInbound(input: FlowInboundInput): Promise<boolea
       .eq("id", session.id);
     session = null;
   }
+
+  // O contato pode ter nascido depois do disparo: liga o histórico já existente.
+  if (input.contactId && (!session || !session.contact_id)) {
+    await linkFlowHistoryToContact(admin, phone, input.contactId);
+    if (session) session = { ...session, contact_id: input.contactId };
+  }
+
+
 
   if (session) {
     if (isCancel(input.text)) {
@@ -758,6 +792,11 @@ async function finishSession(
 
   const failed = "ok" in result && result.ok === false;
   const contactId = failed ? session.contact_id : (result as { contactId: string | null }).contactId;
+
+  // Cadastro criado agora: adota as mensagens que o robô mandou antes disso.
+  if (contactId) await linkFlowHistoryToContact(admin, session.phone, contactId);
+
+
 
   await admin
     .from("whatsapp_flow_sessions")
