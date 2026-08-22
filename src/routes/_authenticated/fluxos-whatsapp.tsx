@@ -152,6 +152,7 @@ function FluxosWhatsappPage() {
   const [draft, setDraft] = useState<FlowDraft | null>(null);
   const [keywordText, setKeywordText] = useState("");
   const [adIdsText, setAdIdsText] = useState("");
+  const [sendTarget, setSendTarget] = useState<{ id: string; nome: string } | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: (payload: FlowDraft) => save({ data: payload }),
