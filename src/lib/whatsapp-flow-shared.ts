@@ -23,6 +23,22 @@ export const FLOW_RESPONSE_KIND_LABELS: Record<FlowResponseKind, string> = {
   number: "Número",
 };
 
+/** Tipo de etapa do roteiro. */
+export type FlowStepKind = "question" | "menu" | "handoff" | "finish";
+
+export const FLOW_STEP_KIND_LABELS: Record<FlowStepKind, string> = {
+  question: "Pergunta",
+  menu: "Menu de opções (ramificação)",
+  handoff: "Passar para atendimento humano",
+  finish: "Encerrar e salvar o cadastro",
+};
+
+/** Caminho principal (fluxos antigos ficam todos aqui). */
+export const FLOW_DEFAULT_PATH = "default";
+
+/** Chave usada no `catalog_field_key` de etapas que não gravam campo na ficha. */
+export const FLOW_NO_FIELD_KEY = "__menu__";
+
 export type FlowStep = {
   id: string;
   flow_id: string;
@@ -33,9 +49,18 @@ export type FlowStep = {
   response_kind: FlowResponseKind;
   /** Opções clicáveis. Vazio = usa as opções padrão do campo do catálogo. */
   options: FormCatalogOption[];
+  kind: FlowStepKind;
+  /** Caminho a que a etapa pertence. */
+  path_key: string;
+  /**
+   * Em etapas de menu: valor da opção -> caminho de destino.
+   * Em etapas de encerramento: `{ source_form_type: "receber_informacoes" }`.
+   */
+  option_routes: Record<string, string>;
 };
 
 export type FlowTriggerKind = "keyword" | "ad" | "first_contact" | "manual";
+
 
 export type Flow = {
   id: string;
