@@ -48,8 +48,10 @@ export const listConversations = createServerFn({ method: "GET" })
       q = q.or(`${phoneOr},last_message_preview.ilike.%${s}%`);
     }
 
-    const { data: rows, error } = await q;
+    const { data: allRows, error } = await q;
     if (error) throw error;
+    const hasMore = (allRows ?? []).length > pageSize;
+    const rows = (allRows ?? []).slice(0, pageSize);
 
     type ContactShape = { id: string; nome: string | null; phone_e164: string | null; cidade: string | null; uf: string | null; bairro: string | null; opt_out_at: string | null; whatsapp_status: string | null };
 
