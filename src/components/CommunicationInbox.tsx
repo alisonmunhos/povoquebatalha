@@ -17,7 +17,8 @@ import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { linkify } from "@/lib/linkify";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
-  listConversations, getConversation, markConversationRead, assignConversation,
+  listConversations, getConversation, markConversationRead, markConversationUnread,
+  assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
   linkConversationToContact, getMyCommunicationBadge,
@@ -171,6 +172,7 @@ export function CommunicationInbox() {
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
   const readFn = useServerFn(markConversationRead);
+  const unreadFn = useServerFn(markConversationUnread);
   const sendFn = useServerFn(sendDirectMessage);
   const tplsFn = useServerFn(listQuickReplies);
   const assignFn = useServerFn(assignConversation);
@@ -194,14 +196,20 @@ export function CommunicationInbox() {
     refetchInterval: 20000,
   });
 
+  // Rolagem incremental: cada "Carregar mais" aumenta o tamanho da leva.
+  const PAGE_SIZE = 60;
+  const [listLimit, setListLimit] = useState(PAGE_SIZE);
+  useEffect(() => { setListLimit(PAGE_SIZE); }, [statusFilter, search]);
+
   const listQ = useQuery({
-    queryKey: ["comm-conv-list", statusFilter, search],
-    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined } }),
+    queryKey: ["comm-conv-list", statusFilter, search, listLimit],
+    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined, limit: listLimit } }),
     refetchInterval: 15000,
   });
 
   const rawList = listQ.data?.list ?? [];
   const chipCounts = listQ.data?.counts;
+  const hasMore = Boolean(listQ.data?.has_more);
   const list = useMemo(() => {
     if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
     if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
@@ -272,6 +280,18 @@ export function CommunicationInbox() {
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
     },
   });
+
+  const unreadMut = useMutation({
+    mutationFn: (v: { conversation_id: string }) => unreadFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-badge"] });
+      toast.success("Conversa marcada como não lida");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao marcar como não lida"),
+  });
+
+
 
   const sendMut = useMutation({
     mutationFn: (payload: {
@@ -351,6 +371,60 @@ export function CommunicationInbox() {
       readMut.mutate(contactId ? { contact_id: contactId } : { conversation_id: convId! });
     }
   }
+
+  const selectedIndex = useMemo(
+    () => list.findIndex((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)),
+    [list, selectedContactId, selectedConvId],
+  );
+
+  function selectByIndex(i: number) {
+    const c = list[i];
+    if (!c) return;
+    openConversation(c.contact_id, c.id, c.unread ?? 0);
+  }
+
+  function goRelative(delta: number) {
+    if (list.length === 0) return;
+    const base = selectedIndex >= 0 ? selectedIndex : (delta > 0 ? -1 : list.length);
+    selectByIndex(Math.min(list.length - 1, Math.max(0, base + delta)));
+  }
+
+  /** Resolve a conversa atual e já abre a próxima da lista. */
+  function resolveAndNext() {
+    const cur = list[selectedIndex];
+    if (!cur) return;
+    const next = list[selectedIndex + 1] ?? null;
+    statusMut.mutate({ conversation_id: cur.id, status: "resolvida" });
+    if (next) {
+      openConversation(next.contact_id, next.id, next.unread ?? 0);
+    } else {
+      setSelectedContactId(null);
+      setSelectedConvId(null);
+      setMobilePane("list");
+    }
+  }
+
+  // Atalhos de teclado (só quando o foco não está num campo de texto).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing = Boolean(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable));
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      const cur = list[selectedIndex] ?? null;
+      const k = e.key.toLowerCase();
+      if (k === "j" || e.key === "ArrowDown") { e.preventDefault(); goRelative(1); }
+      else if (k === "k" || e.key === "ArrowUp") { e.preventDefault(); goRelative(-1); }
+      else if (k === "r") { e.preventDefault(); replyRef.current?.focus(); }
+      else if (k === "e" && cur) { e.preventDefault(); resolveAndNext(); }
+      else if (k === "u" && cur) { e.preventDefault(); unreadMut.mutate({ conversation_id: cur.id }); }
+      else if (k === "f" && cur) { e.preventDefault(); flagMut.mutate({ conversation_id: cur.id, flagged: !cur.flagged }); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, selectedIndex]);
+
+
 
   function submitReply() {
     if (!selectedContactId) return;
@@ -607,6 +681,21 @@ export function CommunicationInbox() {
             </button>
           ))}
 
+          {hasMore && (
+            <div className="p-3">
+              <button
+                onClick={() => setListLimit((v) => v + PAGE_SIZE)}
+                disabled={listQ.isFetching}
+                className="w-full text-xs inline-flex items-center justify-center gap-2 px-3 py-2 border rounded-md hover:bg-muted disabled:opacity-50"
+              >
+                {listQ.isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
+                Carregar mais conversas
+              </button>
+            </div>
+          )}
+
+
+
           {search.trim().length >= 2 && (searchNewQ.data?.length ?? 0) > 0 && (
             <div className="border-t bg-muted/10">
               <div className="px-3 py-2 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
@@ -667,12 +756,30 @@ export function CommunicationInbox() {
                   {convQ.data?.conversation?.flagged ? <Star className="h-4 w-4 text-amber-500 fill-amber-500" /> : <StarOff className="h-4 w-4" />}
                 </button>
                 <button
+                  onClick={() => conv && unreadMut.mutate({ conversation_id: conv.id })}
+                  className="hidden sm:inline-flex text-xs items-center gap-1 px-2 py-1.5 border rounded-md hover:bg-muted"
+                  aria-label="Marcar conversa como não lida"
+                  title="Marcar como não lida (atalho: U) — volta para a fila de não lidas"
+                >
+                  <MessageSquareText className="h-3 w-3" /> Não lida
+                </button>
+                <button
                   onClick={() => conv && statusMut.mutate({ conversation_id: conv.id, status: conv.status === "resolvida" ? "aberta" : "resolvida" })}
                   className="text-xs inline-flex items-center gap-1 px-2 py-1.5 border rounded-md hover:bg-muted"
                   aria-label={conv?.status === "resolvida" ? "Reabrir conversa" : "Marcar conversa como resolvida"}
                 >
                   {conv?.status === "resolvida" ? <><RotateCcw className="h-3 w-3" /> Reabrir</> : <><CheckCircle2 className="h-3 w-3" /> Resolver</>}
                 </button>
+                {conv?.status !== "resolvida" && (
+                  <button
+                    onClick={resolveAndNext}
+                    className="hidden md:inline-flex text-xs items-center gap-1 px-2 py-1.5 border rounded-md bg-primary text-primary-foreground hover:opacity-90"
+                    title="Resolver esta conversa e abrir a próxima da lista (atalho: E)"
+                  >
+                    <CheckCircle2 className="h-3 w-3" /> Resolver e próxima
+                  </button>
+                )}
+
                 <button
                   onClick={() => setInfoOpen((v) => !v)}
                   className="hidden md:inline-flex p-2 rounded-md hover:bg-muted"

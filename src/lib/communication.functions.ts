@@ -17,13 +17,17 @@ export const listConversations = createServerFn({ method: "GET" })
       "in_service", "unlinked", "with_error", "opt_out",
     ]).default("all"),
     search: z.string().trim().max(120).optional(),
+    // Rolagem incremental: quantas conversas carregar nesta leva.
+    limit: z.number().int().min(20).max(1000).default(60),
   }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
+    // Pede uma linha extra para saber se ainda existem conversas além desta leva.
+    const pageSize = data.limit;
     let q = context.supabase
       .from("conversations")
       .select("id, contact_id, from_phone, status, assigned_to, last_message_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)")
       .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(500);
+      .limit(pageSize + 1);
 
     if (data.filter === "resolved") q = q.eq("status", "resolvida");
     else q = q.in("status", ["aberta", "aguardando"]);
@@ -44,8 +48,10 @@ export const listConversations = createServerFn({ method: "GET" })
       q = q.or(`${phoneOr},last_message_preview.ilike.%${s}%`);
     }
 
-    const { data: rows, error } = await q;
+    const { data: allRows, error } = await q;
     if (error) throw error;
+    const hasMore = (allRows ?? []).length > pageSize;
+    const rows = (allRows ?? []).slice(0, pageSize);
 
     type ContactShape = { id: string; nome: string | null; phone_e164: string | null; cidade: string | null; uf: string | null; bairro: string | null; opt_out_at: string | null; whatsapp_status: string | null };
 
@@ -124,7 +130,7 @@ export const listConversations = createServerFn({ method: "GET" })
       if (r.flagged) counts.sinalizadas++;
     }
 
-    return { list, counts };
+    return { list, counts, has_more: hasMore };
   });
 
 // Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
@@ -611,6 +617,48 @@ export const markConversationRead = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+// Marca a conversa como NÃO lida (guardar para depois): desmarca a leitura da
+// última mensagem recebida e recoloca o contador em 1.
+export const markConversationUnread = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    conversation_id: z.string().uuid(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: conv } = await context.supabase
+      .from("conversations")
+      .select("id, contact_id, from_phone")
+      .eq("id", data.conversation_id)
+      .maybeSingle();
+    if (!conv) throw new Error("Conversa não encontrada.");
+
+    const contactId = (conv.contact_id as string | null) ?? null;
+    const fromPhone = (conv.from_phone as string | null) ?? null;
+
+    let lastQ = context.supabase
+      .from("inbound_messages")
+      .select("id")
+      .order("received_at", { ascending: false })
+      .limit(1);
+    lastQ = contactId
+      ? lastQ.eq("contact_id", contactId)
+      : lastQ.eq("from_phone", fromPhone ?? "");
+
+    const { data: last } = await lastQ;
+    const lastId = (last ?? [])[0]?.id as string | undefined;
+    if (lastId) {
+      await context.supabase.from("inbound_messages")
+        .update({ read_at: null })
+        .eq("id", lastId);
+    }
+    await context.supabase.from("conversations")
+      .update({ unread_count: 1 })
+      .eq("id", data.conversation_id);
+    return { ok: true };
+  });
+
+
 
 export const assignConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
