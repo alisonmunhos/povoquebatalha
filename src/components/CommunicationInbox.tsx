@@ -372,6 +372,60 @@ export function CommunicationInbox() {
     }
   }
 
+  const selectedIndex = useMemo(
+    () => list.findIndex((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)),
+    [list, selectedContactId, selectedConvId],
+  );
+
+  function selectByIndex(i: number) {
+    const c = list[i];
+    if (!c) return;
+    openConversation(c.contact_id, c.id, c.unread ?? 0);
+  }
+
+  function goRelative(delta: number) {
+    if (list.length === 0) return;
+    const base = selectedIndex >= 0 ? selectedIndex : (delta > 0 ? -1 : list.length);
+    selectByIndex(Math.min(list.length - 1, Math.max(0, base + delta)));
+  }
+
+  /** Resolve a conversa atual e já abre a próxima da lista. */
+  function resolveAndNext() {
+    const cur = list[selectedIndex];
+    if (!cur) return;
+    const next = list[selectedIndex + 1] ?? null;
+    statusMut.mutate({ conversation_id: cur.id, status: "resolvida" });
+    if (next) {
+      openConversation(next.contact_id, next.id, next.unread ?? 0);
+    } else {
+      setSelectedContactId(null);
+      setSelectedConvId(null);
+      setMobilePane("list");
+    }
+  }
+
+  // Atalhos de teclado (só quando o foco não está num campo de texto).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing = Boolean(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable));
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      const cur = list[selectedIndex] ?? null;
+      const k = e.key.toLowerCase();
+      if (k === "j" || e.key === "ArrowDown") { e.preventDefault(); goRelative(1); }
+      else if (k === "k" || e.key === "ArrowUp") { e.preventDefault(); goRelative(-1); }
+      else if (k === "r") { e.preventDefault(); replyRef.current?.focus(); }
+      else if (k === "e" && cur) { e.preventDefault(); resolveAndNext(); }
+      else if (k === "u" && cur) { e.preventDefault(); unreadMut.mutate({ conversation_id: cur.id }); }
+      else if (k === "f" && cur) { e.preventDefault(); flagMut.mutate({ conversation_id: cur.id, flagged: !cur.flagged }); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, selectedIndex]);
+
+
+
   function submitReply() {
     if (!selectedContactId) return;
     if (!reply.trim() && !attachment) return;
