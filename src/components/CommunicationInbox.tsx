@@ -441,22 +441,33 @@ export function CommunicationInbox() {
 
   const timeline = useMemo(() => {
     type Msg = {
-      id: string; kind: "in" | "out"; text: string; at: string; meta?: string;
+      id: string; kind: "in" | "out" | "system"; text: string; at: string; meta?: string;
       media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
       header_type?: string | null; header_text?: string | null;
       buttons?: TemplateButton[];
+      wa_id?: string | null;
+      reactions?: string[];
+      location?: { lat: number; lng: number; name: string | null } | null;
+      shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
     };
     const t: Msg[] = [];
     for (const m of convQ.data?.inbound ?? []) {
       const inb = m as {
-        id: string; conteudo: string | null; received_at: string;
+        id: string; conteudo: string | null; received_at: string; tipo?: string | null;
         media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+        wa_message_id?: string | null; latitude?: number | null; longitude?: number | null;
+        location_name?: string | null; shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
       };
       t.push({
         id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
         media_url: inb.media_url ?? null,
         media_mime: inb.media_mime ?? null,
         media_filename: inb.media_filename ?? null,
+        wa_id: inb.wa_message_id ?? null,
+        location: inb.latitude != null && inb.longitude != null
+          ? { lat: inb.latitude, lng: inb.longitude, name: inb.location_name ?? null }
+          : null,
+        shared_contacts: inb.shared_contacts ?? null,
       });
     }
     for (const m of convQ.data?.direct ?? []) t.push({
@@ -465,6 +476,7 @@ export function CommunicationInbox() {
       media_path: (m as { media_path?: string | null }).media_path ?? null,
       media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
       media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
+      wa_id: (m as { message_id?: string | null }).message_id ?? null,
     });
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
@@ -472,13 +484,28 @@ export function CommunicationInbox() {
       header_type: m.header_type,
       header_text: m.header_text,
       buttons: m.buttons,
+      wa_id: (m as { message_id?: string | null }).message_id ?? null,
     });
     for (const m of convQ.data?.automation ?? []) t.push({
       id: `a-${m.id}`, kind: "out", text: m.rendered_body ?? "", at: m.sent_at ?? "",
       meta: `automação${m.automation_name ? ` · ${m.automation_name}` : ""}${m.status === "error" ? describeSendError(m.error) : ""}`,
     });
+    // Avisos do WhatsApp (chamada, grupo etc.) entram como faixa central, não bolha.
+    for (const e of convQ.data?.systemEvents ?? []) {
+      if (!e.text) continue;
+      t.push({ id: `sys-${e.id}`, kind: "system", text: e.text, at: e.at });
+    }
+    // Reações ficam colodas na bolha da mensagem reagida, como no WhatsApp.
+    const byWaId = new Map<string, Msg>();
+    for (const m of t) if (m.wa_id) byWaId.set(m.wa_id, m);
+    for (const r of convQ.data?.reactions ?? []) {
+      const target = r.target_wa_id ? byWaId.get(r.target_wa_id) : undefined;
+      if (target) target.reactions = [...(target.reactions ?? []), r.emoji];
+      else t.push({ id: `r-${r.id}`, kind: "in", text: r.emoji, at: r.at, meta: "reação" });
+    }
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [convQ.data]);
+
 
   // Auto-scroll: quando chega mensagem nova (in ou out), rolar thread até o fim.
   useEffect(() => {
