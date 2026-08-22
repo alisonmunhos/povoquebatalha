@@ -196,14 +196,20 @@ export function CommunicationInbox() {
     refetchInterval: 20000,
   });
 
+  // Rolagem incremental: cada "Carregar mais" aumenta o tamanho da leva.
+  const PAGE_SIZE = 60;
+  const [listLimit, setListLimit] = useState(PAGE_SIZE);
+  useEffect(() => { setListLimit(PAGE_SIZE); }, [statusFilter, search]);
+
   const listQ = useQuery({
-    queryKey: ["comm-conv-list", statusFilter, search],
-    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined } }),
+    queryKey: ["comm-conv-list", statusFilter, search, listLimit],
+    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined, limit: listLimit } }),
     refetchInterval: 15000,
   });
 
   const rawList = listQ.data?.list ?? [];
   const chipCounts = listQ.data?.counts;
+  const hasMore = Boolean(listQ.data?.has_more);
   const list = useMemo(() => {
     if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
     if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
