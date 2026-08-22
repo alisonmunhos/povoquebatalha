@@ -130,7 +130,7 @@ export const listConversations = createServerFn({ method: "GET" })
       if (r.flagged) counts.sinalizadas++;
     }
 
-    return { list, counts };
+    return { list, counts, has_more: hasMore };
   });
 
 // Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
