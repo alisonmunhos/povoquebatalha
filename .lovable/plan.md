@@ -36,7 +36,8 @@ Duas regras da Meta que moldam o fluxo:
 ### 2. Condução da conversa
 - Ao casar um gatilho: abre uma sessão de fluxo e manda a mensagem de abertura com botão "Quero participar" (e "Agora não").
 - Cada resposta recebida é validada (telefone, e-mail, CEP, data). Se estiver fora do formato, repergunta com explicação curta em português; após 3 tentativas, segue para a próxima pergunta e marca o campo como pendente de revisão.
-- Perguntas de escolha viram botões (até 3) ou lista (até 10). Consentimentos viram "Sim/Não".
+- **Escolha única** (Alicerce, consentimentos, gênero, etc.): botões clicáveis quando são até 3 opções; lista clicável ("Ver opções") quando são até 10. Um toque responde e o fluxo segue.
+- **Múltipla escolha** (formas de ajuda): a Meta não tem caixinha de marcar várias no chat, então usamos lista clicável em rodada: a pessoa toca uma opção, o sistema confirma "Anotado: X" e mostra a lista de novo já sem as escolhidas, com o item **"Pronto, terminei"** para encerrar. Também aceita a pessoa digitar vários números ("1, 3, 5") de uma vez. As escolhidas ficam visíveis a cada rodada, e a resposta final grava todas juntas nos campos do sistema (etiquetas/interesses de ajuda).
 - Comandos sempre aceitos: **sair** (encerra), **voltar** (pergunta anterior), **recomeçar**.
 - Sessão expira em 24h de silêncio; ao expirar, salva o que já foi respondido como cadastro parcial e marca o contato como "recadastro iniciado".
 - Se um humano assumir a conversa no Inbox, o fluxo pausa automaticamente para o robô não atropelar o atendimento (e há botão "retomar fluxo").
