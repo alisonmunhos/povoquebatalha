@@ -281,6 +281,18 @@ export function CommunicationInbox() {
     },
   });
 
+  const unreadMut = useMutation({
+    mutationFn: (v: { conversation_id: string }) => unreadFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-badge"] });
+      toast.success("Conversa marcada como não lida");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao marcar como não lida"),
+  });
+
+
+
   const sendMut = useMutation({
     mutationFn: (payload: {
       contact_id: string; message: string;
