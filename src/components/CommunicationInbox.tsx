@@ -172,6 +172,7 @@ export function CommunicationInbox() {
   const listFn = useServerFn(listConversations);
   const convFn = useServerFn(getConversation);
   const readFn = useServerFn(markConversationRead);
+  const unreadFn = useServerFn(markConversationUnread);
   const sendFn = useServerFn(sendDirectMessage);
   const tplsFn = useServerFn(listQuickReplies);
   const assignFn = useServerFn(assignConversation);
