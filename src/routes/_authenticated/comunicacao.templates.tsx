@@ -644,10 +644,31 @@ function Page() {
                 </p>
               )}
               {t.status !== "draft" && !positional && (
-                <p className="text-xs text-muted-foreground">
-                  Já enviado à Meta — não é possível editar. Crie um novo modelo para
-                  alterar o texto.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {t.status === "pending"
+                      ? "Em análise na Meta — nesse estado a Meta não permite editar. Use “Duplicar e corrigir” para preparar uma versão nova."
+                      : "Você pode editar o texto direto na Meta (o modelo volta para análise) ou duplicar como rascunho."}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={duplicate.isPending}
+                      onClick={() => duplicate.mutate(t.id)}
+                    >
+                      Duplicar e corrigir
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!["approved", "rejected", "paused"].includes(t.status)}
+                      onClick={() => startEdit(t, true)}
+                    >
+                      Editar na Meta
+                    </Button>
+                  </div>
+                </div>
               )}
               {t.status === "draft" && (
                 <div className="flex gap-2">
