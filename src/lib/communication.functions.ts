@@ -237,11 +237,26 @@ export const getConversation = createServerFn({ method: "GET" })
         .order("received_at", { ascending: true }).limit(500);
     }
 
-    const directQuery = effectiveContactId
-      ? context.supabase.from("direct_messages")
-          .select("id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id")
-          .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(500)
-      : null;
+    const DIRECT_COLS =
+      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used";
+
+    // Mensagens do robô de cadastro podem ter sido gravadas só com o número
+    // (quando o contato ainda não existia): busca também por to_phone.
+    let directQuery = null;
+    if (effectiveContactId) {
+      const phoneOr = contact?.phone_e164
+        ? `,to_phone.eq.${encodeURIComponent(contact.phone_e164.replace(/\D+/g, ""))}`
+        : "";
+      directQuery = context.supabase.from("direct_messages")
+        .select(DIRECT_COLS)
+        .or(`contact_id.eq.${effectiveContactId}${phoneOr}`)
+        .order("created_at", { ascending: true }).limit(500);
+    } else if (convRow?.from_phone) {
+      directQuery = context.supabase.from("direct_messages")
+        .select(DIRECT_COLS)
+        .eq("to_phone", convRow.from_phone.replace(/\D+/g, ""))
+        .order("created_at", { ascending: true }).limit(500);
+    }
 
 
     const campaignQuery = effectiveContactId
