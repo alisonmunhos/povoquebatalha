@@ -17,7 +17,8 @@ import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { linkify } from "@/lib/linkify";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
-  listConversations, getConversation, markConversationRead, assignConversation,
+  listConversations, getConversation, markConversationRead, markConversationUnread,
+  assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
   linkConversationToContact, getMyCommunicationBadge,
