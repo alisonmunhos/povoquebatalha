@@ -1026,6 +1026,8 @@ async function finishSession(
     contactId: contactId ?? input.contactId,
     body: failed
       ? "Recebi tudo, mas deu um problema aqui pra salvar seu cadastro. Nossa equipe vai te chamar pra finalizar. 🙏"
-      : (flow?.closing_message ?? "Prontinho! Seu cadastro foi feito. Obrigado por fazer parte. 💪"),
+      : (finishStep?.prompt?.trim() ||
+        flow?.closing_message ||
+        "Prontinho! Seu cadastro foi feito. Obrigado por fazer parte. 💪"),
   });
 }
