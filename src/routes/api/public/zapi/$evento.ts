@@ -4,6 +4,7 @@
 // Também aceita `on-test` (usado pelo botão de diagnóstico interno em /whatsapp).
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
+import { parseZapiMessage } from "@/lib/inbound-message-parse.server";
 
 type AnyRecord = Record<string, unknown>;
 
