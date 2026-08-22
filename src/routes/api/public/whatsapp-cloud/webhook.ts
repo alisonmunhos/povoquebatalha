@@ -144,20 +144,9 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 const text = parsed.tipo === "text" ? parsed.conteudo : null;
 
                 // Vincula ao contato apenas se ele já existir (nunca cria).
-                let contactId: string | null = null;
-                if (from) {
-                  const digits = from.replace(/\D+/g, "");
-                  const last8 = digits.length >= 8 ? digits.slice(-8) : null;
-                  if (last8) {
-                    const { data: c } = await supabaseAdmin
-                      .from("contacts")
-                      .select("id")
-                      .or(`phone_last8.eq.${last8},phone_secundario_last8.eq.${last8}`)
-                      .limit(1)
-                      .maybeSingle();
-                    contactId = c?.id ?? null;
-                  }
-                }
+                // Prioridade: telefone principal > telefone secundário.
+                const { matchInboundContactId } = await import("@/lib/inbound-contact-match.server");
+                const contactId = await matchInboundContactId(from);
 
                 // Mídia: a Cloud API entrega só um media ID — baixamos o arquivo
                 // e guardamos no bucket privado `inbox-media`.
