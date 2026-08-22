@@ -551,7 +551,8 @@ export async function startFlowManually(args: {
   if (!flow) throw new Error("Fluxo não encontrado.");
 
   const steps = await loadSteps(admin, flowId);
-  if (!steps.length) throw new Error("Este fluxo ainda não tem perguntas.");
+  const first = pathSteps(steps, FLOW_DEFAULT_PATH)[0];
+  if (!first) throw new Error("Este fluxo ainda não tem perguntas.");
 
   await admin
     .from("whatsapp_flow_sessions")
@@ -567,6 +568,7 @@ export async function startFlowManually(args: {
       phone,
       status: "running",
       current_step_index: 0,
+      path_key: FLOW_DEFAULT_PATH,
       trigger_kind: "manual",
       last_prompt_at: new Date().toISOString(),
     })
@@ -577,7 +579,8 @@ export async function startFlowManually(args: {
   if (!session) throw new Error("Não consegui abrir a sessão do fluxo.");
 
   await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
-  await askStep(admin, session, steps[0]!, contactId);
+  await askStep(admin, session, first, contactId);
+
   return { ok: true };
 }
 
