@@ -122,6 +122,29 @@ function FluxosWhatsappPage() {
   const save = useServerFn(saveWhatsappFlow);
   const remove = useServerFn(deleteWhatsappFlow);
   const toggle = useServerFn(setWhatsappFlowActive);
+  const startManual = useServerFn(startWhatsappFlowManually);
+
+  const startMutation = useMutation({
+    mutationFn: (v: { flow_id: string; phone: string }) => startManual({ data: v }),
+    onSuccess: (r) =>
+      toast.success(
+        `Fluxo enviado para ${(r as { phone?: string }).phone ?? "o número"}. Confira o WhatsApp.`,
+      ),
+    onError: (e: Error) =>
+      toast.error(
+        e.message ||
+          "Não foi possível iniciar o fluxo. Lembre-se: a pessoa precisa ter mandado mensagem para o número da campanha nas últimas 24 horas.",
+      ),
+  });
+
+  const askPhoneAndStart = (flowId: string) => {
+    const phone = window.prompt(
+      "Digite o WhatsApp (com DDD) que vai receber o fluxo agora.\n\nImportante: esse número precisa ter mandado alguma mensagem para o número da campanha nas últimas 24 horas.",
+      "",
+    );
+    if (!phone?.trim()) return;
+    startMutation.mutate({ flow_id: flowId, phone: phone.trim() });
+  };
 
   const { data, isLoading } = useQuery({ queryKey: ["whatsapp-flows"], queryFn: () => load() });
 
