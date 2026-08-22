@@ -560,6 +560,19 @@ export const markConversationRead = createServerFn({ method: "POST" })
     }
 
     if (contactId) {
+      // Marca lidas tanto as mensagens vinculadas ao contato quanto as que
+      // chegaram pelo mesmo telefone (casos de 9º dígito/DDI divergente).
+      const { data: contact } = await context.supabase
+        .from("contacts")
+        .select("phone_e164")
+        .eq("id", contactId)
+        .maybeSingle();
+      const phone = (contact?.phone_e164 as string | null) ?? null;
+      if (phone) {
+        await context.supabase.from("inbound_messages")
+          .update({ read_at: now })
+          .eq("from_phone", phone).is("read_at", null);
+      }
       await context.supabase.from("inbound_messages")
         .update({ read_at: now })
         .eq("contact_id", contactId).is("read_at", null);
