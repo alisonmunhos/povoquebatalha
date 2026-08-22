@@ -209,16 +209,41 @@ export const getConversation = createServerFn({ method: "GET" })
           .eq("contact_id", effectiveContactId)
       : null;
 
-    const [inR, dR, cR, tR] = await Promise.all([
+    type AutoRow = {
+      id: string; rendered_body: string | null; sent_at: string | null; created_at: string;
+      status: string; error: string | null;
+      automations: { nome?: string | null } | { nome?: string | null }[] | null;
+    };
+    const automationQuery = effectiveContactId
+      ? context.supabase.from("automation_deliveries")
+          .select("id, rendered_body, sent_at, created_at, status, error, automations:automation_id(nome)")
+          .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(200)
+      : null;
+
+    const [inR, dR, cR, tR, aR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string | null; tipo: string | null; received_at: string; read_at: string | null; media_url: string | null; media_mime: string | null; media_filename: string | null }[] }),
       directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null }[] }),
       campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[] }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
+      automationQuery ?? Promise.resolve({ data: [] as AutoRow[] }),
     ]);
     const inbound = inR.data ?? [];
     const direct = dR.data ?? [];
     const campaign = cR.data ?? [];
     const tagRows = tR.data ?? [];
+    const automation = ((aR.data ?? []) as AutoRow[])
+      .filter((a) => a.status !== "skipped")
+      .map((a) => {
+        const auto = Array.isArray(a.automations) ? a.automations[0] : a.automations;
+        return {
+          id: a.id,
+          rendered_body: a.rendered_body,
+          sent_at: a.sent_at ?? a.created_at,
+          status: a.status,
+          error: a.error,
+          automation_name: auto?.nome ?? null,
+        };
+      });
 
     const senderIds = Array.from(new Set(direct.map((d) => d.sent_by).filter((x): x is string => Boolean(x))));
     const senderNames: Record<string, string> = {};
@@ -261,6 +286,7 @@ export const getConversation = createServerFn({ method: "GET" })
       contact,
       tags,
       inbound,
+      automation,
       direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {

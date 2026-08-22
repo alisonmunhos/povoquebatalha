@@ -473,6 +473,10 @@ export function CommunicationInbox() {
       header_text: m.header_text,
       buttons: m.buttons,
     });
+    for (const m of convQ.data?.automation ?? []) t.push({
+      id: `a-${m.id}`, kind: "out", text: m.rendered_body ?? "", at: m.sent_at ?? "",
+      meta: `automação${m.automation_name ? ` · ${m.automation_name}` : ""}${m.status === "error" ? describeSendError(m.error) : ""}`,
+    });
     return t.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [convQ.data]);
 
