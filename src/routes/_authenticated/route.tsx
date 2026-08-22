@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { isAgitadorOnlyRoles, isAgitacaoPath } from "@/hooks/use-agitador-mode";
+import { useInboxAccessState } from "@/hooks/use-inbox-access";
 import { Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -44,20 +45,34 @@ export const Route = createFileRoute("/_authenticated")({
 // própria lista de captados. A lista inteira (/contatos) continua bloqueada.
 const CONTACT_DETAIL_RE = /^\/contatos\/[0-9a-f-]{36}$/i;
 
+// Rotas liberadas para quem recebeu a flag avulsa "Acesso ao Inbox"
+// (ex.: agitador que também atende mensagens).
+const INBOX_PREFIXES = ["/comunicacao"];
+function isInboxPath(path: string): boolean {
+  return INBOX_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+}
+
 function AuthenticatedShell() {
   const router = useRouter();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useAuth();
   const roles = useRoles(user?.id);
+  const { flag: inboxFlag, loaded: inboxFlagLoaded } = useInboxAccessState();
 
   useEffect(() => {
     if (!roles || roles.length === 0) return;
     if (isAgitadorOnlyRoles(roles)) {
-      const allowed = isAgitacaoPath(path) || CONTACT_DETAIL_RE.test(path);
+      // Enquanto a liberação do Inbox não carregou, não redireciona rotas de
+      // comunicação — evita expulsar quem tem a flag ligada.
+      if (isInboxPath(path) && !inboxFlagLoaded) return;
+      const allowed =
+        isAgitacaoPath(path) ||
+        CONTACT_DETAIL_RE.test(path) ||
+        (inboxFlag && isInboxPath(path));
       if (!allowed) router.navigate({ to: "/agitacao", replace: true });
       return;
     }
-  }, [roles, path, router]);
+  }, [roles, path, router, inboxFlag, inboxFlagLoaded]);
 
   // Usuário autenticado mas sem nenhum papel — cadastro em análise ou acesso revogado.
   if (roles !== null && roles.length === 0) {
