@@ -25,7 +25,8 @@ Duas regras da Meta que moldam o fluxo:
 
 ### 1. Roteiro configurável (tela nova em Entrada de Dados → "Fluxos no WhatsApp")
 - Nome do fluxo, mensagem de abertura ("FAÇA PARTE DA NOSSA CAMPANHA!") e mensagem final.
-- Lista de perguntas arrastáveis. Cada pergunta escolhe um campo do catálogo que já existe (nome, WhatsApp, e-mail, cidade, bairro, rua, número, CEP, aniversário, etiquetas, interesses, consentimentos etc.), o texto da pergunta, se é obrigatória e as opções quando for escolha.
+- Lista de perguntas arrastáveis. Cada pergunta escolhe um campo do catálogo que já existe (nome, nome social, WhatsApp, e-mail, endereço completo, formas de ajuda, Alicerce, etiquetas, consentimentos etc.), o texto da pergunta, se é obrigatória e as opções quando for escolha.
+- Perguntas obrigatórias do fluxo "FAÇA PARTE DA NOSSA CAMPANHA": nome, nome social, WhatsApp (confirmação do próprio número), consentimentos, endereço (CEP → rua/bairro/cidade preenchidos automaticamente, pedindo só número e complemento), **formas de ajuda** e **se faz parte do Alicerce (Sim/Não)**.
 - Gatilhos do fluxo, cada um ligável/desligável:
   - palavras-chave (ex.: "campanha", "quero participar");
   - conversa iniciada por anúncio Click-to-WhatsApp (opcionalmente restrito a um anúncio específico);
@@ -35,7 +36,8 @@ Duas regras da Meta que moldam o fluxo:
 ### 2. Condução da conversa
 - Ao casar um gatilho: abre uma sessão de fluxo e manda a mensagem de abertura com botão "Quero participar" (e "Agora não").
 - Cada resposta recebida é validada (telefone, e-mail, CEP, data). Se estiver fora do formato, repergunta com explicação curta em português; após 3 tentativas, segue para a próxima pergunta e marca o campo como pendente de revisão.
-- Perguntas de escolha viram botões (até 3) ou lista (até 10). Consentimentos viram "Sim/Não".
+- **Escolha única** (Alicerce, consentimentos, gênero, etc.): botões clicáveis quando são até 3 opções; lista clicável ("Ver opções") quando são até 10. Um toque responde e o fluxo segue.
+- **Múltipla escolha** (formas de ajuda): a Meta não tem caixinha de marcar várias no chat, então usamos lista clicável em rodada: a pessoa toca uma opção, o sistema confirma "Anotado: X" e mostra a lista de novo já sem as escolhidas, com o item **"Pronto, terminei"** para encerrar. Também aceita a pessoa digitar vários números ("1, 3, 5") de uma vez. As escolhidas ficam visíveis a cada rodada, e a resposta final grava todas juntas nos campos do sistema (etiquetas/interesses de ajuda).
 - Comandos sempre aceitos: **sair** (encerra), **voltar** (pergunta anterior), **recomeçar**.
 - Sessão expira em 24h de silêncio; ao expirar, salva o que já foi respondido como cadastro parcial e marca o contato como "recadastro iniciado".
 - Se um humano assumir a conversa no Inbox, o fluxo pausa automaticamente para o robô não atropelar o atendimento (e há botão "retomar fluxo").
@@ -47,13 +49,15 @@ Duas regras da Meta que moldam o fluxo:
 
 ## Cuidados
 
-- Cadastro por chat pergunta uma coisa por vez; com "todos os campos" o roteiro fica longo e a desistência no meio é alta. Sugiro marcar como obrigatórias só nome, cidade e consentimento, e deixar o resto como "pergunta se a pessoa continuar" — o cadastro parcial já fica salvo.
+- O roteiro obrigatório (identificação + consentimentos + endereço + formas de ajuda + Alicerce) dá cerca de 8 a 10 interações. Para reduzir desistência: CEP resolve rua/bairro/cidade de uma vez, e as perguntas opcionais (e-mail, aniversário, outros interesses) ficam depois do ponto em que o cadastro já é considerado válido — se a pessoa parar ali, o cadastro está completo o suficiente.
 - Nada é apagado: fluxo interrompido gera contato parcial, nunca contato fantasma sem identificação.
 - Gatilho "primeira mensagem de número novo" responde a qualquer pessoa que escrever; recomendo ligar primeiro só palavra-chave e anúncio.
 
 ## Detalhes técnicos
 
-- Migração: `whatsapp_flows` (nome, mensagens de abertura/fim, gatilhos em jsonb, ativo), `whatsapp_flow_steps` (ordem, campo do catálogo, texto, obrigatório, opções, validação), `whatsapp_flow_sessions` (contact_id, telefone, flow_id, passo atual, respostas jsonb, status, gatilho/anúncio de origem, expira_em) — com GRANTs e RLS (leitura para staff/`inbox_access`, escrita para admin; sessões manipuladas via service role no webhook).
+- Migração: `whatsapp_flows` (nome, mensagens de abertura/fim, gatilhos em jsonb, ativo), `whatsapp_flow_steps` (ordem, campo do catálogo, texto, obrigatório, tipo de resposta — texto/escolha única/múltipla escolha/CEP —, opções, validação), `whatsapp_flow_sessions` (contact_id, telefone, flow_id, passo atual, respostas jsonb, seleções parciais da pergunta múltipla, status, gatilho/anúncio de origem, expira_em) — com GRANTs e RLS (leitura para staff/`inbox_access`, escrita para admin; sessões manipuladas via service role no webhook).
+- Escolhas no chat: `interactive` `button` (até 3) e `interactive` `list` (até 10 itens por seção) via novos métodos em `src/integrations/whatsapp-cloud/client.server.ts`; múltipla escolha implementada como loop de `list` com acumulação na sessão + item "Pronto, terminei". Fallback numérico digitado sempre aceito.
+- CEP: reaproveitar `src/lib/cep.server.ts` para preencher rua/bairro/cidade/UF no passo de endereço.
 - `src/routes/api/public/whatsapp-cloud/webhook.ts`: passar a extrair `referral` (`ctwa_clid`, `source_id`, headline) e o `button_reply`/`list_reply` já parseados, e chamar o novo motor de fluxo antes das respostas automáticas por frase.
 - Novo `src/lib/whatsapp-flow.server.ts`: casamento de gatilho, avanço de passo, validação por tipo de campo, envio via `sendMessage` (`origin: "whatsapp_flow"`), e finalização reaproveitando `saveFormContactFromAnswers` de `src/lib/public-form-contact.server.ts` (mapeando respostas para o mesmo formato de answers do formulário público).
 - `src/lib/whatsapp-flows.functions.ts` + tela em `src/routes/_authenticated/entrada-dados.*` para o CRUD do roteiro, reutilizando `src/lib/form-field-catalog.ts`.
