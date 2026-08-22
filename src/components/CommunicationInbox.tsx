@@ -756,12 +756,30 @@ export function CommunicationInbox() {
                   {convQ.data?.conversation?.flagged ? <Star className="h-4 w-4 text-amber-500 fill-amber-500" /> : <StarOff className="h-4 w-4" />}
                 </button>
                 <button
+                  onClick={() => conv && unreadMut.mutate({ conversation_id: conv.id })}
+                  className="hidden sm:inline-flex text-xs items-center gap-1 px-2 py-1.5 border rounded-md hover:bg-muted"
+                  aria-label="Marcar conversa como não lida"
+                  title="Marcar como não lida (atalho: U) — volta para a fila de não lidas"
+                >
+                  <MessageSquareText className="h-3 w-3" /> Não lida
+                </button>
+                <button
                   onClick={() => conv && statusMut.mutate({ conversation_id: conv.id, status: conv.status === "resolvida" ? "aberta" : "resolvida" })}
                   className="text-xs inline-flex items-center gap-1 px-2 py-1.5 border rounded-md hover:bg-muted"
                   aria-label={conv?.status === "resolvida" ? "Reabrir conversa" : "Marcar conversa como resolvida"}
                 >
                   {conv?.status === "resolvida" ? <><RotateCcw className="h-3 w-3" /> Reabrir</> : <><CheckCircle2 className="h-3 w-3" /> Resolver</>}
                 </button>
+                {conv?.status !== "resolvida" && (
+                  <button
+                    onClick={resolveAndNext}
+                    className="hidden md:inline-flex text-xs items-center gap-1 px-2 py-1.5 border rounded-md bg-primary text-primary-foreground hover:opacity-90"
+                    title="Resolver esta conversa e abrir a próxima da lista (atalho: E)"
+                  >
+                    <CheckCircle2 className="h-3 w-3" /> Resolver e próxima
+                  </button>
+                )}
+
                 <button
                   onClick={() => setInfoOpen((v) => !v)}
                   className="hidden md:inline-flex p-2 rounded-md hover:bg-muted"
