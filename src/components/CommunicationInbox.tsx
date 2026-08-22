@@ -512,79 +512,168 @@ export function CommunicationInbox() {
       }
     : null);
 
-  const timeline = useMemo(() => {
-    type Msg = {
-      id: string; kind: "in" | "out" | "system"; text: string; at: string; meta?: string;
-      media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
-      header_type?: string | null; header_text?: string | null;
-      buttons?: TemplateButton[];
-      wa_id?: string | null;
-      reactions?: string[];
-      location?: { lat: number; lng: number; name: string | null } | null;
-      shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
-    };
-    const t: Msg[] = [];
+  const timeline = useMemo<InboxMsg[]>(() => {
+    const t: InboxMsg[] = [];
     for (const m of convQ.data?.inbound ?? []) {
       const inb = m as {
         id: string; conteudo: string | null; received_at: string; tipo?: string | null;
         media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
-        wa_message_id?: string | null; latitude?: number | null; longitude?: number | null;
+        media_size?: number | null;
+        wa_message_id?: string | null; reply_to_wa_id?: string | null;
+        latitude?: number | null; longitude?: number | null;
         location_name?: string | null; shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
       };
       t.push({
         id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
+        tipo: inb.tipo ?? null,
         media_url: inb.media_url ?? null,
         media_mime: inb.media_mime ?? null,
         media_filename: inb.media_filename ?? null,
+        media_size: inb.media_size ?? null,
         wa_id: inb.wa_message_id ?? null,
+        replyToWaId: inb.reply_to_wa_id ?? null,
         location: inb.latitude != null && inb.longitude != null
           ? { lat: inb.latitude, lng: inb.longitude, name: inb.location_name ?? null }
           : null,
         shared_contacts: inb.shared_contacts ?? null,
+      } as InboxMsg & { replyToWaId?: string | null });
+    }
+    for (const m of convQ.data?.direct ?? []) {
+      const row = m as {
+        id: string; conteudo?: string; created_at: string; sender_name?: string | null; status: string;
+        origem: string; erro?: string | null; delivered_at?: string | null; read_at?: string | null;
+        failed_at?: string | null; media_path?: string | null; media_mime?: string | null;
+        media_filename?: string | null; message_id?: string | null;
+      };
+      t.push({
+        id: `d-${row.id}`, kind: "out", text: row.conteudo ?? "", at: row.created_at,
+        meta: `${row.sender_name ?? "Você"}${row.status === "erro" ? describeSendError(row.erro) : ""}${row.origem !== "inbox" ? ` · ${row.origem}` : ""}`,
+        media_path: row.media_path ?? null,
+        media_mime: row.media_mime ?? null,
+        media_filename: row.media_filename ?? null,
+        wa_id: row.message_id ?? null,
+        receipt: receiptFrom(row),
+        error: row.erro ?? null,
       });
     }
-    for (const m of convQ.data?.direct ?? []) t.push({
-      id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
-      meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? describeSendError((m as { erro?: string | null }).erro) : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
-      media_path: (m as { media_path?: string | null }).media_path ?? null,
-      media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
-      media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
-      wa_id: (m as { message_id?: string | null }).message_id ?? null,
-    });
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
       meta: `campanha · ${m.campaign_name ?? ""}`,
       header_type: m.header_type,
       header_text: m.header_text,
       buttons: m.buttons,
+      isTemplate: (m.buttons?.length ?? 0) > 0 || m.header_type != null,
       wa_id: (m as { message_id?: string | null }).message_id ?? null,
+      receipt: receiptFrom({ status: m.status }),
     });
     for (const m of convQ.data?.automation ?? []) t.push({
       id: `a-${m.id}`, kind: "out", text: m.rendered_body ?? "", at: m.sent_at ?? "",
       meta: `automação${m.automation_name ? ` · ${m.automation_name}` : ""}${m.status === "error" ? describeSendError(m.error) : ""}`,
+      receipt: receiptFrom({ status: m.status === "error" ? "erro" : m.status }),
     });
     // Avisos do WhatsApp (chamada, grupo etc.) entram como faixa central, não bolha.
     for (const e of convQ.data?.systemEvents ?? []) {
       if (!e.text) continue;
       t.push({ id: `sys-${e.id}`, kind: "system", text: e.text, at: e.at });
     }
-    // Reações ficam colodas na bolha da mensagem reagida, como no WhatsApp.
-    const byWaId = new Map<string, Msg>();
+    // Reações ficam coladas na bolha da mensagem reagida, como no WhatsApp.
+    const byWaId = new Map<string, InboxMsg>();
     for (const m of t) if (m.wa_id) byWaId.set(m.wa_id, m);
     for (const r of convQ.data?.reactions ?? []) {
       const target = r.target_wa_id ? byWaId.get(r.target_wa_id) : undefined;
       if (target) target.reactions = [...(target.reactions ?? []), r.emoji];
       else t.push({ id: `r-${r.id}`, kind: "in", text: r.emoji, at: r.at, meta: "reação" });
     }
-    return t.sort((a, b) => (a.at < b.at ? -1 : 1));
+    // Resposta citada: liga a mensagem recebida à original pelo id do WhatsApp.
+    for (const m of t) {
+      const waRef = (m as InboxMsg & { replyToWaId?: string | null }).replyToWaId;
+      if (!waRef) continue;
+      const orig = byWaId.get(waRef);
+      if (orig) m.reply = { id: orig.id, kind: orig.kind === "out" ? "out" : "in", text: orig.text };
+    }
+    return t.sort((a, b) => {
+      const ta = new Date(a.at).getTime();
+      const tb = new Date(b.at).getTime();
+      if (Number.isNaN(ta) || Number.isNaN(tb)) return a.at < b.at ? -1 : 1;
+      return ta - tb;
+    });
   }, [convQ.data]);
 
+  // Renderização inicial limitada: histórico antigo entra sob demanda.
+  const THREAD_PAGE = 50;
+  const [visibleCount, setVisibleCount] = useState(THREAD_PAGE);
+  useEffect(() => { setVisibleCount(THREAD_PAGE); }, [selectedContactId, selectedConvId]);
+  const hiddenOlder = Math.max(0, timeline.length - visibleCount);
+  const visibleTimeline = useMemo(
+    () => (hiddenOlder > 0 ? timeline.slice(hiddenOlder) : timeline),
+    [timeline, hiddenOlder],
+  );
 
-  // Auto-scroll: quando chega mensagem nova (in ou out), rolar thread até o fim.
+  // Divisor de não lidas: primeira mensagem recebida ainda não lida ao abrir.
+  const unreadBeforeId = useMemo(() => {
+    const n = selected?.unread ?? 0;
+    if (n <= 0) return null;
+    const incoming = visibleTimeline.filter((m) => m.kind === "in");
+    const first = incoming[Math.max(0, incoming.length - n)];
+    return first?.id ?? null;
+  }, [visibleTimeline, selected?.unread]);
+
+  const timelineItems = useMemo(
+    () => buildTimelineItems(visibleTimeline, { unreadBeforeId }),
+    [visibleTimeline, unreadBeforeId],
+  );
+
+  // Rolagem: só acompanha o fim se o usuário já estiver no fim.
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [newCount, setNewCount] = useState(0);
+  const lastLenRef = useRef(0);
+
+  function scrollThreadToEnd(behavior: ScrollBehavior = "auto") {
+    const el = scrollerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior });
+    else threadEndRef.current?.scrollIntoView({ block: "end" });
+    setNewCount(0);
+    setAtBottom(true);
+  }
+
+  function onThreadScroll() {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAtBottom(near);
+    if (near) setNewCount(0);
+  }
+
   useEffect(() => {
-    if (!threadEndRef.current) return;
-    threadEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [timeline.length, selectedContactId, selectedConvId]);
+    const prev = lastLenRef.current;
+    lastLenRef.current = timeline.length;
+    if (timeline.length === 0) return;
+    if (prev === 0) { requestAnimationFrame(() => scrollThreadToEnd()); return; }
+    if (timeline.length > prev) {
+      if (atBottom) requestAnimationFrame(() => scrollThreadToEnd("smooth"));
+      else setNewCount((v) => v + (timeline.length - prev));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline.length]);
+
+  useEffect(() => {
+    lastLenRef.current = 0;
+    setNewCount(0);
+    setAtBottom(true);
+  }, [selectedContactId, selectedConvId]);
+
+  const emptyListText = useMemo(() => {
+    switch (statusFilter) {
+      case "nao_lidas": return "Nenhuma não lida — tudo em dia.";
+      case "abertas": return "Nenhuma conversa em aberto agora.";
+      case "aguardando": return "Nada aguardando resposta do contato.";
+      case "resolvidas": return "Nenhuma conversa resolvida ainda.";
+      case "sinalizadas": return "Nenhuma conversa sinalizada.";
+      default: return "Nenhuma conversa neste filtro.";
+    }
+  }, [statusFilter]);
+
 
 
 
