@@ -497,7 +497,8 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
   }
 
   const steps = await loadSteps(admin, chosen.flow.id);
-  if (!steps.length) return false;
+  const first = pathSteps(steps, FLOW_DEFAULT_PATH)[0];
+  if (!first) return false;
 
   const { data: created } = await admin
     .from("whatsapp_flow_sessions")
@@ -507,6 +508,7 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
       phone,
       status: "running",
       current_step_index: 0,
+      path_key: FLOW_DEFAULT_PATH,
       trigger_kind: chosen.trigger,
       ad_referral: referral,
       last_prompt_at: new Date().toISOString(),
@@ -522,7 +524,8 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
     contactId: input.contactId,
     body: chosen.flow.opening_message,
   });
-  await askStep(admin, session, steps[0]!, input.contactId);
+  await askStep(admin, session, first, input.contactId);
+
   return true;
 }
 
