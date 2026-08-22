@@ -183,15 +183,30 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const INBOUND_COLS =
       "id, conteudo, tipo, received_at, read_at, media_url, media_path, media_mime, media_filename, media_size, wa_message_id, reply_to_wa_id, reaction_emoji, reaction_target_wa_id, latitude, longitude, location_name, shared_contacts, is_system_event";
-    const inboundQuery = effectiveContactId
-      ? context.supabase.from("inbound_messages")
-          .select(INBOUND_COLS)
-          .eq("contact_id", effectiveContactId).order("received_at", { ascending: true }).limit(500)
-      : convRow?.from_phone
-        ? context.supabase.from("inbound_messages")
-            .select(INBOUND_COLS)
-            .eq("from_phone", convRow.from_phone).is("contact_id", null).order("received_at", { ascending: true }).limit(500)
-        : null;
+
+    // Recupera histórico mesmo quando a vinculação entre mensagem e contato
+    // divergiu (período anterior à API oficial, 9º dígito, DDI, etc.).
+    let inboundQuery: Promise<{ data: InboundRow[] }> | null = null;
+    if (effectiveContactId) {
+      const phoneFilter = contact?.phone_e164 ? `,from_phone.eq.${encodeURIComponent(contact.phone_e164)}` : "";
+      inboundQuery = context.supabase.from("inbound_messages")
+        .select(INBOUND_COLS)
+        .or(`contact_id.eq.${effectiveContactId}${phoneFilter}`)
+        .order("received_at", { ascending: true }).limit(500);
+    } else if (convRow?.from_phone) {
+      const { data: matched } = await context.supabase
+        .from("contacts")
+        .select("id")
+        .eq("phone_e164", convRow.from_phone)
+        .limit(1);
+      const matchedId = matched?.[0]?.id as string | undefined;
+      const orParts = [`from_phone.eq.${encodeURIComponent(convRow.from_phone)}`];
+      if (matchedId) orParts.push(`contact_id.eq.${matchedId}`);
+      inboundQuery = context.supabase.from("inbound_messages")
+        .select(INBOUND_COLS)
+        .or(orParts.join(","))
+        .order("received_at", { ascending: true }).limit(500);
+    }
 
     const directQuery = effectiveContactId
       ? context.supabase.from("direct_messages")
