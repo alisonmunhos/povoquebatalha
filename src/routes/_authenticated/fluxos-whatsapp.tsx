@@ -122,6 +122,10 @@ function emptyDraft(): FlowDraft {
       prompt: s.prompt,
       required: s.required,
       response_kind: suggestedResponseKind(s.catalog_field_key),
+      kind: s.kind ?? "question",
+      path_key: s.path_key ?? "principal",
+      option_routes: s.option_routes ?? {},
+      options: s.options ?? [],
     })),
   };
 }
@@ -198,6 +202,10 @@ function FluxosWhatsappPage() {
         prompt: s.prompt,
         required: s.required,
         response_kind: s.response_kind as FlowResponseKind,
+        kind: (s.kind ?? "question") as StepDraft["kind"],
+        path_key: s.path_key ?? "principal",
+        option_routes: (s.option_routes ?? {}) as Record<string, string>,
+        options: (s.options ?? []) as Array<{ value: string; label: string }>,
       });
       map.set(s.flow_id, list);
     }
@@ -242,6 +250,10 @@ function FluxosWhatsappPage() {
             prompt: field.defaultLabel,
             required: Boolean(field.alwaysRequired),
             response_kind: suggestedResponseKind(field.key),
+            kind: "question" as const,
+            path_key: "principal",
+            option_routes: {},
+            options: [],
           },
         ],
       };
@@ -264,7 +276,7 @@ function FluxosWhatsappPage() {
       ...draft,
       trigger_keywords: keywords,
       trigger_ad_ids: adIds,
-      steps: draft.steps.map((s) => ({ ...s, options: [] })) as never,
+      steps: draft.steps as never,
     });
   };
 
