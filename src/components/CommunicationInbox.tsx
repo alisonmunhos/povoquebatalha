@@ -532,10 +532,9 @@ export function CommunicationInbox() {
           <div className="flex flex-wrap gap-1.5">
             {STATUS_FILTERS.map((f) => {
               const active = statusFilter === f.key;
-              const count =
-                f.key === "nao_lidas"
-                  ? (active ? list.length : unreadInList)
-                  : (active ? list.length : undefined);
+              const count = active
+                ? list.length
+                : (chipCounts?.[f.key === "nao_lidas" ? "nao_lidas" : f.key === "abertas" ? "abertas" : f.key === "aguardando" ? "aguardando" : f.key === "resolvidas" ? "resolvidas" : "sinalizadas"] ?? 0);
               return (
                 <Tooltip key={f.key}>
                   <TooltipTrigger asChild>
