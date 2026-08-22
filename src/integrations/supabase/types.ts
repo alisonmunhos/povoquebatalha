@@ -1543,7 +1543,7 @@ export type Database = {
       }
       direct_messages: {
         Row: {
-          contact_id: string
+          contact_id: string | null
           conteudo: string
           created_at: string
           delivered_at: string | null
@@ -1567,10 +1567,11 @@ export type Database = {
           sent_by: string | null
           status: string
           template_id: string | null
+          to_phone: string | null
           zaap_id: string | null
         }
         Insert: {
-          contact_id: string
+          contact_id?: string | null
           conteudo: string
           created_at?: string
           delivered_at?: string | null
@@ -1594,10 +1595,11 @@ export type Database = {
           sent_by?: string | null
           status?: string
           template_id?: string | null
+          to_phone?: string | null
           zaap_id?: string | null
         }
         Update: {
-          contact_id?: string
+          contact_id?: string | null
           conteudo?: string
           created_at?: string
           delivered_at?: string | null
@@ -1621,6 +1623,7 @@ export type Database = {
           sent_by?: string | null
           status?: string
           template_id?: string | null
+          to_phone?: string | null
           zaap_id?: string | null
         }
         Relationships: [
