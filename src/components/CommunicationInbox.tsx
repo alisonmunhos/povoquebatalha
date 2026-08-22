@@ -32,16 +32,17 @@ const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
-// LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
-// Ex.: "217879546974326@lid".
-function isLidPhone(v?: string | null): boolean {
-  return Boolean(v && /@lid$/i.test(v));
-}
-function displayPhone(v?: string | null): string {
-  if (!v) return "—";
-  if (isLidPhone(v)) return "Contato anônimo (WhatsApp)";
-  return v;
-}
+import {
+  buildTimelineItems, receiptFrom, type InboxMsg,
+} from "@/lib/inbox-timeline";
+import {
+  MessageBubble, DaySeparator, UnreadDivider, SystemMessage,
+} from "@/components/inbox/MessageBubble";
+import {
+  ConversationRow, ConversationSkeleton, AssigneeChip, isLidPhone, displayPhone, fmtRel,
+} from "@/components/inbox/ConversationRow";
+import { InboxAvatar } from "@/components/inbox/InboxAvatar";
+
 
 /** Mostra a razão real da falha; traduz o erro de janela de 24h da Meta. */
 function describeSendError(erro?: string | null): string {
