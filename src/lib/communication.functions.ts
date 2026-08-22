@@ -17,13 +17,17 @@ export const listConversations = createServerFn({ method: "GET" })
       "in_service", "unlinked", "with_error", "opt_out",
     ]).default("all"),
     search: z.string().trim().max(120).optional(),
+    // Rolagem incremental: quantas conversas carregar nesta leva.
+    limit: z.number().int().min(20).max(1000).default(60),
   }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
+    // Pede uma linha extra para saber se ainda existem conversas além desta leva.
+    const pageSize = data.limit;
     let q = context.supabase
       .from("conversations")
       .select("id, contact_id, from_phone, status, assigned_to, last_message_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)")
       .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(500);
+      .limit(pageSize + 1);
 
     if (data.filter === "resolved") q = q.eq("status", "resolvida");
     else q = q.in("status", ["aberta", "aguardando"]);
