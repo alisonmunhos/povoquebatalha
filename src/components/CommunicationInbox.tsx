@@ -681,6 +681,21 @@ export function CommunicationInbox() {
             </button>
           ))}
 
+          {hasMore && (
+            <div className="p-3">
+              <button
+                onClick={() => setListLimit((v) => v + PAGE_SIZE)}
+                disabled={listQ.isFetching}
+                className="w-full text-xs inline-flex items-center justify-center gap-2 px-3 py-2 border rounded-md hover:bg-muted disabled:opacity-50"
+              >
+                {listQ.isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
+                Carregar mais conversas
+              </button>
+            </div>
+          )}
+
+
+
           {search.trim().length >= 2 && (searchNewQ.data?.length ?? 0) > 0 && (
             <div className="border-t bg-muted/10">
               <div className="px-3 py-2 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
