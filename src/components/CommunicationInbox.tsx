@@ -498,11 +498,14 @@ export function CommunicationInbox() {
         id: string; conteudo?: string; created_at: string; sender_name?: string | null; status: string;
         origem: string; erro?: string | null; delivered_at?: string | null; read_at?: string | null;
         failed_at?: string | null; media_path?: string | null; media_mime?: string | null;
-        media_filename?: string | null; message_id?: string | null;
+        media_filename?: string | null; message_id?: string | null; endpoint_used?: string | null;
       };
+      const isFlowBot = row.endpoint_used === "whatsapp-flow";
       t.push({
         id: `d-${row.id}`, kind: "out", text: row.conteudo ?? "", at: row.created_at,
-        meta: `${row.sender_name ?? "Você"}${row.status === "erro" ? describeSendError(row.erro) : ""}${row.origem !== "inbox" ? ` · ${row.origem}` : ""}`,
+        meta: isFlowBot
+          ? `Cadastro pelo chat${row.status === "erro" ? describeSendError(row.erro) : ""}`
+          : `${row.sender_name ?? "Você"}${row.status === "erro" ? describeSendError(row.erro) : ""}${row.origem !== "inbox" ? ` · ${row.origem}` : ""}`,
         media_path: row.media_path ?? null,
         media_mime: row.media_mime ?? null,
         media_filename: row.media_filename ?? null,
