@@ -395,8 +395,39 @@ async function loadSteps(admin: Admin, flowId: string): Promise<FlowStep[]> {
     .select("*")
     .eq("flow_id", flowId)
     .order("order_index", { ascending: true });
-  return ((data ?? []) as FlowStep[]).map((s) => ({ ...s, options: (s.options ?? []) as FormCatalogOption[] }));
+  return ((data ?? []) as FlowStep[]).map((s) => ({
+    ...s,
+    options: (s.options ?? []) as FormCatalogOption[],
+    kind: s.kind ?? "question",
+    path_key: s.path_key ?? FLOW_DEFAULT_PATH,
+    option_routes: (s.option_routes ?? {}) as Record<string, string>,
+  }));
 }
+
+/** Etapas de um caminho, na ordem. */
+function pathSteps(steps: FlowStep[], pathKey: string): FlowStep[] {
+  const key = pathKey || FLOW_DEFAULT_PATH;
+  const inPath = steps.filter((s) => (s.path_key || FLOW_DEFAULT_PATH) === key);
+  // Fluxo antigo (tudo no caminho padrão) continua funcionando igual.
+  return inPath.length ? inPath : key === FLOW_DEFAULT_PATH ? steps : [];
+}
+
+/** Marca a conversa como "Em aberto" e sinalizada, para atendimento humano. */
+async function handoffToHuman(
+  admin: Admin,
+  args: { phone: string; contactId: string | null; motivo: string },
+): Promise<void> {
+  try {
+    let q = admin
+      .from("conversations")
+      .update({ status: "aberta", flagged: true, last_message_at: new Date().toISOString() });
+    q = args.contactId ? q.eq("contact_id", args.contactId) : q.eq("from_phone", args.phone);
+    await q;
+  } catch {
+    /* atendimento humano não pode derrubar o fluxo */
+  }
+}
+
 
 async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
   const { admin, phone, text, referral } = input;
