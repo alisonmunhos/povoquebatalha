@@ -8,13 +8,12 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User, Smile, MessageSquareText, MapPin, UserRound,
+  Smile, MessageSquareText, Image as ImageIcon, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
-import { linkify } from "@/lib/linkify";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
   listConversations, getConversation, markConversationRead, markConversationUnread,
@@ -25,12 +24,9 @@ import {
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
-
-import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 import {
   buildTimelineItems, receiptFrom, type InboxMsg,
@@ -39,9 +35,10 @@ import {
   MessageBubble, DaySeparator, UnreadDivider, SystemMessage,
 } from "@/components/inbox/MessageBubble";
 import {
-  ConversationRow, ConversationSkeleton, AssigneeChip, isLidPhone, displayPhone, fmtRel,
+  ConversationRow, ConversationSkeleton, isLidPhone, displayPhone,
 } from "@/components/inbox/ConversationRow";
 import { InboxAvatar } from "@/components/inbox/InboxAvatar";
+
 
 
 /** Mostra a razão real da falha; traduz o erro de janela de 24h da Meta. */
