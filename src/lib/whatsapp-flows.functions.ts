@@ -113,7 +113,10 @@ export const saveWhatsappFlow = createServerFn({ method: "POST" })
         required: step.required,
         response_kind: step.response_kind,
         options: step.options,
-      };
+        kind: step.kind,
+        path_key: step.path_key,
+        option_routes: step.option_routes,
+
       if (step.id) {
         const { error } = await supabase.from("whatsapp_flow_steps").update(payload).eq("id", step.id);
         if (error) throw new Error(error.message);
