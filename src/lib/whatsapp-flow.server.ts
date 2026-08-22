@@ -286,6 +286,47 @@ function matchOption(text: string | null, options: FormCatalogOption[]): string 
   return partial.length === 1 ? partial[0]!.value : null;
 }
 
+/**
+ * Casa uma resposta escrita com VÁRIAS opções de uma vez:
+ * "1,3,5", "1 3 5", "1-3", "panfletagem e doação".
+ */
+function matchManyOptions(text: string | null, options: FormCatalogOption[]): string[] {
+  const raw = (text ?? "").trim();
+  if (!raw) return [];
+  const found: string[] = [];
+  const push = (v: string | null) => {
+    if (v && !found.includes(v)) found.push(v);
+  };
+
+  // Intervalos: 1-3 / 2 a 4
+  for (const m of raw.matchAll(/(\d+)\s*(?:-|a até|a|–|até)\s*(\d+)/gi)) {
+    const from = Number(m[1]);
+    const to = Number(m[2]);
+    if (Number.isInteger(from) && Number.isInteger(to) && from >= 1 && to >= from && to <= options.length) {
+      for (let i = from; i <= to; i += 1) push(options[i - 1]!.value);
+    }
+  }
+
+  // Números soltos (só quando a resposta é basicamente numérica)
+  if (/^[\d\s,;./+e-]+$/i.test(raw)) {
+    for (const m of raw.matchAll(/\d+/g)) {
+      const n = Number(m[0]);
+      if (Number.isInteger(n) && n >= 1 && n <= options.length) push(options[n - 1]!.value);
+    }
+    if (found.length) return found;
+  }
+
+  // Texto: separa por vírgula, ponto e vírgula, barra ou " e "
+  const parts = raw
+    .split(/[,;/\n]| e /i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  for (const part of parts) push(matchOption(part, options));
+  return found;
+}
+
+
+
 // ---------------------------------------------------------------- fluxo principal
 
 export type FlowInboundInput = {
