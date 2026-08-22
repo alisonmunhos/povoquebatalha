@@ -362,10 +362,12 @@ export type FlowInboundInput = {
 export async function handleFlowInbound(input: FlowInboundInput): Promise<boolean> {
   const { admin, phone } = input;
 
+  // A Meta entrega o número no formato dela (às vezes sem o nono dígito), então
+  // a sessão é localizada pelos 8 últimos dígitos, não por igualdade exata.
   const { data: openSession } = await admin
     .from("whatsapp_flow_sessions")
     .select("*")
-    .eq("phone", phone)
+    .like("phone", `%${last8(phone)}`)
     .in("status", ["opening", "running", "paused"])
     .order("created_at", { ascending: false })
     .limit(1)
@@ -379,6 +381,16 @@ export async function handleFlowInbound(input: FlowInboundInput): Promise<boolea
       .update({ status: "abandoned" })
       .eq("id", session.id);
     session = null;
+  }
+
+  // Passa a usar o número que a Meta reconhece, pra próxima comparação ser exata.
+  if (session && session.phone !== phone) {
+    try {
+      await admin.from("whatsapp_flow_sessions").update({ phone }).eq("id", session.id);
+    } catch {
+      /* não bloqueia o fluxo */
+    }
+    session = { ...session, phone };
   }
 
   // O contato pode ter nascido depois do disparo: liga o histórico já existente.
