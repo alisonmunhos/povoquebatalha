@@ -7,7 +7,8 @@ import { requireAdmin, requireStaff } from "@/lib/authz";
 
 const FLOW_SELECT =
   "id,nome,descricao,opening_message,closing_message,active,priority,allow_update_existing,trigger_keywords,trigger_on_ad,trigger_ad_ids,trigger_on_first_contact,created_at,updated_at";
-const STEP_SELECT = "id,flow_id,order_index,catalog_field_key,prompt,required,response_kind,options";
+const STEP_SELECT =
+  "id,flow_id,order_index,catalog_field_key,prompt,required,response_kind,options,kind,path_key,option_routes";
 
 const responseKind = z.enum([
   "text",
@@ -26,10 +27,14 @@ const stepInput = z.object({
   prompt: z.string().trim().min(1).max(1000),
   required: z.boolean(),
   response_kind: responseKind,
+  kind: z.enum(["question", "menu", "handoff", "finish"]).default("question"),
+  path_key: z.string().trim().min(1).max(60).default("principal"),
+  option_routes: z.record(z.string(), z.string()).default({}),
   options: z
     .array(z.object({ value: z.string().trim().min(1), label: z.string().trim().min(1) }))
     .default([]),
 });
+
 
 const flowInput = z.object({
   id: z.string().uuid().optional(),
