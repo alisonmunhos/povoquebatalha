@@ -3079,6 +3079,7 @@ export type Database = {
           id: string
           invalid_attempts: number
           last_prompt_at: string | null
+          path_key: string
           pending_multi: Json
           phone: string
           status: string
@@ -3097,6 +3098,7 @@ export type Database = {
           id?: string
           invalid_attempts?: number
           last_prompt_at?: string | null
+          path_key?: string
           pending_multi?: Json
           phone: string
           status?: string
@@ -3115,6 +3117,7 @@ export type Database = {
           id?: string
           invalid_attempts?: number
           last_prompt_at?: string | null
+          path_key?: string
           pending_multi?: Json
           phone?: string
           status?: string
@@ -3144,8 +3147,11 @@ export type Database = {
           created_at: string
           flow_id: string
           id: string
+          kind: string
+          option_routes: Json
           options: Json
           order_index: number
+          path_key: string
           prompt: string
           required: boolean
           response_kind: string
@@ -3156,8 +3162,11 @@ export type Database = {
           created_at?: string
           flow_id: string
           id?: string
+          kind?: string
+          option_routes?: Json
           options?: Json
           order_index?: number
+          path_key?: string
           prompt: string
           required?: boolean
           response_kind?: string
@@ -3168,8 +3177,11 @@ export type Database = {
           created_at?: string
           flow_id?: string
           id?: string
+          kind?: string
+          option_routes?: Json
           options?: Json
           order_index?: number
+          path_key?: string
           prompt?: string
           required?: boolean
           response_kind?: string
