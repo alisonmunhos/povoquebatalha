@@ -8,13 +8,12 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  User, Smile, MessageSquareText, MapPin, UserRound,
+  Smile, MessageSquareText, Image as ImageIcon, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
-import { linkify } from "@/lib/linkify";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
   listConversations, getConversation, markConversationRead, markConversationUnread,
@@ -25,23 +24,22 @@ import {
 } from "@/lib/communication.functions";
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
-import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
+import {
+  buildTimelineItems, receiptFrom, fmtBytes, type InboxMsg,
+} from "@/lib/inbox-timeline";
+import {
+  MessageBubble, DaySeparator, UnreadDivider, SystemMessage,
+} from "@/components/inbox/MessageBubble";
+import {
+  ConversationRow, ConversationSkeleton, isLidPhone, displayPhone,
+} from "@/components/inbox/ConversationRow";
+import { InboxAvatar } from "@/components/inbox/InboxAvatar";
 
-// LID = "Linked ID" do WhatsApp: identificador anônimo (não é telefone real).
-// Ex.: "217879546974326@lid".
-function isLidPhone(v?: string | null): boolean {
-  return Boolean(v && /@lid$/i.test(v));
-}
-function displayPhone(v?: string | null): string {
-  if (!v) return "—";
-  if (isLidPhone(v)) return "Contato anônimo (WhatsApp)";
-  return v;
-}
+
 
 /** Mostra a razão real da falha; traduz o erro de janela de 24h da Meta. */
 function describeSendError(erro?: string | null): string {
@@ -54,57 +52,8 @@ function describeSendError(erro?: string | null): string {
   return ` · ${raw}`;
 }
 
-/** Cor determinística a partir de uma string (id/nome). */
-function stringToHslColor(str: string, s = 60, l = 45): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const h = Math.abs(hash % 360);
-  return `hsl(${h} ${s}% ${l}%)`;
-}
 
-function initialsFromName(name?: string | null): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
-type Assignee = { id: string; nome: string | null; avatar_url?: string | null } | null;
-
-function AssigneeChip({ assignee }: { assignee: Assignee }) {
-  if (!assignee) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80 bg-muted/60 border border-border/60 rounded-full px-1.5 py-0.5">
-        <User className="h-2.5 w-2.5" />
-        Sem responsável
-      </span>
-    );
-  }
-  const nome = assignee.nome ?? "Usuário";
-  const bg = stringToHslColor(assignee.id + (assignee.nome ?? ""));
-  const textColor = "#ffffff";
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-1 text-[10px] bg-muted/40 border border-border/60 rounded-full pl-0.5 pr-1.5 py-0.5 cursor-default">
-          <Avatar className="h-4 w-4 rounded-full" style={{ backgroundColor: bg }}>
-            {assignee.avatar_url && <AvatarImage src={assignee.avatar_url} alt={nome} className="h-4 w-4" />}
-            <AvatarFallback className="h-4 w-4 text-[8px] font-semibold" style={{ backgroundColor: bg, color: textColor }}>
-              {initialsFromName(assignee.nome)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="truncate max-w-[5rem]">{nome}</span>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="top">
-        <p>Responsável: {nome}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 type BackendFilter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
@@ -154,9 +103,12 @@ export function CommunicationInbox() {
   }, [infoOpen]);
 
   // Anexo pendente (upload feito, aguardando envio)
-  const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; previewUrl?: string } | null>(null);
+  const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; size?: number | null; previewUrl?: string } | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [fileAccept, setFileAccept] = useState("image/png,image/jpeg,image/jpg,image/webp,application/pdf");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const replyRef = useRef<HTMLTextAreaElement | null>(null);
   // Cresce a caixa de texto conforme o conteúdo, até o limite de max-h-40 (160px).
   useEffect(() => {
@@ -166,6 +118,7 @@ export function CommunicationInbox() {
     if (reply) el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [reply]);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const cursorRef = useRef({ start: 0, end: 0 });
 
@@ -418,6 +371,8 @@ export function CommunicationInbox() {
       else if (k === "e" && cur) { e.preventDefault(); resolveAndNext(); }
       else if (k === "u" && cur) { e.preventDefault(); unreadMut.mutate({ conversation_id: cur.id }); }
       else if (k === "f" && cur) { e.preventDefault(); flagMut.mutate({ conversation_id: cur.id, flagged: !cur.flagged }); }
+      else if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); }
+      else if (e.key === "Escape") { setMobilePane("list"); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -465,7 +420,7 @@ export function CommunicationInbox() {
       });
       if (up.error) throw up.error;
       const previewUrl = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-      setAttachment({ path: s.path, filename: s.filename, mime: f.type, previewUrl });
+      setAttachment({ path: s.path, filename: s.filename, mime: f.type, size: f.size, previewUrl });
       toast.success("Anexo pronto — clique enviar");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao anexar");
@@ -512,85 +467,174 @@ export function CommunicationInbox() {
       }
     : null);
 
-  const timeline = useMemo(() => {
-    type Msg = {
-      id: string; kind: "in" | "out" | "system"; text: string; at: string; meta?: string;
-      media_path?: string | null; media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
-      header_type?: string | null; header_text?: string | null;
-      buttons?: TemplateButton[];
-      wa_id?: string | null;
-      reactions?: string[];
-      location?: { lat: number; lng: number; name: string | null } | null;
-      shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
-    };
-    const t: Msg[] = [];
+  const timeline = useMemo<InboxMsg[]>(() => {
+    const t: InboxMsg[] = [];
     for (const m of convQ.data?.inbound ?? []) {
       const inb = m as {
         id: string; conteudo: string | null; received_at: string; tipo?: string | null;
         media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
-        wa_message_id?: string | null; latitude?: number | null; longitude?: number | null;
+        media_size?: number | null;
+        wa_message_id?: string | null; reply_to_wa_id?: string | null;
+        latitude?: number | null; longitude?: number | null;
         location_name?: string | null; shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
       };
       t.push({
         id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
+        tipo: inb.tipo ?? null,
         media_url: inb.media_url ?? null,
         media_mime: inb.media_mime ?? null,
         media_filename: inb.media_filename ?? null,
+        media_size: inb.media_size ?? null,
         wa_id: inb.wa_message_id ?? null,
+        replyToWaId: inb.reply_to_wa_id ?? null,
         location: inb.latitude != null && inb.longitude != null
           ? { lat: inb.latitude, lng: inb.longitude, name: inb.location_name ?? null }
           : null,
         shared_contacts: inb.shared_contacts ?? null,
+      } as InboxMsg & { replyToWaId?: string | null });
+    }
+    for (const m of convQ.data?.direct ?? []) {
+      const row = m as {
+        id: string; conteudo?: string; created_at: string; sender_name?: string | null; status: string;
+        origem: string; erro?: string | null; delivered_at?: string | null; read_at?: string | null;
+        failed_at?: string | null; media_path?: string | null; media_mime?: string | null;
+        media_filename?: string | null; message_id?: string | null;
+      };
+      t.push({
+        id: `d-${row.id}`, kind: "out", text: row.conteudo ?? "", at: row.created_at,
+        meta: `${row.sender_name ?? "Você"}${row.status === "erro" ? describeSendError(row.erro) : ""}${row.origem !== "inbox" ? ` · ${row.origem}` : ""}`,
+        media_path: row.media_path ?? null,
+        media_mime: row.media_mime ?? null,
+        media_filename: row.media_filename ?? null,
+        wa_id: row.message_id ?? null,
+        receipt: receiptFrom(row),
+        error: row.erro ?? null,
       });
     }
-    for (const m of convQ.data?.direct ?? []) t.push({
-      id: `d-${m.id}`, kind: "out", text: (m as { conteudo?: string }).conteudo ?? "", at: m.created_at as string,
-      meta: `${m.sender_name ?? "Você"}${m.status === "erro" ? describeSendError((m as { erro?: string | null }).erro) : ""}${m.origem !== "inbox" ? ` · ${m.origem}` : ""}`,
-      media_path: (m as { media_path?: string | null }).media_path ?? null,
-      media_mime: (m as { media_mime?: string | null }).media_mime ?? null,
-      media_filename: (m as { media_filename?: string | null }).media_filename ?? null,
-      wa_id: (m as { message_id?: string | null }).message_id ?? null,
-    });
     for (const m of convQ.data?.campaign ?? []) t.push({
       id: `c-${m.id}`, kind: "out", text: m.rendered_message ?? "", at: m.sent_at ?? "",
       meta: `campanha · ${m.campaign_name ?? ""}`,
       header_type: m.header_type,
       header_text: m.header_text,
       buttons: m.buttons,
+      isTemplate: (m.buttons?.length ?? 0) > 0 || m.header_type != null,
       wa_id: (m as { message_id?: string | null }).message_id ?? null,
+      receipt: receiptFrom({ status: m.status }),
     });
     for (const m of convQ.data?.automation ?? []) t.push({
       id: `a-${m.id}`, kind: "out", text: m.rendered_body ?? "", at: m.sent_at ?? "",
       meta: `automação${m.automation_name ? ` · ${m.automation_name}` : ""}${m.status === "error" ? describeSendError(m.error) : ""}`,
+      receipt: receiptFrom({ status: m.status === "error" ? "erro" : m.status }),
     });
     // Avisos do WhatsApp (chamada, grupo etc.) entram como faixa central, não bolha.
     for (const e of convQ.data?.systemEvents ?? []) {
       if (!e.text) continue;
       t.push({ id: `sys-${e.id}`, kind: "system", text: e.text, at: e.at });
     }
-    // Reações ficam colodas na bolha da mensagem reagida, como no WhatsApp.
-    const byWaId = new Map<string, Msg>();
+    // Reações ficam coladas na bolha da mensagem reagida, como no WhatsApp.
+    const byWaId = new Map<string, InboxMsg>();
     for (const m of t) if (m.wa_id) byWaId.set(m.wa_id, m);
     for (const r of convQ.data?.reactions ?? []) {
       const target = r.target_wa_id ? byWaId.get(r.target_wa_id) : undefined;
       if (target) target.reactions = [...(target.reactions ?? []), r.emoji];
       else t.push({ id: `r-${r.id}`, kind: "in", text: r.emoji, at: r.at, meta: "reação" });
     }
-    return t.sort((a, b) => (a.at < b.at ? -1 : 1));
+    // Resposta citada: liga a mensagem recebida à original pelo id do WhatsApp.
+    for (const m of t) {
+      const waRef = (m as InboxMsg & { replyToWaId?: string | null }).replyToWaId;
+      if (!waRef) continue;
+      const orig = byWaId.get(waRef);
+      if (orig) m.reply = { id: orig.id, kind: orig.kind === "out" ? "out" : "in", text: orig.text };
+    }
+    return t.sort((a, b) => {
+      const ta = new Date(a.at).getTime();
+      const tb = new Date(b.at).getTime();
+      if (Number.isNaN(ta) || Number.isNaN(tb)) return a.at < b.at ? -1 : 1;
+      return ta - tb;
+    });
   }, [convQ.data]);
 
+  // Renderização inicial limitada: histórico antigo entra sob demanda.
+  const THREAD_PAGE = 50;
+  const [visibleCount, setVisibleCount] = useState(THREAD_PAGE);
+  useEffect(() => { setVisibleCount(THREAD_PAGE); }, [selectedContactId, selectedConvId]);
+  const hiddenOlder = Math.max(0, timeline.length - visibleCount);
+  const visibleTimeline = useMemo(
+    () => (hiddenOlder > 0 ? timeline.slice(hiddenOlder) : timeline),
+    [timeline, hiddenOlder],
+  );
 
-  // Auto-scroll: quando chega mensagem nova (in ou out), rolar thread até o fim.
+  // Divisor de não lidas: primeira mensagem recebida ainda não lida ao abrir.
+  const unreadBeforeId = useMemo(() => {
+    const n = selected?.unread ?? 0;
+    if (n <= 0) return null;
+    const incoming = visibleTimeline.filter((m) => m.kind === "in");
+    const first = incoming[Math.max(0, incoming.length - n)];
+    return first?.id ?? null;
+  }, [visibleTimeline, selected?.unread]);
+
+  const timelineItems = useMemo(
+    () => buildTimelineItems(visibleTimeline, { unreadBeforeId }),
+    [visibleTimeline, unreadBeforeId],
+  );
+
+  // Rolagem: só acompanha o fim se o usuário já estiver no fim.
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [newCount, setNewCount] = useState(0);
+  const lastLenRef = useRef(0);
+
+  function scrollThreadToEnd(behavior: ScrollBehavior = "auto") {
+    const el = scrollerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior });
+    else threadEndRef.current?.scrollIntoView({ block: "end" });
+    setNewCount(0);
+    setAtBottom(true);
+  }
+
+  function onThreadScroll() {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAtBottom(near);
+    if (near) setNewCount(0);
+  }
+
   useEffect(() => {
-    if (!threadEndRef.current) return;
-    threadEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [timeline.length, selectedContactId, selectedConvId]);
+    const prev = lastLenRef.current;
+    lastLenRef.current = timeline.length;
+    if (timeline.length === 0) return;
+    if (prev === 0) { requestAnimationFrame(() => scrollThreadToEnd()); return; }
+    if (timeline.length > prev) {
+      if (atBottom) requestAnimationFrame(() => scrollThreadToEnd("smooth"));
+      else setNewCount((v) => v + (timeline.length - prev));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline.length]);
+
+  useEffect(() => {
+    lastLenRef.current = 0;
+    setNewCount(0);
+    setAtBottom(true);
+  }, [selectedContactId, selectedConvId]);
+
+  const emptyListText = useMemo(() => {
+    switch (statusFilter) {
+      case "nao_lidas": return "Nenhuma não lida — tudo em dia.";
+      case "abertas": return "Nenhuma conversa em aberto agora.";
+      case "aguardando": return "Nada aguardando resposta do contato.";
+      case "resolvidas": return "Nenhuma conversa resolvida ainda.";
+      case "sinalizadas": return "Nenhuma conversa sinalizada.";
+      default: return "Nenhuma conversa neste filtro.";
+    }
+  }, [statusFilter]);
+
 
 
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="wa-inbox flex h-full min-h-0 bg-muted/10">
+      <div className="wa-inbox flex h-full max-h-[100dvh] min-h-0 bg-muted/10">
       {/* LEFT: conversation list */}
       <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-80 lg:w-96 flex-col min-h-0 border-r bg-background`}>
         <div className="p-3 border-b space-y-2">
@@ -599,7 +643,15 @@ export function CommunicationInbox() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar nome, telefone…"
+              ref={searchRef}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setSearch("");
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Buscar nome, telefone… (atalho: /)"
               className="w-full text-sm pl-8 pr-2 py-2 rounded-md border border-input bg-background"
             />
           </div>
@@ -641,44 +693,30 @@ export function CommunicationInbox() {
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          {listQ.isLoading && <div className="p-4 text-sm text-muted-foreground">Carregando…</div>}
-          {list.length === 0 && !listQ.isLoading && (
-            <div className="p-6 text-center text-sm text-muted-foreground">Nenhuma conversa neste filtro.</div>
+          {listQ.isLoading && (
+            <div>{[0, 1, 2, 3, 4].map((i) => <ConversationSkeleton key={i} />)}</div>
+          )}
+          {listQ.isError && !listQ.isLoading && (
+            <div className="p-6 text-center text-sm">
+              <p className="text-muted-foreground">Não foi possível carregar as conversas.</p>
+              <button
+                onClick={() => listQ.refetch()}
+                className="mt-2 rounded-md border px-3 py-1.5 text-xs hover:bg-muted"
+              >
+                Tentar de novo
+              </button>
+            </div>
+          )}
+          {list.length === 0 && !listQ.isLoading && !listQ.isError && (
+            <div className="p-6 text-center text-sm text-muted-foreground">{emptyListText}</div>
           )}
           {list.map((c) => (
-            <button
+            <ConversationRow
               key={c.id}
-              onClick={() => openConversation(c.contact_id, c.id, c.unread)}
-              className={`w-full text-left px-3 py-2.5 border-b hover:bg-muted/40 transition-colors ${
-                (selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id) ? "bg-muted/60" : ""
-              }`}
-            >
-              <div className="flex justify-between items-baseline gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {c.flagged && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
-                  <span className="font-medium text-sm truncate">
-                    {c.nome ?? (isLidPhone(c.phone) ? "Sem contato vinculado" : (c.phone ?? "Sem nome"))}
-                  </span>
-                </div>
-                <span className="text-[10px] text-muted-foreground shrink-0">{fmtRel(c.last_at)}</span>
-              </div>
-              <div className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1.5">
-                {c.unread > 0 && (
-                  <span className="inline-flex items-center justify-center bg-primary text-primary-foreground rounded-full text-[10px] px-1.5 min-w-[1rem] font-semibold">
-                    {c.unread}
-                  </span>
-                )}
-                {c.last_dir === "out" && <span className="text-muted-foreground/60">↩</span>}
-                <span className="truncate">{c.last_preview ?? "(sem prévia)"}</span>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-1">
-                <span className={isLidPhone(c.phone) ? "font-mono" : ""}>{displayPhone(c.phone)}</span>
-                {c.cidade && <span>· {c.cidade}/{c.uf ?? ""}</span>}
-                <span className="ml-auto">
-                  <AssigneeChip assignee={c.assignee ?? null} />
-                </span>
-              </div>
-            </button>
+              c={c}
+              selected={selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id}
+              onOpen={() => openConversation(c.contact_id, c.id, c.unread)}
+            />
           ))}
 
           {hasMore && (
@@ -694,8 +732,6 @@ export function CommunicationInbox() {
             </div>
           )}
 
-
-
           {search.trim().length >= 2 && (searchNewQ.data?.length ?? 0) > 0 && (
             <div className="border-t bg-muted/10">
               <div className="px-3 py-2 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
@@ -705,15 +741,21 @@ export function CommunicationInbox() {
                 <button
                   key={c.id}
                   onClick={() => openConversation(c.id, null, 0)}
-                  className="w-full text-left px-3 py-2 border-b hover:bg-background/50"
+                  className="flex w-full items-center gap-3 border-b px-3 py-2 text-left hover:bg-background/50"
                 >
-                  <div className="text-sm font-medium truncate">{c.nome ?? "Sem nome"}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c.phone}{c.cidade ? ` · ${c.cidade}/${c.uf ?? ""}` : ""}</div>
+                  <InboxAvatar name={c.nome ?? c.phone} seed={c.id} size={32} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{c.nome ?? "Sem nome"}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {c.phone}{c.cidade ? ` · ${c.cidade}/${c.uf ?? ""}` : ""}
+                    </span>
+                  </span>
                 </button>
               ))}
             </div>
           )}
         </div>
+
       </div>
 
       {/* CENTER: thread */}
@@ -728,10 +770,16 @@ export function CommunicationInbox() {
         ) : (
           <>
             <div className="wa-topbar border-b p-3 flex items-center gap-2 bg-background">
-              <button className="md:hidden" onClick={() => setMobilePane("list")}>
+              <button className="md:hidden" onClick={() => setMobilePane("list")} aria-label="Voltar para a lista">
                 <ArrowLeft className="h-5 w-5" />
               </button>
+              <InboxAvatar
+                name={active.nome ?? active.phone}
+                seed={active.contact_id ?? conv?.id ?? ""}
+                size={38}
+              />
               <div className="min-w-0 flex-1">
+
                 <div className="font-semibold truncate">
                   {active.nome ?? (isLidPhone(active.phone) ? "Sem contato vinculado" : (active.phone ?? "Sem nome"))}
                 </div>
@@ -794,102 +842,79 @@ export function CommunicationInbox() {
               </div>
             </div>
 
-            <div className="wa-chat-area flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2">
-              {convQ.isLoading && <div className="text-sm text-muted-foreground text-center py-4">Carregando…</div>}
-              {timeline.length === 0 && !convQ.isLoading && (
-                <div className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Envie a primeira!</div>
-              )}
-              {timeline.map((m) => m.kind === "system" ? (
-                <div key={m.id} className="flex justify-center">
-                  <div className="rounded-md bg-background/70 border px-3 py-1 text-[11px] text-muted-foreground text-center max-w-[85%]">
-                    {m.text} · {fmtDate(m.at)}
-                  </div>
-                </div>
-              ) : (
-                <div key={m.id} className={`flex ${m.kind === "out" ? "justify-end" : "justify-start"}`}>
-                  <div className={`relative max-w-[80%] md:max-w-[65%] rounded-lg px-3 py-2 text-sm shadow-sm ${
-                    m.kind === "out" ? "wa-bubble-out rounded-br-none" : "wa-bubble-in border rounded-bl-none"
-
-                  }`}>
-
-                    {m.header_type === "TEXT" && m.header_text && (
-                      <div className="font-semibold whitespace-pre-wrap break-words mb-1">{m.header_text}</div>
-                    )}
-                    {m.media_path && <MessageMedia path={m.media_path} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
-                    {m.media_url && <InboundMedia url={m.media_url} mime={m.media_mime ?? ""} filename={m.media_filename ?? "arquivo"} />}
-                    {m.text && <div className="whitespace-pre-wrap break-words">{linkify(m.text)}</div>}
-                    {m.location && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${m.location.lat},${m.location.lng}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="mt-1 flex items-center gap-2 underline"
-                      >
-                        <MapPin className="h-4 w-4 shrink-0" />
-                        <span>{m.location.name ?? "Localização enviada"}</span>
-                      </a>
-                    )}
-                    {m.shared_contacts && m.shared_contacts.length > 0 && (
-                      <div className="mt-1 space-y-1">
-                        {m.shared_contacts.map((sc, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <UserRound className="h-4 w-4 shrink-0" />
-                            <span>{sc.nome ?? "Contato"}{sc.phone ? ` · ${sc.phone}` : ""}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {m.reactions && m.reactions.length > 0 && (
-                      <div className={`absolute -bottom-3 ${m.kind === "out" ? "right-2" : "left-2"} rounded-full border bg-background px-1.5 py-0.5 text-xs shadow-sm`}>
-                        {m.reactions.join(" ")}
-                      </div>
-                    )}
-
-                    {m.buttons && m.buttons.length > 0 && (
-                      <>
-                        <div className={`h-px w-full my-2 ${m.kind === "out" ? "bg-primary-foreground/20" : "bg-border"}`} />
-                        <div className="-mx-3 -mb-2 flex flex-col rounded-b-lg overflow-hidden">
-                          {m.buttons.map((b, idx) => {
-                            const label = b.text.toUpperCase();
-                            const baseClass = `w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide transition-colors border-t first:border-t-0 ${
-                              m.kind === "out"
-                                ? "text-primary-foreground hover:bg-primary-foreground/10 border-primary-foreground/15"
-                                : "text-primary hover:bg-primary/5 border-border"
-                            }`;
-                            const icon = b.type === "URL" ? <ExternalLink className="h-3.5 w-3.5" /> : null;
-                            if (b.type === "URL") {
-                              return (
-                                <a key={idx} href={b.url} target="_blank" rel="noopener noreferrer" className={baseClass}>
-                                  {icon}
-                                  <span>{label}</span>
-                                </a>
-                              );
-                            }
-                            if (b.type === "PHONE_NUMBER") {
-                              return (
-                                <a key={idx} href={`tel:${b.phone_number}`} className={baseClass}>
-                                  {icon}
-                                  <span>{label}</span>
-                                </a>
-                              );
-                            }
-                            return (
-                              <div key={idx} className={baseClass}>
-                                {icon}
-                                <span>{label}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-                    <div className={`text-[10px] mt-1 opacity-70 ${m.kind === "out" ? "text-right" : ""}`}>
-                      {fmtDate(m.at)}{m.meta ? ` · ${m.meta}` : ""}
+            <div
+              ref={scrollerRef}
+              onScroll={onThreadScroll}
+              className="wa-chat-area relative flex-1 min-h-0 overflow-y-auto overscroll-contain p-4"
+            >
+              {convQ.isLoading && (
+                <div className="space-y-3">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
+                      <div className="h-12 w-1/2 animate-pulse rounded-2xl bg-muted" />
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {timeline.length === 0 && !convQ.isLoading && (
+                <div className="py-8 text-center text-sm text-muted-foreground">Sem mensagens ainda. Envie a primeira!</div>
+              )}
+
+              {hiddenOlder > 0 && (
+                <div className="flex justify-center pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((v) => v + THREAD_PAGE)}
+                    className="rounded-full border bg-background px-3 py-1 text-xs hover:bg-muted"
+                  >
+                    Carregar mensagens anteriores ({hiddenOlder})
+                  </button>
+                </div>
+              )}
+
+              {timelineItems.map((item) => {
+                if (item.type === "day") return <DaySeparator key={item.id} label={item.label} />;
+                if (item.type === "unread") return <UnreadDivider key={item.id} />;
+                if (item.msg.kind === "system") {
+                  return <SystemMessage key={item.id} text={item.msg.text} at={item.msg.at} />;
+                }
+                return (
+                  <MessageBubble
+                    key={item.id}
+                    msg={item.msg}
+                    groupStart={item.groupStart}
+                    groupEnd={item.groupEnd}
+                    onQuoteClick={(id) => {
+                      const el = document.getElementById(`msg-${id}`);
+                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      el?.classList.add("ring-2", "ring-primary/60");
+                      window.setTimeout(() => el?.classList.remove("ring-2", "ring-primary/60"), 1200);
+                    }}
+                    onReply={(m) => {
+                      setReply((prev) => {
+                        const quote = m.text ? `> ${m.text.slice(0, 200)}\n` : "";
+                        return prev ? `${quote}${prev}` : quote;
+                      });
+                      replyRef.current?.focus();
+                    }}
+                  />
+                );
+              })}
               <div ref={threadEndRef} />
             </div>
+
+            {!atBottom && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => scrollThreadToEnd("smooth")}
+                  className="absolute bottom-2 right-4 z-10 inline-flex items-center gap-1 rounded-full border bg-background px-3 py-1.5 text-xs shadow-md hover:bg-muted"
+                >
+                  {newCount > 0 ? `${newCount} nova${newCount > 1 ? "s" : ""} mensagem${newCount > 1 ? "s" : ""} ↓` : "Ir para a última mensagem ↓"}
+                </button>
+              </div>
+            )}
+
 
             {conv && !conv.contact_id && (
               <UnlinkedBanner
@@ -901,7 +926,7 @@ export function CommunicationInbox() {
               />
             )}
 
-            <div className="border-t p-3 bg-background space-y-2">
+            <div className="border-t p-3 bg-background space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               {!canSend && (
                 <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
                   {contact?.opt_out_at
@@ -930,11 +955,18 @@ export function CommunicationInbox() {
                   )}
                   <div className="flex-1 min-w-0 text-xs">
                     <div className="truncate font-medium">{attachment.filename}</div>
-                    <div className="text-muted-foreground truncate">{attachment.mime}</div>
+                    <div className="text-muted-foreground truncate">
+                      {[attachment.mime.split("/").pop()?.toUpperCase(), fmtBytes(attachment.size)].filter(Boolean).join(" · ")}
+                    </div>
                   </div>
-                  <button onClick={clearAttachment} className="p-1 rounded hover:bg-background" title="Remover anexo">
+                  <button onClick={clearAttachment} className="p-1 rounded hover:bg-background" title="Remover anexo" aria-label="Remover anexo">
                     <X className="h-4 w-4" />
                   </button>
+                </div>
+              )}
+              {uploading && (
+                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
                 </div>
               )}
               <div className="flex items-end gap-2">
@@ -942,18 +974,53 @@ export function CommunicationInbox() {
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                  accept={fileAccept}
                   onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
                 />
-                <button
-                  className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
-                  title="Anexar imagem ou PDF"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={!canSend || uploading}
-                  type="button"
-                >
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                </button>
+                <Popover open={attachOpen} onOpenChange={setAttachOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
+                      title="Anexar arquivo"
+                      aria-label="Anexar arquivo"
+                      disabled={!canSend || uploading}
+                      type="button"
+                    >
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" side="top" className="w-52 p-1" sideOffset={8}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                      onClick={() => {
+                        setFileAccept("image/png,image/jpeg,image/jpg,image/webp");
+                        setAttachOpen(false);
+                        requestAnimationFrame(() => fileInputRef.current?.click());
+                      }}
+                    >
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-violet-100 text-violet-700">
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      </span>
+                      Foto
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                      onClick={() => {
+                        setFileAccept("application/pdf");
+                        setAttachOpen(false);
+                        requestAnimationFrame(() => fileInputRef.current?.click());
+                      }}
+                    >
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-sky-100 text-sky-700">
+                        <FileText className="h-3.5 w-3.5" />
+                      </span>
+                      Documento (PDF)
+                    </button>
+                  </PopoverContent>
+                </Popover>
+
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                   <PopoverTrigger asChild>
                     <button
@@ -1312,64 +1379,8 @@ function fmtDate(iso: string) {
     return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch { return iso; }
 }
-function fmtRel(iso: string | null) {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "agora";
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  try {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  } catch { return `${d}d`; }
-}
 
-// ---- Renderiza anexo enviado (imagem/pdf/áudio) via URL assinada temporária.
-function MessageMedia({ path, mime, filename }: { path: string; mime: string; filename: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    supabase.storage.from("campaign-media").createSignedUrl(path, 60 * 60).then(({ data, error }) => {
-      if (!alive) return;
-      if (error || !data?.signedUrl) setErr(true); else setUrl(data.signedUrl);
-    });
-    return () => { alive = false; };
-  }, [path]);
 
-  if (err) return <div className="text-xs opacity-70 mb-1">[anexo indisponível]</div>;
-  if (!url) return <div className="text-xs opacity-70 mb-1">carregando anexo…</div>;
-
-  if (mime.startsWith("image/")) {
-    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
-  }
-  if (mime.startsWith("audio/")) {
-    return <audio controls src={url} className="mb-1 max-w-full" />;
-  }
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
-      <FileText className="h-4 w-4" /> {filename}
-    </a>
-  );
-}
-
-// ---- Renderiza mídia recebida (Z-API entrega URL pública temporária).
-function InboundMedia({ url, mime, filename }: { url: string; mime: string; filename: string }) {
-  if (mime.startsWith("image/")) {
-    return <a href={url} target="_blank" rel="noreferrer" className="block mb-1"><img src={url} alt={filename} className="max-h-64 rounded" /></a>;
-  }
-  if (mime.startsWith("audio/")) {
-    return <audio controls src={url} className="mb-1 max-w-full" />;
-  }
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 text-xs underline underline-offset-2">
-      <FileText className="h-4 w-4" /> {filename}
-    </a>
-  );
-}
 
 // ---- Banner de conversa "não vinculada": salvar como contato OU vincular a contato existente.
 function UnlinkedBanner({
