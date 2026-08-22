@@ -34,6 +34,16 @@ export const listConversations = createServerFn({ method: "GET" })
     if (data.filter === "in_service") q = q.not("assigned_to", "is", null);
     if (data.filter === "unlinked") q = q.is("contact_id", null);
 
+    if (data.search) {
+      const s = data.search;
+      const digits = s.replace(/\D+/g, "");
+      // Busca no nome/telefone do contato e no preview da última mensagem.
+      const phoneOr = digits.length >= 4
+        ? `contacts.phone_e164.ilike.%${digits}%,contacts.nome.ilike.%${s}%`
+        : `contacts.nome.ilike.%${s}%`;
+      q = q.or(`${phoneOr},last_message_preview.ilike.%${s}%`);
+    }
+
     const { data: rows, error } = await q;
     if (error) throw error;
 
@@ -93,15 +103,28 @@ export const listConversations = createServerFn({ method: "GET" })
       }
     }
 
-    if (data.search) {
-      const s = data.search.toLowerCase();
-      list = list.filter((c) =>
-        (c.nome ?? "").toLowerCase().includes(s) ||
-        (c.phone ?? "").toLowerCase().includes(s) ||
-        (c.last_preview ?? "").toLowerCase().includes(s),
-      );
+    // Contagens reais para os chips de filtro (uma única query agregada).
+    const { data: countsRows } = await context.supabase
+      .from("conversations")
+      .select("status, unread_count, flagged, assigned_to, contact_id")
+      .in("status", ["aberta", "aguardando", "resolvida"]);
+
+    const counts = {
+      nao_lidas: 0,
+      abertas: 0,
+      aguardando: 0,
+      resolvidas: 0,
+      sinalizadas: 0,
+    };
+    for (const r of countsRows ?? []) {
+      if ((r.unread_count ?? 0) > 0) counts.nao_lidas++;
+      if (r.status === "aberta") counts.abertas++;
+      if (r.status === "aguardando") counts.aguardando++;
+      if (r.status === "resolvida") counts.resolvidas++;
+      if (r.flagged) counts.sinalizadas++;
     }
-    return list;
+
+    return { list, counts };
   });
 
 // Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
@@ -183,15 +206,30 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const INBOUND_COLS =
       "id, conteudo, tipo, received_at, read_at, media_url, media_path, media_mime, media_filename, media_size, wa_message_id, reply_to_wa_id, reaction_emoji, reaction_target_wa_id, latitude, longitude, location_name, shared_contacts, is_system_event";
-    const inboundQuery = effectiveContactId
-      ? context.supabase.from("inbound_messages")
-          .select(INBOUND_COLS)
-          .eq("contact_id", effectiveContactId).order("received_at", { ascending: true }).limit(500)
-      : convRow?.from_phone
-        ? context.supabase.from("inbound_messages")
-            .select(INBOUND_COLS)
-            .eq("from_phone", convRow.from_phone).is("contact_id", null).order("received_at", { ascending: true }).limit(500)
-        : null;
+
+    // Recupera histórico mesmo quando a vinculação entre mensagem e contato
+    // divergiu (período anterior à API oficial, 9º dígito, DDI, etc.).
+    let inboundQuery = null;
+    if (effectiveContactId) {
+      const phoneFilter = contact?.phone_e164 ? `,from_phone.eq.${encodeURIComponent(contact.phone_e164)}` : "";
+      inboundQuery = context.supabase.from("inbound_messages")
+        .select(INBOUND_COLS)
+        .or(`contact_id.eq.${effectiveContactId}${phoneFilter}`)
+        .order("received_at", { ascending: true }).limit(500);
+    } else if (convRow?.from_phone) {
+      const { data: matched } = await context.supabase
+        .from("contacts")
+        .select("id")
+        .eq("phone_e164", convRow.from_phone)
+        .limit(1);
+      const matchedId = matched?.[0]?.id as string | undefined;
+      const orParts = [`from_phone.eq.${encodeURIComponent(convRow.from_phone)}`];
+      if (matchedId) orParts.push(`contact_id.eq.${matchedId}`);
+      inboundQuery = context.supabase.from("inbound_messages")
+        .select(INBOUND_COLS)
+        .or(orParts.join(","))
+        .order("received_at", { ascending: true }).limit(500);
+    }
 
     const directQuery = effectiveContactId
       ? context.supabase.from("direct_messages")
@@ -545,6 +583,19 @@ export const markConversationRead = createServerFn({ method: "POST" })
     }
 
     if (contactId) {
+      // Marca lidas tanto as mensagens vinculadas ao contato quanto as que
+      // chegaram pelo mesmo telefone (casos de 9º dígito/DDI divergente).
+      const { data: contact } = await context.supabase
+        .from("contacts")
+        .select("phone_e164")
+        .eq("id", contactId)
+        .maybeSingle();
+      const phone = (contact?.phone_e164 as string | null) ?? null;
+      if (phone) {
+        await context.supabase.from("inbound_messages")
+          .update({ read_at: now })
+          .eq("from_phone", phone).is("read_at", null);
+      }
       await context.supabase.from("inbound_messages")
         .update({ read_at: now })
         .eq("contact_id", contactId).is("read_at", null);
