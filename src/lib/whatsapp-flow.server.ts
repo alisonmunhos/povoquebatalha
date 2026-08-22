@@ -99,11 +99,13 @@ async function sendFlowMessage(
 ): Promise<{ waId: string | null }> {
   const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
   let messageId: string | null = null;
+  let waId: string | null = null;
   let erro: string | null = null;
   try {
     if (args.buttons?.length) {
       const r = await whatsappCloud.sendButtons(args.phone, args.body, args.buttons);
       messageId = r.messageId;
+      waId = r.waId;
     } else if (args.listRows?.length) {
       const r = await whatsappCloud.sendList(
         args.phone,
@@ -112,9 +114,11 @@ async function sendFlowMessage(
         [{ title: "Opções", rows: args.listRows }],
       );
       messageId = r.messageId;
+      waId = r.waId;
     } else {
       const r = await whatsappCloud.sendText(args.phone, args.body, false);
       messageId = r.messageId;
+      waId = r.waId;
     }
   } catch (e) {
     erro = e instanceof Error ? e.message : String(e);
@@ -137,6 +141,8 @@ async function sendFlowMessage(
   } catch {
     /* histórico não pode derrubar o fluxo */
   }
+
+  return { waId };
 }
 
 /** Liga sessão e mensagens do robô ao contato assim que ele passa a existir. */
