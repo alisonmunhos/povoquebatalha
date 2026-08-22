@@ -289,6 +289,14 @@ export async function handleFlowInbound(input: FlowInboundInput): Promise<boolea
     session = null;
   }
 
+  // O contato pode ter nascido depois do disparo: liga o histórico já existente.
+  if (input.contactId && (!session || !session.contact_id)) {
+    await linkFlowHistoryToContact(admin, phone, input.contactId);
+    if (session) session = { ...session, contact_id: input.contactId };
+  }
+
+
+
   if (session) {
     if (isCancel(input.text)) {
       await admin.from("whatsapp_flow_sessions").update({ status: "declined" }).eq("id", session.id);
