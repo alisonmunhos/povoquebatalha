@@ -553,23 +553,42 @@ function Page() {
             </p>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
-              <Save className="h-4 w-4 mr-1" /> Salvar rascunho
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!form.id || submit.isPending}
-              onClick={() => form.id && submit.mutate(form.id)}
-            >
-              <Send className="h-4 w-4 mr-1" /> Enviar para aprovação
-            </Button>
-            {!form.id && (
+          <p className="text-xs text-muted-foreground">
+            Revise a acentuação antes de enviar (ex.: “Olá”, “você”, “atribuída”, “responsável”).
+            Depois de aprovado, o texto só muda com uma nova edição na Meta.
+          </p>
+
+          {form.metaEdit ? (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={metaEdit.isPending} onClick={() => metaEdit.mutate(form)}>
+                <Send className="h-4 w-4 mr-1" /> Salvar alteração na Meta
+              </Button>
+              <Button variant="ghost" onClick={() => setForm(null)}>
+                Cancelar
+              </Button>
               <span className="text-xs text-muted-foreground self-center">
-                Salve o rascunho antes de enviar para a Meta.
+                Só o corpo e o rodapé podem ser alterados; o modelo volta para análise.
               </span>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
+                <Save className="h-4 w-4 mr-1" /> Salvar rascunho
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={!form.id || submit.isPending}
+                onClick={() => form.id && submit.mutate(form.id)}
+              >
+                <Send className="h-4 w-4 mr-1" /> Enviar para aprovação
+              </Button>
+              {!form.id && (
+                <span className="text-xs text-muted-foreground self-center">
+                  Salve o rascunho antes de enviar para a Meta.
+                </span>
+              )}
+            </div>
+          )}
         </section>
       )}
 
