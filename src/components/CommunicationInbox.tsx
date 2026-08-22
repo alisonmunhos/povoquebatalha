@@ -756,10 +756,16 @@ export function CommunicationInbox() {
         ) : (
           <>
             <div className="wa-topbar border-b p-3 flex items-center gap-2 bg-background">
-              <button className="md:hidden" onClick={() => setMobilePane("list")}>
+              <button className="md:hidden" onClick={() => setMobilePane("list")} aria-label="Voltar para a lista">
                 <ArrowLeft className="h-5 w-5" />
               </button>
+              <InboxAvatar
+                name={active.nome ?? active.phone}
+                seed={active.contact_id ?? conv?.id ?? ""}
+                size={38}
+              />
               <div className="min-w-0 flex-1">
+
                 <div className="font-semibold truncate">
                   {active.nome ?? (isLidPhone(active.phone) ? "Sem contato vinculado" : (active.phone ?? "Sem nome"))}
                 </div>
