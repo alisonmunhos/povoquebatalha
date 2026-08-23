@@ -292,11 +292,23 @@ export function CommunicationInbox() {
 
   const assignMut = useMutation({
     mutationFn: (v: { conversation_id: string; assigned_to: string | null }) => assignFn({ data: v }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
-      toast.success("Atribuição atualizada");
+      const notified = (res as { notified?: number; not_notified?: string[] } | undefined);
+      if (notified?.notified) {
+        toast.success("Atribuição atualizada — aviso enviado no WhatsApp");
+      } else if (notified?.not_notified?.length) {
+        const semZap = notified.not_notified.some((r) => r.includes("sem_"));
+        toast.warning(
+          semZap
+            ? "Responsável definido, mas sem WhatsApp vinculado — aviso não enviado"
+            : "Responsável definido, mas o aviso no WhatsApp falhou",
+        );
+      } else {
+        toast.success("Atribuição atualizada");
+      }
     },
   });
 
