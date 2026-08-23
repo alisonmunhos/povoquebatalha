@@ -8,6 +8,17 @@ import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 type ConvEventPayload = Record<string, string | number | boolean | null>;
 
+// automations não tem coluna de nome amigável, só event_key (chave técnica,
+// ex.: "formulario:seja-um-apoiador-..."). Formata levemente pra exibição na
+// bolha ("automação · Formulario seja um apoiador..."); se ficar comprido
+// demais pra caber num rótulo curto, omite o nome (só "automação").
+function formatEventKeyLabel(eventKey: string | null | undefined): string | null {
+  if (!eventKey) return null;
+  const words = eventKey.replace(/[:\-_]+/g, " ").trim();
+  if (!words || words.length > 60) return null;
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 // ------- List conversations (WhatsApp Web style: only contacts with exchanged messages) -------
 export const listConversations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -277,11 +288,13 @@ export const getConversation = createServerFn({ method: "GET" })
     type AutoRow = {
       id: string; rendered_body: string | null; sent_at: string | null; created_at: string;
       status: string; error: string | null;
-      automations: { nome?: string | null } | { nome?: string | null }[] | null;
+      automations: { event_key?: string | null } | { event_key?: string | null }[] | null;
     };
+    // automations não tem coluna de nome amigável — só event_key (chave técnica,
+    // ex.: "formulario:...") — usada como rótulo formatado em vez de crua.
     const automationQuery = effectiveContactId
       ? context.supabase.from("automation_deliveries")
-          .select("id, rendered_body, sent_at, created_at, status, error, automations:automation_id(nome)")
+          .select("id, rendered_body, sent_at, created_at, status, error, automations:automation_id(event_key)")
           .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(200)
       : null;
 
@@ -297,16 +310,32 @@ export const getConversation = createServerFn({ method: "GET" })
     };
 
     const [inR, dR, cR, tR, aR] = await Promise.all([
-      inboundQuery ?? Promise.resolve({ data: [] as InboundRow[] }),
-      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null }[] }),
-      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[] }),
+      inboundQuery ?? Promise.resolve({ data: [] as InboundRow[], error: null as { message: string } | null }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null }[], error: null as { message: string } | null }),
+      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[], error: null as { message: string } | null }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
-      automationQuery ?? Promise.resolve({ data: [] as AutoRow[] }),
+      automationQuery ?? Promise.resolve({ data: [] as AutoRow[], error: null as { message: string } | null }),
     ]);
     const inboundRaw = ((inR.data ?? []) as InboundRow[]);
     const direct = dR.data ?? [];
     const campaign = cR.data ?? [];
     const tagRows = tR.data ?? [];
+
+    // Nenhuma das 4 consultas acima lança exceção em erro (supabase-js devolve
+    // { data: null, error }) — sem checar isso, uma falha (coluna renomeada,
+    // join quebrado etc.) vira silenciosamente "sem histórico" e dispara o
+    // fallback errado, mascarando dado que existe de verdade.
+    const sourceErrors: { source: string; message: string }[] = [];
+    if (inR.error) sourceErrors.push({ source: "inbound_messages", message: inR.error.message });
+    if (dR.error) sourceErrors.push({ source: "direct_messages", message: dR.error.message });
+    if (cR.error) sourceErrors.push({ source: "campaign_recipients", message: cR.error.message });
+    if (aR.error) sourceErrors.push({ source: "automation_deliveries", message: aR.error.message });
+    if (sourceErrors.length > 0) {
+      console.error(
+        `[getConversation] falha ao buscar fonte(s) de histórico (contact_id=${effectiveContactId ?? "?"}):`,
+        sourceErrors,
+      );
+    }
 
     // Mídia recebida guardada no bucket privado: gera URL assinada para exibir.
     const mediaPaths = inboundRaw.map((m) => m.media_path).filter((p): p is string => Boolean(p));
@@ -351,7 +380,7 @@ export const getConversation = createServerFn({ method: "GET" })
           sent_at: a.sent_at ?? a.created_at,
           status: a.status,
           error: a.error,
-          automation_name: auto?.nome ?? null,
+          automation_name: formatEventKeyLabel(auto?.event_key),
         };
       });
 
@@ -395,7 +424,10 @@ export const getConversation = createServerFn({ method: "GET" })
     // fontes (só sobrou o resumo em conversations.last_message_preview). Fallback
     // só entra quando as 4 tabelas estão de fato vazias — checagem pré-filtro
     // (reações/eventos de sistema ainda contam como "tem registro" no inbound).
+    // Se alguma das 4 falhou (sourceErrors), NUNCA trata como "vazio" — não dá
+    // pra saber se realmente não há histórico ou se só a consulta quebrou.
     const noDetailedHistory =
+      sourceErrors.length === 0 &&
       inboundRaw.length === 0 && direct.length === 0 && campaign.length === 0 && (aR.data ?? []).length === 0;
     const preview = (convRow?.last_message_preview ?? "").trim();
     const fallback_last_message = noDetailedHistory && preview
@@ -415,6 +447,7 @@ export const getConversation = createServerFn({ method: "GET" })
       systemEvents,
       automation,
       fallback_last_message,
+      source_errors: sourceErrors,
       direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
