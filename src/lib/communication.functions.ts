@@ -831,13 +831,22 @@ export const listCommunicationStaff = createServerFn({ method: "GET" })
       const cur = roleById.get(r.user_id as string);
       if (!cur || r.role === "admin") roleById.set(r.user_id as string, r.role as string);
     });
+    // Quem tem WhatsApp vinculado recebe o aviso automático de atribuição.
+    const { resolveStaffWhatsapp } = await import("@/lib/inbox-assignment-notify.server");
+    const waMap = await resolveStaffWhatsapp(context.supabase, ids);
+
     return ids
       .map((id) => {
         const p = byId.get(id);
         if (!p || p.status === "revoked" || p.status === "suspended") return null;
-        return { id, name: p.name, role: roleById.get(id) ?? "comunicacao" };
+        return {
+          id,
+          name: p.name,
+          role: roleById.get(id) ?? "comunicacao",
+          has_whatsapp: Boolean(waMap.get(id)?.phone),
+        };
       })
-      .filter((x): x is { id: string; name: string; role: string } => x !== null)
+      .filter((x): x is { id: string; name: string; role: string; has_whatsapp: boolean } => x !== null)
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
