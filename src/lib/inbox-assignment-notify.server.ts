@@ -151,13 +151,8 @@ export async function notifyConversationAssignment(
             };
 
       try {
-        const res = await whatsappCloud.sendTemplate(person.phone, t.template, language, bodyParams);
-        results.push({
-          user_id: t.user_id,
-          template: t.template,
-          ok: Boolean(res?.ok),
-          ...(res?.ok ? {} : { error: res?.error ?? "falha_no_envio" }),
-        });
+        await whatsappCloud.sendTemplate(person.phone, t.template, language, bodyParams);
+        results.push({ user_id: t.user_id, template: t.template, ok: true });
       } catch (e) {
         results.push({
           user_id: t.user_id,
