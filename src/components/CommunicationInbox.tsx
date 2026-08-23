@@ -639,6 +639,16 @@ export function CommunicationInbox() {
         meta: "mensagem antiga — detalhe indisponível",
       });
     }
+    // Alguma das 4 fontes falhou ao carregar (erro técnico, não "sem histórico")
+    // — avisa em vez de mascarar como se a conversa estivesse vazia/completa.
+    if ((convQ.data?.source_errors?.length ?? 0) > 0) {
+      t.push({
+        id: "source-error-warning",
+        kind: "system",
+        text: "Não foi possível carregar parte do histórico desta conversa (erro técnico). Avise o time técnico.",
+        at: new Date().toISOString(),
+      });
+    }
     return t.sort((a, b) => {
       const ta = new Date(a.at).getTime();
       const tb = new Date(b.at).getTime();
