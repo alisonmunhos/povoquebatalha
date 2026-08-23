@@ -292,11 +292,23 @@ export function CommunicationInbox() {
 
   const assignMut = useMutation({
     mutationFn: (v: { conversation_id: string; assigned_to: string | null }) => assignFn({ data: v }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
-      toast.success("Atribuição atualizada");
+      const notified = (res as { notified?: number; not_notified?: string[] } | undefined);
+      if (notified?.notified) {
+        toast.success("Atribuição atualizada — aviso enviado no WhatsApp");
+      } else if (notified?.not_notified?.length) {
+        const semZap = notified.not_notified.some((r) => r.includes("sem_"));
+        toast.warning(
+          semZap
+            ? "Responsável definido, mas sem WhatsApp vinculado — aviso não enviado"
+            : "Responsável definido, mas o aviso no WhatsApp falhou",
+        );
+      } else {
+        toast.success("Atribuição atualizada");
+      }
     },
   });
 
@@ -1393,9 +1405,14 @@ export function CommunicationInbox() {
                 <option value="">— Ninguém —</option>
                 {user && <option value={user.id}>Eu ({staffQ.data?.find((s) => s.id === user.id)?.name ?? "meu usuário"})</option>}
                 {(staffQ.data ?? []).filter((s) => s.id !== user?.id).map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.role}){s.has_whatsapp ? "" : " — sem WhatsApp"}
+                  </option>
                 ))}
               </select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Quem tem WhatsApp vinculado recebe um aviso automático ao ser escolhido.
+              </p>
             </div>
 
             <div>
