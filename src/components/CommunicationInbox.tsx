@@ -614,6 +614,19 @@ export function CommunicationInbox() {
       const orig = byWaId.get(waRef);
       if (orig) m.reply = { id: orig.id, kind: orig.kind === "out" ? "out" : "in", text: orig.text };
     }
+    // Conversa de mecanismo antigo sem detalhe em nenhuma das 4 fontes — só
+    // entra quando não sobrou nenhum item de verdade, pra não competir com
+    // histórico real (getConversation já garante isso, mas confere de novo aqui).
+    const fb = convQ.data?.fallback_last_message;
+    if (t.length === 0 && fb) {
+      t.push({
+        id: "fallback-last-message",
+        kind: fb.direction === "in" ? "in" : "out",
+        text: fb.text,
+        at: fb.at ?? "",
+        meta: "mensagem antiga — detalhe indisponível",
+      });
+    }
     return t.sort((a, b) => {
       const ta = new Date(a.at).getTime();
       const tb = new Date(b.at).getTime();

@@ -177,18 +177,21 @@ export const getConversation = createServerFn({ method: "GET" })
       id: string; contact_id: string | null; from_phone: string | null;
       status: string; assigned_to: string | null; unread_count: number; flagged: boolean; last_message_at: string | null;
       first_message_direction: "in" | "out" | null;
+      last_message_preview: string | null; last_message_direction: "in" | "out" | null;
     };
+    const CONV_COLS =
+      "id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, first_message_direction, last_message_preview, last_message_direction";
     let convRow: ConvRow | null = null;
     if (data.conversation_id) {
       const { data: c } = await context.supabase
         .from("conversations")
-        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, first_message_direction")
+        .select(CONV_COLS)
         .eq("id", data.conversation_id).maybeSingle();
       convRow = (c as ConvRow | null) ?? null;
     } else if (data.contact_id) {
       const { data: c } = await context.supabase
         .from("conversations")
-        .select("id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, first_message_direction")
+        .select(CONV_COLS)
         .eq("contact_id", data.contact_id).maybeSingle();
       convRow = (c as ConvRow | null) ?? null;
     }
@@ -388,6 +391,21 @@ export const getConversation = createServerFn({ method: "GET" })
       return Array.isArray(raw) ? raw[0] : raw;
     }).filter((t): t is { id: string; nome: string; cor: string | null } => Boolean(t));
 
+    // Conversas de mecanismo antigo que nunca gravou detalhe em nenhuma das 4
+    // fontes (só sobrou o resumo em conversations.last_message_preview). Fallback
+    // só entra quando as 4 tabelas estão de fato vazias — checagem pré-filtro
+    // (reações/eventos de sistema ainda contam como "tem registro" no inbound).
+    const noDetailedHistory =
+      inboundRaw.length === 0 && direct.length === 0 && campaign.length === 0 && (aR.data ?? []).length === 0;
+    const preview = (convRow?.last_message_preview ?? "").trim();
+    const fallback_last_message = noDetailedHistory && preview
+      ? {
+          text: preview,
+          at: convRow?.last_message_at ?? null,
+          direction: convRow?.last_message_direction ?? "out",
+        }
+      : null;
+
     return {
       conversation: convRow,
       contact,
@@ -396,6 +414,7 @@ export const getConversation = createServerFn({ method: "GET" })
       reactions,
       systemEvents,
       automation,
+      fallback_last_message,
       direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
