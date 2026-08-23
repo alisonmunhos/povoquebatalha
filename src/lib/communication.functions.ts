@@ -689,9 +689,17 @@ export const assignConversation = createServerFn({ method: "POST" })
     assigned_to: z.string().uuid().nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => {
+    // Guarda o responsável anterior para poder avisar quem perdeu a conversa.
+    const { data: prev } = await context.supabase
+      .from("conversations")
+      .select("assigned_to, last_message_preview, contacts:contact_id(nome)")
+      .eq("id", data.conversation_id)
+      .maybeSingle();
+
     const { error } = await context.supabase.from("conversations")
       .update({ assigned_to: data.assigned_to }).eq("id", data.conversation_id);
     if (error) throw error;
+
     const payload: ConvEventPayload = { assigned_to: data.assigned_to };
     await context.supabase.from("conversation_events").insert({
       conversation_id: data.conversation_id,
@@ -699,7 +707,33 @@ export const assignConversation = createServerFn({ method: "POST" })
       event_type: data.assigned_to ? "assigned" : "unassigned",
       payload,
     });
-    return { ok: true };
+
+    // Aviso no WhatsApp pessoal da equipe (template oficial). Nunca derruba a atribuição.
+    const contactRow = (Array.isArray(prev?.contacts) ? prev?.contacts[0] : prev?.contacts) as { nome?: string | null } | null;
+    const { notifyConversationAssignment } = await import("@/lib/inbox-assignment-notify.server");
+    const notifications = await notifyConversationAssignment(context.supabase, {
+      actorId: context.userId,
+      newAssignee: data.assigned_to,
+      previousAssignee: (prev?.assigned_to as string | null) ?? null,
+      contactName: contactRow?.nome ?? null,
+      lastMessagePreview: (prev?.last_message_preview as string | null) ?? null,
+    });
+
+    const failed = notifications.filter((n) => !n.ok);
+    if (failed.length > 0) {
+      await context.supabase.from("conversation_events").insert({
+        conversation_id: data.conversation_id,
+        actor_id: context.userId,
+        event_type: "note",
+        payload: { notify_error: failed.map((f) => `${f.template}:${f.error ?? "erro"}`).join("; ") } as ConvEventPayload,
+      });
+    }
+
+    return {
+      ok: true,
+      notified: notifications.filter((n) => n.ok).length,
+      not_notified: failed.map((f) => f.error ?? "erro"),
+    };
   });
 
 export const setConversationStatus = createServerFn({ method: "POST" })
