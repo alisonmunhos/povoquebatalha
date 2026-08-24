@@ -114,6 +114,7 @@ export const listConversations = createServerFn({ method: "GET" })
         assigned_to: assignedTo,
         assignee: assignedTo ? (assigneeMap.get(assignedTo) ?? { id: assignedTo, nome: null }) : null,
         last_at: r.last_message_at as string | null,
+        last_inbound_at: (r as { last_inbound_at?: string | null }).last_inbound_at ?? null,
         last_preview: r.last_message_preview as string | null,
         last_dir: r.last_message_direction as "in" | "out" | null,
         unread: r.unread_count as number,
@@ -138,7 +139,7 @@ export const listConversations = createServerFn({ method: "GET" })
     // Contagens reais para os chips de filtro (uma única query agregada).
     const { data: countsRows } = await context.supabase
       .from("conversations")
-      .select("status, unread_count, flagged, assigned_to, contact_id")
+      .select("status, unread_count, flagged, assigned_to, contact_id, last_inbound_at")
       .in("status", ["aberta", "aguardando", "resolvida"]);
 
     const counts = {
@@ -147,14 +148,29 @@ export const listConversations = createServerFn({ method: "GET" })
       aguardando: 0,
       resolvidas: 0,
       sinalizadas: 0,
+      janela_aberta: 0,
+      janela_expirando: 0,
+      minhas_janela: 0,
+      minhas: 0,
     };
     for (const r of countsRows ?? []) {
+      const ativa = r.status === "aberta" || r.status === "aguardando";
       if ((r.unread_count ?? 0) > 0) counts.nao_lidas++;
       if (r.status === "aberta") counts.abertas++;
       if (r.status === "aguardando") counts.aguardando++;
       if (r.status === "resolvida") counts.resolvidas++;
       if (r.flagged) counts.sinalizadas++;
+      const mine = r.assigned_to === context.userId;
+      if (mine && ativa) counts.minhas++;
+      if (!ativa) continue;
+      const w = windowState(r.last_inbound_at as string | null, nowMs);
+      if (w.open) {
+        counts.janela_aberta++;
+        if (w.expiring) counts.janela_expirando++;
+        if (mine) counts.minhas_janela++;
+      }
     }
+
 
     return { list, counts, has_more: hasMore };
   });
