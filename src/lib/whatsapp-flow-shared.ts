@@ -339,8 +339,13 @@ export function groupStepsByPath<T extends FlowStepLike>(steps: T[]): FlowPathGr
     g.steps.push(s);
     g.indexes.push(i);
   });
-  // Caminhos citados em menus, mesmo vazios, precisam aparecer para edição.
+  // Caminhos citados em menus (ou perguntas de escolha única com destino por
+  // opção), mesmo vazios, precisam aparecer para edição. Etapas de encerramento
+  // também guardam algo em `option_routes` (`source_form_type`), mas isso não é
+  // destino de caminho — sem o filtro por stepHasRoutes(), esse valor (ex.:
+  // "receber_informacoes") virava um caminho fantasma vazio e travava o salvar.
   for (const s of steps) {
+    if (!stepHasRoutes(s)) continue;
     for (const target of Object.values(s.option_routes ?? {})) {
       if (target && target !== FLOW_FINISH_ROUTE) ensure(target);
     }
@@ -371,8 +376,12 @@ export function validateFlowDraft(steps: FlowStepLike[]): FlowValidationResult {
   }
 
   const groups = groupStepsByPath(steps);
+  // Mesmo filtro de groupStepsByPath: só menu/escolha única apontam destino de
+  // caminho pelo option_routes — etapas de encerramento usam o mesmo campo
+  // pra outra coisa (source_form_type) e não podem contar como referência.
   const reached = new Set<string>([FLOW_DEFAULT_PATH]);
   for (const s of steps) {
+    if (!stepHasRoutes(s)) continue;
     for (const target of Object.values(s.option_routes ?? {})) {
       if (target && target !== FLOW_FINISH_ROUTE) reached.add(target);
     }
@@ -380,7 +389,15 @@ export function validateFlowDraft(steps: FlowStepLike[]): FlowValidationResult {
 
   for (const g of groups) {
     if (!g.steps.length) {
-      errors.push(`O caminho “${g.label}” não tem nenhuma etapa.`);
+      // Um caminho vazio só bloqueia o salvamento quando algo aponta para ele
+      // (inclusive o próprio caminho inicial, sempre "alcançado"): sem isso,
+      // não haveria como a conversa chegar lá. Um caminho vazio e sem ninguém
+      // apontando pra ele não deveria aparecer nem ser validado — na prática
+      // groupStepsByPath só cria o grupo quando ele tem etapas ou é referenciado
+      // por alguma opção, então este ramo cobre o caso defensivamente.
+      if (reached.has(g.key)) {
+        errors.push(`O caminho “${g.label}” não tem nenhuma etapa.`);
+      }
       continue;
     }
     if (!reached.has(g.key)) {

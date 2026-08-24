@@ -605,6 +605,9 @@ export function CommunicationInbox() {
       id: `a-${m.id}`, kind: "out", text: m.rendered_body ?? "", at: m.sent_at ?? "",
       meta: `automação${m.automation_name ? ` · ${m.automation_name}` : ""}${m.status === "error" ? describeSendError(m.error) : ""}`,
       receipt: receiptFrom({ status: m.status === "error" ? "erro" : m.status }),
+      media_path: m.media_path ?? null,
+      media_mime: m.media_mime ?? null,
+      media_filename: m.media_filename ?? null,
     });
     // Avisos do WhatsApp (chamada, grupo etc.) entram como faixa central, não bolha.
     for (const e of convQ.data?.systemEvents ?? []) {

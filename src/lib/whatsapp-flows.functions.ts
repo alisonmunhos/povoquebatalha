@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, requireStaff } from "@/lib/authz";
+import { FLOW_DEFAULT_PATH } from "@/lib/whatsapp-flow-shared";
 
 const FLOW_SELECT =
   "id,nome,descricao,opening_message,closing_message,active,priority,allow_update_existing,trigger_keywords,trigger_on_ad,trigger_ad_ids,trigger_on_first_contact,created_at,updated_at";
@@ -28,7 +29,7 @@ const stepInput = z.object({
   required: z.boolean(),
   response_kind: responseKind,
   kind: z.enum(["question", "menu", "handoff", "finish"]).default("question"),
-  path_key: z.string().trim().min(1).max(60).default("principal"),
+  path_key: z.string().trim().min(1).max(60).default(FLOW_DEFAULT_PATH),
   option_routes: z.record(z.string(), z.string()).default({}),
   options: z
     .array(z.object({ value: z.string().trim().min(1), label: z.string().trim().min(1) }))

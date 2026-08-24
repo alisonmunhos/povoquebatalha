@@ -287,14 +287,18 @@ export const getConversation = createServerFn({ method: "GET" })
 
     type AutoRow = {
       id: string; rendered_body: string | null; sent_at: string | null; created_at: string;
-      status: string; error: string | null;
-      automations: { event_key?: string | null } | { event_key?: string | null }[] | null;
+      status: string; error: string | null; template_id: string | null;
+      automations: { event_key?: string | null; template_id?: string | null } | { event_key?: string | null; template_id?: string | null }[] | null;
     };
     // automations não tem coluna de nome amigável — só event_key (chave técnica,
     // ex.: "formulario:...") — usada como rótulo formatado em vez de crua.
+    // O anexo (imagem etc.) vem do template em message_templates: preferimos o
+    // template_id gravado na própria entrega (o que foi realmente enviado) e
+    // caímos para o template_id atual da automação quando a entrega é antiga
+    // e não guardou o dela.
     const automationQuery = effectiveContactId
       ? context.supabase.from("automation_deliveries")
-          .select("id, rendered_body, sent_at, created_at, status, error, automations:automation_id(event_key)")
+          .select("id, rendered_body, sent_at, created_at, status, error, template_id, automations:automation_id(event_key, template_id)")
           .eq("contact_id", effectiveContactId).order("created_at", { ascending: true }).limit(200)
       : null;
 
@@ -370,10 +374,38 @@ export const getConversation = createServerFn({ method: "GET" })
       .filter((m) => m.is_system_event)
       .map((m) => ({ id: m.id, at: m.received_at, text: m.conteudo }));
 
-    const automation = ((aR.data ?? []) as AutoRow[])
+    const automationRows = (aR.data ?? []) as AutoRow[];
+    const automationTemplateIds = Array.from(
+      new Set(
+        automationRows
+          .map((a) => {
+            const auto = Array.isArray(a.automations) ? a.automations[0] : a.automations;
+            return a.template_id ?? auto?.template_id ?? null;
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const templateMediaById: Record<string, { media_path: string | null; media_mime: string | null; media_filename: string | null }> = {};
+    if (automationTemplateIds.length > 0) {
+      const { data: tpls } = await context.supabase
+        .from("message_templates")
+        .select("id, media_path, media_mime, media_filename")
+        .in("id", automationTemplateIds);
+      (tpls ?? []).forEach((t) => {
+        templateMediaById[t.id as string] = {
+          media_path: (t.media_path as string | null) ?? null,
+          media_mime: (t.media_mime as string | null) ?? null,
+          media_filename: (t.media_filename as string | null) ?? null,
+        };
+      });
+    }
+
+    const automation = automationRows
       .filter((a) => a.status !== "skipped")
       .map((a) => {
         const auto = Array.isArray(a.automations) ? a.automations[0] : a.automations;
+        const tplId = a.template_id ?? auto?.template_id ?? null;
+        const media = tplId ? templateMediaById[tplId] : undefined;
         return {
           id: a.id,
           rendered_body: a.rendered_body,
@@ -381,6 +413,9 @@ export const getConversation = createServerFn({ method: "GET" })
           status: a.status,
           error: a.error,
           automation_name: formatEventKeyLabel(auto?.event_key),
+          media_path: media?.media_path ?? null,
+          media_mime: media?.media_mime ?? null,
+          media_filename: media?.media_filename ?? null,
         };
       });
 
