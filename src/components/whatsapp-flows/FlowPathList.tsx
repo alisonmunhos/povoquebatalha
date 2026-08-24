@@ -1,5 +1,5 @@
 // Lista de caminhos da conversa (equivalente às seções do construtor de formulário).
-import { ChevronRight, Pencil, Plus } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -19,12 +19,14 @@ export function FlowPathList({
   onSelect,
   onRename,
   onCreate,
+  onRemove,
 }: {
   groups: FlowPathGroup<FlowStepLike>[];
   selected: string;
   onSelect: (key: string) => void;
   onRename: (key: string) => void;
   onCreate: () => void;
+  onRemove: (key: string) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -83,23 +85,42 @@ export function FlowPathList({
             )}
 
             {g.key !== FLOW_DEFAULT_PATH ? (
-              <span
-                role="button"
-                tabIndex={0}
-                className="text-primary inline-flex items-center gap-1 text-xs font-medium"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRename(g.key);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+              <div className="flex items-center gap-3">
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="text-primary inline-flex items-center gap-1 text-xs font-medium"
+                  onClick={(e) => {
                     e.stopPropagation();
                     onRename(g.key);
-                  }
-                }}
-              >
-                <Pencil className="h-3 w-3" /> Renomear
-              </span>
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      onRename(g.key);
+                    }
+                  }}
+                >
+                  <Pencil className="h-3 w-3" /> Renomear
+                </span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="text-destructive inline-flex items-center gap-1 text-xs font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(g.key);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      onRemove(g.key);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" /> Excluir caminho
+                </span>
+              </div>
             ) : null}
           </button>
         );

@@ -366,6 +366,35 @@ function FluxosWhatsappPage() {
     setSelectedPath((cur) => (cur === key ? next : cur));
   };
 
+  /** Apaga um caminho: remove as etapas dele e limpa quem apontava para ele. */
+  const removePath = (key: string) => {
+    if (key === FLOW_DEFAULT_PATH) return;
+    const group = groups.find((g) => g.key === key);
+    const label = group ? pathLabel(group.key) : key;
+    if (
+      !window.confirm(
+        `Excluir o caminho “${label}”? As etapas dele são apagadas. Opções que apontavam para ele ficam sem destino (é preciso escolher outro antes de salvar).`,
+      )
+    ) {
+      return;
+    }
+    setDraft((d) => {
+      if (!d) return d;
+      const steps = d.steps
+        .filter((s) => s.path_key !== key)
+        .map((s) => {
+          if (!s.option_routes || !Object.values(s.option_routes).includes(key)) return s;
+          const routes = { ...s.option_routes };
+          for (const [optionValue, target] of Object.entries(routes)) {
+            if (target === key) delete routes[optionValue];
+          }
+          return { ...s, option_routes: routes };
+        });
+      return { ...d, steps };
+    });
+    setSelectedPath((cur) => (cur === key ? FLOW_DEFAULT_PATH : cur));
+  };
+
   const submit = () => {
     if (!draft) return;
     const keywords = keywordText.split(",").map((k) => k.trim()).filter(Boolean);
@@ -723,6 +752,7 @@ function FluxosWhatsappPage() {
                   selected={currentGroup?.key ?? FLOW_DEFAULT_PATH}
                   onSelect={setSelectedPath}
                   onRename={renamePath}
+                  onRemove={removePath}
                   onCreate={() => {
                     const key = createPath();
                     if (key) setSelectedPath(key);

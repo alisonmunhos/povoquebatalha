@@ -402,6 +402,14 @@ export async function handleFlowInbound(input: FlowInboundInput): Promise<boolea
 
 
   if (session) {
+    // "paused" só acontece quando finishSession não conseguiu salvar o
+    // cadastro (ver lá): não é uma etapa esperando resposta, então não faz
+    // sentido reprocessar a próxima mensagem como se fosse a resposta de uma
+    // etapa fantasma. A conversa já está sinalizada para a equipe; deixa a
+    // mensagem seguir o caminho normal (inclusive podendo abrir um fluxo novo).
+    if (session.status === "paused") {
+      return await maybeStartFlow(input);
+    }
     if (isCancel(input.text)) {
       await admin.from("whatsapp_flow_sessions").update({ status: "declined" }).eq("id", session.id);
       await sendFlowMessage(admin, {
@@ -441,7 +449,10 @@ function pathSteps(steps: FlowStep[], pathKey: string): FlowStep[] {
   return inPath.length ? inPath : key === FLOW_DEFAULT_PATH ? steps : [];
 }
 
-/** Marca a conversa como "Em aberto" e sinalizada, para atendimento humano. */
+/**
+ * Marca a conversa como "Em aberto" e sinalizada, para atendimento humano, e
+ * deixa o motivo registrado como nota interna (visível só para a equipe).
+ */
 async function handoffToHuman(
   admin: Admin,
   args: { phone: string; contactId: string | null; motivo: string },
@@ -449,11 +460,21 @@ async function handoffToHuman(
   try {
     let q = admin
       .from("conversations")
-      .update({ status: "aberta", flagged: true, last_message_at: new Date().toISOString() });
+      .update({ status: "aberta", flagged: true, last_message_at: new Date().toISOString() })
+      .select("id");
     q = args.contactId
       ? q.eq("contact_id", args.contactId)
       : q.like("from_phone", `%${last8(args.phone)}`);
-    await q;
+    const { data } = await q;
+    const conversationId = (data as Array<{ id: string }> | null)?.[0]?.id;
+    if (conversationId) {
+      await admin.from("conversation_events").insert({
+        conversation_id: conversationId,
+        actor_id: null,
+        event_type: "note",
+        payload: { body: args.motivo },
+      });
+    }
   } catch {
     /* atendimento humano não pode derrubar o fluxo */
   }
@@ -849,7 +870,7 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
       return;
     }
   }
-  // ---- escolha única
+  // ---- escolha única (pode ramificar, igual a um menu, quando a opção tiver destino)
   else if (step.response_kind === "single_choice") {
     const opts = stepOptions(step);
     const value = replyId && replyId !== FLOW_MULTI_DONE_ID ? replyId : matchOption(input.text, opts);
@@ -862,6 +883,16 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
       }
     } else {
       answers[step.id] = value;
+      const target = step.option_routes?.[value];
+      if (target) {
+        await proceedTo(
+          input,
+          { ...session, answers, path_key: target, pending_multi: [] },
+          allSteps,
+          0,
+        );
+        return;
+      }
     }
   }
   // ---- múltipla escolha: aceita várias numa só mensagem, ou toques somando
@@ -1043,6 +1074,18 @@ async function finishSession(
 
   // Cadastro criado agora: adota as mensagens que o robô mandou antes disso.
   if (contactId) await linkFlowHistoryToContact(admin, session.phone, contactId);
+
+  // Falhou ao salvar: sinaliza a conversa para a equipe, com o motivo visível
+  // numa nota interna — sem isso a pessoa fica com o cadastro pela metade e
+  // ninguém sabe que precisa terminar isso manualmente.
+  if (failed) {
+    const motivo = (result as { error?: string }).error ?? "motivo não informado";
+    await handoffToHuman(admin, {
+      phone: session.phone,
+      contactId: contactId ?? input.contactId,
+      motivo: `Cadastro pelo fluxo do WhatsApp não pôde ser salvo automaticamente: ${motivo}`,
+    });
+  }
 
 
 
