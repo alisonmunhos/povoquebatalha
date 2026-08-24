@@ -23,10 +23,13 @@ import {
   linkConversationToContact, getMyCommunicationBadge,
 } from "@/lib/communication.functions";
 import { listWhatsappFlows, startWhatsappFlowManually } from "@/lib/whatsapp-flows.functions";
+import { windowState } from "@/lib/inbox-window";
 
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
+import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
@@ -37,7 +40,7 @@ import {
   MessageBubble, DaySeparator, UnreadDivider, SystemMessage,
 } from "@/components/inbox/MessageBubble";
 import {
-  ConversationRow, ConversationSkeleton, isLidPhone, displayPhone,
+  ConversationRow, ConversationSkeleton, isLidPhone, displayPhone, WindowBadge,
 } from "@/components/inbox/ConversationRow";
 import { InboxAvatar } from "@/components/inbox/InboxAvatar";
 
@@ -59,16 +62,27 @@ function describeSendError(erro?: string | null): string {
 
 type BackendFilter =
   | "all" | "mine" | "unread" | "flagged" | "resolved"
-  | "in_service" | "unlinked" | "with_error" | "opt_out";
+  | "in_service" | "unlinked" | "with_error" | "opt_out"
+  | "window_open" | "window_expiring" | "mine_window";
 
-type StatusFilter = "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas";
+type StatusFilter =
+  | "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas"
+  | "chat_disponivel" | "expirando" | "minhas_janela" | "minhas";
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter; hint: string }[] = [
-  { key: "nao_lidas", label: "Não lidas", backend: "unread", hint: "Têm mensagem da pessoa que ninguém abriu ainda." },
-  { key: "abertas", label: "Em aberto", backend: "all", hint: "Conversas em andamento: nem resolvidas, nem marcadas como aguardando." },
-  { key: "aguardando", label: "Aguardando", backend: "all", hint: "Você já respondeu e está esperando algo da pessoa." },
-  { key: "resolvidas", label: "Resolvidas", backend: "resolved", hint: "Conversas já encerradas." },
-  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged", hint: "Conversas marcadas com a bandeirinha para revisar depois." },
+type CountKey =
+  | "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas"
+  | "janela_aberta" | "janela_expirando" | "minhas_janela" | "minhas";
+
+const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter; hint: string; countKey: CountKey }[] = [
+  { key: "nao_lidas", label: "Não lidas", backend: "unread", hint: "Têm mensagem da pessoa que ninguém abriu ainda.", countKey: "nao_lidas" },
+  { key: "abertas", label: "Em aberto", backend: "all", hint: "Conversas em andamento: nem resolvidas, nem marcadas como aguardando.", countKey: "abertas" },
+  { key: "aguardando", label: "Aguardando", backend: "all", hint: "Você já respondeu e está esperando algo da pessoa.", countKey: "aguardando" },
+  { key: "resolvidas", label: "Resolvidas", backend: "resolved", hint: "Conversas já encerradas.", countKey: "resolvidas" },
+  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged", hint: "Conversas marcadas com a bandeirinha para revisar depois.", countKey: "sinalizadas" },
+  { key: "chat_disponivel", label: "Chat disponível", backend: "window_open", hint: "Dentro da janela de 24h do WhatsApp: dá pra responder com texto livre agora, de qualquer pessoa.", countKey: "janela_aberta" },
+  { key: "expirando", label: "Expirando", backend: "window_expiring", hint: "A janela de 24h fecha em menos de 4 horas — responda logo ou a pessoa só recebe template.", countKey: "janela_expirando" },
+  { key: "minhas_janela", label: "Minhas na janela", backend: "mine_window", hint: "Atribuídas a você e ainda dentro da janela de 24h: o que você precisa responder antes de fechar.", countKey: "minhas_janela" },
+  { key: "minhas", label: "Minhas", backend: "mine", hint: "Conversas atribuídas a você.", countKey: "minhas" },
 ];
 
 export function CommunicationInbox() {
@@ -139,6 +153,7 @@ export function CommunicationInbox() {
   const signFn = useServerFn(signCampaignMediaUpload);
   const linkFn = useServerFn(linkConversationToContact);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [templateSendOpen, setTemplateSendOpen] = useState(false);
 
   const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
 
@@ -478,16 +493,18 @@ export function CommunicationInbox() {
   const conv = convQ.data?.conversation;
   const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
 
-  // Janela de 24h da Meta: só dá pra iniciar o robô se a pessoa escreveu recentemente.
-  const lastInboundAt = useMemo(() => {
-    let last = 0;
-    for (const m of convQ.data?.inbound ?? []) {
-      const t = new Date((m as { received_at: string }).received_at).getTime();
-      if (Number.isFinite(t) && t > last) last = t;
-    }
-    return last;
-  }, [convQ.data?.inbound]);
-  const windowOpen = lastInboundAt > 0 && Date.now() - lastInboundAt < 24 * 60 * 60 * 1000;
+  // Janela de 24h da Meta: só dá pra mandar texto livre (ou iniciar o robô) se a
+  // pessoa escreveu recentemente. `conv.last_inbound_at` vem de `conversations`
+  // (mantido por gatilho no servidor) — fonte confiável, não depende de quantas
+  // mensagens antigas foram carregadas nesta tela.
+  const convWindow = useMemo(
+    () => windowState((conv as { last_inbound_at?: string | null } | undefined)?.last_inbound_at ?? null),
+    [conv],
+  );
+  const windowOpen = convWindow.open;
+  // Fora da janela de 24h, texto livre (e o robô, que também manda texto livre
+  // pra abrir a conversa) não chega — só template aprovado reabre a janela.
+  const canSendFreeText = canSend && windowOpen;
   const flowPhone =
     contact?.phone_e164 ?? contact?.phone_whatsapp_candidate ?? selected?.phone ?? null;
 
@@ -731,6 +748,10 @@ export function CommunicationInbox() {
       case "aguardando": return "Nada aguardando resposta do contato.";
       case "resolvidas": return "Nenhuma conversa resolvida ainda.";
       case "sinalizadas": return "Nenhuma conversa sinalizada.";
+      case "chat_disponivel": return "Ninguém na janela de 24h agora — nenhuma pessoa escreveu nas últimas 24h.";
+      case "expirando": return "Nenhuma janela fechando nas próximas 4 horas.";
+      case "minhas_janela": return "Nenhuma conversa sua está dentro da janela de 24h agora.";
+      case "minhas": return "Nenhuma conversa atribuída a você.";
       default: return "Nenhuma conversa neste filtro.";
     }
   }, [statusFilter]);
@@ -764,9 +785,7 @@ export function CommunicationInbox() {
           <div className="flex flex-wrap gap-1.5">
             {STATUS_FILTERS.map((f) => {
               const active = statusFilter === f.key;
-              const count = active
-                ? list.length
-                : (chipCounts?.[f.key === "nao_lidas" ? "nao_lidas" : f.key === "abertas" ? "abertas" : f.key === "aguardando" ? "aguardando" : f.key === "resolvidas" ? "resolvidas" : "sinalizadas"] ?? 0);
+              const count = active ? list.length : (chipCounts?.[f.countKey] ?? 0);
               return (
                 <Tooltip key={f.key}>
                   <TooltipTrigger asChild>
@@ -898,6 +917,9 @@ export function CommunicationInbox() {
                     </span>
                   )}
                   {active.opt_out && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> opt-out</span>}
+                  {conv && (
+                    <WindowBadge lastInboundAt={(conv as { last_inbound_at?: string | null }).last_inbound_at ?? null} />
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -1042,6 +1064,20 @@ export function CommunicationInbox() {
                       : "Contato sem WhatsApp válido."}
                 </div>
               )}
+              {canSend && !windowOpen && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700 bg-slate-100 border border-slate-200 rounded-md p-2">
+                  <span>
+                    Fora da janela de 24h do WhatsApp: texto livre não chega mais nessa conversa
+                    (a pessoa precisa escrever de novo pra reabrir). Envie um template aprovado —
+                    a resposta dela reabre a janela.
+                  </span>
+                  {contact && (
+                    <Button size="sm" variant="secondary" onClick={() => setTemplateSendOpen(true)}>
+                      Enviar template oficial
+                    </Button>
+                  )}
+                </div>
+              )}
               {canSend && contact && !contact.consentimento_whatsapp && (
                 <div className="text-[11px] text-amber-700 bg-amber-50/60 border border-amber-200/70 rounded-md p-1.5">
                   ⚠ Contato sem consentimento WhatsApp explícito. Envie apenas se houver base legal.
@@ -1089,7 +1125,7 @@ export function CommunicationInbox() {
                       className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
                       title="Anexar arquivo"
                       aria-label="Anexar arquivo"
-                      disabled={!canSend || uploading}
+                      disabled={!canSendFreeText || uploading}
                       type="button"
                     >
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
@@ -1132,7 +1168,7 @@ export function CommunicationInbox() {
                     <button
                       className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
                       title="Inserir emoji"
-                      disabled={!canSend}
+                      disabled={!canSendFreeText}
                       type="button"
                     >
                       <Smile className="h-4 w-4" />
@@ -1173,7 +1209,7 @@ export function CommunicationInbox() {
                       <button
                         className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
                         title="Resposta rápida"
-                        disabled={!canSend}
+                        disabled={!canSendFreeText}
                         type="button"
                       >
                         <MessageSquareText className="h-4 w-4" />
@@ -1306,15 +1342,19 @@ export function CommunicationInbox() {
                   onSelect={(e) => {
                     cursorRef.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd };
                   }}
-                  disabled={!canSend}
+                  disabled={!canSendFreeText}
                   rows={1}
-                  placeholder="Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
+                  placeholder={
+                    canSend && !windowOpen
+                      ? "Fora da janela de 24h — envie um template aprovado para reabrir"
+                      : "Escreva uma mensagem (Enter envia · Shift+Enter quebra linha)"
+                  }
                   className="flex-1 min-w-0 text-sm px-3 py-2 rounded-md border bg-background resize-none max-h-40 overflow-y-auto"
                   style={{ minHeight: "40px" }}
                 />
                 <button
                   onClick={submitReply}
-                  disabled={!canSend || (!reply.trim() && !attachment) || sendMut.isPending}
+                  disabled={!canSendFreeText || (!reply.trim() && !attachment) || sendMut.isPending}
                   className="p-2.5 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
                   title="Enviar"
                 >
@@ -1526,6 +1566,15 @@ export function CommunicationInbox() {
           suggestedNome={active?.nome ?? null}
           originPhone={conv.from_phone}
           onCreated={onQuickContactCreated}
+        />
+      )}
+
+      {contact && (
+        <SendWhatsAppWizard
+          open={templateSendOpen}
+          onOpenChange={setTemplateSendOpen}
+          source={{ ids: [contact.id] }}
+          labelSelecao={active?.nome ?? "este contato"}
         />
       )}
     </div>

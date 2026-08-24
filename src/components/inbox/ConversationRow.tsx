@@ -2,6 +2,7 @@ import { Star, User, Check, CheckCheck } from "lucide-react";
 import { InboxAvatar, initialsFromName, stringToHslColor } from "@/components/inbox/InboxAvatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { windowState } from "@/lib/inbox-window";
 
 export type ConvListItem = {
   id: string;
@@ -13,11 +14,38 @@ export type ConvListItem = {
   status: "aberta" | "aguardando" | "resolvida";
   assignee: { id: string; nome: string | null } | null;
   last_at: string | null;
+  last_inbound_at: string | null;
   last_preview: string | null;
   last_dir: "in" | "out" | null;
   unread: number;
   flagged: boolean;
 };
+
+/** Selo da janela de 24h: verde "faltam Xh" (âmbar quando expirando) ou cinza "fora da janela". */
+export function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
+  const w = windowState(lastInboundAt);
+  const cls = !w.open
+    ? "bg-muted text-muted-foreground border-border/60"
+    : w.expiring
+      ? "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400"
+      : "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>
+          {w.open ? `24h · ${w.label}` : "fora da janela"}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        <p>
+          {w.open
+            ? "Dentro da janela de 24h do WhatsApp: dá pra responder com texto livre."
+            : "Fora da janela de 24h: texto livre não chega, só template aprovado ou fluxo."}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function isLidPhone(v?: string | null): boolean {
   return Boolean(v && /@lid$/i.test(v));
@@ -122,7 +150,8 @@ export function ConversationRow({
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/70">
           <span className={`truncate ${isLidPhone(c.phone) ? "font-mono" : ""}`}>{displayPhone(c.phone)}</span>
           {c.cidade && <span className="truncate">· {c.cidade}/{c.uf ?? ""}</span>}
-          <span className="ml-auto shrink-0">
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            <WindowBadge lastInboundAt={c.last_inbound_at} />
             <AssigneeChip assignee={c.assignee} />
           </span>
         </div>
