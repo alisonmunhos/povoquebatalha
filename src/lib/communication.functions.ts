@@ -26,6 +26,8 @@ export const listConversations = createServerFn({ method: "GET" })
     filter: z.enum([
       "all", "mine", "unread", "flagged", "resolved",
       "in_service", "unlinked", "with_error", "opt_out",
+      // Janela de 24h da Meta (texto livre liberado)
+      "window_open", "window_expiring", "mine_window",
     ]).default("all"),
     search: z.string().trim().max(120).optional(),
     // Rolagem incremental: quantas conversas carregar nesta leva.
@@ -34,11 +36,20 @@ export const listConversations = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     // Pede uma linha extra para saber se ainda existem conversas além desta leva.
     const pageSize = data.limit;
+    const nowMs = Date.now();
+    const windowCutoff = new Date(nowMs - WINDOW_MS).toISOString();
+    const expiringCutoff = new Date(nowMs + EXPIRING_MS - WINDOW_MS).toISOString();
+    const isWindowFilter = data.filter === "window_open" || data.filter === "window_expiring" || data.filter === "mine_window";
+
     let q = context.supabase
       .from("conversations")
-      .select("id, contact_id, from_phone, status, assigned_to, last_message_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)")
-      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .select("id, contact_id, from_phone, status, assigned_to, last_message_at, last_inbound_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)")
       .limit(pageSize + 1);
+
+    // Nas filas de janela, o que fecha primeiro vem primeiro.
+    q = isWindowFilter
+      ? q.order("last_inbound_at", { ascending: true, nullsFirst: false })
+      : q.order("last_message_at", { ascending: false, nullsFirst: false });
 
     if (data.filter === "resolved") q = q.eq("status", "resolvida");
     else q = q.in("status", ["aberta", "aguardando"]);
@@ -48,6 +59,9 @@ export const listConversations = createServerFn({ method: "GET" })
     if (data.filter === "flagged") q = q.eq("flagged", true);
     if (data.filter === "in_service") q = q.not("assigned_to", "is", null);
     if (data.filter === "unlinked") q = q.is("contact_id", null);
+    if (isWindowFilter) q = q.gt("last_inbound_at", windowCutoff);
+    if (data.filter === "window_expiring") q = q.lte("last_inbound_at", expiringCutoff);
+    if (data.filter === "mine_window") q = q.eq("assigned_to", context.userId);
 
     if (data.search) {
       const s = data.search;
