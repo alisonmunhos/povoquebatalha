@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole, requireInboxAccess } from "@/lib/authz";
 import { renderMessageVars } from "@/lib/message-vars";
+import { WINDOW_MS, EXPIRING_MS } from "@/lib/inbox-window";
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
