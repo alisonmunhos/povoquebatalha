@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole, requireInboxAccess } from "@/lib/authz";
 import { renderMessageVars } from "@/lib/message-vars";
-import { WINDOW_MS, EXPIRING_MS } from "@/lib/inbox-window";
+import { WINDOW_MS, EXPIRING_MS, windowState } from "@/lib/inbox-window";
 import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
@@ -218,11 +218,12 @@ export const getConversation = createServerFn({ method: "GET" })
     type ConvRow = {
       id: string; contact_id: string | null; from_phone: string | null;
       status: string; assigned_to: string | null; unread_count: number; flagged: boolean; last_message_at: string | null;
+      last_inbound_at: string | null;
       first_message_direction: "in" | "out" | null;
       last_message_preview: string | null; last_message_direction: "in" | "out" | null;
     };
     const CONV_COLS =
-      "id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, first_message_direction, last_message_preview, last_message_direction";
+      "id, contact_id, from_phone, status, assigned_to, unread_count, flagged, last_message_at, last_inbound_at, first_message_direction, last_message_preview, last_message_direction";
     let convRow: ConvRow | null = null;
     if (data.conversation_id) {
       const { data: c } = await context.supabase
