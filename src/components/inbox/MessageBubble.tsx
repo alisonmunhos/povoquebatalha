@@ -5,7 +5,7 @@ import {
 import { toast } from "sonner";
 import { linkify } from "@/lib/linkify";
 import { fmtTime, type InboxMsg } from "@/lib/inbox-timeline";
-import { MediaView, OutboundMedia } from "@/components/inbox/MessageMedia";
+import { MediaView, SignedMedia } from "@/components/inbox/MessageMedia";
 
 const LONG_TEXT = 700;
 
@@ -131,15 +131,16 @@ export function MessageBubble({
           <div className="mb-1 whitespace-pre-wrap break-words font-semibold">{msg.header_text}</div>
         )}
 
-        {msg.media_path && (
-          <OutboundMedia
+        {msg.media_path ? (
+          <SignedMedia
+            bucket={msg.media_bucket ?? "campaign-media"}
             path={msg.media_path}
             mime={msg.media_mime ?? ""}
             filename={msg.media_filename ?? "arquivo"}
             size={msg.media_size}
+            tipo={msg.tipo}
           />
-        )}
-        {msg.media_url && (
+        ) : msg.media_url ? (
           <MediaView
             url={msg.media_url}
             mime={msg.media_mime ?? ""}
@@ -147,7 +148,8 @@ export function MessageBubble({
             size={msg.media_size}
             tipo={msg.tipo}
           />
-        )}
+        ) : null}
+
 
         {msg.text && (
           <div className="whitespace-pre-wrap break-words">
