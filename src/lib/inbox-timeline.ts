@@ -11,6 +11,9 @@ export type InboxMsg = {
   meta?: string;
   tipo?: string | null;
   media_path?: string | null;
+  /** Bucket do media_path (padrão: campaign-media, anexos enviados). */
+  media_bucket?: string | null;
+
   media_url?: string | null;
   media_mime?: string | null;
   media_filename?: string | null;
