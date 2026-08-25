@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { FileText, Download, Play } from "lucide-react";
+import { FileText, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtBytes } from "@/lib/inbox-timeline";
+import { AudioPlayer } from "@/components/inbox/AudioPlayer";
+
 
 type Props = {
   url: string;
