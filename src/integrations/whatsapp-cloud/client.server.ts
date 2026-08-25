@@ -23,6 +23,16 @@ export function hasWhatsappCloudEnv(): boolean {
   return Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 }
 
+/**
+ * Flow genérico e reutilizável de múltipla escolha (componente CheckboxGroup),
+ * publicado manualmente no WhatsApp Manager — ver docs/whatsapp-flow-checkbox-setup.md.
+ * Ausente = o motor de fluxos cai automaticamente no método antigo (lista tocável).
+ */
+export function getCheckboxFlowId(): string | null {
+  const id = process.env.WHATSAPP_CHECKBOX_FLOW_ID;
+  return id && id.trim() ? id.trim() : null;
+}
+
 export type CloudSendResponse = {
   /** wamid.* devolvido pela Meta. */
   messageId: string | null;
@@ -169,6 +179,53 @@ export const whatsappCloud = {
               ...(r.description ? { description: r.description.slice(0, 72) } : {}),
             })),
           })),
+        },
+      },
+    }),
+
+  /**
+   * WhatsApp Flow de múltipla escolha (componente CheckboxGroup) — abre uma
+   * tela com todas as opções da pergunta, marcáveis de uma vez só, em vez da
+   * lista tocável item a item. `flowId` é o Flow genérico publicado no
+   * WhatsApp Manager (ver docs/whatsapp-flow-checkbox-setup.md);
+   * `flowToken` identifica a sessão/etapa que gerou o envio, pra conferir a
+   * resposta depois. `question`/`options` viram o dado inicial da tela.
+   */
+  sendFlowCheckbox: (
+    phone: string,
+    body: string,
+    args: {
+      flowId: string;
+      flowToken: string;
+      question: string;
+      options: Array<{ id: string; title: string }>;
+      cta?: string;
+      screenId?: string;
+    },
+  ) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "interactive",
+      interactive: {
+        type: "flow",
+        body: { text: body },
+        action: {
+          name: "flow",
+          parameters: {
+            flow_message_version: "3",
+            flow_token: args.flowToken,
+            flow_id: args.flowId,
+            flow_cta: (args.cta ?? "Continuar").slice(0, 30),
+            flow_action: "navigate",
+            flow_action_payload: {
+              screen: args.screenId ?? "CHECKBOX",
+              data: {
+                question: args.question,
+                options: args.options,
+              },
+            },
+          },
         },
       },
     }),
