@@ -566,7 +566,7 @@ export function CommunicationInbox() {
     for (const m of convQ.data?.inbound ?? []) {
       const inb = m as {
         id: string; conteudo: string | null; received_at: string; tipo?: string | null;
-        media_url?: string | null; media_mime?: string | null; media_filename?: string | null;
+        media_url?: string | null; media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
         media_size?: number | null;
         wa_message_id?: string | null; reply_to_wa_id?: string | null;
         latitude?: number | null; longitude?: number | null;
@@ -575,10 +575,15 @@ export function CommunicationInbox() {
       t.push({
         id: `in-${inb.id}`, kind: "in", text: inb.conteudo ?? "", at: inb.received_at,
         tipo: inb.tipo ?? null,
+        // Caminho + bucket: a URL assinada é gerada e cacheada no cliente, então
+        // não muda a cada refetch (áudio não reinicia no meio da reprodução).
+        media_path: inb.media_path ?? null,
+        media_bucket: inb.media_path ? "inbox-media" : null,
         media_url: inb.media_url ?? null,
         media_mime: inb.media_mime ?? null,
         media_filename: inb.media_filename ?? null,
         media_size: inb.media_size ?? null,
+
         wa_id: inb.wa_message_id ?? null,
         replyToWaId: inb.reply_to_wa_id ?? null,
         location: inb.latitude != null && inb.longitude != null
