@@ -289,6 +289,48 @@ function interactiveReplyId(message: AnyRecord | null): string | null {
   return typeof id === "string" && id ? id : null;
 }
 
+/**
+ * Extrai a seleção de um WhatsApp Flow de múltipla escolha (CheckboxGroup),
+ * devolvida pelo webhook como `interactive.nfm_reply.response_json` (uma
+ * string JSON). Devolve `null` quando a mensagem não é uma resposta de Flow —
+ * quem chamou trata como resposta pelo método antigo (lista/texto).
+ *
+ * Quando o Flow ecoa `flow_token` no retorno e ele não bate com o esperado
+ * pra essa sessão/etapa (resposta de um Flow antigo/de outra etapa), a
+ * seleção é ignorada. Quando `flow_token` não vem no retorno, a checagem é
+ * pulada (formato exato do payload não confirmado em produção ainda — ver
+ * docs/whatsapp-flow-checkbox-setup.md).
+ */
+function extractFlowCheckboxReply(
+  message: AnyRecord | null,
+  sessionId: string,
+  stepId: string,
+): { selected: string[] } | null {
+  if (!message) return null;
+  const inter = message.interactive as AnyRecord | undefined;
+  if (!inter || inter.type !== "nfm_reply") return null;
+  const nfm = inter.nfm_reply as AnyRecord | undefined;
+  const raw = nfm?.response_json;
+  if (typeof raw !== "string") return null;
+  let parsed: AnyRecord;
+  try {
+    parsed = JSON.parse(raw) as AnyRecord;
+  } catch {
+    return null;
+  }
+  const flowToken = parsed.flow_token;
+  if (typeof flowToken === "string" && flowToken !== flowTokenFor(sessionId, stepId)) {
+    return null;
+  }
+  const rawSelected = parsed.selected_options;
+  const selected = Array.isArray(rawSelected)
+    ? rawSelected
+        .map((v) => (typeof v === "string" ? v : String((v as AnyRecord)?.id ?? "")))
+        .filter((v): v is string => Boolean(v))
+    : [];
+  return { selected };
+}
+
 /** Casa a resposta escrita com uma das opções (por número ou pelo texto). */
 function matchOption(text: string | null, options: FormCatalogOption[]): string | null {
   const t = norm(text);
@@ -646,6 +688,70 @@ async function askStep(
   step: FlowStep,
   contactId: string | null,
 ): Promise<void> {
+  // Múltipla escolha começando do zero (nada marcado ainda): tenta o WhatsApp
+  // Flow (tela única com checkbox). Sessão já no meio de uma seleção pelo
+  // método antigo de lista (`pending_multi` preenchido — só acontece em
+  // sessões que já estavam em andamento no momento do deploy dessa mudança)
+  // continua recebendo lista, pra não trocar o formato no meio da resposta.
+  if (step.response_kind === "multi_choice" && !(session.pending_multi ?? []).length) {
+    const askedViaFlow = await askMultiChoiceStepViaFlow(admin, session, step);
+    if (askedViaFlow) return;
+  }
+  await askStepLegacyList(admin, session, step, contactId);
+}
+
+/** Identifica de forma reconstruível (sem gravar nada extra) qual sessão/etapa gerou um Flow enviado. */
+function flowTokenFor(sessionId: string, stepId: string): string {
+  return `${sessionId}:${stepId}`;
+}
+
+/**
+ * Envia a etapa de múltipla escolha como um WhatsApp Flow (CheckboxGroup),
+ * quando o Flow genérico estiver configurado (ver docs/whatsapp-flow-checkbox-setup.md).
+ * Devolve `false` (sem lançar) quando não há Flow configurado ou o envio falhou —
+ * quem chamou cai pro método antigo de lista, que continua funcionando de ponta a ponta.
+ */
+async function askMultiChoiceStepViaFlow(
+  admin: Admin,
+  session: SessionRow,
+  step: FlowStep,
+): Promise<boolean> {
+  const opts = stepOptions(step);
+  if (!opts.length) return false;
+  try {
+    const { whatsappCloud, getCheckboxFlowId } = await import(
+      "@/integrations/whatsapp-cloud/client.server"
+    );
+    const flowId = getCheckboxFlowId();
+    if (!flowId) return false;
+    await whatsappCloud.sendFlowCheckbox(session.phone, step.prompt, {
+      flowId,
+      flowToken: flowTokenFor(session.id, step.id),
+      question: step.prompt,
+      options: opts.map((o) => ({ id: o.value, title: o.label.slice(0, 80) })),
+      cta: "Selecionar",
+    });
+    await admin
+      .from("whatsapp_flow_sessions")
+      .update({ last_prompt_at: new Date().toISOString(), invalid_attempts: 0 })
+      .eq("id", session.id);
+    return true;
+  } catch (e) {
+    console.error(
+      "[whatsapp-flow] falha ao enviar Flow de múltipla escolha, caindo pro método de lista:",
+      e instanceof Error ? e.message : e,
+    );
+    return false;
+  }
+}
+
+/** Envio original: texto/botões/lista, conforme buildPrompt(). */
+async function askStepLegacyList(
+  admin: Admin,
+  session: SessionRow,
+  step: FlowStep,
+  contactId: string | null,
+): Promise<void> {
   const prompt = buildPrompt(step, session);
   await sendFlowMessage(admin, {
     phone: session.phone,
@@ -895,50 +1001,62 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
       }
     }
   }
-  // ---- múltipla escolha: aceita várias numa só mensagem, ou toques somando
+  // ---- múltipla escolha: WhatsApp Flow (tela única) OU, no formato antigo
+  // (sessões em andamento no momento do deploy dessa mudança), lista tocável
+  // que aceita várias numa só mensagem, ou toques somando.
   else if (step.response_kind === "multi_choice") {
-    const opts = stepOptions(step);
-    const doneAsked =
-      replyId === FLOW_MULTI_DONE_ID || isSkip(input.text) || norm(input.text) === "pronto";
-
-    if (doneAsked) {
-      if (pendingMulti.length) answers[step.id] = pendingMulti;
-      pendingMulti = [];
-    } else {
-      const picked =
-        replyId && opts.some((o) => o.value === replyId)
-          ? [replyId]
-          : matchManyOptions(input.text, opts);
-
-      if (!picked.length) {
-        await invalid(
-          `Não achei essa opção. Pode responder com os números separados por vírgula (ex.: 1, 3), ou tocar em "${FLOW_MULTI_DONE_LABEL}" pra seguir.`,
-        );
+    const flowReply = extractFlowCheckboxReply(input.message, session.id, step.id);
+    if (flowReply) {
+      if (!flowReply.selected.length) {
+        await invalid("Não recebi nenhuma opção marcada. Toque no botão do Flow e marque ao menos uma opção.");
         return;
       }
+      answers[step.id] = flowReply.selected;
+      pendingMulti = [];
+    } else {
+      const opts = stepOptions(step);
+      const doneAsked =
+        replyId === FLOW_MULTI_DONE_ID || isSkip(input.text) || norm(input.text) === "pronto";
 
-      for (const v of picked) if (!pendingMulti.includes(v)) pendingMulti.push(v);
-      const labels = opts.filter((o) => pendingMulti.includes(o.value)).map((o) => o.label);
-      const remaining = opts.filter((o) => !pendingMulti.includes(o.value));
-
-      // Veio por texto com mais de uma opção: já entendi tudo, confirmo e sigo.
-      const answeredByText = !replyId && picked.length > 1;
-      if (answeredByText || remaining.length === 0) {
-        await sendFlowMessage(admin, {
-          phone: session.phone,
-          contactId: session.contact_id ?? input.contactId,
-          body: `Anotei: ${labels.join(", ")}.`,
-        });
-        answers[step.id] = pendingMulti;
+      if (doneAsked) {
+        if (pendingMulti.length) answers[step.id] = pendingMulti;
         pendingMulti = [];
       } else {
-        // Um toque só (ou uma opção escrita): guarda e oferece somar mais.
-        await admin
-          .from("whatsapp_flow_sessions")
-          .update({ pending_multi: pendingMulti, answers })
-          .eq("id", session.id);
-        await askStep(admin, { ...session, pending_multi: pendingMulti, answers }, step, input.contactId);
-        return;
+        const picked =
+          replyId && opts.some((o) => o.value === replyId)
+            ? [replyId]
+            : matchManyOptions(input.text, opts);
+
+        if (!picked.length) {
+          await invalid(
+            `Não achei essa opção. Pode responder com os números separados por vírgula (ex.: 1, 3), ou tocar em "${FLOW_MULTI_DONE_LABEL}" pra seguir.`,
+          );
+          return;
+        }
+
+        for (const v of picked) if (!pendingMulti.includes(v)) pendingMulti.push(v);
+        const labels = opts.filter((o) => pendingMulti.includes(o.value)).map((o) => o.label);
+        const remaining = opts.filter((o) => !pendingMulti.includes(o.value));
+
+        // Veio por texto com mais de uma opção: já entendi tudo, confirmo e sigo.
+        const answeredByText = !replyId && picked.length > 1;
+        if (answeredByText || remaining.length === 0) {
+          await sendFlowMessage(admin, {
+            phone: session.phone,
+            contactId: session.contact_id ?? input.contactId,
+            body: `Anotei: ${labels.join(", ")}.`,
+          });
+          answers[step.id] = pendingMulti;
+          pendingMulti = [];
+        } else {
+          // Um toque só (ou uma opção escrita): guarda e oferece somar mais.
+          await admin
+            .from("whatsapp_flow_sessions")
+            .update({ pending_multi: pendingMulti, answers })
+            .eq("id", session.id);
+          await askStep(admin, { ...session, pending_multi: pendingMulti, answers }, step, input.contactId);
+          return;
+        }
       }
     }
   }
