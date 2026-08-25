@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TmpAudioCheckRouteImport } from './routes/tmp-audio-check'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
@@ -96,6 +97,11 @@ import { Route as ApiPublicAgitationMissionsMissionIdOgImageRouteImport } from '
 import { Route as ApiPublicAgitationMissionsMissionIdMediaRouteImport } from './routes/api/public/agitation-missions/$missionId/media'
 import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from './routes/api/public/agitation-missions/$missionId/$contactId'
 
+const TmpAudioCheckRoute = TmpAudioCheckRouteImport.update({
+  id: '/tmp-audio-check',
+  path: '/tmp-audio-check',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
   id: '/redefinir-senha',
   path: '/redefinir-senha',
@@ -579,6 +585,7 @@ export interface FileRoutesByFullPath {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/tmp-audio-check': typeof TmpAudioCheckRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
@@ -666,6 +673,7 @@ export interface FileRoutesByTo {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/tmp-audio-check': typeof TmpAudioCheckRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
@@ -754,6 +762,7 @@ export interface FileRoutesById {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/tmp-audio-check': typeof TmpAudioCheckRoute
   '/_authenticated/agitacao': typeof AuthenticatedAgitacaoRoute
   '/_authenticated/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
@@ -843,6 +852,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/tmp-audio-check'
     | '/agitacao'
     | '/agitacao-notificacoes'
     | '/calendario'
@@ -930,6 +940,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/tmp-audio-check'
     | '/agitacao'
     | '/agitacao-notificacoes'
     | '/calendario'
@@ -1017,6 +1028,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/tmp-audio-check'
     | '/_authenticated/agitacao'
     | '/_authenticated/agitacao-notificacoes'
     | '/_authenticated/calendario'
@@ -1106,6 +1118,7 @@ export interface RootRouteChildren {
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  TmpAudioCheckRoute: typeof TmpAudioCheckRoute
   EventoSlugRoute: typeof EventoSlugRoute
   FSlugRoute: typeof FSlugRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
@@ -1137,6 +1150,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tmp-audio-check': {
+      id: '/tmp-audio-check'
+      path: '/tmp-audio-check'
+      fullPath: '/tmp-audio-check'
+      preLoaderRoute: typeof TmpAudioCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/redefinir-senha': {
       id: '/redefinir-senha'
       path: '/redefinir-senha'
@@ -1907,6 +1927,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  TmpAudioCheckRoute: TmpAudioCheckRoute,
   EventoSlugRoute: EventoSlugRoute,
   FSlugRoute: FSlugRoute,
   OptOutTokenRoute: OptOutTokenRoute,
