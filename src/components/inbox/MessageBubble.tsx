@@ -5,7 +5,7 @@ import {
 import { toast } from "sonner";
 import { linkify } from "@/lib/linkify";
 import { fmtTime, type InboxMsg } from "@/lib/inbox-timeline";
-import { MediaView, OutboundMedia } from "@/components/inbox/MessageMedia";
+import { MediaView, SignedMedia } from "@/components/inbox/MessageMedia";
 
 const LONG_TEXT = 700;
 
