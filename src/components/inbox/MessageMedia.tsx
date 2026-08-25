@@ -48,14 +48,10 @@ export function MediaView({ url, mime, filename, size, tipo }: Props) {
     );
   }
 
-  if (m.startsWith("audio/") || t === "audio" || t === "ptt") {
-    return (
-      <div className="mb-1 flex items-center gap-2 rounded-full bg-black/5 px-2 py-1.5">
-        <Play className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        <audio controls src={url} preload="metadata" className="h-8 max-w-[15rem]" />
-      </div>
-    );
+  if (m.startsWith("audio/") || t === "audio" || t === "ptt" || t === "voice") {
+    return <AudioPlayer src={url} isVoice={t === "ptt" || t === "voice"} />;
   }
+
 
   return (
     <a
