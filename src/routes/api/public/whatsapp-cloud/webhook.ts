@@ -154,12 +154,17 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 let mediaMime: string | null = null;
                 let mediaFilename: string | null = null;
                 let mediaSize: number | null = null;
+                // Marca quando a mídia existia (a Meta apontou um media_id) mas não foi
+                // possível baixá-la/gravá-la mesmo com retry — sem isso, essa mensagem
+                // fica indistinguível de uma mensagem que nunca teve mídia nenhuma.
+                let mediaDownloadFailedAt: string | null = null;
                 const ref = cloudMediaRef(message);
                 if (ref) {
                   try {
                     const { downloadCloudMedia } = await import(
                       "@/integrations/whatsapp-cloud/client.server"
                     );
+                    // downloadCloudMedia já tenta 2-3x sozinho antes de devolver null.
                     const file = await downloadCloudMedia(ref.id);
                     if (file) {
                       const mime = ref.mime ?? file.mime ?? "application/octet-stream";
@@ -172,11 +177,25 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                       const up = await supabaseAdmin.storage
                         .from("inbox-media")
                         .upload(path, file.bytes, { contentType: mime, upsert: true });
-                      if (!up.error) mediaPath = path;
+                      if (!up.error) {
+                        mediaPath = path;
+                      } else {
+                        mediaDownloadFailedAt = new Date().toISOString();
+                        console.error("[webhook whatsapp-cloud] falha ao subir mídia baixada pro bucket inbox-media", {
+                          mediaId: ref.id, tipo: ref.tipo, error: up.error.message,
+                        });
+                      }
+                    } else {
+                      mediaDownloadFailedAt = new Date().toISOString();
+                      console.error("[webhook whatsapp-cloud] falha definitiva ao baixar mídia recebida (mídia perdida — link de origem da Meta expira rápido)", {
+                        mediaId: ref.id, tipo: ref.tipo,
+                      });
                     }
-
-                  } catch {
-                    /* falha de download não bloqueia o registro da mensagem */
+                  } catch (e) {
+                    mediaDownloadFailedAt = new Date().toISOString();
+                    console.error("[webhook whatsapp-cloud] exceção ao baixar/gravar mídia recebida", {
+                      mediaId: ref.id, tipo: ref.tipo, error: e instanceof Error ? e.message : String(e),
+                    });
                   }
                 }
 
@@ -197,6 +216,7 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                     media_mime: mediaMime,
                     media_filename: mediaFilename,
                     media_size: mediaSize,
+                    media_download_failed_at: mediaDownloadFailedAt,
                     wa_message_id: parsed.wa_message_id,
                     reply_to_wa_id: parsed.reply_to_wa_id,
                     reaction_emoji: parsed.reaction_emoji,

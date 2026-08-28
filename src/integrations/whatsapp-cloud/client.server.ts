@@ -287,22 +287,61 @@ export const whatsappCloud = {
  * Baixa uma mídia recebida (a Cloud API entrega só um media ID).
  * Passo 1: consulta a URL temporária; passo 2: baixa o binário com o token.
  */
-export async function downloadCloudMedia(mediaId: string): Promise<{
-  bytes: Uint8Array;
-  mime: string | null;
-  size: number | null;
-} | null> {
+type CloudMediaFile = { bytes: Uint8Array; mime: string | null; size: number | null };
+
+/** Uma tentativa de download. A URL de mídia da Meta (meta.url) expira rápido
+ * — por isso cada tentativa refaz os dois passos (metadata + binário) do
+ * zero, em vez de reaproveitar uma URL de uma tentativa anterior. */
+async function downloadCloudMediaOnce(mediaId: string): Promise<CloudMediaFile | null> {
   const env = readEnv();
   const metaRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}`, {
     headers: { Authorization: `Bearer ${env.token}` },
   });
-  if (!metaRes.ok) return null;
+  if (!metaRes.ok) throw new Error(`Meta respondeu HTTP ${metaRes.status} ao consultar metadata da mídia`);
   const meta = (await metaRes.json()) as { url?: string; mime_type?: string; file_size?: number };
-  if (!meta.url) return null;
+  if (!meta.url) throw new Error("Meta não devolveu URL de download pra essa mídia");
   const binRes = await fetch(meta.url, { headers: { Authorization: `Bearer ${env.token}` } });
-  if (!binRes.ok) return null;
+  if (!binRes.ok) throw new Error(`Meta respondeu HTTP ${binRes.status} ao baixar o binário da mídia`);
   const buf = new Uint8Array(await binRes.arrayBuffer());
   return { bytes: buf, mime: meta.mime_type ?? null, size: meta.file_size ?? buf.byteLength };
+}
+
+const MEDIA_DOWNLOAD_MAX_ATTEMPTS = 3;
+const MEDIA_DOWNLOAD_RETRY_DELAY_MS = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Baixa uma mídia recebida (imagem/áudio/vídeo/documento) da Meta, com retry
+ * automático — falha intermitente de rede/timeout no download não deve
+ * significar perder a mídia pra sempre (o link de origem da Meta expira
+ * rápido, então não dá pra tentar de novo depois). Devolve null só depois de
+ * esgotar todas as tentativas; o chamador decide como registrar essa falha.
+ */
+export async function downloadCloudMedia(mediaId: string): Promise<CloudMediaFile | null> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= MEDIA_DOWNLOAD_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await downloadCloudMediaOnce(mediaId);
+    } catch (e) {
+      lastError = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (attempt < MEDIA_DOWNLOAD_MAX_ATTEMPTS) {
+        console.warn(
+          `[whatsapp-cloud] tentativa ${attempt}/${MEDIA_DOWNLOAD_MAX_ATTEMPTS} de baixar mídia ${mediaId} falhou, tentando de novo`,
+          msg,
+        );
+        await sleep(MEDIA_DOWNLOAD_RETRY_DELAY_MS);
+      }
+    }
+  }
+  console.error(
+    `[whatsapp-cloud] falha definitiva ao baixar mídia ${mediaId} após ${MEDIA_DOWNLOAD_MAX_ATTEMPTS} tentativas`,
+    lastError instanceof Error ? lastError.message : String(lastError),
+  );
+  return null;
 }
 
 
