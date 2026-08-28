@@ -8,6 +8,7 @@
 
 import { messageBlockReason } from "@/lib/contact-rules";
 import { renderVars, sendMessage, recordWhatsappSendOutcome } from "@/lib/wa-send.server";
+import { windowState } from "@/lib/inbox-window";
 
 type ContactCtx = {
   id: string;
@@ -62,6 +63,20 @@ export async function triggerAutomationsForEvent(params: {
       return;
     }
 
+    // Janela de 24h do WhatsApp (mesma regra do Inbox — src/lib/inbox-window.ts):
+    // automação de texto livre só pode ser enviada se o contato já escreveu
+    // pra gente nas últimas 24h. Fora da janela a Meta aceita o envio na hora
+    // (devolve um wamid) mas rejeita a entrega de verdade de forma assíncrona
+    // (erro 131047), então checar aqui evita registrar "sent" indevidamente.
+    // Não há template aprovado configurado por automação hoje — pula o envio
+    // em vez de inventar um mecanismo novo de template pra esse fluxo.
+    const { data: conv } = await supabaseAdmin
+      .from("conversations")
+      .select("last_inbound_at")
+      .eq("contact_id", contact.id)
+      .maybeSingle();
+    const inWindow = windowState((conv as { last_inbound_at?: string | null } | null)?.last_inbound_at ?? null).open;
+
     for (const a of automations) {
       // Grava linha "queued" imediatamente para que toda tentativa fique visível
       await supabaseAdmin.from("automation_deliveries").upsert({
@@ -89,6 +104,13 @@ export async function triggerAutomationsForEvent(params: {
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Sem telefone normalizado",
+        }, { onConflict: "automation_id,contact_id" });
+        continue;
+      }
+      if (!inWindow) {
+        await supabaseAdmin.from("automation_deliveries").upsert({
+          automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
+          status: "skipped", error: "Fora da janela de 24h do WhatsApp (contato não escreveu recentemente)",
         }, { onConflict: "automation_id,contact_id" });
         continue;
       }

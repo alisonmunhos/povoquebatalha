@@ -324,6 +324,22 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                   }
                 }
 
+                // Automação: a Meta pode aceitar o envio na hora (devolve wamid,
+                // grava "sent") e só reportar a falha de entrega de verdade depois,
+                // de forma assíncrona, por aqui — sem isso o registro fica travado
+                // em "sent" mesmo quando a mensagem nunca chegou.
+                if (statusValue === "failed" || errorMsg) {
+                  try {
+                    await supabaseAdmin
+                      .from("automation_deliveries")
+                      .update({ status: "failed", error: errorMsg })
+                      .eq("zapi_message_id", messageId)
+                      .eq("status", "sent");
+                  } catch {
+                    /* ignora */
+                  }
+                }
+
                 const { data: rec } = await supabaseAdmin
                   .from("campaign_recipients")
                   .select("id, contact_id")
