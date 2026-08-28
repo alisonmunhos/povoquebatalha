@@ -886,6 +886,24 @@ async function advanceSession(input: FlowInboundInput, session: SessionRow): Pro
         allSteps,
         session.current_step_index + 1,
       );
+    } else if (attempts >= 3 && step.required) {
+      // Pergunta obrigatória: antes não tinha limite e o bot podia repetir o
+      // erro pra sempre. Depois de 3 tentativas, encerra com transbordo pra
+      // atendimento humano — mesmo mecanismo do step kind "handoff".
+      await sendFlowMessage(admin, {
+        phone: session.phone,
+        contactId: session.contact_id ?? input.contactId,
+        body: "Vou te passar pra um atendente, não consegui entender sua resposta. 🙏",
+      });
+      await handoffToHuman(admin, {
+        phone: session.phone,
+        contactId: session.contact_id ?? input.contactId,
+        motivo: "não conseguiu responder uma pergunta obrigatória depois de 3 tentativas",
+      });
+      await admin
+        .from("whatsapp_flow_sessions")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", session.id);
     }
   };
 
