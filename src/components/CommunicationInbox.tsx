@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot,
+  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot, Music,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +32,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
+
+// Formatos de áudio aceitos pela API oficial do WhatsApp (Cloud API) pra
+// mensagem de áudio: AAC, AMR, MP3, MP4/M4A e OGG (só codec Opus — nota de
+// voz). Limite de tamanho da própria Meta pra áudio: 16MB (maior que o limite
+// de 15MB já usado aqui pros outros anexos, por isso checado à parte).
+const AUDIO_MIME_TYPES = ["audio/aac", "audio/amr", "audio/mpeg", "audio/mp4", "audio/ogg"];
+const AUDIO_ACCEPT = AUDIO_MIME_TYPES.join(",");
+const AUDIO_MAX_BYTES = 16 * 1024 * 1024;
 
 import {
   buildTimelineItems, receiptFrom, fmtBytes, type InboxMsg,
@@ -472,9 +480,11 @@ export function CommunicationInbox() {
 
   async function onPickFile(f: File | null) {
     if (!f) return;
-    const okTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
-    if (!okTypes.includes(f.type)) { toast.error("Envie PNG, JPG, WEBP ou PDF."); return; }
-    if (f.size > 15 * 1024 * 1024) { toast.error("Máx. 15MB."); return; }
+    const okTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf", ...AUDIO_MIME_TYPES];
+    if (!okTypes.includes(f.type)) { toast.error("Envie PNG, JPG, WEBP, PDF ou áudio (AAC, AMR, MP3, MP4/M4A, OGG)."); return; }
+    const isAudio = AUDIO_MIME_TYPES.includes(f.type);
+    const maxBytes = isAudio ? AUDIO_MAX_BYTES : 15 * 1024 * 1024;
+    if (f.size > maxBytes) { toast.error(isAudio ? "Máx. 16MB pra áudio." : "Máx. 15MB."); return; }
     setUploading(true);
     try {
       const s = await signFn({ data: { filename: f.name, contentType: f.type } });
@@ -1125,6 +1135,8 @@ export function CommunicationInbox() {
                 <div className="flex items-center gap-2 border rounded-md p-2 bg-muted/40">
                   {attachment.previewUrl ? (
                     <img src={attachment.previewUrl} alt="" className="h-12 w-12 object-cover rounded" />
+                  ) : AUDIO_MIME_TYPES.includes(attachment.mime) ? (
+                    <Music className="h-8 w-8 text-muted-foreground" />
                   ) : (
                     <FileText className="h-8 w-8 text-muted-foreground" />
                   )}
@@ -1204,6 +1216,20 @@ export function CommunicationInbox() {
                         <FileText className="h-3.5 w-3.5" />
                       </span>
                       Documento (PDF)
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                      onClick={() => {
+                        setFileAccept(AUDIO_ACCEPT);
+                        setAttachOpen(false);
+                        requestAnimationFrame(() => fileInputRef.current?.click());
+                      }}
+                    >
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                        <Music className="h-3.5 w-3.5" />
+                      </span>
+                      Áudio
                     </button>
                   </PopoverContent>
                 </Popover>

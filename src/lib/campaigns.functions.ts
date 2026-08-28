@@ -143,8 +143,15 @@ export const signCampaignMediaUpload = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireStaff(context.supabase, context.userId);
-    const allowed = ["image/png","image/jpeg","image/jpg","image/webp","application/pdf"];
-    if (!allowed.includes(data.contentType)) throw new Error("Tipo não permitido. Use PNG, JPG, WEBP ou PDF.");
+    // Áudio (AAC/AMR/MP3/MP4/OGG) liberado aqui pro anexo de áudio do Inbox
+    // (CommunicationInbox.tsx) — os demais chamadores (MessageComposer.tsx)
+    // continuam restritos a imagem/PDF pelo próprio accept do input deles,
+    // então isso não muda o que já funciona nos outros lugares.
+    const allowed = [
+      "image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf",
+      "audio/aac", "audio/amr", "audio/mpeg", "audio/mp4", "audio/ogg",
+    ];
+    if (!allowed.includes(data.contentType)) throw new Error("Tipo não permitido. Use PNG, JPG, WEBP, PDF ou áudio (AAC, AMR, MP3, MP4/M4A, OGG).");
     const clean = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
     const path = `${context.userId}/${Date.now()}_${clean}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
