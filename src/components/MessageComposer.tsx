@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Paperclip, Loader2, X, Link2, Bold, Italic, Strikethrough, Code2, List, Smile } from "lucide-react";
+import { Paperclip, Loader2, X, Link2, Bold, Italic, Strikethrough, Code2, List, Smile, MousePointerClick, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { MessagePreview } from "@/components/MessagePreview";
 import { MESSAGE_VARIABLES, renderMessageVars } from "@/lib/message-vars";
+
+// Mesmo formato do modelo Meta (TemplateButton em whatsapp-templates.functions.ts),
+// restrito a QUICK_REPLY — único tipo que a Cloud API aceita em mensagem de texto
+// livre (via whatsappCloud.sendButtons). Ver messages.functions.ts.
+export type ComposerButton = { type: "QUICK_REPLY"; text: string };
+const MAX_BUTTONS = 3;
+const MAX_BUTTON_CHARS = 20;
 
 // Subconjunto exibido como chips clicáveis no composer (mais enxuto que o wizard).
 export const COMPOSER_VARIABLES = [
@@ -26,6 +33,9 @@ export type ComposerValue = {
   media_path: string | null;
   media_mime: string | null;
   media_filename: string | null;
+  /** Botões de resposta rápida (opcional). Mutuamente exclusivo com anexo — a
+   * mensagem interativa com botões não aceita mídia junto (ver sendButtons). */
+  buttons?: ComposerButton[];
 };
 
 export const emptyComposerValue = (): ComposerValue => ({
@@ -37,6 +47,7 @@ export const emptyComposerValue = (): ComposerValue => ({
   media_path: null,
   media_mime: null,
   media_filename: null,
+  buttons: [],
 });
 
 type Props = {
@@ -53,6 +64,8 @@ type Props = {
   showFormatting?: boolean;
   /** Mostra chips de emojis rápidos. */
   showEmojis?: boolean;
+  /** Mostra o editor de botões de resposta rápida (até 3, ~20 caracteres). */
+  showButtons?: boolean;
 };
 
 const QUICK_EMOJIS = ["👋", "🙏", "✅", "❤️", "🎉", "📣", "🗳️", "🔗", "📍", "⏰", "😀", "👍", "🔥"];
@@ -79,6 +92,7 @@ export function MessageComposer({
   variables = COMPOSER_VARIABLES,
   showFormatting = true,
   showEmojis = true,
+  showButtons = true,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const signUpload = useServerFn(signCampaignMediaUpload);
@@ -191,6 +205,22 @@ export function MessageComposer({
     value.media_path && value.media_mime
       ? { filename: value.media_filename ?? value.media_path, mime: value.media_mime }
       : null;
+  const buttons = value.buttons ?? [];
+  const hasAttachment = Boolean(attachment);
+
+  function addButton() {
+    if (buttons.length >= MAX_BUTTONS) return;
+    onChange({ ...value, buttons: [...buttons, { type: "QUICK_REPLY", text: "" }] });
+  }
+  function updateButton(idx: number, text: string) {
+    onChange({
+      ...value,
+      buttons: buttons.map((b, i) => (i === idx ? { ...b, text: text.slice(0, MAX_BUTTON_CHARS) } : b)),
+    });
+  }
+  function removeButton(idx: number) {
+    onChange({ ...value, buttons: buttons.filter((_, i) => i !== idx) });
+  }
 
   return (
     <div className="space-y-3">
@@ -270,7 +300,11 @@ export function MessageComposer({
           {showAttachment && (
             <div>
               <label className="text-xs font-medium">Anexo (PNG/JPG/WEBP ou PDF, até 8MB)</label>
-              {value.media_path ? (
+              {buttons.length > 0 ? (
+                <p className="mt-1 text-[11px] text-muted-foreground border border-dashed rounded-md px-3 py-2">
+                  Indisponível com botões configurados — mensagem com botões não aceita anexo.
+                </p>
+              ) : value.media_path ? (
                 <div className="mt-1 flex items-center gap-2 rounded-md border px-3 py-2 text-xs bg-muted/30">
                   <Paperclip className="h-3.5 w-3.5" />
                   <span className="flex-1 truncate">{value.media_filename ?? value.media_path}</span>
@@ -309,6 +343,50 @@ export function MessageComposer({
         </div>
       )}
 
+      {showButtons && (
+        <div>
+          <label className="text-xs font-medium flex items-center gap-1">
+            <MousePointerClick className="h-3.5 w-3.5" /> Botões de resposta rápida (opcional)
+          </label>
+          {hasAttachment ? (
+            <p className="mt-1 text-[11px] text-muted-foreground border border-dashed rounded-md px-3 py-2">
+              Indisponível com anexo configurado — mensagem com anexo não aceita botões.
+            </p>
+          ) : (
+            <div className="mt-1 space-y-1.5">
+              {buttons.map((b, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    value={b.text}
+                    onChange={(e) => updateButton(idx, e.target.value)}
+                    placeholder={`Botão ${idx + 1} (até ${MAX_BUTTON_CHARS} caracteres)`}
+                    maxLength={MAX_BUTTON_CHARS}
+                    className="flex-1 rounded-md border px-3 py-1.5 text-sm bg-background"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeButton(idx)}
+                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
+                    title="Remover botão"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              {buttons.length < MAX_BUTTONS && (
+                <button
+                  type="button"
+                  onClick={addButton}
+                  className="inline-flex items-center gap-1 text-[11px] rounded-md border border-dashed px-2 py-1 text-muted-foreground hover:bg-muted/40"
+                >
+                  <Plus className="h-3 w-3" /> Adicionar botão
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {showPreview && (
         <div>
           <div className="text-[10px] font-medium text-muted-foreground uppercase mb-1.5">
@@ -320,6 +398,7 @@ export function MessageComposer({
               linkPreview={linkPreview}
               linkLoading={linkLoading}
               attachment={attachment}
+              buttons={hasAttachment ? [] : buttons}
             />
           </div>
         </div>

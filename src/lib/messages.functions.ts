@@ -3,6 +3,15 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireStaff } from "@/lib/authz";
 
+// Mesmo formato de botão do modelo Meta (TemplateButton em whatsapp-templates.functions.ts),
+// mas restrito a QUICK_REPLY: mensagem de texto livre só pode enviar botões via
+// mensagem interativa do tipo "reply" (whatsappCloud.sendButtons) — URL/PHONE_NUMBER
+// só existem no componente BUTTONS de um template aprovado pela Meta.
+const messageButtonSchema = z.object({
+  type: z.literal("QUICK_REPLY"),
+  text: z.string().trim().min(1).max(20),
+});
+
 const templateSchema = z.object({
   id: z.string().uuid().optional(),
   kind: z.enum(["system", "quick_reply"]),
@@ -20,6 +29,7 @@ const templateSchema = z.object({
   media_path: z.string().trim().max(500).optional().nullable(),
   media_mime: z.string().trim().max(120).optional().nullable(),
   media_filename: z.string().trim().max(200).optional().nullable(),
+  buttons: z.array(messageButtonSchema).max(3, "No máximo 3 botões.").default([]),
   active: z.boolean().default(true),
 });
 
@@ -56,6 +66,7 @@ export const upsertMessageTemplate = createServerFn({ method: "POST" })
       media_path: data.media_path || null,
       media_mime: data.media_mime || null,
       media_filename: data.media_filename || null,
+      buttons: data.buttons,
       active: data.active,
       updated_by: context.userId,
     };
@@ -93,7 +104,7 @@ export const duplicateMessageTemplate = createServerFn({ method: "POST" })
     const s = src as {
       kind: "system" | "quick_reply"; event_key: string | null; shortcut: string | null;
       title: string; category: string | null; body: string; variables: unknown;
-      link: string | null; media_url: string | null;
+      link: string | null; media_url: string | null; buttons: unknown;
     };
     const { data: row, error } = await context.supabase
       .from("message_templates").insert({
@@ -107,6 +118,7 @@ export const duplicateMessageTemplate = createServerFn({ method: "POST" })
         variables: (s.variables ?? []) as never,
         link: s.link,
         media_url: s.media_url,
+        buttons: (s.buttons ?? []) as never,
         active: false,
         created_by: context.userId,
         updated_by: context.userId,
@@ -128,7 +140,7 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tpl, error } = await supabaseAdmin
       .from("message_templates")
-      .select("body, link, link_title, link_description, link_image, media_path, media_mime, media_filename")
+      .select("body, link, link_title, link_description, link_image, media_path, media_mime, media_filename, buttons")
       .eq("id", data.templateId).single();
     if (error || !tpl) throw new Error("Template não encontrado");
     const { data: norm } = await supabaseAdmin.rpc("normalize_phone_br", { input: data.phone });
@@ -177,6 +189,14 @@ export const sendTestTemplate = createServerFn({ method: "POST" })
       renderOptions: { unknownAsEmpty: true },
       link: linkMeta,
       attachment,
+      buttons: Array.isArray(tpl.buttons)
+        ? tpl.buttons
+            .filter(
+              (b): b is { text: string } =>
+                b !== null && typeof b === "object" && !Array.isArray(b) && "text" in b,
+            )
+            .map((b) => ({ text: String(b.text) }))
+        : [],
       useSendLink,
       origin: "template_test",
       skipValidations: true,

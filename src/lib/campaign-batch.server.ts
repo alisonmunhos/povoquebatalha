@@ -251,6 +251,28 @@ export async function processCampaignBatchShared(
     }
   }
 
+  // Botões da mensagem salva (message_templates) usada como origem da campanha
+  // — só se aplica ao envio dentro da janela de 24h (texto livre); fora dela
+  // quem envia é o template oficial aprovado acima, que já tem seus próprios
+  // botões embutidos no componente BUTTONS enviado pela Meta.
+  let templateButtons: { text: string }[] = [];
+  if (c.template_id) {
+    const { data: tpl } = await db
+      .from("message_templates")
+      .select("buttons")
+      .eq("id", c.template_id)
+      .maybeSingle();
+    const raw = tpl?.buttons;
+    if (Array.isArray(raw)) {
+      templateButtons = raw
+        .filter(
+          (b): b is { type: string; text: string } =>
+            b !== null && typeof b === "object" && !Array.isArray(b) && "text" in b,
+        )
+        .map((b) => ({ text: String(b.text) }));
+    }
+  }
+
   for (const r of recs) {
     const { data: cur } = await db.from("campaigns").select("status").eq("id", campaignId).single();
     if (!cur || cur.status !== "running") break;
@@ -301,6 +323,7 @@ export async function processCampaignBatchShared(
         textAlreadyRendered: true,
         link: linkMeta,
         attachment,
+        buttons: templateButtons,
         origin: "campaign",
         useSendLink: opts.useSendLink,
         skipValidations: true, // já validamos acima com o skip específico da campanha

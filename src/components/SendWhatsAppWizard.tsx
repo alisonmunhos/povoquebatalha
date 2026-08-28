@@ -326,6 +326,9 @@ export function SendWhatsAppWizard({ open, onOpenChange, source, labelSelecao }:
               onChange={handleComposerChange}
               variables={MESSAGE_VARIABLES}
               showAttachment={false}
+              // Botões vivem na mensagem salva (message_templates), não num rascunho
+              // de campanha avulso — não há coluna pra persistir isso aqui.
+              showButtons={false}
               bodyRows={8}
               bodyPlaceholder="Digite a mensagem. Use {{primeiro_nome}}, {{cidade}}, {{link_atualizacao}}…"
             />

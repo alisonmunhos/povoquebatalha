@@ -2465,6 +2465,7 @@ export type Database = {
           active: boolean
           archived_at: string | null
           body: string
+          buttons: Json
           category: string | null
           created_at: string
           created_by: string | null
@@ -2489,6 +2490,7 @@ export type Database = {
           active?: boolean
           archived_at?: string | null
           body: string
+          buttons?: Json
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -2513,6 +2515,7 @@ export type Database = {
           active?: boolean
           archived_at?: string | null
           body?: string
+          buttons?: Json
           category?: string | null
           created_at?: string
           created_by?: string | null
