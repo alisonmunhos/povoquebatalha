@@ -5,7 +5,7 @@ import { useAuth, useRoles } from "@/hooks/use-auth";
 import { useInboxAccessFlag } from "@/hooks/use-inbox-access";
 import { getMyCommunicationBadge } from "@/lib/communication.functions";
 import {
-  Inbox, Users, Send, MessageSquareText, Calendar, Heart, MessageCircle, FileCheck2,
+  Inbox, Users, Send, MessageSquareText, Calendar, Heart, MessageCircle,
 } from "lucide-react";
 
 type Tab = { to: string; label: string; icon: typeof Inbox; adminOnly?: boolean; staffOnly?: boolean };
@@ -14,10 +14,11 @@ const TABS: Tab[] = [
   { to: "/comunicacao/inbox", label: "Inbox", icon: Inbox },
   { to: "/comunicacao/contatos", label: "Contatos", icon: Users },
   { to: "/campanhas", label: "Campanhas", staffOnly: true, icon: Send },
+  // Templates oficiais (Meta) viraram uma aba dentro de Mensagens — ver
+  // /mensagens?tab=templates — em vez de item próprio de navegação.
   { to: "/mensagens", label: "Mensagens", staffOnly: true, icon: MessageSquareText },
   { to: "/calendario", label: "Calendário", staffOnly: true, icon: Calendar },
   { to: "/relacionamento", label: "Relacionamento", staffOnly: true, icon: Heart },
-  { to: "/comunicacao/templates", label: "Templates", icon: FileCheck2, adminOnly: true },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
 ];
 

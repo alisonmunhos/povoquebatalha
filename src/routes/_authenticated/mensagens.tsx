@@ -10,9 +10,11 @@ import {
   retryAutomationDelivery, triggerAutomationForContact,
 } from "@/lib/messages.functions";
 import { listFormDefinitions } from "@/lib/form-definitions.functions";
-import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
+import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info, FileCheck2 } from "lucide-react";
 import { toast } from "sonner";
 import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue, type ComposerButton } from "@/components/MessageComposer";
+import { WhatsappTemplatesPanel } from "@/components/WhatsappTemplatesPanel";
+import { useAuth, useRoles } from "@/hooks/use-auth";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +25,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
+type MensagensTab = "system" | "quick_reply" | "automations" | "templates";
+const MENSAGENS_TABS: MensagensTab[] = ["system", "quick_reply", "automations", "templates"];
+
 export const Route = createFileRoute("/_authenticated/mensagens")({
+  // Permite deep-link direto pra uma aba (ex.: /mensagens?tab=templates,
+  // usado pelo redirect da antiga rota /comunicacao/templates).
+  validateSearch: (search: Record<string, unknown>): { tab?: MensagensTab } =>
+    typeof search.tab === "string" && (MENSAGENS_TABS as string[]).includes(search.tab)
+      ? { tab: search.tab as MensagensTab }
+      : {},
   head: () => ({ meta: [{ title: "Mensagens e automações" }] }),
   component: MensagensPage,
 });
@@ -51,7 +62,17 @@ const CATEGORIAS_QR = [
 const VARIAVEIS = [...COMPOSER_VARIABLES];
 
 function MensagensPage() {
-  const [tab, setTab] = useState<"system" | "quick_reply" | "automations">("system");
+  const { user } = useAuth();
+  const roles = useRoles(user?.id) ?? [];
+  const isAdmin = roles.includes("admin");
+  const { tab: tabFromUrl } = Route.useSearch();
+  const [tab, setTab] = useState<MensagensTab>(tabFromUrl ?? "system");
+  // "templates" (modelos aprovados pela Meta) era admin-only na navegação antiga
+  // (/comunicacao/templates) — mantém a mesma restrição aqui. Deriva em vez de
+  // decidir só no useState inicial porque isAdmin resolve de forma assíncrona
+  // (useRoles) — assim um admin chegando via /mensagens?tab=templates ainda
+  // cai na aba certa assim que o papel carregar.
+  const effectiveTab: MensagensTab = tab === "templates" && !isAdmin ? "system" : tab;
   return (
     <div className="p-6 md:p-10 max-w-6xl">
     <div className="-mx-6 md:-mx-10 -mt-6 md:-mt-10 mb-6"><CommunicationTabs /></div>
@@ -73,13 +94,17 @@ function MensagensPage() {
         </div>
       </div>
       <div className="border-b mb-4 flex gap-1">
-        <TabBtn active={tab === "system"} onClick={() => setTab("system")} icon={<Zap className="h-4 w-4" />}>Mensagens do sistema</TabBtn>
-        <TabBtn active={tab === "quick_reply"} onClick={() => setTab("quick_reply")} icon={<Reply className="h-4 w-4" />}>Respostas prontas</TabBtn>
-        <TabBtn active={tab === "automations"} onClick={() => setTab("automations")} icon={<Send className="h-4 w-4" />}>Automações</TabBtn>
+        <TabBtn active={effectiveTab === "system"} onClick={() => setTab("system")} icon={<Zap className="h-4 w-4" />}>Mensagens do sistema</TabBtn>
+        <TabBtn active={effectiveTab === "quick_reply"} onClick={() => setTab("quick_reply")} icon={<Reply className="h-4 w-4" />}>Respostas prontas</TabBtn>
+        <TabBtn active={effectiveTab === "automations"} onClick={() => setTab("automations")} icon={<Send className="h-4 w-4" />}>Automações</TabBtn>
+        {isAdmin && (
+          <TabBtn active={effectiveTab === "templates"} onClick={() => setTab("templates")} icon={<FileCheck2 className="h-4 w-4" />}>Templates oficiais</TabBtn>
+        )}
       </div>
-      {tab === "system" && <TemplatesList kind="system" />}
-      {tab === "quick_reply" && <TemplatesList kind="quick_reply" />}
-      {tab === "automations" && <AutomationsPanel />}
+      {effectiveTab === "system" && <TemplatesList kind="system" />}
+      {effectiveTab === "quick_reply" && <TemplatesList kind="quick_reply" />}
+      {effectiveTab === "automations" && <AutomationsPanel />}
+      {effectiveTab === "templates" && <WhatsappTemplatesPanel />}
     </div>
   );
 }
