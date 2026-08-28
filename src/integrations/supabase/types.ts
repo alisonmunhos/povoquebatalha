@@ -2312,6 +2312,7 @@ export type Database = {
           latitude: number | null
           location_name: string | null
           longitude: number | null
+          media_download_failed_at: string | null
           media_filename: string | null
           media_mime: string | null
           media_path: string | null
@@ -2341,6 +2342,7 @@ export type Database = {
           latitude?: number | null
           location_name?: string | null
           longitude?: number | null
+          media_download_failed_at?: string | null
           media_filename?: string | null
           media_mime?: string | null
           media_path?: string | null
@@ -2370,6 +2372,7 @@ export type Database = {
           latitude?: number | null
           location_name?: string | null
           longitude?: number | null
+          media_download_failed_at?: string | null
           media_filename?: string | null
           media_mime?: string | null
           media_path?: string | null
