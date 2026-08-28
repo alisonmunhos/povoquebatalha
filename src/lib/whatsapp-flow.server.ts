@@ -11,6 +11,9 @@
 import type { FormCatalogOption } from "@/lib/form-field-catalog";
 import { getCatalogField } from "@/lib/form-field-catalog";
 import type { FormQuestionRow } from "@/lib/public-form-contact.server";
+import { windowState } from "@/lib/inbox-window";
+import { buildVarValues } from "@/lib/wa-send.server";
+import { extractNamedVars } from "@/lib/whatsapp-templates.functions";
 import {
   FLOW_CANCEL_WORDS,
   FLOW_DEFAULT_PATH,
@@ -143,6 +146,162 @@ async function sendFlowMessage(
   }
 
   return { waId };
+}
+
+/** Substitui {{var}} pelos valores resolvidos — mesmo padrão de
+ * automations.server.ts::previewTemplateBody (não exportado de lá, replicado
+ * aqui pra não criar acoplamento entre módulos por uma função de 3 linhas). */
+function previewTemplateBody(bodyText: string, params: Record<string, string>): string {
+  return bodyText.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(params, k) ? params[k] : m,
+  );
+}
+
+/**
+ * Envia a mensagem de abertura de um fluxo a partir do template aprovado
+ * vinculado ao fluxo (`whatsapp_template_id`). Dentro da janela de 24h replica
+ * o texto do template como mensagem livre (via sendFlowMessage, que já grava
+ * o histórico); fora da janela envia de fato pelo template aprovado da Meta
+ * (só ele reabre a conversa nesse caso). Sem template configurado, ou o
+ * template configurado não está mais aprovado/em formato nomeado, pula o
+ * envio e grava o motivo em direct_messages (status "pulado") — mesmo padrão
+ * de "pular e logar" das automações (automations.server.ts::trySendViaApprovedTemplate),
+ * adaptado pra tabela de histórico dos fluxos (não existe um `flow_deliveries`
+ * separado). Quem chama não precisa reagir além de `waId` — o fluxo segue pra
+ * 1ª pergunta de todo jeito.
+ */
+async function sendFlowOpening(
+  admin: Admin,
+  args: { phone: string; contactId: string | null; flow: Pick<Flow, "whatsapp_template_id"> },
+): Promise<{ waId: string | null }> {
+  const { phone, contactId, flow } = args;
+
+  const logSkip = async (erro: string) => {
+    try {
+      await admin.from("direct_messages").insert({
+        contact_id: contactId,
+        to_phone: contactId ? null : phone,
+        sent_by: null,
+        origem: "outro",
+        conteudo: "",
+        status: "pulado",
+        erro,
+        message_id: null,
+        endpoint_used: "whatsapp-flow-template",
+      });
+    } catch {
+      /* histórico não pode derrubar o fluxo */
+    }
+  };
+
+  if (!flow.whatsapp_template_id) {
+    await logSkip("Sem template configurado para a abertura do fluxo");
+    return { waId: null };
+  }
+
+  const { data: tpl } = await admin
+    .from("whatsapp_templates")
+    .select("name,language,body_text,header_type,header_text")
+    .eq("id", flow.whatsapp_template_id)
+    .eq("status", "approved")
+    .eq("parameter_format", "named")
+    .maybeSingle();
+  if (!tpl) {
+    await logSkip("Template configurado não está mais aprovado (ou não é de parâmetros nomeados)");
+    return { waId: null };
+  }
+
+  // Contato pode ainda não existir (gatilho por anúncio/1º contato dispara
+  // antes do cadastro) — {{nome}}/{{cidade}}/{{bairro}} resolvem vazio nesse
+  // caso (buildVarValues trata undefined como ""), e sem conversation row
+  // windowState cai em "fora da janela" (comportamento correto: sem contato
+  // não há como estar dentro da janela).
+  let contact: {
+    nome?: string | null;
+    nome_social?: string | null;
+    cidade?: string | null;
+    bairro?: string | null;
+    uf?: string | null;
+    phone_e164?: string | null;
+    recad_token?: string | null;
+  } = { phone_e164: phone };
+  let lastInboundAt: string | null = null;
+  if (contactId) {
+    const [{ data: c }, { data: conv }] = await Promise.all([
+      admin
+        .from("contacts")
+        .select("nome,nome_social,cidade,bairro,uf,recad_token")
+        .eq("id", contactId)
+        .maybeSingle(),
+      admin
+        .from("conversations")
+        .select("last_inbound_at")
+        .eq("contact_id", contactId)
+        .maybeSingle(),
+    ]);
+    if (c) contact = c;
+    lastInboundAt = conv?.last_inbound_at ?? null;
+  }
+  const inWindow = windowState(lastInboundAt).open;
+
+  const values = buildVarValues(contact);
+  const bodyVars = extractNamedVars(tpl.body_text);
+  const bodyParams: Record<string, string> = {};
+  for (const name of bodyVars) bodyParams[name] = values[name] ?? "";
+  const rendered = previewTemplateBody(tpl.body_text, bodyParams);
+
+  if (inWindow) {
+    // Dentro da janela: replica o texto do template como mensagem livre.
+    // sendFlowMessage já cuida do envio + histórico em direct_messages.
+    return sendFlowMessage(admin, { phone, contactId, body: rendered });
+  }
+
+  // Fora da janela: só o template aprovado de verdade reabre a conversa.
+  const headerVar =
+    tpl.header_type === "TEXT" && tpl.header_text
+      ? extractNamedVars(tpl.header_text)[0]
+      : undefined;
+  const headerParam = headerVar ? { name: headerVar, value: values[headerVar] ?? "" } : undefined;
+  const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
+  try {
+    const res = await whatsappCloud.sendTemplate(
+      phone,
+      tpl.name,
+      tpl.language,
+      bodyParams,
+      headerParam,
+    );
+    await admin.from("direct_messages").insert({
+      contact_id: contactId,
+      to_phone: contactId ? null : phone,
+      sent_by: null,
+      origem: "outro",
+      conteudo: rendered,
+      status: "enviado",
+      erro: null,
+      message_id: res.messageId,
+      endpoint_used: "whatsapp-flow-template",
+    });
+    return { waId: res.waId };
+  } catch (e) {
+    const erro = e instanceof Error ? e.message : String(e);
+    try {
+      await admin.from("direct_messages").insert({
+        contact_id: contactId,
+        to_phone: contactId ? null : phone,
+        sent_by: null,
+        origem: "outro",
+        conteudo: rendered,
+        status: "erro",
+        erro,
+        message_id: null,
+        endpoint_used: "whatsapp-flow-template",
+      });
+    } catch {
+      /* histórico não pode derrubar o fluxo */
+    }
+    return { waId: null };
+  }
 }
 
 /** Liga sessão e mensagens do robô ao contato assim que ele passa a existir. */
@@ -613,10 +772,10 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
   const session = created as SessionRow | null;
   if (!session) return false;
 
-  await sendFlowMessage(admin, {
+  await sendFlowOpening(admin, {
     phone,
     contactId: input.contactId,
-    body: chosen.flow.opening_message,
+    flow: chosen.flow,
   });
   await askStep(admin, session, first, input.contactId);
 
@@ -625,8 +784,10 @@ async function maybeStartFlow(input: FlowInboundInput): Promise<boolean> {
 
 /**
  * Início manual de um fluxo (teste ou disparo pela equipe): encerra sessões
- * abertas do número, cria uma nova e manda abertura + 1ª pergunta.
- * Só funciona dentro da janela de 24h da Meta (a pessoa precisa ter falado antes).
+ * abertas do número, cria uma nova e manda abertura + 1ª pergunta. A abertura
+ * usa `sendFlowOpening` (template aprovado do fluxo), que já lida com estar
+ * dentro ou fora da janela de 24h — não é mais preciso que a pessoa tenha
+ * falado antes, desde que o fluxo tenha um template configurado.
  */
 export async function startFlowManually(args: {
   admin: Admin;
@@ -656,7 +817,7 @@ export async function startFlowManually(args: {
 
   // A abertura vai primeiro porque a Meta devolve o número real do WhatsApp
   // (wa_id) — é ele que a sessão guarda, pra casar com as respostas recebidas.
-  const opening = await sendFlowMessage(admin, { phone, contactId, body: flow.opening_message });
+  const opening = await sendFlowOpening(admin, { phone, contactId, flow });
   const canonicalPhone = opening.waId && last8(opening.waId) === last8(phone) ? opening.waId : phone;
 
   const { data: created } = await admin

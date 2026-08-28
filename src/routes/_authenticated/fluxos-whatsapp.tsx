@@ -37,6 +37,8 @@ import {
   setWhatsappFlowActive,
   startWhatsappFlowManually,
 } from "@/lib/whatsapp-flows.functions";
+import { listWhatsappTemplates } from "@/lib/whatsapp-templates.functions";
+import { TemplateBodyPreview } from "@/components/TemplateBodyPreview";
 import {
   DEFAULT_FLOW_STEPS,
   FLOW_AVAILABLE_FIELDS,
@@ -90,6 +92,7 @@ type FlowDraft = {
   trigger_on_ad: boolean;
   trigger_ad_ids: string[];
   trigger_on_first_contact: boolean;
+  whatsapp_template_id: string | null;
   steps: StepDraft[];
 };
 
@@ -107,6 +110,7 @@ function baseDraft(steps: StepDraft[]): FlowDraft {
     trigger_on_ad: true,
     trigger_ad_ids: [],
     trigger_on_first_contact: false,
+    whatsapp_template_id: null,
     steps,
   };
 }
@@ -157,15 +161,12 @@ function FluxosWhatsappPage() {
         `Fluxo enviado para ${(r as { phone?: string }).phone ?? "o número"}. Confira o WhatsApp.`,
       ),
     onError: (e: Error) =>
-      toast.error(
-        e.message ||
-          "Não foi possível iniciar o fluxo. Lembre-se: a pessoa precisa ter mandado mensagem para o número da campanha nas últimas 24 horas.",
-      ),
+      toast.error(e.message || "Não foi possível iniciar o fluxo."),
   });
 
   const askPhoneAndStart = (flowId: string) => {
     const phone = window.prompt(
-      "Digite o WhatsApp (com DDD) que vai receber o fluxo agora.\n\nImportante: esse número precisa ter mandado alguma mensagem para o número da campanha nas últimas 24 horas.",
+      "Digite o WhatsApp (com DDD) que vai receber o fluxo agora.\n\nSe esse número não falou com a gente nas últimas 24 horas, a abertura só chega se o fluxo tiver um template aprovado configurado — sem template, ela é pulada e vai direto para a 1ª pergunta.",
       "",
     );
     if (!phone?.trim()) return;
@@ -173,6 +174,15 @@ function FluxosWhatsappPage() {
   };
 
   const { data, isLoading } = useQuery({ queryKey: ["whatsapp-flows"], queryFn: () => load() });
+
+  const waTemplatesFn = useServerFn(listWhatsappTemplates);
+  const waTemplatesQ = useQuery({
+    queryKey: ["whatsapp-templates"],
+    queryFn: () => waTemplatesFn(),
+  });
+  const approvedTemplates = (waTemplatesQ.data?.templates ?? []).filter(
+    (t) => t.status === "approved" && t.parameter_format === "named",
+  );
 
   const [draft, setDraft] = useState<FlowDraft | null>(null);
   const [keywordText, setKeywordText] = useState("");
@@ -542,6 +552,7 @@ function FluxosWhatsappPage() {
                           trigger_on_ad: flow.trigger_on_ad,
                           trigger_ad_ids: flow.trigger_ad_ids ?? [],
                           trigger_on_first_contact: flow.trigger_on_first_contact,
+                          whatsapp_template_id: flow.whatsapp_template_id,
                           steps,
                         })
                       }
@@ -663,6 +674,53 @@ function FluxosWhatsappPage() {
                     onChange={(e) => setDraft({ ...draft, closing_message: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  A "Mensagem de abertura" acima é só referência interna — a abertura de verdade é
+                  sempre baseada no template escolhido abaixo (dentro da janela de 24h ele é enviado
+                  como texto livre; fora dela, via template aprovado de verdade).
+                </p>
+                <Label htmlFor="flow-abertura-template" className="pt-1">
+                  Template aprovado para a abertura
+                </Label>
+                <select
+                  id="flow-abertura-template"
+                  value={draft.whatsapp_template_id ?? ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, whatsapp_template_id: e.target.value || null })
+                  }
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">— Nenhum (a abertura fica pulada até escolher um) —</option>
+                  {approvedTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                {(() => {
+                  const selectedOpeningTemplate = approvedTemplates.find(
+                    (t) => t.id === draft.whatsapp_template_id,
+                  );
+                  return selectedOpeningTemplate ? (
+                    <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                        Prévia do template selecionado
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap">
+                        <TemplateBodyPreview text={selectedOpeningTemplate.body_text} />
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
+                {!draft.whatsapp_template_id && (
+                  <p className="text-xs text-amber-600">
+                    Sem template escolhido, o fluxo pula o envio da abertura e vai direto para a
+                    primeira pergunta.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-3 rounded-lg border-2 p-3">
