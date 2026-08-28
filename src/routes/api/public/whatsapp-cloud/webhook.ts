@@ -180,28 +180,35 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                   }
                 }
 
-                await supabaseAdmin.from("inbound_messages").insert({
-                  from_phone: from,
-                  from_name: contactName,
-                  conteudo: parsed.conteudo,
-                  tipo: parsed.tipo,
-                  payload: message as never,
-                  contact_id: contactId,
-                  media_url: null,
-                  media_path: mediaPath,
-                  media_mime: mediaMime,
-                  media_filename: mediaFilename,
-                  media_size: mediaSize,
-                  wa_message_id: parsed.wa_message_id,
-                  reply_to_wa_id: parsed.reply_to_wa_id,
-                  reaction_emoji: parsed.reaction_emoji,
-                  reaction_target_wa_id: parsed.reaction_target_wa_id,
-                  latitude: parsed.latitude,
-                  longitude: parsed.longitude,
-                  location_name: parsed.location_name,
-                  shared_contacts: (parsed.shared_contacts ?? null) as never,
-                  is_system_event: parsed.is_system_event,
-                });
+                // A Meta reenvia o mesmo webhook em caso de timeout — upsert por
+                // wa_message_id (constraint única no banco) evita duplicar a
+                // mensagem no Inbox; se já existir, ignora silenciosamente e
+                // segue processando o resto do payload normalmente.
+                await supabaseAdmin.from("inbound_messages").upsert(
+                  {
+                    from_phone: from,
+                    from_name: contactName,
+                    conteudo: parsed.conteudo,
+                    tipo: parsed.tipo,
+                    payload: message as never,
+                    contact_id: contactId,
+                    media_url: null,
+                    media_path: mediaPath,
+                    media_mime: mediaMime,
+                    media_filename: mediaFilename,
+                    media_size: mediaSize,
+                    wa_message_id: parsed.wa_message_id,
+                    reply_to_wa_id: parsed.reply_to_wa_id,
+                    reaction_emoji: parsed.reaction_emoji,
+                    reaction_target_wa_id: parsed.reaction_target_wa_id,
+                    latitude: parsed.latitude,
+                    longitude: parsed.longitude,
+                    location_name: parsed.location_name,
+                    shared_contacts: (parsed.shared_contacts ?? null) as never,
+                    is_system_event: parsed.is_system_event,
+                  },
+                  { onConflict: "wa_message_id", ignoreDuplicates: true },
+                );
 
                 if (text && contactId) {
                   const norm = text.trim().toLowerCase();
