@@ -389,6 +389,10 @@ const confirmationSchema = z.object({
   link: z.string().trim().max(500).nullable().optional(),
   active: z.boolean().default(true),
   require_consent: z.boolean().default(true),
+  // Template aprovado pela Meta (opcional) — usado só fora da janela de 24h,
+  // quando a Meta exige um template pra reabrir a conversa (ver automations.server.ts).
+  // Dentro da janela o texto livre acima continua sendo usado, sem mudança.
+  whatsapp_template_id: z.string().uuid().nullable().optional(),
 });
 
 /** Configura a mensagem de confirmação, reaproveitando message_templates/automations
@@ -445,6 +449,7 @@ export const saveFormConfirmationMessage = createServerFn({ method: "POST" })
       template_id: templateId,
       active: data.active,
       require_consent: data.require_consent,
+      whatsapp_template_id: data.whatsapp_template_id ?? null,
       updated_by: context.userId,
     };
     if (existingAuto) {

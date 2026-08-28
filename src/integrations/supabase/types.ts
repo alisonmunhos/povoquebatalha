@@ -486,6 +486,7 @@ export type Database = {
           template_id: string
           updated_at: string
           updated_by: string | null
+          whatsapp_template_id: string | null
         }
         Insert: {
           active?: boolean
@@ -499,6 +500,7 @@ export type Database = {
           template_id: string
           updated_at?: string
           updated_by?: string | null
+          whatsapp_template_id?: string | null
         }
         Update: {
           active?: boolean
@@ -512,6 +514,7 @@ export type Database = {
           template_id?: string
           updated_at?: string
           updated_by?: string | null
+          whatsapp_template_id?: string | null
         }
         Relationships: [
           {
@@ -519,6 +522,13 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_whatsapp_template_id_fkey"
+            columns: ["whatsapp_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
             referencedColumns: ["id"]
           },
         ]
