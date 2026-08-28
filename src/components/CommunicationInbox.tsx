@@ -617,6 +617,7 @@ export function CommunicationInbox() {
         origem: string; erro?: string | null; delivered_at?: string | null; read_at?: string | null;
         failed_at?: string | null; media_path?: string | null; media_mime?: string | null;
         media_filename?: string | null; message_id?: string | null; endpoint_used?: string | null;
+        link_url?: string | null; link_title?: string | null; link_description?: string | null; link_image?: string | null;
       };
       const isFlowBot = row.endpoint_used === "whatsapp-flow";
       t.push({
@@ -630,6 +631,10 @@ export function CommunicationInbox() {
         wa_id: row.message_id ?? null,
         receipt: receiptFrom(row),
         error: row.erro ?? null,
+        link_url: row.link_url ?? null,
+        link_title: row.link_title ?? null,
+        link_description: row.link_description ?? null,
+        link_image: row.link_image ?? null,
       });
     }
     for (const m of convQ.data?.campaign ?? []) t.push({
@@ -637,6 +642,10 @@ export function CommunicationInbox() {
       meta: `campanha · ${m.campaign_name ?? ""}`,
       header_type: m.header_type,
       header_text: m.header_text,
+      link_url: m.link_url ?? null,
+      link_title: m.link_title ?? null,
+      link_description: m.link_description ?? null,
+      link_image: m.link_image ?? null,
       buttons: m.buttons,
       isTemplate: (m.buttons?.length ?? 0) > 0 || m.header_type != null,
       wa_id: (m as { message_id?: string | null }).message_id ?? null,

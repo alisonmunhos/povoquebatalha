@@ -21,6 +21,10 @@ export type InboxMsg = {
   header_type?: string | null;
   header_text?: string | null;
   buttons?: TemplateButton[];
+  link_url?: string | null;
+  link_title?: string | null;
+  link_description?: string | null;
+  link_image?: string | null;
   wa_id?: string | null;
   reactions?: string[];
   location?: { lat: number; lng: number; name: string | null } | null;
