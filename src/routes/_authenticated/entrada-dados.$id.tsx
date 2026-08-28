@@ -13,6 +13,9 @@ import { CatalogOptionsPreview } from "@/components/form-builder/CatalogOptionsP
 import CatalogFieldPicker from "@/components/form-builder/CatalogFieldPicker";
 import { FormHeaderImageUpload, emptyFormHeaderImage, type FormHeaderImage } from "@/components/form-builder/FormHeaderImageUpload";
 import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
+import { listWhatsappTemplates } from "@/lib/whatsapp-templates.functions";
+import { TemplateBodyPreview } from "@/components/TemplateBodyPreview";
+import { Badge } from "@/components/ui/badge";
 
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -41,8 +44,10 @@ function FormBuilder() {
   const upsertQuestionsFn = useServerFn(upsertFormQuestions);
   const saveConfirmationFn = useServerFn(saveFormConfirmationMessage);
   const mintLinkFn = useServerFn(mintFormTrackedLink);
+  const waTemplatesFn = useServerFn(listWhatsappTemplates);
 
   const q = useQuery({ queryKey: ["form-definition", id], queryFn: () => getFn({ data: { id } }) });
+  const waTemplatesQ = useQuery({ queryKey: ["whatsapp-templates"], queryFn: () => waTemplatesFn() });
 
   const [title, setTitle] = useState("");
   const [trackingName, setTrackingName] = useState("");
@@ -51,6 +56,7 @@ function FormBuilder() {
   const [confTitle, setConfTitle] = useState("");
   const [confBody, setConfBody] = useState("");
   const [confActive, setConfActive] = useState(true);
+  const [confWhatsappTemplateId, setConfWhatsappTemplateId] = useState("");
   const [waEnabled, setWaEnabled] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [waMessage, setWaMessage] = useState("");
@@ -91,10 +97,11 @@ function FormBuilder() {
     setCoreQuestions((q.data.questions ?? []).filter((row) => coreKeys.has(row.catalog_field_key as string)).map(toDraft));
     setQuestions((q.data.questions ?? []).filter((row) => !coreKeys.has(row.catalog_field_key as string)).map(toDraft));
     const tpl = q.data.template as { title?: string; body?: string } | null;
-    const auto = q.data.automation as { active?: boolean } | null;
+    const auto = q.data.automation as { active?: boolean; whatsapp_template_id?: string | null } | null;
     setConfTitle(tpl?.title ?? "Confirmação");
     setConfBody(tpl?.body ?? "Olá, {{primeiro_nome}}! Recebemos suas informações. Obrigado!");
     setConfActive(auto ? Boolean(auto.active) : true);
+    setConfWhatsappTemplateId(auto?.whatsapp_template_id ?? "");
     setWaEnabled(Boolean(q.data.form.whatsapp_button_enabled));
     setWaMessage((q.data.form.whatsapp_button_message as string | null) ?? "");
     setWaPhone((q.data.form.whatsapp_button_phone as string | null) ?? "+5551981951545");
@@ -110,6 +117,11 @@ function FormBuilder() {
   }, [q.data]);
 
   if (q.isLoading || !q.data) return <div className="p-10 text-muted-foreground">Carregando…</div>;
+
+  const approvedTemplates = (waTemplatesQ.data?.templates ?? []).filter(
+    (t) => t.status === "approved" && t.parameter_format === "named",
+  );
+  const selectedTemplate = approvedTemplates.find((t) => t.id === confWhatsappTemplateId) ?? null;
 
   const usedCatalogKeys = new Set([
     ...coreQuestions.map((qu) => qu.catalog_field_key).filter(Boolean) as string[],
@@ -168,7 +180,10 @@ function FormBuilder() {
         },
       });
       await saveConfirmationFn({
-        data: { form_definition_id: id, title: confTitle, body: confBody, active: confActive, require_consent: true },
+        data: {
+          form_definition_id: id, title: confTitle, body: confBody, active: confActive, require_consent: true,
+          whatsapp_template_id: confWhatsappTemplateId || null,
+        },
       });
       toast.success("Formulário salvo");
       q.refetch();
@@ -467,6 +482,40 @@ function FormBuilder() {
           <>
             <input value={confTitle} onChange={(e) => setConfTitle(e.target.value)} placeholder="Título interno" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <div>
+              <label className="text-sm font-medium">Template aprovado (opcional, para fora da janela de 24h)</label>
+              <select
+                value={confWhatsappTemplateId}
+                onChange={(e) => setConfWhatsappTemplateId(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— Nenhum (só envia dentro da janela de 24h) —</option>
+                {approvedTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                A Meta só permite reabrir a conversa fora da janela de 24h (sem mensagem recebida
+                do contato nas últimas 24h) com um template aprovado. Sem template escolhido, a
+                confirmação continua sendo pulada nesse caso — igual a hoje. Dentro da janela, o
+                texto livre acima continua sendo usado normalmente, sem mudança.
+              </p>
+              {selectedTemplate && (
+                <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Prévia do template selecionado</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    <TemplateBodyPreview text={selectedTemplate.body_text} />
+                  </p>
+                  {selectedTemplate.buttons.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedTemplate.buttons.map((b, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">{b.text}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
         <p className="text-sm font-medium pt-2">Botão &quot;Avisar no WhatsApp&quot; (padrão)</p>

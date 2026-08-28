@@ -6,9 +6,12 @@
 // é delegado a `renderVars`; `renderTemplate` permanece exportado como wrapper fino
 // apenas para não quebrar chamadas em messages.functions.ts (fase 2 unifica lá também).
 
-import { messageBlockReason } from "@/lib/contact-rules";
-import { renderVars, sendMessage, recordWhatsappSendOutcome } from "@/lib/wa-send.server";
+import { messageBlockReason, sendablePhone } from "@/lib/contact-rules";
+import { renderVars, sendMessage, recordWhatsappSendOutcome, buildVarValues } from "@/lib/wa-send.server";
 import { windowState } from "@/lib/inbox-window";
+import { extractNamedVars } from "@/lib/whatsapp-templates.functions";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 type ContactCtx = {
   id: string;
@@ -50,7 +53,7 @@ export async function triggerAutomationsForEvent(params: {
 
     const { data: automations, error: fetchErr } = await supabaseAdmin
       .from("automations")
-      .select("id,template_id,active,delay_seconds,require_consent")
+      .select("id,template_id,active,delay_seconds,require_consent,whatsapp_template_id")
       .eq("event_key", eventKey)
       .eq("active", true);
 
@@ -68,8 +71,9 @@ export async function triggerAutomationsForEvent(params: {
     // pra gente nas últimas 24h. Fora da janela a Meta aceita o envio na hora
     // (devolve um wamid) mas rejeita a entrega de verdade de forma assíncrona
     // (erro 131047), então checar aqui evita registrar "sent" indevidamente.
-    // Não há template aprovado configurado por automação hoje — pula o envio
-    // em vez de inventar um mecanismo novo de template pra esse fluxo.
+    // Quando a automação tem um template aprovado configurado (whatsapp_template_id),
+    // usa ele pra reabrir a conversa fora da janela; sem template configurado,
+    // continua pulando o envio como sempre (trySendViaApprovedTemplate abaixo).
     const { data: conv } = await supabaseAdmin
       .from("conversations")
       .select("last_inbound_at")
@@ -108,6 +112,8 @@ export async function triggerAutomationsForEvent(params: {
         continue;
       }
       if (!inWindow) {
+        const attempted = await trySendViaApprovedTemplate(supabaseAdmin, a, contact);
+        if (attempted) continue; // já gravou o resultado (sent/error) em automation_deliveries
         await supabaseAdmin.from("automation_deliveries").upsert({
           automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
           status: "skipped", error: "Fora da janela de 24h do WhatsApp (contato não escreveu recentemente)",
@@ -184,4 +190,78 @@ export async function triggerAutomationsForEvent(params: {
       error: e instanceof Error ? e.message : String(e),
     });
   }
+}
+
+/** Substitui {{nome}} pelos valores resolvidos — só pra manter um registro
+ * legível em automation_deliveries.rendered_body, não é o que de fato é
+ * enviado (a Meta usa os parâmetros nomeados do template aprovado). Mesma
+ * lógica de campaign-batch.server.ts::previewTemplateBody. */
+function previewTemplateBody(bodyText: string, params: Record<string, string>): string {
+  return bodyText.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(params, k) ? params[k] : m,
+  );
+}
+
+/**
+ * Fora da janela de 24h, tenta enviar via template aprovado configurado na
+ * automação (a.whatsapp_template_id). Devolve `false` (sem gravar nada) quando
+ * não há template configurado ou ele não está mais aprovado/utilizável — o
+ * chamador então grava o "skipped" de sempre. Devolve `true` quando de fato
+ * tentou enviar (sucesso ou falha), já com o resultado gravado em
+ * automation_deliveries — o chamador não deve gravar mais nada nesse caso.
+ */
+async function trySendViaApprovedTemplate(
+  supabaseAdmin: SupabaseClient<Database>,
+  a: { id: string; template_id: string; whatsapp_template_id: string | null },
+  contact: ContactCtx,
+): Promise<boolean> {
+  if (!a.whatsapp_template_id) return false;
+
+  const { data: tpl } = await supabaseAdmin
+    .from("whatsapp_templates")
+    .select("name,language,body_text,header_type,header_text")
+    .eq("id", a.whatsapp_template_id)
+    .eq("status", "approved")
+    .eq("parameter_format", "named")
+    .maybeSingle();
+  if (!tpl) return false;
+
+  const phone = sendablePhone(contact);
+  const values = buildVarValues(contact);
+  const bodyVars = extractNamedVars(tpl.body_text);
+  const bodyParams: Record<string, string> = {};
+  for (const name of bodyVars) bodyParams[name] = values[name] ?? "";
+  const rendered = previewTemplateBody(tpl.body_text, bodyParams);
+  const headerVar = tpl.header_type === "TEXT" && tpl.header_text ? extractNamedVars(tpl.header_text)[0] : undefined;
+  const headerParam = headerVar ? { name: headerVar, value: values[headerVar] ?? "" } : undefined;
+
+  if (!phone) {
+    // Não deveria acontecer (telefone já validado antes de chegar aqui), mas
+    // sem número não há como enviar — grava erro em vez de tentar mesmo assim.
+    await supabaseAdmin.from("automation_deliveries").upsert({
+      automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
+      status: "error", error: "Sem telefone válido para enviar via template aprovado", rendered_body: rendered,
+    }, { onConflict: "automation_id,contact_id" });
+    return true;
+  }
+
+  try {
+    const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
+    const res = await whatsappCloud.sendTemplate(phone, tpl.name, tpl.language, bodyParams, headerParam);
+    await supabaseAdmin.from("automation_deliveries").upsert({
+      automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
+      status: "sent", error: null, zapi_message_id: res.messageId, rendered_body: rendered,
+      sent_at: new Date().toISOString(),
+    }, { onConflict: "automation_id,contact_id" });
+  } catch (e) {
+    const err = e instanceof Error ? e.message : "erro desconhecido";
+    console.error("[automations] falha ao enviar via template aprovado", {
+      automationId: a.id, contactId: contact.id, whatsappTemplateId: a.whatsapp_template_id, error: err,
+    });
+    await supabaseAdmin.from("automation_deliveries").upsert({
+      automation_id: a.id, contact_id: contact.id, template_id: a.template_id,
+      status: "error", error: err, rendered_body: rendered,
+    }, { onConflict: "automation_id,contact_id" });
+  }
+  return true;
 }
