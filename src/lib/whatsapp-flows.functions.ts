@@ -7,7 +7,7 @@ import { requireAdmin, requireStaff } from "@/lib/authz";
 import { FLOW_DEFAULT_PATH } from "@/lib/whatsapp-flow-shared";
 
 const FLOW_SELECT =
-  "id,nome,descricao,opening_message,closing_message,active,priority,allow_update_existing,trigger_keywords,trigger_on_ad,trigger_ad_ids,trigger_on_first_contact,created_at,updated_at";
+  "id,nome,descricao,opening_message,closing_message,active,priority,allow_update_existing,trigger_keywords,trigger_on_ad,trigger_ad_ids,trigger_on_first_contact,whatsapp_template_id,created_at,updated_at";
 const STEP_SELECT =
   "id,flow_id,order_index,catalog_field_key,prompt,required,response_kind,options,kind,path_key,option_routes";
 
@@ -50,6 +50,7 @@ const flowInput = z.object({
   trigger_on_ad: z.boolean(),
   trigger_ad_ids: z.array(z.string().trim().min(1).max(80)).default([]),
   trigger_on_first_contact: z.boolean(),
+  whatsapp_template_id: z.string().uuid().nullable().default(null),
   steps: z.array(stepInput).default([]),
 });
 

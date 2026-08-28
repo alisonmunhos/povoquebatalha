@@ -75,6 +75,7 @@ export type Flow = {
   trigger_on_ad: boolean;
   trigger_ad_ids: string[];
   trigger_on_first_contact: boolean;
+  whatsapp_template_id: string | null;
 };
 
 export type FlowSessionStatus =

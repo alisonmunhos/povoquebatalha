@@ -3233,6 +3233,7 @@ export type Database = {
           trigger_on_ad: boolean
           trigger_on_first_contact: boolean
           updated_at: string
+          whatsapp_template_id: string | null
         }
         Insert: {
           active?: boolean
@@ -3250,6 +3251,7 @@ export type Database = {
           trigger_on_ad?: boolean
           trigger_on_first_contact?: boolean
           updated_at?: string
+          whatsapp_template_id?: string | null
         }
         Update: {
           active?: boolean
@@ -3267,8 +3269,17 @@ export type Database = {
           trigger_on_ad?: boolean
           trigger_on_first_contact?: boolean
           updated_at?: string
+          whatsapp_template_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_flows_whatsapp_template_id_fkey"
+            columns: ["whatsapp_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_instances: {
         Row: {
