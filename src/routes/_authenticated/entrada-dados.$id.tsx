@@ -15,6 +15,7 @@ import { FormHeaderImageUpload, emptyFormHeaderImage, type FormHeaderImage } fro
 import type { CustomOption, CustomResponseType } from "@/lib/form-question-shape";
 import { listWhatsappTemplates } from "@/lib/whatsapp-templates.functions";
 import { TemplateBodyPreview } from "@/components/TemplateBodyPreview";
+import { MessageTemplatePicker } from "@/components/MessageTemplatePicker";
 import { Badge } from "@/components/ui/badge";
 
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, Link as LinkIcon, MessageCircle, Copy, ExternalLink } from "lucide-react";
@@ -53,8 +54,7 @@ function FormBuilder() {
   const [trackingName, setTrackingName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
-  const [confTitle, setConfTitle] = useState("");
-  const [confBody, setConfBody] = useState("");
+  const [confTemplateId, setConfTemplateId] = useState<string | null>(null);
   const [confActive, setConfActive] = useState(true);
   const [confWhatsappTemplateId, setConfWhatsappTemplateId] = useState("");
   const [waEnabled, setWaEnabled] = useState(true);
@@ -96,10 +96,10 @@ function FormBuilder() {
     });
     setCoreQuestions((q.data.questions ?? []).filter((row) => coreKeys.has(row.catalog_field_key as string)).map(toDraft));
     setQuestions((q.data.questions ?? []).filter((row) => !coreKeys.has(row.catalog_field_key as string)).map(toDraft));
-    const tpl = q.data.template as { title?: string; body?: string } | null;
-    const auto = q.data.automation as { active?: boolean; whatsapp_template_id?: string | null } | null;
-    setConfTitle(tpl?.title ?? "Confirmação");
-    setConfBody(tpl?.body ?? "Olá, {{primeiro_nome}}! Recebemos suas informações. Obrigado!");
+    const auto = q.data.automation as
+      | { active?: boolean; template_id?: string | null; whatsapp_template_id?: string | null }
+      | null;
+    setConfTemplateId(auto?.template_id ?? null);
     setConfActive(auto ? Boolean(auto.active) : true);
     setConfWhatsappTemplateId(auto?.whatsapp_template_id ?? "");
     setWaEnabled(Boolean(q.data.form.whatsapp_button_enabled));
@@ -166,6 +166,10 @@ function FormBuilder() {
   }
 
   async function saveFormulario() {
+    if (confActive && !confTemplateId) {
+      toast.error("Escolha a mensagem de confirmação antes de salvar.");
+      return;
+    }
     setSavingForm(true);
     try {
       await updateFn({
@@ -181,7 +185,7 @@ function FormBuilder() {
       });
       await saveConfirmationFn({
         data: {
-          form_definition_id: id, title: confTitle, body: confBody, active: confActive, require_consent: true,
+          form_definition_id: id, template_id: confTemplateId, active: confActive, require_consent: true,
           whatsapp_template_id: confWhatsappTemplateId || null,
         },
       });
@@ -480,8 +484,20 @@ function FormBuilder() {
         </label>
         {confActive && (
           <>
-            <input value={confTitle} onChange={(e) => setConfTitle(e.target.value)} placeholder="Título interno" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            <textarea value={confBody} onChange={(e) => setConfBody(e.target.value)} rows={4} placeholder="Use {{primeiro_nome}}, {{nome}}, {{cidade}}, {{bairro}}…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <div>
+              <label className="text-sm font-medium">Mensagem de confirmação</label>
+              <MessageTemplatePicker
+                value={confTemplateId}
+                onChange={setConfTemplateId}
+                kinds={["system", "quick_reply"]}
+                placeholder="Escolher mensagem de confirmação…"
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Escolha uma mensagem já cadastrada em "Mensagens do sistema", ou crie uma nova sem
+                sair daqui. Use {"{{primeiro_nome}}"}, {"{{nome}}"}, {"{{cidade}}"}, {"{{bairro}}"}…
+              </p>
+            </div>
             <div>
               <label className="text-sm font-medium">Template aprovado (opcional, para fora da janela de 24h)</label>
               <select

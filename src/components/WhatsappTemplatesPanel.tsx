@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
-import { Plus, Send, Trash2, Save, X, Download, Link2 } from "lucide-react";
+import { Plus, Send, Trash2, Save, X, Download, Link2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { TemplateBodyPreview } from "@/components/TemplateBodyPreview";
+import { MessageTemplatePicker, type MessageTemplateRow } from "@/components/MessageTemplatePicker";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   listWhatsappTemplates,
   saveWhatsappTemplateDraft,
@@ -94,6 +96,7 @@ export function WhatsappTemplatesPanel() {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const q = useQuery({
@@ -223,6 +226,15 @@ export function WhatsappTemplatesPanel() {
     setForm({ ...EMPTY, example_values: {} });
   }
 
+  function startFromMessage(tpl: MessageTemplateRow) {
+    setSubmitError(null);
+    // "name" do template Meta segue regras próprias (sem acento, formato
+    // específico) — diferente de "title" de message_templates, então não
+    // tenta derivar automaticamente: o admin preenche.
+    setForm({ ...EMPTY, body_text: tpl.body, example_values: {} });
+    setPickerOpen(false);
+  }
+
   function startEdit(t: WhatsappTemplateRow, metaEditMode = false) {
     setSubmitError(t.rejected_reason ?? null);
     setForm({
@@ -315,8 +327,32 @@ export function WhatsappTemplatesPanel() {
             <Download className="h-4 w-4 mr-1" />
             {importMeta.isPending ? "Importando…" : "Importar da Meta"}
           </Button>
+          <Button variant="outline" onClick={() => setPickerOpen(true)}>
+            <Copy className="h-4 w-4 mr-1" /> Criar a partir de mensagem existente
+          </Button>
         </div>
       )}
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Escolher mensagem existente</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            O corpo da mensagem escolhida preenche o rascunho do template — é uma cópia única, não
+            fica ligado à mensagem original (você ainda precisa ajustar as variáveis pro formato
+            nomeado exigido pela Meta e passar pela aprovação).
+          </p>
+          <MessageTemplatePicker
+            value={null}
+            onChange={() => {}}
+            onSelectRow={startFromMessage}
+            allowCreate={false}
+            kinds={["system", "quick_reply"]}
+            placeholder="Buscar mensagem…"
+          />
+        </DialogContent>
+      </Dialog>
 
       {form && (
         <section className="rounded-lg border-2 bg-card p-4 space-y-4">
