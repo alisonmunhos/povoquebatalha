@@ -284,7 +284,7 @@ export const getConversation = createServerFn({ method: "GET" })
     }
 
     const DIRECT_COLS =
-      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used";
+      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image";
 
     // Mensagens do robô de cadastro podem ter sido gravadas só com o número
     // (quando o contato ainda não existia): busca também por to_phone.
@@ -307,7 +307,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const campaignQuery = effectiveContactId
       ? context.supabase.from("campaign_recipients")
-          .select("id, rendered_message, sent_at, status, endpoint_used, message_id, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(header_type, header_text, buttons))")
+          .select("id, rendered_message, sent_at, status, endpoint_used, message_id, link_url, link_title, link_description, link_image, campaigns:campaign_id(nome, whatsapp_template_id, whatsapp_templates:whatsapp_template_id(header_type, header_text, buttons))")
           .eq("contact_id", effectiveContactId).not("sent_at", "is", null).order("sent_at", { ascending: true }).limit(200)
       : null;
 
@@ -347,8 +347,8 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const [inR, dR, cR, tR, aR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as InboundRow[], error: null as { message: string } | null }),
-      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null }[], error: null as { message: string } | null }),
-      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[], error: null as { message: string } | null }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null }[], error: null as { message: string } | null }),
+      campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[], error: null as { message: string } | null }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
       automationQuery ?? Promise.resolve({ data: [] as AutoRow[], error: null as { message: string } | null }),
     ]);
@@ -548,6 +548,10 @@ export const getConversation = createServerFn({ method: "GET" })
           header_type: templateRow?.header_type ?? null,
           header_text: headerText,
           buttons: r.endpoint_used === "send-template" ? buttons : [],
+          link_url: r.link_url,
+          link_title: r.link_title,
+          link_description: r.link_description,
+          link_image: r.link_image,
         };
       }),
       events,

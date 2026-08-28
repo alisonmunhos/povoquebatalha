@@ -150,6 +150,31 @@ export function MessageBubble({
           />
         ) : null}
 
+        {!msg.media_path && !msg.media_url && msg.link_url && (msg.link_title || msg.link_image) && (
+          <a
+            href={msg.link_url}
+            target="_blank"
+            rel="noreferrer"
+            className={`mb-1 flex overflow-hidden rounded-lg border transition ${
+              out ? "border-primary-foreground/15 hover:bg-primary-foreground/10" : "border-current/10 hover:bg-black/5"
+            }`}
+          >
+            {msg.link_image && (
+              <img
+                src={msg.link_image}
+                alt=""
+                className="h-20 w-20 shrink-0 object-cover bg-black/10"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
+            <div className="min-w-0 flex-1 p-2">
+              {msg.link_title && <div className="text-xs font-semibold leading-tight line-clamp-2">{msg.link_title}</div>}
+              {msg.link_description && (
+                <div className="mt-0.5 text-[11px] opacity-70 line-clamp-2">{msg.link_description}</div>
+              )}
+            </div>
+          </a>
+        )}
 
         {msg.text && (
           <div className="whitespace-pre-wrap break-words">
