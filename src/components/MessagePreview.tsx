@@ -19,6 +19,8 @@ export type MessagePreviewProps = {
   linkLoading?: boolean;
   /** Anexo (nome/mime), quando houver. */
   attachment?: { filename: string; mime: string } | null;
+  /** Botões de resposta rápida (opcional) — renderizados como no WhatsApp real. */
+  buttons?: { text: string }[];
   /** Endpoint que o motor deverá usar. */
   plannedEndpoint?: PlannedEndpoint;
   /** Rótulo do destinatário (ex: "Para Maria — +5551…"). */
@@ -62,6 +64,7 @@ export function MessagePreview({
   linkPreview,
   linkLoading,
   attachment,
+  buttons,
   plannedEndpoint,
   recipientLabel,
   className,
@@ -142,6 +145,22 @@ export function MessagePreview({
         <div className="whitespace-pre-wrap break-words text-sm text-foreground">
           {text || <span className="text-muted-foreground italic">Sem texto</span>}
         </div>
+
+        {buttons && buttons.length > 0 && (
+          <>
+            <div className="my-2 h-px w-full bg-emerald-200" />
+            <div className="-mx-2 -mb-2 flex flex-col overflow-hidden rounded-b-2xl">
+              {buttons.map((b, idx) => (
+                <div
+                  key={idx}
+                  className="w-full py-2.5 flex items-center justify-center text-xs font-semibold uppercase tracking-wide text-primary border-t first:border-t-0 border-emerald-100"
+                >
+                  {b.text || <span className="italic text-muted-foreground">(vazio)</span>}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

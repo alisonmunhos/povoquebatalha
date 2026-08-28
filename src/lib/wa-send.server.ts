@@ -63,6 +63,9 @@ export type SendLinkMeta = {
   status: PreviewStatus;
 };
 
+/** Botão de resposta rápida (mensagem interativa "reply" — whatsappCloud.sendButtons). */
+export type SendButton = { text: string };
+
 export type SendInput = {
   contact: ContactCtx;
   /** Texto já renderizado ou template com {{variaveis}}. */
@@ -74,6 +77,13 @@ export type SendInput = {
   /** Link estruturado (com metadados OG opcionais). Se omitido, motor detecta URL no texto. */
   link?: SendLinkMeta | null;
   attachment?: SendAttachment | null;
+  /**
+   * Botões de resposta rápida (até 3). Mutuamente exclusivo com `attachment` —
+   * a mensagem interativa com botões não aceita mídia; quando os dois vêm
+   * preenchidos, o anexo tem prioridade e os botões são ignorados (mesma regra
+   * já aplicada ao link nesse caso).
+   */
+  buttons?: SendButton[] | null;
   origin: SendOrigin;
   /** Feature flag por instância. Se false, nunca usa POST /send-link. */
   useSendLink?: boolean;
@@ -96,6 +106,7 @@ export type SendResult = {
     | "send-document"
     | "send-audio"
     | "send-template"
+    | "send-buttons"
     | "wa.me"
     | "skipped";
   preview_status: PreviewStatus;
@@ -326,6 +337,32 @@ export async function sendMessage(input: SendInput): Promise<SendResult> {
         link_description: input.link?.description ?? null,
         link_image: input.link?.image ?? null,
         fallback_reason: fallbackReason,
+        message_id: result.messageId,
+        zaap_id: null,
+        rendered_text: rendered,
+        error: null,
+        shadowban_suspected: false,
+      };
+    }
+
+    // Botões de resposta rápida: sem anexo (prioridade dele já tratada acima)
+    // e com pelo menos 1 botão configurado, envia como mensagem interativa.
+    if (input.buttons && input.buttons.length > 0) {
+      endpointUsed = "send-buttons";
+      const result = await whatsappCloud.sendButtons(
+        phone,
+        rendered,
+        input.buttons.map((b, i) => ({ id: `btn_${i + 1}`, title: b.text })),
+      );
+      return {
+        ok: true,
+        endpoint_used: "send-buttons",
+        preview_status: "sem_link",
+        link_url: null,
+        link_title: null,
+        link_description: null,
+        link_image: null,
+        fallback_reason: null,
         message_id: result.messageId,
         zaap_id: null,
         rendered_text: rendered,

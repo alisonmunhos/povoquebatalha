@@ -12,7 +12,7 @@ import {
 import { listFormDefinitions } from "@/lib/form-definitions.functions";
 import { MessageSquareText, Zap, Reply, Save, Copy, Archive, Send, Plus, Trash2, Loader2, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
-import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue } from "@/components/MessageComposer";
+import { MessageComposer, COMPOSER_VARIABLES, type ComposerValue, type ComposerButton } from "@/components/MessageComposer";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,7 @@ type Tpl = {
   link: string | null; link_title: string | null; link_description: string | null; link_image: string | null;
   media_url: string | null;
   media_path: string | null; media_mime: string | null; media_filename: string | null;
+  buttons: ComposerButton[];
   active: boolean; updated_at: string;
 };
 
@@ -127,6 +128,7 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
         media_path: (editing.media_path as string | null) ?? null,
         media_mime: (editing.media_mime as string | null) ?? null,
         media_filename: (editing.media_filename as string | null) ?? null,
+        buttons: Array.isArray(editing.buttons) ? editing.buttons : [],
         active: editing.active ?? true,
       }});
       toast.success("Salvo");
@@ -170,7 +172,7 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
           {q.isLoading && <li className="p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline" /> carregando…</li>}
           {list.map((t) => (
             <li key={t.id}>
-              <button onClick={() => setEditing(t as Partial<Tpl>)} className={`w-full text-left p-3 hover:bg-muted/40 ${editing?.id === t.id ? "bg-muted/60" : ""}`}>
+              <button onClick={() => setEditing(t as unknown as Partial<Tpl>)} className={`w-full text-left p-3 hover:bg-muted/40 ${editing?.id === t.id ? "bg-muted/60" : ""}`}>
                 <div className="text-sm font-medium truncate">{t.title}</div>
                 <div className="text-xs text-muted-foreground truncate">
                   {kind === "system" ? (t.event_key ?? "sem evento") : (t.shortcut ?? "sem atalho")}
@@ -230,6 +232,7 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
                     media_path: (editing.media_path as string | null) ?? null,
                     media_mime: (editing.media_mime as string | null) ?? null,
                     media_filename: (editing.media_filename as string | null) ?? null,
+                    buttons: Array.isArray(editing.buttons) ? editing.buttons : [],
                   } satisfies ComposerValue}
                   onChange={(v) => setEditing({
                     ...editing,
@@ -241,6 +244,7 @@ function TemplatesList({ kind }: { kind: "system" | "quick_reply" }) {
                     media_path: v.media_path,
                     media_mime: v.media_mime,
                     media_filename: v.media_filename,
+                    buttons: v.buttons ?? [],
                   })}
                 />
               </div>

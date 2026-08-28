@@ -124,6 +124,9 @@ export function CommunicationInbox() {
   const [fileAccept, setFileAccept] = useState("image/png,image/jpeg,image/jpg,image/webp,application/pdf");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Botões de resposta rápida pendentes (vindos de uma mensagem salva) — mutuamente
+  // exclusivo com anexo, mesma regra do MessageComposer/motor único de envio.
+  const [pendingButtons, setPendingButtons] = useState<{ text: string }[] | null>(null);
 
   const replyRef = useRef<HTMLTextAreaElement | null>(null);
   // Cresce a caixa de texto conforme o conteúdo, até o limite de max-h-40 (160px).
@@ -291,6 +294,7 @@ export function CommunicationInbox() {
     mutationFn: (payload: {
       contact_id: string; message: string;
       media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
+      buttons?: { text: string }[];
     }) => sendFn({ data: { ...payload, origem: "inbox" } }),
     onSuccess: () => {
       // Input já foi limpo otimisticamente em submitReply(); aqui só sincronizamos as queries.
@@ -445,10 +449,12 @@ export function CommunicationInbox() {
       media_path: attachment?.path ?? null,
       media_mime: attachment?.mime ?? null,
       media_filename: attachment?.filename ?? null,
+      buttons: pendingButtons ?? [],
     };
     setReply("");
     if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
     setAttachment(null);
+    setPendingButtons(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     sendMut.mutate(payload);
   }
@@ -474,6 +480,7 @@ export function CommunicationInbox() {
       if (up.error) throw up.error;
       const previewUrl = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
       setAttachment({ path: s.path, filename: s.filename, mime: f.type, size: f.size, previewUrl });
+      setPendingButtons(null); // anexo e botões são mutuamente exclusivos
       toast.success("Anexo pronto — clique enviar");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao anexar");
@@ -1111,6 +1118,18 @@ export function CommunicationInbox() {
                   </button>
                 </div>
               )}
+              {pendingButtons && pendingButtons.length > 0 && (
+                <div className="flex items-center gap-2 border rounded-md p-2 bg-muted/40">
+                  <div className="flex-1 min-w-0 flex flex-wrap gap-1 text-xs">
+                    {pendingButtons.map((b, i) => (
+                      <span key={i} className="rounded-full border bg-background px-2 py-0.5 truncate max-w-[10rem]">{b.text}</span>
+                    ))}
+                  </div>
+                  <button onClick={() => setPendingButtons(null)} className="p-1 rounded hover:bg-background" title="Remover botões" aria-label="Remover botões">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               {uploading && (
                 <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
                   <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
@@ -1253,6 +1272,12 @@ export function CommunicationInbox() {
                                       ?? "arquivo",
                                   };
                                 });
+                                setPendingButtons(null); // anexo e botões são mutuamente exclusivos
+                              } else {
+                                const btns = Array.isArray(t.buttons) ? t.buttons : [];
+                                if (btns.length > 0) {
+                                  setPendingButtons(btns.map((b) => ({ text: (b as { text: string }).text })));
+                                }
                               }
                               setQuickOpen(false);
                               setQuickSearch("");

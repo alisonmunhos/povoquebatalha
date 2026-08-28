@@ -201,6 +201,9 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     media_path: z.string().trim().max(500).optional().nullable(),
     media_mime: z.string().trim().max(120).optional().nullable(),
     media_filename: z.string().trim().max(200).optional().nullable(),
+    // Botões de resposta rápida vindos de uma mensagem salva (message_templates.buttons)
+    // — mutuamente exclusivo com anexo, mesma regra do motor único (wa-send.server.ts).
+    buttons: z.array(z.object({ text: z.string().trim().min(1).max(20) })).max(3).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireInboxAccess(context.supabase, context.userId);
@@ -251,6 +254,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       textAlreadyRendered: true,
       link: linkMeta,
       attachment,
+      buttons: data.buttons,
       useSendLink,
       origin: "inbox",
       skipValidations: true, // já validamos opt-out/consent/whatsapp_status acima
@@ -318,7 +322,7 @@ export const listQuickReplies = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("message_templates")
-      .select("id,title,body,category,variables,media_path,media_mime,media_filename")
+      .select("id,title,body,category,variables,media_path,media_mime,media_filename,buttons")
       .eq("active", true)
       .is("archived_at", null)
       .eq("kind", "quick_reply")
