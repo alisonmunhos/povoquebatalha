@@ -292,7 +292,7 @@ export function CommunicationInbox() {
 
   const sendMut = useMutation({
     mutationFn: (payload: {
-      contact_id: string; message: string;
+      contact_id?: string; conversation_id?: string; message: string;
       media_path?: string | null; media_mime?: string | null; media_filename?: string | null;
       buttons?: { text: string }[];
     }) => sendFn({ data: { ...payload, origem: "inbox" } }),
@@ -439,12 +439,16 @@ export function CommunicationInbox() {
 
 
   function submitReply() {
-    if (!selectedContactId) return;
+    // Conversa sem contato vinculado ainda pode responder (usa
+    // conversations.from_phone no servidor) — só bloqueia se não houver
+    // nem contato nem conversa selecionada.
+    if (!selectedContactId && !selectedConvId) return;
     if (!reply.trim() && !attachment) return;
     // Optimistic clear: input limpa e anexo some assim que o usuário confirma o envio,
     // evitando cliques repetidos enquanto a mutation ainda está em voo.
     const payload = {
-      contact_id: selectedContactId,
+      contact_id: selectedContactId ?? undefined,
+      conversation_id: selectedContactId ? undefined : (selectedConvId ?? undefined),
       message: reply,
       media_path: attachment?.path ?? null,
       media_mime: attachment?.mime ?? null,
@@ -498,7 +502,15 @@ export function CommunicationInbox() {
 
   const contact = convQ.data?.contact;
   const conv = convQ.data?.conversation;
-  const canSend = Boolean(contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate));
+  // Conversa sem contato vinculado também pode responder, usando o telefone da
+  // própria conversa (conversations.from_phone) — vincular contato continua
+  // disponível (banner acima), mas deixou de ser obrigatório pra enviar.
+  // Opt-out de contato vinculado continua bloqueando; para conversa sem
+  // contato o servidor faz a checagem equivalente por telefone.
+  const canSendUnlinked = Boolean(conv && !conv.contact_id && conv.from_phone);
+  const canSend = Boolean(
+    (contact && !contact.opt_out_at && (contact.phone_e164 || contact.phone_whatsapp_candidate)) || canSendUnlinked,
+  );
 
   // Janela de 24h da Meta: só dá pra mandar texto livre (ou iniciar o robô) se a
   // pessoa escreveu recentemente. `conv.last_inbound_at` vem de `conversations`
@@ -1072,7 +1084,7 @@ export function CommunicationInbox() {
                   {contact?.opt_out_at
                     ? "Contato optou por sair (opt-out). Envio bloqueado."
                     : conv && !conv.contact_id
-                      ? "Vincule esta conversa a um contato antes de responder."
+                      ? "Conversa sem telefone válido — não é possível responder."
                       : "Contato sem WhatsApp válido."}
                 </div>
               )}

@@ -193,7 +193,11 @@ export const resolveInbox = createServerFn({ method: "POST" })
 export const sendDirectMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
-    contact_id: z.string().uuid(),
+    // Um dos dois é obrigatório: contact_id (contato vinculado) ou
+    // conversation_id (conversa ainda sem contato — responde usando
+    // conversations.from_phone diretamente).
+    contact_id: z.string().uuid().optional(),
+    conversation_id: z.string().uuid().optional(),
     message: z.string().trim().max(4000).default(""),
     template_id: z.string().uuid().optional(),
     origem: z.enum(["inbox", "mapa", "ficha"]).default("inbox"),
@@ -204,27 +208,64 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     // Botões de resposta rápida vindos de uma mensagem salva (message_templates.buttons)
     // — mutuamente exclusivo com anexo, mesma regra do motor único (wa-send.server.ts).
     buttons: z.array(z.object({ text: z.string().trim().min(1).max(20) })).max(3).default([]),
+  }).refine((d) => Boolean(d.contact_id || d.conversation_id), {
+    message: "Informe um contato ou uma conversa para enviar.",
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireInboxAccess(context.supabase, context.userId);
 
+    type ContactLike = {
+      id?: string; nome: string | null; nome_social?: string | null; cidade: string | null; bairro: string | null;
+      uf?: string | null; phone_e164: string | null; phone_whatsapp_candidate?: string | null;
+      opt_out_at: string | null; arquivado_at?: string | null; lifecycle_status?: string | null;
+      consentimento_whatsapp: boolean | null; whatsapp_status?: string | null;
+    };
+    let c: ContactLike | null = null;
+    let phone: string | null = null;
 
-
-    const { data: c, error } = await context.supabase
-      .from("contacts")
-      .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,arquivado_at,lifecycle_status,consentimento_whatsapp,whatsapp_status")
-      .eq("id", data.contact_id).single();
-    if (error || !c) throw new Error("Contato não encontrado.");
-
-    if (c.opt_out_at) throw new Error("Contato optou por sair. Envio bloqueado.");
-    const phone = c.phone_whatsapp_candidate ?? c.phone_e164;
-    if (!phone) throw new Error("Contato sem WhatsApp válido.");
-    if (c.whatsapp_status === "invalido" || c.whatsapp_status === "erro_envio" || c.whatsapp_status === "opt_out") {
-      throw new Error("WhatsApp do contato indisponível para envio.");
+    if (data.contact_id) {
+      const { data: row, error } = await context.supabase
+        .from("contacts")
+        .select("id,nome,nome_social,cidade,bairro,uf,phone_e164,phone_whatsapp_candidate,opt_out_at,arquivado_at,lifecycle_status,consentimento_whatsapp,whatsapp_status")
+        .eq("id", data.contact_id).single();
+      if (error || !row) throw new Error("Contato não encontrado.");
+      if (row.opt_out_at) throw new Error("Contato optou por sair. Envio bloqueado.");
+      phone = row.phone_whatsapp_candidate ?? row.phone_e164;
+      if (!phone) throw new Error("Contato sem WhatsApp válido.");
+      if (row.whatsapp_status === "invalido" || row.whatsapp_status === "erro_envio" || row.whatsapp_status === "opt_out") {
+        throw new Error("WhatsApp do contato indisponível para envio.");
+      }
+      c = row;
+    } else {
+      // Conversa ainda sem contato vinculado — usa conversations.from_phone
+      // diretamente. Vincular/criar contato continua disponível na tela, mas
+      // deixou de ser obrigatório pra responder.
+      const { data: conv, error: convErr } = await context.supabase
+        .from("conversations")
+        .select("from_phone")
+        .eq("id", data.conversation_id!).maybeSingle();
+      if (convErr || !conv?.from_phone) throw new Error("Conversa sem telefone válido.");
+      phone = conv.from_phone;
+      // Opt-out continua valendo mesmo sem vínculo: se o telefone já bate com
+      // um contato existente que optou por sair, o envio é bloqueado do mesmo
+      // jeito (mesma coluna contacts.opt_out_at, só que buscada por telefone
+      // em vez de por id — nenhuma regra nova).
+      const { data: matched } = await context.supabase
+        .from("contacts")
+        .select("opt_out_at,whatsapp_status")
+        .eq("phone_e164", phone).maybeSingle();
+      if (matched?.opt_out_at) throw new Error("Contato optou por sair. Envio bloqueado.");
+      if (matched?.whatsapp_status === "invalido" || matched?.whatsapp_status === "erro_envio" || matched?.whatsapp_status === "opt_out") {
+        throw new Error("WhatsApp indisponível para envio.");
+      }
     }
 
     const { sendMessage, readUseSendLinkFlag, detectUrl, renderVars, recordWhatsappSendOutcome } = await import("@/lib/wa-send.server");
-    const rendered = renderVars(data.message ?? "", c);
+    const contactForSend: ContactLike = c ?? {
+      nome: null, nome_social: null, cidade: null, bairro: null, uf: null,
+      phone_e164: phone, phone_whatsapp_candidate: null, opt_out_at: null, consentimento_whatsapp: true,
+    };
+    const rendered = renderVars(data.message ?? "", contactForSend);
     const hasMedia = Boolean(data.media_path);
     if (!hasMedia && !rendered.trim()) throw new Error("Escreva uma mensagem ou anexe um arquivo.");
 
@@ -249,7 +290,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       : null;
 
     const result = await sendMessage({
-      contact: c,
+      contact: contactForSend,
       text: rendered,
       textAlreadyRendered: true,
       link: linkMeta,
@@ -260,7 +301,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       skipValidations: true, // já validamos opt-out/consent/whatsapp_status acima
     });
 
-    await recordWhatsappSendOutcome(data.contact_id, result);
+    if (data.contact_id) await recordWhatsappSendOutcome(data.contact_id, result);
 
     const sendError = result.ok ? null : (result.error ?? result.fallback_reason ?? "erro desconhecido");
     const zaap: { zaapId?: string; messageId?: string; id?: string } = {
@@ -274,7 +315,11 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     const { data: row, error: insErr } = await context.supabase
       .from("direct_messages")
       .insert({
-        contact_id: data.contact_id,
+        contact_id: data.contact_id ?? null,
+        // Conversa ainda sem contato: grava o telefone (mesmo padrão já usado
+        // pelo robô de fluxo — whatsapp-flow.server.ts — pra mensagens antes
+        // do cadastro existir), assim o histórico continua aparecendo certo.
+        to_phone: data.contact_id ? null : (phone ?? "").replace(/\D+/g, ""),
         sent_by: context.userId,
         origem: data.origem,
         template_id: data.template_id ?? null,
@@ -297,19 +342,23 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       .select().single();
     if (insErr) throw insErr;
 
-    // Audit
-    await context.supabase.from("contact_audit_log").insert({
-      contact_id: data.contact_id,
-      user_id: context.userId,
-      action: "mensagem_avulsa",
-      changes: { origem: data.origem, status: sendError ? "erro" : "enviado", erro: sendError, media: hasMedia } as never,
-    });
+    // Audit — só existe pra contato vinculado (contact_audit_log.contact_id é obrigatório)
+    if (data.contact_id) {
+      await context.supabase.from("contact_audit_log").insert({
+        contact_id: data.contact_id,
+        user_id: context.userId,
+        action: "mensagem_avulsa",
+        changes: { origem: data.origem, status: sendError ? "erro" : "enviado", erro: sendError, media: hasMedia } as never,
+      });
+    }
 
     // If replying to an inbound: mark that inbound conversation as read
     if (data.origem === "inbox") {
-      await context.supabase.from("inbound_messages")
-        .update({ read_at: new Date().toISOString() })
-        .eq("contact_id", data.contact_id).is("read_at", null);
+      let readQuery = context.supabase.from("inbound_messages").update({ read_at: new Date().toISOString() }).is("read_at", null);
+      readQuery = data.contact_id
+        ? readQuery.eq("contact_id", data.contact_id)
+        : readQuery.eq("from_phone", phone ?? "");
+      await readQuery;
     }
 
     if (sendError) throw new Error(sendError);
