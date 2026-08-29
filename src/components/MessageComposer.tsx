@@ -176,7 +176,10 @@ export function MessageComposer({
 
 
   async function onAttach(file: File) {
-    if (file.size > 8 * 1024 * 1024) return toast.error("Arquivo acima de 8MB");
+    // Alinhado ao limite usado pelo mesmo tipo de anexo no Inbox (CommunicationInbox.tsx) —
+    // os dois usam o mesmo bucket/upload (signCampaignMediaUpload), então o limite não
+    // deveria divergir: um PDF que passa no Inbox tem que passar aqui também.
+    if (file.size > 15 * 1024 * 1024) return toast.error("Arquivo acima de 15MB");
     setUploading(true);
     try {
       const sig = await signUpload({ data: { filename: file.name, contentType: file.type } });
@@ -299,7 +302,7 @@ export function MessageComposer({
           )}
           {showAttachment && (
             <div>
-              <label className="text-xs font-medium">Anexo (PNG/JPG/WEBP ou PDF, até 8MB)</label>
+              <label className="text-xs font-medium">Anexo (PNG/JPG/WEBP ou PDF, até 15MB)</label>
               {buttons.length > 0 ? (
                 <p className="mt-1 text-[11px] text-muted-foreground border border-dashed rounded-md px-3 py-2">
                   Indisponível com botões configurados — mensagem com botões não aceita anexo.
