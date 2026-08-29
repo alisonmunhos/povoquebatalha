@@ -55,20 +55,25 @@ export const getFormDefinition = createServerFn({ method: "GET" })
     let template: TemplateRow | null = null;
     let automation: AutomationRow | null = null;
     if (form.event_key) {
-      const { data: tpl } = await context.supabase
-        .from("message_templates")
-        .select("*")
-        .eq("event_key", form.event_key)
-        .eq("kind", "system")
-        .is("archived_at", null)
-        .maybeSingle();
-      template = tpl ?? null;
       const { data: auto } = await context.supabase
         .from("automations")
         .select("*")
         .eq("event_key", form.event_key)
         .maybeSingle();
       automation = auto ?? null;
+      // A mensagem de confirmação vem de qualquer linha em "Mensagens do sistema"
+      // apontada por automations.template_id — não é mais uma linha dedicada por
+      // event_key. Isso permite reaproveitar uma mensagem já criada em outro
+      // lugar (ver MessageTemplatePicker).
+      if (automation?.template_id) {
+        const { data: tpl } = await context.supabase
+          .from("message_templates")
+          .select("*")
+          .eq("id", automation.template_id)
+          .is("archived_at", null)
+          .maybeSingle();
+        template = tpl ?? null;
+      }
     }
     let trackedLink: TrackedLinkRow | null = null;
     const { data: trackedLinks } = await context.supabase
@@ -384,19 +389,21 @@ export const upsertFormQuestions = createServerFn({ method: "POST" })
 
 const confirmationSchema = z.object({
   form_definition_id: z.string().uuid(),
-  title: z.string().trim().min(2).max(120),
-  body: z.string().trim().min(2).max(4000),
-  link: z.string().trim().max(500).nullable().optional(),
+  // Mensagem escolhida em "Mensagens do sistema" via MessageTemplatePicker —
+  // pode ser null enquanto o admin ainda não escolheu nenhuma.
+  template_id: z.string().uuid().nullable(),
   active: z.boolean().default(true),
   require_consent: z.boolean().default(true),
   // Template aprovado pela Meta (opcional) — usado só fora da janela de 24h,
   // quando a Meta exige um template pra reabrir a conversa (ver automations.server.ts).
-  // Dentro da janela o texto livre acima continua sendo usado, sem mudança.
+  // Dentro da janela a mensagem escolhida acima continua sendo usada, sem mudança.
   whatsapp_template_id: z.string().uuid().nullable().optional(),
 });
 
-/** Configura a mensagem de confirmação, reaproveitando message_templates/automations
- * já existentes (mesmo mecanismo usado pelo resto do app) — sem CRUD paralelo. */
+/** Configura a mensagem de confirmação apontando automations.template_id pra uma
+ * mensagem já existente em "Mensagens do sistema" (escolhida via MessageTemplatePicker)
+ * — não cria mais uma linha dedicada por formulário. Reaproveita o mecanismo de
+ * automations já existente, sem CRUD paralelo. */
 export const saveFormConfirmationMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => confirmationSchema.parse(d))
@@ -409,44 +416,29 @@ export const saveFormConfirmationMessage = createServerFn({ method: "POST" })
       .single();
     if (formErr) throw formErr;
 
-    const { data: existingTpl } = await context.supabase
-      .from("message_templates")
-      .select("id")
-      .eq("event_key", form.event_key)
-      .eq("kind", "system")
-      .maybeSingle();
-
-    const tplPayload = {
-      kind: "system" as const,
-      event_key: form.event_key,
-      title: data.title,
-      body: data.body,
-      link: data.link ?? null,
-      variables: [] as string[],
-      active: data.active,
-      updated_by: context.userId,
-    };
-    let templateId: string;
-    if (existingTpl) {
-      const { data: row, error } = await context.supabase
-        .from("message_templates").update(tplPayload).eq("id", existingTpl.id).select("id").single();
-      if (error) throw error;
-      templateId = row.id;
-    } else {
-      const { data: row, error } = await context.supabase
-        .from("message_templates").insert({ ...tplPayload, created_by: context.userId }).select("id").single();
-      if (error) throw error;
-      templateId = row.id;
-    }
-
     const { data: existingAuto } = await context.supabase
       .from("automations")
       .select("id")
       .eq("event_key", form.event_key)
       .maybeSingle();
+
+    // automations.template_id é NOT NULL — não dá pra gravar sem uma mensagem
+    // escolhida. Se a confirmação está ativa, exige a escolha; se está desligada
+    // e nunca existiu automação pra esse evento, não há nada a fazer.
+    if (!data.template_id) {
+      if (data.active) throw new Error("Escolha uma mensagem de confirmação antes de salvar.");
+      if (!existingAuto) return { ok: true, template_id: null };
+      const { error } = await context.supabase
+        .from("automations")
+        .update({ active: false, updated_by: context.userId })
+        .eq("id", existingAuto.id);
+      if (error) throw error;
+      return { ok: true, template_id: null };
+    }
+
     const autoPayload = {
       event_key: form.event_key,
-      template_id: templateId,
+      template_id: data.template_id,
       active: data.active,
       require_consent: data.require_consent,
       whatsapp_template_id: data.whatsapp_template_id ?? null,
@@ -459,7 +451,7 @@ export const saveFormConfirmationMessage = createServerFn({ method: "POST" })
       const { error } = await context.supabase.from("automations").insert({ ...autoPayload, created_by: context.userId });
       if (error) throw error;
     }
-    return { ok: true, template_id: templateId };
+    return { ok: true, template_id: data.template_id };
   });
 
 /** Gera um link rastreável nomeado para o formulário (Entrada de Dados). */
