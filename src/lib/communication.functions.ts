@@ -386,14 +386,30 @@ export const getConversation = createServerFn({ method: "GET" })
     }
 
     // Reações não viram bolha: vão presas na mensagem reagida (como no WhatsApp).
-    const reactions = inboundRaw
-      .filter((m) => m.tipo === "reaction" && m.reaction_emoji)
-      .map((m) => ({
-        id: m.id,
-        emoji: m.reaction_emoji as string,
-        target_wa_id: m.reaction_target_wa_id,
-        at: m.received_at,
-      }));
+    // Inbound = reação que o CONTATO enviou; direct = reação que NÓS enviamos
+    // pelo Inbox (registrada em direct_messages com reaction_target_wa_id).
+    // `mine` diferencia as duas para a interface exibir "Você reagiu".
+    const reactions = [
+      ...inboundRaw
+        .filter((m) => m.tipo === "reaction" && m.reaction_emoji)
+        .map((m) => ({
+          id: m.id,
+          emoji: m.reaction_emoji as string,
+          target_wa_id: m.reaction_target_wa_id,
+          at: m.received_at,
+          mine: false,
+        })),
+      ...direct
+        .filter((d) => d.reaction_target_wa_id)
+        .map((d) => ({
+          id: d.id,
+          // Emoji vazio = reação removida (registro fica pra auditoria).
+          emoji: d.reaction_emoji ?? "",
+          target_wa_id: d.reaction_target_wa_id,
+          at: d.created_at,
+          mine: true,
+        })),
+    ].filter((r) => r.emoji);
 
     const inbound = inboundRaw
       .filter((m) => m.tipo !== "reaction" && !m.is_system_event)
