@@ -531,7 +531,11 @@ export const getConversation = createServerFn({ method: "GET" })
       automation,
       fallback_last_message,
       source_errors: sourceErrors,
-      direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
+      direct: direct
+        // Registros de reação enviada por nós não são bolha de mensagem —
+        // já entraram no array `reactions` acima (presos à bolha alvo).
+        .filter((d) => !d.reaction_target_wa_id)
+        .map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
           nome?: string;
