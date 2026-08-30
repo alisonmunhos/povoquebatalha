@@ -284,7 +284,7 @@ export const getConversation = createServerFn({ method: "GET" })
     }
 
     const DIRECT_COLS =
-      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image";
+      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image, reaction_emoji, reaction_target_wa_id";
 
     // Mensagens do robô de cadastro podem ter sido gravadas só com o número
     // (quando o contato ainda não existia): busca também por to_phone.
