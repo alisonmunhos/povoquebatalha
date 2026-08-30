@@ -284,7 +284,7 @@ export const getConversation = createServerFn({ method: "GET" })
     }
 
     const DIRECT_COLS =
-      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image";
+      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image, reaction_emoji, reaction_target_wa_id";
 
     // Mensagens do robô de cadastro podem ter sido gravadas só com o número
     // (quando o contato ainda não existia): busca também por to_phone.
@@ -347,7 +347,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const [inR, dR, cR, tR, aR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as InboundRow[], error: null as { message: string } | null }),
-      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null }[], error: null as { message: string } | null }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null; reaction_emoji: string | null; reaction_target_wa_id: string | null }[], error: null as { message: string } | null }),
       campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[], error: null as { message: string } | null }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
       automationQuery ?? Promise.resolve({ data: [] as AutoRow[], error: null as { message: string } | null }),
@@ -386,14 +386,30 @@ export const getConversation = createServerFn({ method: "GET" })
     }
 
     // Reações não viram bolha: vão presas na mensagem reagida (como no WhatsApp).
-    const reactions = inboundRaw
-      .filter((m) => m.tipo === "reaction" && m.reaction_emoji)
-      .map((m) => ({
-        id: m.id,
-        emoji: m.reaction_emoji as string,
-        target_wa_id: m.reaction_target_wa_id,
-        at: m.received_at,
-      }));
+    // Inbound = reação que o CONTATO enviou; direct = reação que NÓS enviamos
+    // pelo Inbox (registrada em direct_messages com reaction_target_wa_id).
+    // `mine` diferencia as duas para a interface exibir "Você reagiu".
+    const reactions = [
+      ...inboundRaw
+        .filter((m) => m.tipo === "reaction" && m.reaction_emoji)
+        .map((m) => ({
+          id: m.id,
+          emoji: m.reaction_emoji as string,
+          target_wa_id: m.reaction_target_wa_id,
+          at: m.received_at,
+          mine: false,
+        })),
+      ...direct
+        .filter((d) => d.reaction_target_wa_id)
+        .map((d) => ({
+          id: d.id,
+          // Emoji vazio = reação removida (registro fica pra auditoria).
+          emoji: d.reaction_emoji ?? "",
+          target_wa_id: d.reaction_target_wa_id,
+          at: d.created_at,
+          mine: true,
+        })),
+    ].filter((r) => r.emoji);
 
     const inbound = inboundRaw
       .filter((m) => m.tipo !== "reaction" && !m.is_system_event)
@@ -515,7 +531,11 @@ export const getConversation = createServerFn({ method: "GET" })
       automation,
       fallback_last_message,
       source_errors: sourceErrors,
-      direct: direct.map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
+      direct: direct
+        // Registros de reação enviada por nós não são bolha de mensagem —
+        // já entraram no array `reactions` acima (presos à bolha alvo).
+        .filter((d) => !d.reaction_target_wa_id)
+        .map((d) => ({ ...d, sender_name: d.sent_by ? senderNames[d.sent_by as string] ?? null : null })),
       campaign: campaign.map((r) => {
         const campaignRow = (Array.isArray(r.campaigns) ? r.campaigns[0] : r.campaigns) as {
           nome?: string;
@@ -1019,4 +1039,72 @@ export const listCommContactsForBulk = createServerFn({ method: "GET" })
     const { data: rows, error } = await q;
     if (error) throw error;
     return rows ?? [];
+  });
+
+// ------- Reagir a uma mensagem com emoji (Cloud API oficial) -------
+
+export const reactToInboxMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    conversation_id: z.string().uuid().optional(),
+    contact_id: z.string().uuid().optional(),
+    // wa_id (wamid.…) da mensagem ALVO da reação — pode ser de uma mensagem
+    // recebida do contato ou de uma que nós enviamos.
+    message_wa_id: z.string().trim().min(5).max(200),
+    // Emoji (ex.: "❤️"). String vazia = remover a reação anterior.
+    emoji: z.string().trim().max(16).default(""),
+  }).refine((d) => Boolean(d.conversation_id || d.contact_id), {
+    message: "Informe a conversa ou o contato.",
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+
+    const convQuery = data.conversation_id
+      ? context.supabase.from("conversations").select("id, from_phone, last_inbound_at, contact_id").eq("id", data.conversation_id).maybeSingle()
+      : context.supabase.from("conversations").select("id, from_phone, last_inbound_at, contact_id").eq("contact_id", data.contact_id!).maybeSingle();
+    const { data: conv, error: convErr } = await convQuery;
+    if (convErr || !conv?.from_phone) throw new Error("Conversa não encontrada.");
+
+    // Reação é mensagem de texto livre: a Meta só aceita dentro da janela de 24h.
+    const win = windowState(conv.last_inbound_at as string | null);
+    if (!win.open) {
+      throw new Error("A janela de 24h desta conversa fechou — não é possível reagir agora.");
+    }
+
+    const phone = String(conv.from_phone).replace(/\D+/g, "");
+    const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
+
+    let sentMessageId: string | null = null;
+    let sendError: string | null = null;
+    try {
+      const res = await whatsappCloud.sendReaction(phone, data.message_wa_id, data.emoji);
+      sentMessageId = res.messageId ?? null;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Janela vencida entre a checagem e o envio, ou mensagem alvo antiga demais.
+      sendError = /131047|re-engagement|24/i.test(msg)
+        ? "A janela de 24h fechou — não foi possível enviar a reação."
+        : /131|132/.test(msg)
+          ? "O WhatsApp recusou a reação (mensagem muito antiga ou inválida)."
+          : "Falha ao enviar a reação para o WhatsApp.";
+    }
+
+    // Registro local SEMPRE (mesmo em erro): é o que prende a reação na bolha
+    // e fica de auditoria. Emoji vazio + sucesso = reação removida.
+    await context.supabase.from("direct_messages").insert({
+      contact_id: (conv.contact_id as string | null) ?? data.contact_id ?? null,
+      to_phone: (conv.contact_id ?? data.contact_id) ? null : phone,
+      sent_by: context.userId,
+      origem: "inbox",
+      conteudo: data.emoji ? `Reagiu com ${data.emoji}` : "Removeu a reação",
+      status: sendError ? "erro" : "enviado",
+      erro: sendError,
+      message_id: sentMessageId,
+      reaction_emoji: data.emoji || null,
+      reaction_target_wa_id: data.message_wa_id,
+      endpoint_used: "cloud-api-reaction",
+    } as never);
+
+    if (sendError) throw new Error(sendError);
+    return { ok: true, emoji: data.emoji || null };
   });

@@ -231,6 +231,24 @@ export const whatsappCloud = {
     }),
 
   /**
+   * Reação com emoji a uma mensagem (Cloud API oficial, `type: "reaction"`).
+   * `messageId` é o wa_id da mensagem ALVO (ex.: wamid.HBg...). Passar emoji
+   * vazio ("") REMOVE a reação anterior. Só funciona enquanto a janela de
+   * conversa estiver aberta — mensagens de texto livre/reação fora da janela
+   * de 24h são rejeitadas pela Meta.
+   */
+  sendReaction: (phone: string, messageId: string, emoji: string) =>
+    graphPost({
+      recipient_type: "individual",
+      to: normalizeCloudPhone(phone),
+      type: "reaction",
+      reaction: {
+        message_id: messageId,
+        emoji,
+      },
+    }),
+
+  /**
    * Template aprovado pela Meta, formato nomeado (`parameter_format: "named"`,
    * mesmo padrão usado em whatsapp-templates.functions.ts). Único jeito de
    * iniciar/reabrir conversa com um contato fora da janela de 24h — texto livre

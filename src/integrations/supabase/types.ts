@@ -1576,6 +1576,8 @@ export type Database = {
           message_id: string | null
           origem: string
           preview_status: string | null
+          reaction_emoji: string | null
+          reaction_target_wa_id: string | null
           read_at: string | null
           sent_by: string | null
           status: string
@@ -1604,6 +1606,8 @@ export type Database = {
           message_id?: string | null
           origem: string
           preview_status?: string | null
+          reaction_emoji?: string | null
+          reaction_target_wa_id?: string | null
           read_at?: string | null
           sent_by?: string | null
           status?: string
@@ -1632,6 +1636,8 @@ export type Database = {
           message_id?: string | null
           origem?: string
           preview_status?: string | null
+          reaction_emoji?: string | null
+          reaction_target_wa_id?: string | null
           read_at?: string | null
           sent_by?: string | null
           status?: string
