@@ -1040,3 +1040,71 @@ export const listCommContactsForBulk = createServerFn({ method: "GET" })
     if (error) throw error;
     return rows ?? [];
   });
+
+// ------- Reagir a uma mensagem com emoji (Cloud API oficial) -------
+
+export const reactToInboxMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    conversation_id: z.string().uuid().optional(),
+    contact_id: z.string().uuid().optional(),
+    // wa_id (wamid.…) da mensagem ALVO da reação — pode ser de uma mensagem
+    // recebida do contato ou de uma que nós enviamos.
+    message_wa_id: z.string().trim().min(5).max(200),
+    // Emoji (ex.: "❤️"). String vazia = remover a reação anterior.
+    emoji: z.string().trim().max(16).default(""),
+  }).refine((d) => Boolean(d.conversation_id || d.contact_id), {
+    message: "Informe a conversa ou o contato.",
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+
+    const convQuery = data.conversation_id
+      ? context.supabase.from("conversations").select("id, from_phone, last_inbound_at, contact_id").eq("id", data.conversation_id).maybeSingle()
+      : context.supabase.from("conversations").select("id, from_phone, last_inbound_at, contact_id").eq("contact_id", data.contact_id!).maybeSingle();
+    const { data: conv, error: convErr } = await convQuery;
+    if (convErr || !conv?.from_phone) throw new Error("Conversa não encontrada.");
+
+    // Reação é mensagem de texto livre: a Meta só aceita dentro da janela de 24h.
+    const win = windowState(conv.last_inbound_at as string | null);
+    if (!win.open) {
+      throw new Error("A janela de 24h desta conversa fechou — não é possível reagir agora.");
+    }
+
+    const phone = String(conv.from_phone).replace(/\D+/g, "");
+    const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
+
+    let sentMessageId: string | null = null;
+    let sendError: string | null = null;
+    try {
+      const res = await whatsappCloud.sendReaction(phone, data.message_wa_id, data.emoji);
+      sentMessageId = res.messageId ?? null;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Janela vencida entre a checagem e o envio, ou mensagem alvo antiga demais.
+      sendError = /131047|re-engagement|24/i.test(msg)
+        ? "A janela de 24h fechou — não foi possível enviar a reação."
+        : /131|132/.test(msg)
+          ? "O WhatsApp recusou a reação (mensagem muito antiga ou inválida)."
+          : "Falha ao enviar a reação para o WhatsApp.";
+    }
+
+    // Registro local SEMPRE (mesmo em erro): é o que prende a reação na bolha
+    // e fica de auditoria. Emoji vazio + sucesso = reação removida.
+    await context.supabase.from("direct_messages").insert({
+      contact_id: (conv.contact_id as string | null) ?? data.contact_id ?? null,
+      to_phone: (conv.contact_id ?? data.contact_id) ? null : phone,
+      sent_by: context.userId,
+      origem: "inbox",
+      conteudo: data.emoji ? `Reagiu com ${data.emoji}` : "Removeu a reação",
+      status: sendError ? "erro" : "enviado",
+      erro: sendError,
+      message_id: sentMessageId,
+      reaction_emoji: data.emoji || null,
+      reaction_target_wa_id: data.message_wa_id,
+      endpoint_used: "cloud-api-reaction",
+    } as never);
+
+    if (sendError) throw new Error(sendError);
+    return { ok: true, emoji: data.emoji || null };
+  });
