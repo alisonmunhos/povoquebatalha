@@ -751,13 +751,17 @@ export const getConversation = createServerFn({ method: "GET" })
     // Inbound = reação que o CONTATO enviou; direct = reação que NÓS enviamos
     // pelo Inbox (registrada em direct_messages com reaction_target_wa_id).
     // `mine` diferencia as duas para a interface exibir "Você reagiu".
-    const reactions = [
+    // Reação é ESTADO por (mensagem-alvo, quem reagiu), não histórico: reagir
+    // de novo troca o emoji, reagir com vazio remove — cada linha em
+    // inbound_messages/direct_messages é só um evento (auditoria); o que vale
+    // pra exibição é o evento mais recente por par (alvo, mine).
+    const reactionEvents = [
       ...inboundRaw
-        .filter((m) => m.tipo === "reaction" && m.reaction_emoji)
+        .filter((m) => m.tipo === "reaction" && m.reaction_target_wa_id)
         .map((m) => ({
           id: m.id,
-          emoji: m.reaction_emoji as string,
-          target_wa_id: m.reaction_target_wa_id,
+          emoji: m.reaction_emoji ?? "",
+          target_wa_id: m.reaction_target_wa_id as string,
           at: m.received_at,
           mine: false,
         })),
@@ -767,11 +771,20 @@ export const getConversation = createServerFn({ method: "GET" })
           id: d.id,
           // Emoji vazio = reação removida (registro fica pra auditoria).
           emoji: d.reaction_emoji ?? "",
-          target_wa_id: d.reaction_target_wa_id,
+          target_wa_id: d.reaction_target_wa_id as string,
           at: d.created_at,
           mine: true,
         })),
-    ].filter((r) => r.emoji);
+    ];
+    const latestReactionByKey = new Map<string, (typeof reactionEvents)[number]>();
+    for (const ev of reactionEvents) {
+      const key = `${ev.target_wa_id}:${ev.mine ? "mine" : "them"}`;
+      const prev = latestReactionByKey.get(key);
+      if (!prev || new Date(ev.at).getTime() >= new Date(prev.at).getTime()) {
+        latestReactionByKey.set(key, ev);
+      }
+    }
+    const reactions = Array.from(latestReactionByKey.values()).filter((r) => r.emoji);
 
     const inbound = inboundRaw
       .filter((m) => m.tipo !== "reaction" && !m.is_system_event)

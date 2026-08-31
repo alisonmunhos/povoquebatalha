@@ -6,6 +6,7 @@ import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import { fetchLinkPreview, type LinkPreview } from "@/lib/link-preview.functions";
 import { MessagePreview } from "@/components/MessagePreview";
 import { MESSAGE_VARIABLES, renderMessageVars } from "@/lib/message-vars";
+import { EmojiPickerPopover } from "@/components/inbox/EmojiPickerPopover";
 
 // Mesmo formato do modelo Meta (TemplateButton em whatsapp-templates.functions.ts),
 // restrito a QUICK_REPLY — único tipo que a Cloud API aceita em mensagem de texto
@@ -100,6 +101,7 @@ export function MessageComposer({
   const [uploading, setUploading] = useState(false);
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   // Debounced link preview
   useEffect(() => {
@@ -247,6 +249,25 @@ export function MessageComposer({
                 {QUICK_EMOJIS.map((e) => (
                   <button key={e} type="button" onClick={() => insertAtCursor(e)} className="text-base leading-none hover:scale-110 transition p-0.5" title={`Inserir ${e}`}>{e}</button>
                 ))}
+                <EmojiPickerPopover
+                  open={emojiPickerOpen}
+                  onOpenChange={setEmojiPickerOpen}
+                  trigger={
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-background text-muted-foreground"
+                      title="Mais emojis"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                  onPick={(emoji) => {
+                    insertAtCursor(emoji);
+                    setEmojiPickerOpen(false);
+                  }}
+                  width={280}
+                  height={320}
+                />
               </div>
             )}
           </div>

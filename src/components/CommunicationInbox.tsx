@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useQuery,
   useInfiniteQuery,
@@ -30,6 +30,7 @@ import {
   addContactTagFromInbox, removeContactTagFromInbox, updateContactFormasAjudaFromInbox,
   listWindowOpenPinned, archiveAndOptOutConversation,
   listPinnedTagChips, pinTagChip, unpinTagChip,
+  reactToInboxMessage,
 } from "@/lib/communication.functions";
 import { listWhatsappFlows, startWhatsappFlowManually } from "@/lib/whatsapp-flows.functions";
 import { windowState } from "@/lib/inbox-window";
@@ -42,8 +43,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContactTagPicker, type InboxTagRow } from "@/components/inbox/ContactTagPicker";
-
-const EmojiPicker = lazy(() => import("emoji-picker-react"));
+import { EmojiPickerPopover } from "@/components/inbox/EmojiPickerPopover";
 
 // Formatos de áudio aceitos pela API oficial do WhatsApp (Cloud API) pra
 // mensagem de áudio: AAC, AMR, MP3, MP4/M4A e OGG (só codec Opus — nota de
@@ -239,6 +239,7 @@ export function CommunicationInbox() {
   const pinnedTagsFn = useServerFn(listPinnedTagChips);
   const pinTagFn = useServerFn(pinTagChip);
   const unpinTagFn = useServerFn(unpinTagChip);
+  const reactFn = useServerFn(reactToInboxMessage);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [templateSendOpen, setTemplateSendOpen] = useState(false);
 
@@ -484,6 +485,19 @@ export function CommunicationInbox() {
   const flagMut = useMutation({
     mutationFn: (v: { conversation_id: string; flagged: boolean }) => flagFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] }),
+  });
+
+  const reactMut = useMutation({
+    mutationFn: (v: { message_wa_id: string; emoji: string }) =>
+      reactFn({
+        data: {
+          ...v,
+          contact_id: selectedContactId ?? undefined,
+          conversation_id: selectedContactId ? undefined : selectedConvId ?? undefined,
+        },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["comm-conv", convKey] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao reagir"),
   });
 
   const archiveOptOutMut = useMutation({
@@ -908,8 +922,12 @@ export function CommunicationInbox() {
     for (const m of t) if (m.wa_id) byWaId.set(m.wa_id, m);
     for (const r of convQ.data?.reactions ?? []) {
       const target = r.target_wa_id ? byWaId.get(r.target_wa_id) : undefined;
-      if (target) target.reactions = [...(target.reactions ?? []), r.emoji];
-      else t.push({ id: `r-${r.id}`, kind: "in", text: r.emoji, at: r.at, meta: "reação" });
+      if (target) {
+        target.reactions = [...(target.reactions ?? []), r.emoji];
+        if (r.mine) target.myReactionEmoji = r.emoji;
+      } else {
+        t.push({ id: `r-${r.id}`, kind: "in", text: r.emoji, at: r.at, meta: "reação" });
+      }
     }
     // Resposta citada: liga a mensagem recebida à original pelo id do WhatsApp.
     for (const m of t) {
@@ -1385,6 +1403,11 @@ export function CommunicationInbox() {
                       });
                       replyRef.current?.focus();
                     }}
+                    canReact={windowOpen}
+                    onReact={(emoji) => {
+                      if (!item.msg.wa_id) return;
+                      reactMut.mutate({ message_wa_id: item.msg.wa_id, emoji });
+                    }}
                   />
                 );
               })}
@@ -1551,8 +1574,10 @@ export function CommunicationInbox() {
                   </PopoverContent>
                 </Popover>
 
-                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-                  <PopoverTrigger asChild>
+                <EmojiPickerPopover
+                  open={emojiOpen}
+                  onOpenChange={setEmojiOpen}
+                  trigger={
                     <button
                       className="p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-40"
                       title="Inserir emoji"
@@ -1561,36 +1586,26 @@ export function CommunicationInbox() {
                     >
                       <Smile className="h-4 w-4" />
                     </button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-auto p-0" sideOffset={8}>
-                    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando emojis…</div>}>
-                      <EmojiPicker
-                        onEmojiClick={(data) => {
-                          const emoji = typeof data.emoji === "string" ? data.emoji : "";
-                          if (!emoji) return;
-                          const el = replyRef.current;
-                          const start = el ? el.selectionStart ?? cursorRef.current.start : cursorRef.current.start;
-                          const end = el ? el.selectionEnd ?? cursorRef.current.end : cursorRef.current.end;
-                          const before = reply.slice(0, start);
-                          const after = reply.slice(end);
-                          const next = before + emoji + after;
-                          setReply(next);
-                          const pos = start + emoji.length;
-                          cursorRef.current = { start: pos, end: pos };
-                          requestAnimationFrame(() => {
-                            el?.focus();
-                            el?.setSelectionRange(pos, pos);
-                          });
-                          setEmojiOpen(false);
-                        }}
-                        width={280}
-                        height={320}
-                        lazyLoadEmojis
-                        searchDisabled
-                      />
-                    </Suspense>
-                  </PopoverContent>
-                </Popover>
+                  }
+                  onPick={(emoji) => {
+                    const el = replyRef.current;
+                    const start = el ? el.selectionStart ?? cursorRef.current.start : cursorRef.current.start;
+                    const end = el ? el.selectionEnd ?? cursorRef.current.end : cursorRef.current.end;
+                    const before = reply.slice(0, start);
+                    const after = reply.slice(end);
+                    const next = before + emoji + after;
+                    setReply(next);
+                    const pos = start + emoji.length;
+                    cursorRef.current = { start: pos, end: pos };
+                    requestAnimationFrame(() => {
+                      el?.focus();
+                      el?.setSelectionRange(pos, pos);
+                    });
+                    setEmojiOpen(false);
+                  }}
+                  width={280}
+                  height={320}
+                />
                 {tplsQ.data && tplsQ.data.length > 0 && (
                   <Popover open={quickOpen} onOpenChange={(o) => { setQuickOpen(o); if (!o) setQuickSearch(""); }}>
                     <PopoverTrigger asChild>

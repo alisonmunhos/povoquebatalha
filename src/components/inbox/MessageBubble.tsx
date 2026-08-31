@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Check, CheckCheck, AlertTriangle, Clock, MapPin, UserRound, ExternalLink, Reply, Copy,
 } from "lucide-react";
@@ -6,8 +6,10 @@ import { toast } from "sonner";
 import { linkify } from "@/lib/linkify";
 import { fmtTime, type InboxMsg } from "@/lib/inbox-timeline";
 import { MediaView, SignedMedia } from "@/components/inbox/MessageMedia";
+import { MessageActions } from "@/components/inbox/MessageActions";
 
 const LONG_TEXT = 700;
+const LONG_PRESS_MS = 450;
 
 function ReceiptIcon({ msg }: { msg: InboxMsg }) {
   if (msg.kind !== "out" || !msg.receipt) return null;
@@ -66,14 +68,21 @@ export function MessageBubble({
   groupEnd,
   onQuoteClick,
   onReply,
+  canReact,
+  onReact,
 }: {
   msg: InboxMsg;
   groupStart: boolean;
   groupEnd: boolean;
   onQuoteClick?: (id: string) => void;
   onReply?: (msg: InboxMsg) => void;
+  /** Janela de 24h aberta — reação é texto livre, a Meta só aceita dentro dela. */
+  canReact?: boolean;
+  onReact?: (emoji: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [actionsHeld, setActionsHeld] = useState(false);
+  const holdTimer = useRef<number | null>(null);
   const out = msg.kind === "out";
   const isSticker = (msg.tipo ?? "").toLowerCase() === "sticker";
   const long = msg.text.length > LONG_TEXT;
@@ -82,6 +91,18 @@ export function MessageBubble({
   const corner = out
     ? groupEnd ? "rounded-br-sm" : "rounded-br-2xl"
     : groupEnd ? "rounded-bl-sm" : "rounded-bl-2xl";
+
+  function startHold() {
+    if (!onReact || !msg.wa_id) return;
+    clearHold();
+    holdTimer.current = window.setTimeout(() => setActionsHeld(true), LONG_PRESS_MS);
+  }
+  function clearHold() {
+    if (holdTimer.current != null) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }
 
   return (
     <div
@@ -105,7 +126,36 @@ export function MessageBubble({
             ? ""
             : `rounded-2xl px-3 py-2 shadow-sm ${corner} ${out ? "wa-bubble-out" : "wa-bubble-in border"}`
         }`}
+        onTouchStart={startHold}
+        onTouchEnd={clearHold}
+        onTouchMove={clearHold}
+        onTouchCancel={clearHold}
+        onContextMenu={(e) => {
+          if (onReact && msg.wa_id) e.preventDefault();
+        }}
       >
+        {onReact && msg.wa_id && (
+          <>
+            {actionsHeld && (
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setActionsHeld(false)}
+                onTouchStart={() => setActionsHeld(false)}
+              />
+            )}
+            <MessageActions
+              align={out ? "end" : "start"}
+              visible={actionsHeld}
+              currentEmoji={msg.myReactionEmoji}
+              disabled={!canReact}
+              disabledReason="Fora da janela de 24h — não é possível reagir agora."
+              onReact={(emoji) => {
+                setActionsHeld(false);
+                onReact(emoji);
+              }}
+            />
+          </>
+        )}
         {msg.isTemplate && (
           <div className={`mb-1 text-[10px] font-semibold uppercase tracking-wide ${out ? "opacity-70" : "text-muted-foreground"}`}>
             Template oficial
