@@ -231,12 +231,14 @@ export function CommunicationInbox() {
   });
 
   // Faixa fixa "Dentro da janela agora" — independente do chip/ordenação da
-  // lista principal abaixo.
+  // lista principal abaixo. Recolhível (começa aberta) e com scroll próprio
+  // pra não empurrar a lista principal quando tiver muitos itens.
   const pinnedQ = useQuery({
     queryKey: ["comm-conv-pinned"],
     queryFn: () => pinnedFn(),
     refetchInterval: 15000,
   });
+  const [pinnedOpen, setPinnedOpen] = useState(true);
 
   // Rolagem infinita real (offset), uma leva por vez — cada leva já vem
   // filtrada/ordenada/contada pelo servidor, então lista e contador nunca
@@ -1039,17 +1041,26 @@ export function CommunicationInbox() {
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {(pinnedQ.data?.length ?? 0) > 0 && (
             <div className="border-b bg-emerald-50 dark:bg-emerald-950/20">
-              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-semibold">
-                Dentro da janela agora
-              </div>
-              {(pinnedQ.data ?? []).map((c) => (
-                <ConversationRow
-                  key={`pinned-${c.id}`}
-                  c={c}
-                  selected={selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id}
-                  onOpen={() => openConversation(c.contact_id, c.id, c.unread)}
-                />
-              ))}
+              <button
+                type="button"
+                onClick={() => setPinnedOpen((v) => !v)}
+                className="flex w-full items-center gap-1 px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-semibold"
+              >
+                <ChevronDown className={`h-3 w-3 transition-transform ${pinnedOpen ? "" : "-rotate-90"}`} />
+                Dentro da janela agora ({pinnedQ.data?.length ?? 0})
+              </button>
+              {pinnedOpen && (
+                <div className="max-h-[210px] overflow-y-auto overscroll-contain">
+                  {(pinnedQ.data ?? []).map((c) => (
+                    <ConversationRow
+                      key={`pinned-${c.id}`}
+                      c={c}
+                      selected={selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id}
+                      onOpen={() => openConversation(c.contact_id, c.id, c.unread)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {listQ.isLoading && (
