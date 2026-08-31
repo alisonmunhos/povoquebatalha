@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, Tag as TagIcon } from "lucide-react";
@@ -17,17 +17,27 @@ import { listTagsForInboxPicker, createContactTagFromInbox } from "@/lib/communi
 export type InboxTagRow = { id: string; nome: string; cor: string | null; categoria: string };
 
 type Props = {
-  /** Tags que o contato já tem — ficam de fora da lista. */
+  /** Tags que já ficam de fora da lista (já aplicadas ao contato, ou já fixadas como chip, dependendo de quem usa). */
   excludeIds: string[];
   /** Chamado quando uma tag já existente é escolhida. */
   onPick: (tag: InboxTagRow) => void;
-  /** Chamado depois que uma tag nova é criada e já deve ser aplicada. */
-  onCreated: (tag: InboxTagRow) => void;
+  /** Chamado depois que uma tag nova é criada e já deve ser aplicada. Só é usado quando allowCreate é true. */
+  onCreated?: (tag: InboxTagRow) => void;
+  /** Mostra a opção "Criar tag <nome>" quando a busca não bate com nenhuma existente. Default true. */
+  allowCreate?: boolean;
+  /** Elemento customizado pro gatilho do popover — default é o botão "+ adicionar tag". */
+  trigger?: ReactNode;
 };
 
 // Combobox pesquisável (Popover+Command) sobre as tags do sistema, com opção
 // de criar uma tag nova na hora — mesmo padrão do MessageTemplatePicker.tsx.
-export function ContactTagPicker({ excludeIds, onPick, onCreated }: Props) {
+export function ContactTagPicker({
+  excludeIds,
+  onPick,
+  onCreated,
+  allowCreate = true,
+  trigger,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
@@ -63,7 +73,7 @@ export function ContactTagPicker({ excludeIds, onPick, onCreated }: Props) {
     try {
       const row = await createFn({ data: { nome: trimmedSearch } });
       await queryClient.invalidateQueries({ queryKey: ["inbox-tags-picker"] });
-      onCreated(row as InboxTagRow);
+      onCreated?.(row as InboxTagRow);
       setSearch("");
       setOpen(false);
     } catch (e) {
@@ -83,12 +93,14 @@ export function ContactTagPicker({ excludeIds, onPick, onCreated }: Props) {
       modal
     >
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border border-dashed text-muted-foreground hover:text-foreground hover:border-foreground"
-        >
-          <Plus className="h-3 w-3" /> adicionar tag
-        </button>
+        {trigger ?? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border border-dashed text-muted-foreground hover:text-foreground hover:border-foreground"
+          >
+            <Plus className="h-3 w-3" /> adicionar tag
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         className="p-0 w-[280px] flex flex-col overflow-hidden max-h-[min(60vh,var(--radix-popover-content-available-height))]"
@@ -106,7 +118,7 @@ export function ContactTagPicker({ excludeIds, onPick, onCreated }: Props) {
             ref={inputRef}
             value={search}
             onValueChange={setSearch}
-            placeholder="Buscar ou criar tag…"
+            placeholder={allowCreate ? "Buscar ou criar tag…" : "Buscar tag…"}
           />
           <CommandList className="flex-1 min-h-0 max-h-[260px]">
             <CommandEmpty>
@@ -137,7 +149,7 @@ export function ContactTagPicker({ excludeIds, onPick, onCreated }: Props) {
                 ))}
             </CommandGroup>
           </CommandList>
-          {trimmedSearch && !hasExactMatch && (
+          {allowCreate && trimmedSearch && !hasExactMatch && (
             <div className="shrink-0 border-t p-1">
               <button
                 type="button"

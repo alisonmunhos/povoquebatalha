@@ -2308,6 +2308,32 @@ export type Database = {
         }
         Relationships: []
       }
+      inbox_tag_pins: {
+        Row: {
+          pinned_at: string
+          pinned_by: string
+          tag_id: string
+        }
+        Insert: {
+          pinned_at?: string
+          pinned_by: string
+          tag_id: string
+        }
+        Update: {
+          pinned_at?: string
+          pinned_by?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_tag_pins_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: true
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inbound_messages: {
         Row: {
           assigned_to: string | null

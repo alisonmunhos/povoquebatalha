@@ -183,7 +183,14 @@ type InboxChip = (typeof INBOX_CHIPS)[number];
 const CANDIDATE_CAP = 5000;
 
 async function runListConversationsV2(
-  data: { filter: InboxChip; sort: InboxSort; search?: string; offset: number; limit: number },
+  data: {
+    filter: InboxChip;
+    sort: InboxSort;
+    search?: string;
+    tag_id?: string;
+    offset: number;
+    limit: number;
+  },
   context: { supabase: Parameters<typeof requireInboxAccess>[0]; userId: string },
 ) {
   await requireInboxAccess(context.supabase, context.userId);
@@ -191,12 +198,32 @@ async function runListConversationsV2(
   const windowCutoff = new Date(nowMs - WINDOW_MS).toISOString();
   const expiringCutoff = new Date(nowMs + EXPIRING_MS - WINDOW_MS).toISOString();
 
+  // Grupo por tag (Etapa 3) — recorte adicional por cima do chip escolhido,
+  // não substitui os 9 chips fixos. contact_tags não tem FK direta pra
+  // conversations, então resolve os contact_id primeiro e filtra por eles.
+  let tagContactIds: string[] | null = null;
+  if (data.tag_id) {
+    const { data: rels, error: tagError } = await context.supabase
+      .from("contact_tags")
+      .select("contact_id")
+      .eq("tag_id", data.tag_id)
+      .limit(CANDIDATE_CAP);
+    if (tagError) throw tagError;
+    const ids = (rels ?? []).map((r: { contact_id: string }) => r.contact_id);
+    if (ids.length === 0) {
+      return { list: [], total: 0, has_more: false, capped: false };
+    }
+    tagContactIds = ids;
+  }
+
   let q = context.supabase
     .from("conversations")
     .select(CONVERSATION_LIST_COLS)
     .is("archived_at", null)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(CANDIDATE_CAP);
+
+  if (tagContactIds) q = q.in("contact_id", tagContactIds);
 
   if (data.filter === "aberta") q = q.eq("status", "aberta");
   else if (data.filter === "aguardando") q = q.eq("status", "aguardando");
@@ -259,6 +286,7 @@ export const listConversationsV2 = createServerFn({ method: "GET" })
         filter: z.enum(INBOX_CHIPS),
         sort: z.enum(INBOX_SORTS).default("ultima_interacao"),
         search: z.string().trim().max(120).optional(),
+        tag_id: z.string().uuid().optional(),
         offset: z.number().int().min(0).default(0),
         limit: z.number().int().min(20).max(200).default(60),
       })
@@ -1389,6 +1417,77 @@ export const updateContactFormasAjudaFromInbox = createServerFn({ method: "POST"
       .eq("id", data.contact_id);
     if (error) throw error;
     return { ok: true };
+  });
+
+// ------- Etapa 3 do Inbox: grupos por tag (chip dinâmico, compartilhado) -------
+
+export const pinTagChip = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ tag_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("inbox_tag_pins")
+      .insert({ tag_id: data.tag_id, pinned_by: context.userId });
+    if (error && error.code !== "23505") throw error; // 23505 = já fixada, idempotente
+    return { ok: true };
+  });
+
+export const unpinTagChip = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ tag_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("inbox_tag_pins")
+      .delete()
+      .eq("tag_id", data.tag_id);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+type PinnedTagRow = {
+  tag_id: string;
+  tags:
+    | { id: string; nome: string; cor: string | null }
+    | { id: string; nome: string; cor: string | null }[]
+    | null;
+};
+
+export const listPinnedTagChips = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { data: rawPins, error } = await context.supabase
+      .from("inbox_tag_pins")
+      .select("tag_id, tags:tag_id(id, nome, cor)")
+      .order("pinned_at", { ascending: true });
+    if (error) throw error;
+    const pins = (rawPins ?? []) as unknown as PinnedTagRow[];
+
+    const tagIds = pins.map((p) => p.tag_id);
+    const counts = new Map<string, number>();
+    if (tagIds.length > 0) {
+      const { data: rels } = await context.supabase
+        .from("contact_tags")
+        .select("tag_id")
+        .in("tag_id", tagIds)
+        .limit(20000);
+      for (const r of rels ?? []) {
+        const id = r.tag_id as string;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+
+    return pins.map((p) => {
+      const t = Array.isArray(p.tags) ? p.tags[0] : p.tags;
+      return {
+        tag_id: p.tag_id,
+        nome: t?.nome ?? "?",
+        cor: t?.cor ?? null,
+        count: counts.get(p.tag_id) ?? 0,
+      };
+    });
   });
 
 export const listCommunicationStaff = createServerFn({ method: "GET" })
