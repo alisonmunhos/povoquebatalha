@@ -27,6 +27,9 @@ export type InboxMsg = {
   link_image?: string | null;
   wa_id?: string | null;
   reactions?: string[];
+  /** Nosso emoji ativo nesta mensagem (vazio/ausente = não reagimos), pra
+   * destacar o atalho selecionado e decidir o toggle (reagir de novo remove). */
+  myReactionEmoji?: string | null;
   location?: { lat: number; lng: number; name: string | null } | null;
   shared_contacts?: { nome?: string | null; phone?: string | null }[] | null;
   receipt?: Receipt;
