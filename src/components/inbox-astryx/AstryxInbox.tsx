@@ -360,7 +360,7 @@ function InboxPilot() {
                   </span>
                 )}
                 {c.last_dir === "out" && <span className="text-muted-foreground/60">↩</span>}
-                <span className="truncate">{c.last_preview ?? "(sem prévia)"}</span>
+                <span className="truncate">{c.last_preview || "(sem prévia)"}</span>
               </div>
             </button>
           ))}

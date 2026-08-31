@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link, getRouteApi } from "@tanstack/react-router";
 
@@ -50,6 +56,7 @@ const AUDIO_MAX_BYTES = 16 * 1024 * 1024;
 import {
   buildTimelineItems, receiptFrom, fmtBytes, type InboxMsg,
 } from "@/lib/inbox-timeline";
+import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
 import {
   MessageBubble, DaySeparator, UnreadDivider, SystemMessage,
 } from "@/components/inbox/MessageBubble";
@@ -151,6 +158,10 @@ export function CommunicationInbox() {
   const [sort, setSort] = useState<InboxSort>("ultima_interacao");
   // Grupo por tag (Etapa 3) — recorte adicional por cima do chip escolhido.
   const [activeTagId, setActiveTagId] = useState<string | null>(null);
+  // Tick de 1min só pra forçar o recálculo do contador da janela de 24h
+  // (windowState depende de "agora", que senão só se atualizava quando algo
+  // mais disparava um re-render desta tela).
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(contactParam || null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -178,6 +189,10 @@ export function CommunicationInbox() {
       window.localStorage.setItem("inbox.infoOpen", infoOpen ? "1" : "0");
     }
   }, [infoOpen]);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // Anexo pendente (upload feito, aguardando envio)
   const [attachment, setAttachment] = useState<{ path: string; filename: string; mime: string; size?: number | null; previewUrl?: string } | null>(null);
@@ -288,6 +303,9 @@ export function CommunicationInbox() {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.has_more ? allPages.length * PAGE_SIZE : undefined,
     refetchInterval: 15000,
+    // Mantém a leva anterior visível enquanto a busca/filtro troca — sem isso a
+    // lista piscava vazia (ou o skeleton) a cada tecla digitada na busca.
+    placeholderData: keepPreviousData,
   });
 
   const list = useMemo(() => listQ.data?.pages.flatMap((p) => p.list) ?? [], [listQ.data]);
@@ -732,8 +750,12 @@ export function CommunicationInbox() {
   // (mantido por gatilho no servidor) — fonte confiável, não depende de quantas
   // mensagens antigas foram carregadas nesta tela.
   const convWindow = useMemo(
-    () => windowState((conv as { last_inbound_at?: string | null } | undefined)?.last_inbound_at ?? null),
-    [conv],
+    () =>
+      windowState(
+        (conv as { last_inbound_at?: string | null } | undefined)?.last_inbound_at ?? null,
+        nowTick,
+      ),
+    [conv, nowTick],
   );
   const windowOpen = convWindow.open;
   // Fora da janela de 24h, texto livre (e o robô, que também manda texto livre
@@ -833,6 +855,7 @@ export function CommunicationInbox() {
         failed_at?: string | null; media_path?: string | null; media_mime?: string | null;
         media_filename?: string | null; message_id?: string | null; endpoint_used?: string | null;
         link_url?: string | null; link_title?: string | null; link_description?: string | null; link_image?: string | null;
+        buttons?: TemplateButton[] | null;
       };
       const isFlowBot = row.endpoint_used === "whatsapp-flow";
       t.push({
@@ -850,6 +873,7 @@ export function CommunicationInbox() {
         link_title: row.link_title ?? null,
         link_description: row.link_description ?? null,
         link_image: row.link_image ?? null,
+        buttons: row.buttons ?? [],
       });
     }
     for (const m of convQ.data?.campaign ?? []) t.push({

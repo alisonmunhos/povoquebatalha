@@ -138,7 +138,7 @@ export function ConversationRow({
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           {c.last_dir === "out" && <Check className="h-3 w-3 shrink-0 opacity-70" aria-label="última mensagem sua" />}
           <span className={`truncate ${unread ? "font-medium text-foreground/80" : ""}`}>
-            {c.last_preview ?? "(sem prévia)"}
+            {c.last_preview || "(sem prévia)"}
           </span>
           {unread && (
             <span className="ml-auto inline-flex min-w-[1.125rem] shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">

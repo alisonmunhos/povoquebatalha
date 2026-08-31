@@ -13,7 +13,7 @@ import { getCatalogField } from "@/lib/form-field-catalog";
 import type { FormQuestionRow } from "@/lib/public-form-contact.server";
 import { windowState } from "@/lib/inbox-window";
 import { buildVarValues } from "@/lib/wa-send.server";
-import { extractNamedVars } from "@/lib/whatsapp-templates.functions";
+import { extractNamedVars, type TemplateButton } from "@/lib/whatsapp-templates.functions";
 import {
   FLOW_CANCEL_WORDS,
   FLOW_DEFAULT_PATH,
@@ -127,6 +127,14 @@ async function sendFlowMessage(
     erro = e instanceof Error ? e.message : String(e);
   }
 
+  // Botões/lista oferecidos nesta mensagem, pro histórico do Inbox não perder
+  // essa informação (antes só o corpo de texto era salvo).
+  const historyButtons: TemplateButton[] = args.buttons?.length
+    ? args.buttons.map((b) => ({ type: "QUICK_REPLY" as const, text: b.title }))
+    : args.listRows?.length
+      ? args.listRows.map((r) => ({ type: "QUICK_REPLY" as const, text: r.title }))
+      : [];
+
   // Histórico no Inbox: grava sempre. Sem contato ainda, identifica pelo número
   // (to_phone) e o vínculo acontece quando o cadastro é criado.
   try {
@@ -140,6 +148,7 @@ async function sendFlowMessage(
       erro,
       message_id: messageId,
       endpoint_used: "whatsapp-flow",
+      buttons: historyButtons.length ? historyButtons : null,
     });
   } catch {
     /* histórico não pode derrubar o fluxo */

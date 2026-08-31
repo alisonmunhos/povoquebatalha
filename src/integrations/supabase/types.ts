@@ -1559,6 +1559,7 @@ export type Database = {
       }
       direct_messages: {
         Row: {
+          buttons: Json | null
           contact_id: string | null
           conteudo: string
           created_at: string
@@ -1589,6 +1590,7 @@ export type Database = {
           zaap_id: string | null
         }
         Insert: {
+          buttons?: Json | null
           contact_id?: string | null
           conteudo: string
           created_at?: string
@@ -1619,6 +1621,7 @@ export type Database = {
           zaap_id?: string | null
         }
         Update: {
+          buttons?: Json | null
           contact_id?: string | null
           conteudo?: string
           created_at?: string
