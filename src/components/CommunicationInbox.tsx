@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot, Music, Copy, Check, Ban,
+  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot, Music, Copy, Check, Ban, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +23,7 @@ import {
   linkConversationToContact, getMyCommunicationBadge,
   addContactTagFromInbox, removeContactTagFromInbox, updateContactFormasAjudaFromInbox,
   listWindowOpenPinned, archiveAndOptOutConversation,
+  listPinnedTagChips, pinTagChip, unpinTagChip,
 } from "@/lib/communication.functions";
 import { listWhatsappFlows, startWhatsappFlowManually } from "@/lib/whatsapp-flows.functions";
 import { windowState } from "@/lib/inbox-window";
@@ -148,6 +149,8 @@ export function CommunicationInbox() {
   const { contact: contactParam } = routeApi.useSearch();
   const [chip, setChip] = useState<InboxChip>("aberta");
   const [sort, setSort] = useState<InboxSort>("ultima_interacao");
+  // Grupo por tag (Etapa 3) — recorte adicional por cima do chip escolhido.
+  const [activeTagId, setActiveTagId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(contactParam || null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -218,6 +221,9 @@ export function CommunicationInbox() {
   const formasAjudaFn = useServerFn(updateContactFormasAjudaFromInbox);
   const pinnedFn = useServerFn(listWindowOpenPinned);
   const archiveOptOutFn = useServerFn(archiveAndOptOutConversation);
+  const pinnedTagsFn = useServerFn(listPinnedTagChips);
+  const pinTagFn = useServerFn(pinTagChip);
+  const unpinTagFn = useServerFn(unpinTagChip);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [templateSendOpen, setTemplateSendOpen] = useState(false);
 
@@ -240,15 +246,43 @@ export function CommunicationInbox() {
   });
   const [pinnedOpen, setPinnedOpen] = useState(false);
 
+  // Grupos por tag (Etapa 3) — segunda fileira de chips, compartilhada com
+  // toda a equipe (fixar/desfixar muda o que todo mundo vê).
+  const pinnedTagsQ = useQuery({
+    queryKey: ["comm-pinned-tags"],
+    queryFn: () => pinnedTagsFn(),
+    staleTime: 30_000,
+  });
+  const pinTagMut = useMutation({
+    mutationFn: (v: { tag_id: string }) => pinTagFn({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["comm-pinned-tags"] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao fixar tag"),
+  });
+  const unpinTagMut = useMutation({
+    mutationFn: (v: { tag_id: string }) => unpinTagFn({ data: v }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ["comm-pinned-tags"] });
+      if (activeTagId === vars.tag_id) setActiveTagId(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao desfixar tag"),
+  });
+
   // Rolagem infinita real (offset), uma leva por vez — cada leva já vem
   // filtrada/ordenada/contada pelo servidor, então lista e contador nunca
   // divergem entre si.
   const PAGE_SIZE = 60;
   const listQ = useInfiniteQuery({
-    queryKey: ["comm-conv-list-v2", chip, sort, search],
+    queryKey: ["comm-conv-list-v2", chip, sort, search, activeTagId],
     queryFn: ({ pageParam }) =>
       listFn({
-        data: { filter: chip, sort, search: search || undefined, offset: pageParam, limit: PAGE_SIZE },
+        data: {
+          filter: chip,
+          sort,
+          search: search || undefined,
+          tag_id: activeTagId ?? undefined,
+          offset: pageParam,
+          limit: PAGE_SIZE,
+        },
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
@@ -1036,6 +1070,47 @@ export function CommunicationInbox() {
                 <option key={s.key} value={s.key}>{s.label}</option>
               ))}
             </select>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            {(pinnedTagsQ.data ?? []).map((t) => {
+              const active = activeTagId === t.tag_id;
+              return (
+                <span
+                  key={t.tag_id}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full border pl-2.5 pr-1 py-1 text-xs transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-input hover:bg-muted"
+                  }`}
+                  style={!active && t.cor ? { borderColor: t.cor, color: t.cor } : undefined}
+                >
+                  <button type="button" onClick={() => setActiveTagId(active ? null : t.tag_id)}>
+                    {t.nome} ({t.count})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unpinTagMut.mutate({ tag_id: t.tag_id })}
+                    className="hover:opacity-70"
+                    aria-label={`Desfixar tag ${t.nome}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            })}
+            <ContactTagPicker
+              excludeIds={(pinnedTagsQ.data ?? []).map((t) => t.tag_id)}
+              allowCreate={false}
+              onPick={(tag: InboxTagRow) => pinTagMut.mutate({ tag_id: tag.id })}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-foreground"
+                >
+                  <Plus className="h-3 w-3" /> tag
+                </button>
+              }
+            />
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
