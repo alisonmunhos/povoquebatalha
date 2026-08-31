@@ -1497,6 +1497,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          archived_at: string | null
           assigned_to: string | null
           contact_id: string | null
           created_at: string
@@ -1513,6 +1514,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           assigned_to?: string | null
           contact_id?: string | null
           created_at?: string
@@ -1529,6 +1531,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           assigned_to?: string | null
           contact_id?: string | null
           created_at?: string

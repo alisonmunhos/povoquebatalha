@@ -309,7 +309,7 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 let rPatch: RecipientPatch = {};
                 let dPatch: DirectPatch = {};
 
-                if (statusValue === "failed" || errorMsg) {
+                if (statusValue === "failed") {
                   rPatch = { status: "failed", failed_at: now, erro: errorMsg };
                   dPatch = { status: "erro", failed_at: now, erro: errorMsg };
                 } else if (statusValue === "sent") {
@@ -321,6 +321,17 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 } else if (statusValue === "read") {
                   rPatch = { status: "read", read_at: now };
                   dPatch = { status: "lido", read_at: now };
+                }
+
+                // errors[] pode vir anexado a um status.status que já é sent/delivered/read
+                // (ex.: aviso de categoria/cobrança de template) — não é falha de entrega de
+                // verdade, só um aviso secundário. Não sobrescreve o status real; só loga.
+                if (errorMsg && statusValue !== "failed") {
+                  console.warn("[webhook whatsapp-cloud] aviso não-fatal anexado ao status", {
+                    messageId,
+                    statusValue,
+                    errorMsg,
+                  });
                 }
 
                 if (Object.keys(rPatch).length > 0) {
@@ -348,7 +359,7 @@ export const Route = createFileRoute("/api/public/whatsapp-cloud/webhook")({
                 // grava "sent") e só reportar a falha de entrega de verdade depois,
                 // de forma assíncrona, por aqui — sem isso o registro fica travado
                 // em "sent" mesmo quando a mensagem nunca chegou.
-                if (statusValue === "failed" || errorMsg) {
+                if (statusValue === "failed") {
                   try {
                     await supabaseAdmin
                       .from("automation_deliveries")

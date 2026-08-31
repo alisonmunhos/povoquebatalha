@@ -20,6 +20,252 @@ function formatEventKeyLabel(eventKey: string | null | undefined): string | null
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+type ConversationContactShape = {
+  id: string;
+  nome: string | null;
+  phone_e164: string | null;
+  cidade: string | null;
+  uf: string | null;
+  bairro: string | null;
+  opt_out_at: string | null;
+  whatsapp_status: string | null;
+};
+
+const CONVERSATION_LIST_COLS =
+  "id, contact_id, from_phone, status, assigned_to, last_message_at, last_inbound_at, last_message_preview, last_message_direction, unread_count, flagged, contacts:contact_id(id,nome,phone_e164,cidade,uf,bairro,opt_out_at,whatsapp_status)";
+
+type ConversationListRow = {
+  id: string;
+  contact_id: string | null;
+  from_phone: string | null;
+  status: "aberta" | "aguardando" | "resolvida";
+  assigned_to: string | null;
+  last_message_at: string | null;
+  last_inbound_at: string | null;
+  last_message_preview: string | null;
+  last_message_direction: "in" | "out" | null;
+  unread_count: number;
+  flagged: boolean;
+  contacts: ConversationContactShape | ConversationContactShape[] | null;
+};
+
+function mapConversationRow(
+  r: ConversationListRow,
+  assigneeMap: Map<string, { id: string; nome: string | null }>,
+) {
+  const raw = r.contacts;
+  const c = Array.isArray(raw) ? raw[0] : raw;
+  const assignedTo = r.assigned_to;
+  return {
+    id: r.id,
+    contact_id: r.contact_id,
+    from_phone: r.from_phone ?? null,
+    nome: c?.nome ?? null,
+    phone: c?.phone_e164 ?? r.from_phone ?? null,
+    cidade: c?.cidade ?? null,
+    uf: c?.uf ?? null,
+    bairro: c?.bairro ?? null,
+    opt_out: Boolean(c?.opt_out_at),
+    whatsapp_status: c?.whatsapp_status ?? null,
+    status: r.status,
+    assigned_to: assignedTo,
+    assignee: assignedTo ? (assigneeMap.get(assignedTo) ?? { id: assignedTo, nome: null }) : null,
+    last_at: r.last_message_at,
+    last_inbound_at: r.last_inbound_at ?? null,
+    last_preview: r.last_message_preview,
+    last_dir: r.last_message_direction,
+    unread: r.unread_count,
+    flagged: r.flagged,
+  };
+}
+
+type MappedConversation = ReturnType<typeof mapConversationRow>;
+
+async function resolveAssignees(
+  supabase: Parameters<typeof requireInboxAccess>[0],
+  rows: { assigned_to: string | null }[],
+): Promise<Map<string, { id: string; nome: string | null }>> {
+  const assigneeIds = Array.from(
+    new Set(rows.map((r) => r.assigned_to).filter((x): x is string => Boolean(x))),
+  );
+  const assigneeMap = new Map<string, { id: string; nome: string | null }>();
+  if (assigneeIds.length > 0) {
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", assigneeIds)
+      .limit(1000);
+    (profs ?? []).forEach((p) => {
+      assigneeMap.set(p.id as string, { id: p.id as string, nome: p.full_name as string | null });
+    });
+  }
+  return assigneeMap;
+}
+
+// Não existe coluna dizendo "a última saída foi um disparo de campanha" — os 3
+// gatilhos que mantêm conversations.last_message_at (direct/automação/campanha)
+// copiam o timestamp de origem verbatim, então dá pra descobrir a origem
+// comparando contact_id + timestamp exato contra campaign_recipients.sent_at,
+// sem precisar de coluna nova nem backfill (funciona igual pra conversas
+// antigas e novas).
+async function classifyCampaignOrigin(
+  supabase: Parameters<typeof requireInboxAccess>[0],
+  candidates: Pick<MappedConversation, "contact_id" | "last_at" | "last_dir">[],
+): Promise<Set<string>> {
+  const outCandidates = candidates.filter((c) => c.last_dir === "out" && c.contact_id && c.last_at);
+  if (outCandidates.length === 0) return new Set();
+  const contactIds = Array.from(new Set(outCandidates.map((c) => c.contact_id as string)));
+  const { data: sent } = await supabase
+    .from("campaign_recipients")
+    .select("contact_id, sent_at")
+    .in("contact_id", contactIds)
+    .not("sent_at", "is", null)
+    .limit(10000);
+  const sentByContact = new Map<string, Set<string>>();
+  for (const r of sent ?? []) {
+    const cid = r.contact_id as string;
+    const at = r.sent_at as string;
+    if (!sentByContact.has(cid)) sentByContact.set(cid, new Set());
+    sentByContact.get(cid)!.add(at);
+  }
+  const result = new Set<string>();
+  for (const c of outCandidates) {
+    if (sentByContact.get(c.contact_id as string)?.has(c.last_at as string)) {
+      result.add(c.contact_id as string);
+    }
+  }
+  return result;
+}
+
+const INBOX_SORTS = ["ultima_interacao", "expira_primeiro", "aguardando_resposta"] as const;
+type InboxSort = (typeof INBOX_SORTS)[number];
+
+function sortConversations(list: MappedConversation[], sort: InboxSort): MappedConversation[] {
+  if (sort === "expira_primeiro") {
+    return [...list].sort((a, b) => {
+      if (a.last_inbound_at === null) return b.last_inbound_at === null ? 0 : 1;
+      if (b.last_inbound_at === null) return -1;
+      return a.last_inbound_at.localeCompare(b.last_inbound_at);
+    });
+  }
+  if (sort === "aguardando_resposta") {
+    return [...list].sort((a, b) => {
+      const aWaiting = a.last_dir === "in" && a.status !== "resolvida";
+      const bWaiting = b.last_dir === "in" && b.status !== "resolvida";
+      if (aWaiting !== bWaiting) return aWaiting ? -1 : 1;
+      return (b.last_at ?? "").localeCompare(a.last_at ?? "");
+    });
+  }
+  return [...list].sort((a, b) => (b.last_at ?? "").localeCompare(a.last_at ?? ""));
+}
+
+const INBOX_CHIPS = [
+  "todas",
+  "aberta",
+  "aguardando",
+  "resolvida",
+  "sinalizada",
+  "chat_disponivel",
+  "expirando",
+  "minhas",
+  "ultimo_disparo",
+] as const;
+type InboxChip = (typeof INBOX_CHIPS)[number];
+
+// Recorte (chip) da Etapa 2 do Inbox — arquitetura nova, separada da
+// ordenação (sortConversations). Busca o conjunto candidato inteiro (até
+// CANDIDATE_CAP) em vez de paginar direto no banco: "aberta" e
+// "ultimo_disparo" dependem de uma classificação feita em JS
+// (classifyCampaignOrigin, sem coluna própria pra origem) que não dá pra
+// aplicar como filtro SQL — paginar em cima do candidato completo já
+// classificado/ordenado é o jeito de manter a contagem e a lista sempre
+// consistentes entre si (nunca divergem, porque vêm do mesmo array).
+const CANDIDATE_CAP = 5000;
+
+async function runListConversationsV2(
+  data: { filter: InboxChip; sort: InboxSort; search?: string; offset: number; limit: number },
+  context: { supabase: Parameters<typeof requireInboxAccess>[0]; userId: string },
+) {
+  await requireInboxAccess(context.supabase, context.userId);
+  const nowMs = Date.now();
+  const windowCutoff = new Date(nowMs - WINDOW_MS).toISOString();
+  const expiringCutoff = new Date(nowMs + EXPIRING_MS - WINDOW_MS).toISOString();
+
+  let q = context.supabase
+    .from("conversations")
+    .select(CONVERSATION_LIST_COLS)
+    .is("archived_at", null)
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(CANDIDATE_CAP);
+
+  if (data.filter === "aberta") q = q.eq("status", "aberta");
+  else if (data.filter === "aguardando") q = q.eq("status", "aguardando");
+  else if (data.filter === "resolvida") q = q.eq("status", "resolvida");
+  else if (data.filter === "sinalizada") q = q.eq("flagged", true);
+  else if (data.filter === "minhas")
+    q = q.eq("assigned_to", context.userId).in("status", ["aberta", "aguardando"]);
+  else if (data.filter === "ultimo_disparo") q = q.eq("last_message_direction", "out");
+
+  if (data.filter === "chat_disponivel" || data.filter === "expirando") {
+    q = q.gt("last_inbound_at", windowCutoff);
+  }
+  if (data.filter === "expirando") q = q.lte("last_inbound_at", expiringCutoff);
+
+  if (data.search) {
+    const s = data.search;
+    const digits = s.replace(/\D+/g, "");
+    const phoneOr =
+      digits.length >= 4
+        ? `contacts.phone_e164.ilike.%${digits}%,contacts.nome.ilike.%${s}%`
+        : `contacts.nome.ilike.%${s}%`;
+    q = q.or(`${phoneOr},last_message_preview.ilike.%${s}%`);
+  }
+
+  const { data: rawRows, error } = await q;
+  if (error) throw error;
+  const rows = (rawRows ?? []) as unknown as ConversationListRow[];
+  const capped = rows.length >= CANDIDATE_CAP;
+
+  const assigneeMap = await resolveAssignees(context.supabase, rows);
+  let mapped = rows.map((r) => mapConversationRow(r, assigneeMap));
+
+  if (data.filter === "aberta" || data.filter === "ultimo_disparo") {
+    const campaignSet = await classifyCampaignOrigin(context.supabase, mapped);
+    mapped =
+      data.filter === "ultimo_disparo"
+        ? mapped.filter((c) => c.contact_id && campaignSet.has(c.contact_id))
+        : mapped.filter((c) => !(c.contact_id && campaignSet.has(c.contact_id)));
+  }
+
+  mapped = sortConversations(mapped, data.sort);
+
+  const total = mapped.length;
+  const list = mapped.slice(data.offset, data.offset + data.limit);
+  const hasMore = data.offset + data.limit < total;
+
+  return { list, total, has_more: hasMore, capped };
+}
+
+// Chips novos da Etapa 2 (reforma do Inbox) — função própria, separada de
+// listConversations (mantida intacta por compatibilidade com
+// src/components/inbox-astryx/AstryxInbox.tsx, UI alternativa que também a
+// consome). Tipo de retorno próprio evita a ambiguidade de união que dava se
+// os dois formatos de resposta saíssem da mesma função.
+export const listConversationsV2 = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        filter: z.enum(INBOX_CHIPS),
+        sort: z.enum(INBOX_SORTS).default("ultima_interacao"),
+        search: z.string().trim().max(120).optional(),
+        offset: z.number().int().min(0).default(0),
+        limit: z.number().int().min(20).max(200).default(60),
+      })
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => runListConversationsV2(data, context));
+
 // ------- List conversations (WhatsApp Web style: only contacts with exchanged messages) -------
 export const listConversations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -175,6 +421,82 @@ export const listConversations = createServerFn({ method: "GET" })
     return { list, counts, has_more: hasMore };
   });
 
+// Faixa fixa "Dentro da janela agora" — quem mandou mensagem nas últimas 24h,
+// qualquer status (inclusive resolvida), sempre visível independente do
+// chip/ordenação escolhidos na lista principal. Naturalmente pequeno — sem
+// paginação, só um teto de segurança.
+export const listWindowOpenPinned = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const cutoff = new Date(Date.now() - WINDOW_MS).toISOString();
+    const { data: rawRows, error } = await context.supabase
+      .from("conversations")
+      .select(CONVERSATION_LIST_COLS)
+      .is("archived_at", null)
+      .gt("last_inbound_at", cutoff)
+      .order("last_inbound_at", { ascending: true, nullsFirst: false })
+      .limit(200);
+    if (error) throw error;
+    const rows = (rawRows ?? []) as unknown as ConversationListRow[];
+    const assigneeMap = await resolveAssignees(context.supabase, rows);
+    return rows.map((r) => mapConversationRow(r, assigneeMap));
+  });
+
+// Opt-out + arquivar, direto do Inbox: some da lista (archived_at) e bloqueia
+// novos envios (contacts.opt_out_at), numa ação só. Reaproveita a mesma
+// gravação de setOptOut (contacts.functions.ts) em vez de chamá-la — mantém
+// o handler autocontido, no mesmo padrão de escrita direta via
+// context.supabase já usado no resto deste arquivo.
+export const archiveAndOptOutConversation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        conversation_id: z.string().uuid(),
+        contact_id: z.string().uuid(),
+        motivo: z.string().trim().max(240).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+
+    const { error: contactError } = await context.supabase
+      .from("contacts")
+      .update({
+        opt_out_at: new Date().toISOString(),
+        opt_out_motivo: data.motivo ?? null,
+        lifecycle_status: "nao_enviar",
+      })
+      .eq("id", data.contact_id);
+    if (contactError) throw contactError;
+
+    await context.supabase.from("contact_audit_log").insert({
+      contact_id: data.contact_id,
+      user_id: context.userId,
+      action: "opt_out",
+      changes: (data.motivo
+        ? { motivo: data.motivo, origem: "inbox" }
+        : { origem: "inbox" }) as never,
+    });
+
+    const { error: convError } = await context.supabase
+      .from("conversations")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", data.conversation_id);
+    if (convError) throw convError;
+
+    await context.supabase.from("conversation_events").insert({
+      conversation_id: data.conversation_id,
+      actor_id: context.userId,
+      event_type: "archived",
+      payload: (data.motivo ? { motivo: data.motivo } : {}) as ConvEventPayload,
+    });
+
+    return { ok: true as const };
+  });
+
 // Busca de contatos salvos (estilo WhatsApp): retorna QUALQUER contato ativo
 // que bata com nome/telefone/cidade, independente de status do WhatsApp.
 // Contatos que já tenham conversa também podem aparecer; a UI decide como agrupar.
@@ -242,16 +564,28 @@ export const getConversation = createServerFn({ method: "GET" })
     const effectiveContactId = data.contact_id ?? convRow?.contact_id ?? null;
 
     type Contact = {
-      id: string; nome: string | null; phone_e164: string | null; phone_whatsapp_candidate: string | null;
-      cidade: string | null; uf: string | null; bairro: string | null; opt_out_at: string | null;
-      consentimento_whatsapp: boolean | null; whatsapp_status: string | null;
-      profissao: string | null; formas_ajuda: string[] | null;
+      id: string;
+      nome: string | null;
+      phone_e164: string | null;
+      phone_whatsapp_candidate: string | null;
+      cidade: string | null;
+      uf: string | null;
+      bairro: string | null;
+      opt_out_at: string | null;
+      consentimento_whatsapp: boolean | null;
+      whatsapp_status: string | null;
+      profissao: string | null;
+      formas_ajuda: string[] | null;
+      endereco_completo: string | null;
+      observacoes: string | null;
     };
     let contact: Contact | null = null;
     if (effectiveContactId) {
       const { data: c } = await context.supabase
         .from("contacts")
-        .select("id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status,profissao,formas_ajuda")
+        .select(
+          "id,nome,phone_e164,phone_whatsapp_candidate,cidade,uf,bairro,opt_out_at,consentimento_whatsapp,whatsapp_status,profissao,formas_ajuda,endereco_completo,observacoes",
+        )
         .eq("id", effectiveContactId).maybeSingle();
       contact = c as Contact | null;
     }
@@ -946,6 +1280,114 @@ export const addConversationNote = createServerFn({ method: "POST" })
         payload: mentionPayload,
       });
     }
+    return { ok: true };
+  });
+
+// ------- Painel lateral do contato: tags e formas de ajuda editáveis -------
+
+export const addContactTagFromInbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        contact_id: z.string().uuid(),
+        tag_id: z.string().uuid(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("contact_tags")
+      .insert({ contact_id: data.contact_id, tag_id: data.tag_id });
+    if (error && error.code !== "23505") throw error; // 23505 = já existe, idempotente
+    return { ok: true };
+  });
+
+export const removeContactTagFromInbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        contact_id: z.string().uuid(),
+        tag_id: z.string().uuid(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("contact_tags")
+      .delete()
+      .eq("contact_id", data.contact_id)
+      .eq("tag_id", data.tag_id);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+// Lista de tags ordenada por mais aplicada recentemente em QUALQUER contato do
+// sistema — funciona como "favoritas" automáticas sem mecanismo de favoritar
+// manual: quem a equipe mais usou agora tende a aparecer primeiro no picker.
+export const listTagsForInboxPicker = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { data: tags, error } = await context.supabase
+      .from("tags")
+      .select("id,nome,cor,categoria");
+    if (error) throw error;
+    const { data: recent } = await context.supabase
+      .from("contact_tags")
+      .select("tag_id, created_at")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    const order = new Map<string, string>();
+    for (const r of recent ?? []) {
+      const tagId = r.tag_id as string;
+      if (!order.has(tagId)) order.set(tagId, r.created_at as string);
+    }
+    return (tags ?? []).sort((a, b) => {
+      const ao = order.get(a.id as string) ?? "";
+      const bo = order.get(b.id as string) ?? "";
+      return bo.localeCompare(ao);
+    });
+  });
+
+// Cria uma tag nova direto do picker do Inbox. Categoria fixa "interesse" —
+// o operador do Inbox não escolhe categoria (não é exposta na UI); é só uma
+// etiqueta rápida durante o atendimento. Quem quiser reclassificar usa a
+// Gestão de Tags, que já expõe todas as categorias.
+export const createContactTagFromInbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ nome: z.string().trim().min(1).max(60) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { data: row, error } = await context.supabase
+      .from("tags")
+      .insert({ nome: data.nome, categoria: "interesse" })
+      .select("id,nome,cor,categoria")
+      .single();
+    if (error) throw error;
+    return row;
+  });
+
+export const updateContactFormasAjudaFromInbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        contact_id: z.string().uuid(),
+        formas_ajuda: z.array(z.string()),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("contacts")
+      .update({ formas_ajuda: data.formas_ajuda })
+      .eq("id", data.contact_id);
+    if (error) throw error;
     return { ok: true };
   });
 
