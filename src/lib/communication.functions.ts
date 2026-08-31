@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRole, requireInboxAccess } from "@/lib/authz";
 import { renderMessageVars } from "@/lib/message-vars";
 import { WINDOW_MS, EXPIRING_MS, windowState } from "@/lib/inbox-window";
-import type { TemplateButton } from "@/lib/whatsapp-templates.functions";
+import { extractNamedVars, type TemplateButton } from "@/lib/whatsapp-templates.functions";
 
 
 type ConvEventPayload = Record<string, string | number | boolean | null>;
@@ -646,7 +646,7 @@ export const getConversation = createServerFn({ method: "GET" })
     }
 
     const DIRECT_COLS =
-      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image, reaction_emoji, reaction_target_wa_id, buttons";
+      "id, conteudo, created_at, sent_by, origem, status, erro, delivered_at, read_at, failed_at, media_path, media_mime, media_filename, message_id, endpoint_used, link_url, link_title, link_description, link_image, reaction_emoji, reaction_target_wa_id, buttons, header_type, header_text";
 
     // Mensagens do robô de cadastro podem ter sido gravadas só com o número
     // (quando o contato ainda não existia): busca também por to_phone.
@@ -709,7 +709,7 @@ export const getConversation = createServerFn({ method: "GET" })
 
     const [inR, dR, cR, tR, aR] = await Promise.all([
       inboundQuery ?? Promise.resolve({ data: [] as InboundRow[], error: null as { message: string } | null }),
-      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null; reaction_emoji: string | null; reaction_target_wa_id: string | null; buttons: unknown }[], error: null as { message: string } | null }),
+      directQuery ?? Promise.resolve({ data: [] as { id: string; conteudo: string; created_at: string; sent_by: string | null; origem: string; status: string; erro: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; message_id: string | null; endpoint_used: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null; reaction_emoji: string | null; reaction_target_wa_id: string | null; buttons: unknown; header_type: string | null; header_text: string | null }[], error: null as { message: string } | null }),
       campaignQuery ?? Promise.resolve({ data: [] as { id: string; rendered_message: string | null; sent_at: string | null; status: string; endpoint_used: string | null; message_id: string | null; link_url: string | null; link_title: string | null; link_description: string | null; link_image: string | null; campaigns: { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null } | { nome?: string; whatsapp_template_id?: string | null; whatsapp_templates?: { header_type?: string | null; header_text?: string | null; buttons?: unknown } | { header_type?: string | null; header_text?: string | null; buttons?: unknown }[] | null }[] | null }[], error: null as { message: string } | null }),
       tagsQuery ?? Promise.resolve({ data: [] as { tags: { id: string; nome: string; cor: string | null } | { id: string; nome: string; cor: string | null }[] | null }[] }),
       automationQuery ?? Promise.resolve({ data: [] as AutoRow[], error: null as { message: string } | null }),
@@ -1661,4 +1661,130 @@ export const reactToInboxMessage = createServerFn({ method: "POST" })
 
     if (sendError) throw new Error(sendError);
     return { ok: true, emoji: data.emoji || null };
+  });
+
+/** Substitui {{var}} pelos valores resolvidos — só pra guardar um registro
+ * legível em direct_messages.conteudo/header_text, não é o que de fato é
+ * enviado (a Meta usa os parâmetros nomeados do template aprovado). Mesma
+ * lógica replicada em campaign-batch.server.ts e automations.server.ts. */
+function previewTemplateBody(bodyText: string, params: Record<string, string>): string {
+  return bodyText.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, k: string) =>
+    Object.prototype.hasOwnProperty.call(params, k) ? params[k] : m,
+  );
+}
+
+/**
+ * Etapa 6 — envio avulso de template oficial direto do Inbox, sem passar por
+ * campaigns/campaign_recipients (causa raiz da fricção e da inflação de "Em
+ * aberto" pra envios de 1 contato só). Mesmo motor de campaign-batch.server.ts
+ * (whatsappCloud.sendTemplate), mas grava o resultado direto em
+ * direct_messages (origem: "inbox"), igual a qualquer outro envio do Inbox.
+ */
+export const sendOfficialTemplateFromInbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        conversation_id: z.string().uuid().optional(),
+        contact_id: z.string().uuid().optional(),
+        whatsapp_template_id: z.string().uuid(),
+      })
+      .refine((d) => Boolean(d.conversation_id || d.contact_id), {
+        message: "Informe a conversa ou o contato.",
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireInboxAccess(context.supabase, context.userId);
+
+    let contactId = data.contact_id ?? null;
+    if (!contactId && data.conversation_id) {
+      const { data: conv } = await context.supabase
+        .from("conversations")
+        .select("contact_id")
+        .eq("id", data.conversation_id)
+        .maybeSingle();
+      contactId = (conv?.contact_id as string | null) ?? null;
+    }
+    if (!contactId) {
+      throw new Error("Envio avulso de template exige um contato vinculado à conversa.");
+    }
+
+    const { data: contact, error: contactErr } = await context.supabase
+      .from("contacts")
+      .select(
+        "id, nome, nome_social, cidade, bairro, uf, phone_e164, phone_whatsapp_candidate, opt_out_at, arquivado_at, lifecycle_status, consentimento_whatsapp, whatsapp_status, recad_token",
+      )
+      .eq("id", contactId)
+      .maybeSingle();
+    if (contactErr || !contact) throw new Error("Contato não encontrado.");
+    if (contact.opt_out_at) throw new Error("Contato optou por sair (opt-out) — envio bloqueado.");
+    if (contact.arquivado_at) throw new Error("Contato arquivado — envio bloqueado.");
+
+    const { data: tpl, error: tplErr } = await context.supabase
+      .from("whatsapp_templates")
+      .select("name, language, body_text, header_type, header_text, buttons")
+      .eq("id", data.whatsapp_template_id)
+      .eq("status", "approved")
+      .eq("parameter_format", "named")
+      .maybeSingle();
+    if (tplErr || !tpl) throw new Error("Template não encontrado ou não está aprovado.");
+
+    const { sendablePhone } = await import("@/lib/contact-rules");
+    const phone = sendablePhone(contact);
+    if (!phone) throw new Error("Contato sem telefone válido para WhatsApp.");
+
+    const { buildVarValues } = await import("@/lib/wa-send.server");
+    const values = buildVarValues(contact);
+    const bodyVars = extractNamedVars(tpl.body_text);
+    const bodyParams: Record<string, string> = {};
+    for (const name of bodyVars) bodyParams[name] = values[name] ?? "";
+    const renderedBody = previewTemplateBody(tpl.body_text, bodyParams);
+
+    const headerVar =
+      tpl.header_type === "TEXT" && tpl.header_text
+        ? extractNamedVars(tpl.header_text)[0]
+        : undefined;
+    const headerParam = headerVar ? { name: headerVar, value: values[headerVar] ?? "" } : undefined;
+    const renderedHeaderText =
+      tpl.header_type === "TEXT" && tpl.header_text
+        ? previewTemplateBody(
+            tpl.header_text,
+            headerParam ? { [headerParam.name]: headerParam.value } : {},
+          )
+        : null;
+
+    const { whatsappCloud } = await import("@/integrations/whatsapp-cloud/client.server");
+    let messageId: string | null = null;
+    let sendError: string | null = null;
+    try {
+      const res = await whatsappCloud.sendTemplate(
+        phone,
+        tpl.name,
+        tpl.language,
+        bodyParams,
+        headerParam,
+      );
+      messageId = res.messageId ?? null;
+    } catch (e) {
+      sendError = e instanceof Error ? e.message : "Falha ao enviar o template para o WhatsApp.";
+    }
+
+    const templateButtons = Array.isArray(tpl.buttons) ? (tpl.buttons as TemplateButton[]) : [];
+    await context.supabase.from("direct_messages").insert({
+      contact_id: contactId,
+      sent_by: context.userId,
+      origem: "inbox",
+      conteudo: renderedBody,
+      status: sendError ? "erro" : "enviado",
+      erro: sendError,
+      message_id: messageId,
+      endpoint_used: "send-template",
+      header_type: tpl.header_type ?? null,
+      header_text: renderedHeaderText,
+      buttons: templateButtons.length ? templateButtons : null,
+    } as never);
+
+    if (sendError) throw new Error(sendError);
+    return { ok: true };
   });
