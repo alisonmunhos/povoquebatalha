@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link, getRouteApi } from "@tanstack/react-router";
 
@@ -8,7 +8,7 @@ import {
   Search, Send, Loader2, Star, StarOff, CheckCircle2, RotateCcw, Paperclip,
   MessageSquare, ExternalLink, AlertTriangle, UserPlus, ArrowLeft, MoreVertical,
   Flag, ClipboardList, StickyNote, Clock, X, PanelRightClose, PanelRightOpen, FileText,
-  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot, Music,
+  Smile, MessageSquareText, Image as ImageIcon, ChevronDown, Bot, Music, Copy, Check, Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,20 +16,25 @@ import { useAuth } from "@/hooks/use-auth";
 import { sendDirectMessage, listQuickReplies } from "@/lib/inbox.functions";
 import { signCampaignMediaUpload } from "@/lib/campaigns.functions";
 import {
-  listConversations, getConversation, markConversationRead, markConversationUnread,
+  listConversationsV2, getConversation, markConversationRead, markConversationUnread,
   assignConversation,
   setConversationStatus, toggleConversationFlag, addConversationNote,
   listCommunicationStaff, searchContactsForNewChat,
   linkConversationToContact, getMyCommunicationBadge,
+  addContactTagFromInbox, removeContactTagFromInbox, updateContactFormasAjudaFromInbox,
+  listWindowOpenPinned, archiveAndOptOutConversation,
 } from "@/lib/communication.functions";
 import { listWhatsappFlows, startWhatsappFlowManually } from "@/lib/whatsapp-flows.functions";
 import { windowState } from "@/lib/inbox-window";
+import { getCatalogField } from "@/lib/form-field-catalog";
 
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
 import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ContactTagPicker, type InboxTagRow } from "@/components/inbox/ContactTagPicker";
 
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
@@ -54,6 +59,10 @@ import { InboxAvatar } from "@/components/inbox/InboxAvatar";
 
 
 
+// Mesmo catálogo usado no construtor de formulários e na Gestão da Base —
+// nunca duplicar a lista de opções aqui.
+const FORMAS_AJUDA_OPTIONS = getCatalogField("formas_ajuda")?.options ?? [];
+
 /** Mostra a razão real da falha; traduz o erro de janela de 24h da Meta. */
 function describeSendError(erro?: string | null): string {
   const raw = (erro ?? "").trim();
@@ -68,36 +77,77 @@ function describeSendError(erro?: string | null): string {
 
 
 
-type BackendFilter =
-  | "all" | "mine" | "unread" | "flagged" | "resolved"
-  | "in_service" | "unlinked" | "with_error" | "opt_out"
-  | "window_open" | "window_expiring" | "mine_window";
+// Chip (recorte de QUAIS conversas aparecem) separado de ordenação (sort, mais
+// abaixo) — Etapa 2 da reforma do Inbox. Os valores batem 1:1 com o enum novo
+// de listConversations em communication.functions.ts (INBOX_CHIPS); os
+// filtros antigos ("all", "mine", "unread"...) continuam existindo só pra
+// compatibilidade com a UI alternativa em inbox-astryx/AstryxInbox.tsx, que
+// este componente não usa mais.
+type InboxChip =
+  | "todas"
+  | "aberta"
+  | "aguardando"
+  | "resolvida"
+  | "sinalizada"
+  | "chat_disponivel"
+  | "expirando"
+  | "minhas"
+  | "ultimo_disparo";
 
-type StatusFilter =
-  | "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas"
-  | "chat_disponivel" | "expirando" | "minhas_janela" | "minhas";
+type InboxSort = "ultima_interacao" | "expira_primeiro" | "aguardando_resposta";
 
-type CountKey =
-  | "nao_lidas" | "abertas" | "aguardando" | "resolvidas" | "sinalizadas"
-  | "janela_aberta" | "janela_expirando" | "minhas_janela" | "minhas";
+const INBOX_CHIPS: { key: InboxChip; label: string; hint: string }[] = [
+  {
+    key: "aberta",
+    label: "Em aberto",
+    hint: 'Conversas em andamento — exclui quem só recebeu um disparo de campanha sem responder (veja o chip "Último disparo").',
+  },
+  {
+    key: "aguardando",
+    label: "Aguardando",
+    hint: "Você já respondeu e está esperando algo da pessoa.",
+  },
+  { key: "todas", label: "Todas", hint: "Todo mundo, qualquer status (menos arquivadas)." },
+  { key: "resolvida", label: "Resolvidas", hint: "Conversas já encerradas." },
+  {
+    key: "sinalizada",
+    label: "Sinalizadas",
+    hint: "Conversas marcadas com a bandeirinha para revisar depois.",
+  },
+  {
+    key: "chat_disponivel",
+    label: "Chat disponível",
+    hint: "Dentro da janela de 24h do WhatsApp: dá pra responder com texto livre agora, de qualquer pessoa e qualquer status.",
+  },
+  {
+    key: "expirando",
+    label: "Expirando",
+    hint: "A janela de 24h fecha em menos de 4 horas — responda logo ou a pessoa só recebe template.",
+  },
+  {
+    key: "minhas",
+    label: "Minhas",
+    hint: "Atribuídas a você, dentro do conjunto ativo (aberta/aguardando).",
+  },
+  {
+    key: "ultimo_disparo",
+    label: "Último disparo",
+    hint: "A última coisa que rolou foi um disparo de campanha nosso, sem resposta ainda — independente do status.",
+  },
+];
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; backend: BackendFilter; hint: string; countKey: CountKey }[] = [
-  { key: "nao_lidas", label: "Não lidas", backend: "unread", hint: "Têm mensagem da pessoa que ninguém abriu ainda.", countKey: "nao_lidas" },
-  { key: "abertas", label: "Em aberto", backend: "all", hint: "Conversas em andamento: nem resolvidas, nem marcadas como aguardando.", countKey: "abertas" },
-  { key: "aguardando", label: "Aguardando", backend: "all", hint: "Você já respondeu e está esperando algo da pessoa.", countKey: "aguardando" },
-  { key: "resolvidas", label: "Resolvidas", backend: "resolved", hint: "Conversas já encerradas.", countKey: "resolvidas" },
-  { key: "sinalizadas", label: "Sinalizadas", backend: "flagged", hint: "Conversas marcadas com a bandeirinha para revisar depois.", countKey: "sinalizadas" },
-  { key: "chat_disponivel", label: "Chat disponível", backend: "window_open", hint: "Dentro da janela de 24h do WhatsApp: dá pra responder com texto livre agora, de qualquer pessoa.", countKey: "janela_aberta" },
-  { key: "expirando", label: "Expirando", backend: "window_expiring", hint: "A janela de 24h fecha em menos de 4 horas — responda logo ou a pessoa só recebe template.", countKey: "janela_expirando" },
-  { key: "minhas_janela", label: "Minhas na janela", backend: "mine_window", hint: "Atribuídas a você e ainda dentro da janela de 24h: o que você precisa responder antes de fechar.", countKey: "minhas_janela" },
-  { key: "minhas", label: "Minhas", backend: "mine", hint: "Conversas atribuídas a você.", countKey: "minhas" },
+const INBOX_SORTS: { key: InboxSort; label: string }[] = [
+  { key: "ultima_interacao", label: "Última interação" },
+  { key: "expira_primeiro", label: "Janela expira primeiro" },
+  { key: "aguardando_resposta", label: "Aguardando resposta primeiro" },
 ];
 
 export function CommunicationInbox() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { contact: contactParam } = routeApi.useSearch();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("abertas");
+  const [chip, setChip] = useState<InboxChip>("aberta");
+  const [sort, setSort] = useState<InboxSort>("ultima_interacao");
   const [search, setSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(contactParam || null);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -149,7 +199,7 @@ export function CommunicationInbox() {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const cursorRef = useRef({ start: 0, end: 0 });
 
-  const listFn = useServerFn(listConversations);
+  const listFn = useServerFn(listConversationsV2);
   const convFn = useServerFn(getConversation);
   const readFn = useServerFn(markConversationRead);
   const unreadFn = useServerFn(markConversationUnread);
@@ -163,10 +213,13 @@ export function CommunicationInbox() {
   const searchNewFn = useServerFn(searchContactsForNewChat);
   const signFn = useServerFn(signCampaignMediaUpload);
   const linkFn = useServerFn(linkConversationToContact);
+  const addTagFn = useServerFn(addContactTagFromInbox);
+  const removeTagFn = useServerFn(removeContactTagFromInbox);
+  const formasAjudaFn = useServerFn(updateContactFormasAjudaFromInbox);
+  const pinnedFn = useServerFn(listWindowOpenPinned);
+  const archiveOptOutFn = useServerFn(archiveAndOptOutConversation);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [templateSendOpen, setTemplateSendOpen] = useState(false);
-
-  const backendFilter = STATUS_FILTERS.find((f) => f.key === statusFilter)!.backend;
 
   // Mesma fonte do badge numérico da aba "Inbox" na navegação (mantida para
   // refetch periódico; a contagem exibida nos chips vem da própria lista).
@@ -177,26 +230,52 @@ export function CommunicationInbox() {
     refetchInterval: 20000,
   });
 
-  // Rolagem incremental: cada "Carregar mais" aumenta o tamanho da leva.
-  const PAGE_SIZE = 60;
-  const [listLimit, setListLimit] = useState(PAGE_SIZE);
-  useEffect(() => { setListLimit(PAGE_SIZE); }, [statusFilter, search]);
-
-  const listQ = useQuery({
-    queryKey: ["comm-conv-list", statusFilter, search, listLimit],
-    queryFn: () => listFn({ data: { filter: backendFilter, search: search || undefined, limit: listLimit } }),
+  // Faixa fixa "Dentro da janela agora" — independente do chip/ordenação da
+  // lista principal abaixo.
+  const pinnedQ = useQuery({
+    queryKey: ["comm-conv-pinned"],
+    queryFn: () => pinnedFn(),
     refetchInterval: 15000,
   });
 
-  const rawList = listQ.data?.list ?? [];
-  const chipCounts = listQ.data?.counts;
-  const hasMore = Boolean(listQ.data?.has_more);
-  const list = useMemo(() => {
-    if (statusFilter === "abertas") return rawList.filter((c) => c.status === "aberta");
-    if (statusFilter === "aguardando") return rawList.filter((c) => c.status === "aguardando");
-    if (statusFilter === "nao_lidas") return rawList.filter((c) => (c.unread ?? 0) > 0);
-    return rawList;
-  }, [rawList, statusFilter]);
+  // Rolagem infinita real (offset), uma leva por vez — cada leva já vem
+  // filtrada/ordenada/contada pelo servidor, então lista e contador nunca
+  // divergem entre si.
+  const PAGE_SIZE = 60;
+  const listQ = useInfiniteQuery({
+    queryKey: ["comm-conv-list-v2", chip, sort, search],
+    queryFn: ({ pageParam }) =>
+      listFn({
+        data: { filter: chip, sort, search: search || undefined, offset: pageParam, limit: PAGE_SIZE },
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more ? allPages.length * PAGE_SIZE : undefined,
+    refetchInterval: 15000,
+  });
+
+  const list = useMemo(() => listQ.data?.pages.flatMap((p) => p.list) ?? [], [listQ.data]);
+  const listTotal = listQ.data?.pages.at(-1)?.total ?? 0;
+  const listCapped = listQ.data?.pages.at(-1)?.capped ?? false;
+  const hasMore = Boolean(listQ.hasNextPage);
+
+  // Sentinela de fim de lista pra carregar a próxima leva sozinho, sem botão.
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && listQ.hasNextPage && !listQ.isFetchingNextPage) {
+          void listQ.fetchNextPage();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [listQ]);
+
   const selected = useMemo(
     () => list.find((c) => (selectedConvId ? c.id === selectedConvId : c.contact_id === selectedContactId)) ?? null,
     [list, selectedContactId, selectedConvId],
@@ -267,7 +346,7 @@ export function CommunicationInbox() {
     const ch = supabase
       .channel("conv-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
-        qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+        qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
         qc.invalidateQueries({ queryKey: ["comm-badge"] });
         qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
       })
@@ -281,7 +360,7 @@ export function CommunicationInbox() {
   const readMut = useMutation({
     mutationFn: (vars: { contact_id?: string; conversation_id?: string }) => readFn({ data: vars }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
     },
   });
@@ -289,7 +368,7 @@ export function CommunicationInbox() {
   const unreadMut = useMutation({
     mutationFn: (v: { conversation_id: string }) => unreadFn({ data: v }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
       toast.success("Conversa marcada como não lida");
     },
@@ -307,7 +386,7 @@ export function CommunicationInbox() {
     onSuccess: () => {
       // Input já foi limpo otimisticamente em submitReply(); aqui só sincronizamos as queries.
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
       toast.success("Mensagem enviada");
     },
     onError: (e, vars) => {
@@ -321,7 +400,7 @@ export function CommunicationInbox() {
     mutationFn: (v: { conversation_id: string; assigned_to: string | null }) => assignFn({ data: v }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
       qc.invalidateQueries({ queryKey: ["comm-badge"] });
       const notified = (res as { notified?: number; not_notified?: string[] } | undefined);
       if (notified?.notified) {
@@ -343,14 +422,25 @@ export function CommunicationInbox() {
     mutationFn: (v: { conversation_id: string; status: "aberta" | "aguardando" | "resolvida" }) => statusFn({ data: v }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
       toast.success("Status atualizado");
     },
   });
 
   const flagMut = useMutation({
     mutationFn: (v: { conversation_id: string; flagged: boolean }) => flagFn({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["comm-conv-list"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] }),
+  });
+
+  const archiveOptOutMut = useMutation({
+    mutationFn: (v: { conversation_id: string; contact_id: string }) => archiveOptOutFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-pinned"] });
+      qc.invalidateQueries({ queryKey: ["comm-badge"] });
+      toast.success("Contato marcado como opt-out e conversa arquivada");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao arquivar/opt-out"),
   });
 
   const noteMut = useMutation({
@@ -362,13 +452,72 @@ export function CommunicationInbox() {
     },
   });
 
+  // Painel do contato: tags e formas de ajuda salvam a cada clique, sem toast
+  // de sucesso (só erro gera toast) — um "✓" discreto (savedFlash) confirma
+  // pra não virar ruído a cada interação.
+  const [savedFlash, setSavedFlash] = useState<"tags" | "formas_ajuda" | null>(null);
+  function flashSaved(key: "tags" | "formas_ajuda") {
+    setSavedFlash(key);
+    window.setTimeout(() => setSavedFlash((cur) => (cur === key ? null : cur)), 1500);
+  }
+
+  const addTagMut = useMutation({
+    mutationFn: (v: { contact_id: string; tag_id: string }) => addTagFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
+      flashSaved("tags");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao adicionar tag"),
+  });
+
+  const removeTagMut = useMutation({
+    mutationFn: (v: { contact_id: string; tag_id: string }) => removeTagFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
+      flashSaved("tags");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao remover tag"),
+  });
+
+  const formasAjudaMut = useMutation({
+    mutationFn: (v: { contact_id: string; formas_ajuda: string[] }) => formasAjudaFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
+      flashSaved("formas_ajuda");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao salvar formas de ajuda"),
+  });
+
+  const [copiedContact, setCopiedContact] = useState(false);
+  function copyContactFormatted() {
+    const c = convQ.data?.contact;
+    if (!c) return;
+    const lines: string[] = [];
+    if (c.nome) lines.push(`Nome: ${c.nome}`);
+    const phone = c.phone_e164 ?? conv?.from_phone ?? null;
+    if (phone) lines.push(`Telefone: ${phone}`);
+    if (c.endereco_completo) lines.push(`Endereço: ${c.endereco_completo}`);
+    if (c.profissao) lines.push(`Profissão: ${c.profissao}`);
+    if (Array.isArray(c.formas_ajuda) && c.formas_ajuda.length > 0) {
+      const labels = c.formas_ajuda.map(
+        (v) => FORMAS_AJUDA_OPTIONS.find((o) => o.value === v)?.label ?? v,
+      );
+      lines.push(`Formas de ajuda: ${labels.join(", ")}`);
+    }
+    if (c.observacoes) lines.push(`Observações: ${c.observacoes}`);
+    if (lines.length === 0) return;
+    void navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedContact(true);
+    window.setTimeout(() => setCopiedContact(false), 1500);
+  }
+
   const linkMut = useMutation({
     mutationFn: (v: { conversation_id: string; contact_id: string }) => linkFn({ data: v }),
     onSuccess: (res) => {
       toast.success("Conversa vinculada");
       setSelectedContactId(null);
       setSelectedConvId(res.conversation_id);
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
       qc.invalidateQueries({ queryKey: ["comm-conv"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
@@ -376,7 +525,7 @@ export function CommunicationInbox() {
   function onQuickContactCreated(contactId: string) {
     setSelectedContactId(contactId);
     setSelectedConvId(null);
-    qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+    qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
     qc.invalidateQueries({ queryKey: ["comm-conv"] });
   }
 
@@ -413,6 +562,26 @@ export function CommunicationInbox() {
     if (!cur) return;
     const next = list[selectedIndex + 1] ?? null;
     statusMut.mutate({ conversation_id: cur.id, status: "resolvida" });
+    if (next) {
+      openConversation(next.contact_id, next.id, next.unread ?? 0);
+    } else {
+      setSelectedContactId(null);
+      setSelectedConvId(null);
+      setMobilePane("list");
+    }
+  }
+
+  /** Ação destrutiva (some da tela) — sempre confirma antes. Mesmo padrão do
+   * resolveAndNext: captura a próxima conversa ANTES de disparar a mutation. */
+  function archiveAndOptOutAndNext() {
+    const cur = list[selectedIndex];
+    if (!cur || !cur.contact_id) return;
+    const ok = window.confirm(
+      "Marcar este contato como opt-out e arquivar a conversa? Ele para de receber mensagens e some do Inbox.",
+    );
+    if (!ok) return;
+    const next = list[selectedIndex + 1] ?? null;
+    archiveOptOutMut.mutate({ conversation_id: cur.id, contact_id: cur.contact_id });
     if (next) {
       openConversation(next.contact_id, next.id, next.unread ?? 0);
     } else {
@@ -543,7 +712,7 @@ export function CommunicationInbox() {
     onSuccess: () => {
       toast.success("Fluxo iniciado — o robô já mandou a abertura e a 1ª pergunta.");
       qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
-      qc.invalidateQueries({ queryKey: ["comm-conv-list"] });
+      qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
     },
     onError: (e) =>
       toast.error(e instanceof Error ? e.message : "Não foi possível iniciar o fluxo."),
@@ -785,19 +954,19 @@ export function CommunicationInbox() {
   }, [selectedContactId, selectedConvId]);
 
   const emptyListText = useMemo(() => {
-    switch (statusFilter) {
-      case "nao_lidas": return "Nenhuma não lida — tudo em dia.";
-      case "abertas": return "Nenhuma conversa em aberto agora.";
+    switch (chip) {
+      case "aberta": return "Nenhuma conversa em aberto agora.";
       case "aguardando": return "Nada aguardando resposta do contato.";
-      case "resolvidas": return "Nenhuma conversa resolvida ainda.";
-      case "sinalizadas": return "Nenhuma conversa sinalizada.";
+      case "todas": return "Nenhuma conversa por aqui ainda.";
+      case "resolvida": return "Nenhuma conversa resolvida ainda.";
+      case "sinalizada": return "Nenhuma conversa sinalizada.";
       case "chat_disponivel": return "Ninguém na janela de 24h agora — nenhuma pessoa escreveu nas últimas 24h.";
       case "expirando": return "Nenhuma janela fechando nas próximas 4 horas.";
-      case "minhas_janela": return "Nenhuma conversa sua está dentro da janela de 24h agora.";
       case "minhas": return "Nenhuma conversa atribuída a você.";
+      case "ultimo_disparo": return "Nenhum disparo de campanha sem resposta agora.";
       default: return "Nenhuma conversa neste filtro.";
     }
-  }, [statusFilter]);
+  }, [chip]);
 
 
 
@@ -826,14 +995,13 @@ export function CommunicationInbox() {
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {STATUS_FILTERS.map((f) => {
-              const active = statusFilter === f.key;
-              const count = active ? list.length : (chipCounts?.[f.countKey] ?? 0);
+            {INBOX_CHIPS.map((f) => {
+              const active = chip === f.key;
               return (
                 <Tooltip key={f.key}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => setStatusFilter(f.key)}
+                      onClick={() => setChip(f.key)}
                       className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
                         active
                           ? "bg-primary text-primary-foreground border-primary"
@@ -841,13 +1009,9 @@ export function CommunicationInbox() {
                       }`}
                     >
                       {f.label}
-                      {count !== undefined && (
-                        <span
-                          className={`inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold ${
-                            active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {count}
+                      {active && (
+                        <span className="inline-flex items-center justify-center min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold bg-primary-foreground/20 text-primary-foreground">
+                          {listTotal}
                         </span>
                       )}
                     </button>
@@ -859,8 +1023,35 @@ export function CommunicationInbox() {
               );
             })}
           </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>Ordenar por</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as InboxSort)}
+              className="text-[11px] px-1.5 py-1 rounded border bg-background"
+            >
+              {INBOX_SORTS.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          {(pinnedQ.data?.length ?? 0) > 0 && (
+            <div className="border-b bg-emerald-50 dark:bg-emerald-950/20">
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-semibold">
+                Dentro da janela agora
+              </div>
+              {(pinnedQ.data ?? []).map((c) => (
+                <ConversationRow
+                  key={`pinned-${c.id}`}
+                  c={c}
+                  selected={selectedContactId ? c.contact_id === selectedContactId : selectedConvId === c.id}
+                  onOpen={() => openConversation(c.contact_id, c.id, c.unread)}
+                />
+              ))}
+            </div>
+          )}
           {listQ.isLoading && (
             <div>{[0, 1, 2, 3, 4].map((i) => <ConversationSkeleton key={i} />)}</div>
           )}
@@ -878,6 +1069,12 @@ export function CommunicationInbox() {
           {list.length === 0 && !listQ.isLoading && !listQ.isError && (
             <div className="p-6 text-center text-sm text-muted-foreground">{emptyListText}</div>
           )}
+          {list.length > 0 && (
+            <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b">
+              {list.length} de {listTotal} carregadas
+              {listCapped && " (mostrando as mais recentes)"}
+            </div>
+          )}
           {list.map((c) => (
             <ConversationRow
               key={c.id}
@@ -888,13 +1085,13 @@ export function CommunicationInbox() {
           ))}
 
           {hasMore && (
-            <div className="p-3">
+            <div ref={loadMoreRef} className="p-3">
               <button
-                onClick={() => setListLimit((v) => v + PAGE_SIZE)}
-                disabled={listQ.isFetching}
+                onClick={() => listQ.fetchNextPage()}
+                disabled={listQ.isFetchingNextPage}
                 className="w-full text-xs inline-flex items-center justify-center gap-2 px-3 py-2 border rounded-md hover:bg-muted disabled:opacity-50"
               >
-                {listQ.isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
+                {listQ.isFetchingNextPage && <Loader2 className="h-3 w-3 animate-spin" />}
                 Carregar mais conversas
               </button>
             </div>
@@ -996,6 +1193,16 @@ export function CommunicationInbox() {
                     title="Resolver esta conversa e abrir a próxima da lista (atalho: E)"
                   >
                     <CheckCircle2 className="h-3 w-3" /> Resolver e próxima
+                  </button>
+                )}
+                {contact && !contact.opt_out_at && (
+                  <button
+                    onClick={archiveAndOptOutAndNext}
+                    disabled={archiveOptOutMut.isPending}
+                    className="hidden md:inline-flex text-xs items-center gap-1 px-2 py-1.5 border border-destructive rounded-md text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50"
+                    title="Marcar como opt-out e arquivar a conversa (some do Inbox)"
+                  >
+                    <Ban className="h-3 w-3" /> Opt-out
                   </button>
                 )}
 
@@ -1494,32 +1701,63 @@ export function CommunicationInbox() {
               {contact.opt_out_at && (
                 <div className="text-destructive font-medium">Opt-out ativo desde {fmtDate(contact.opt_out_at)}</div>
               )}
-              {Array.isArray(contact.formas_ajuda) && contact.formas_ajuda.length > 0 && (
-                <div>
-                  <div className="text-muted-foreground mb-1">Formas de ajuda:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {contact.formas_ajuda.map((f) => (
-                      <span key={f} className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{f}</span>
-                    ))}
-                  </div>
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-muted-foreground">Formas de ajuda:</span>
+                  {savedFlash === "formas_ajuda" && <Check className="h-3 w-3 text-emerald-600" />}
                 </div>
-              )}
-              {(convQ.data?.tags?.length ?? 0) > 0 && (
-                <div>
-                  <div className="text-muted-foreground mb-1">Tags:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {(convQ.data?.tags ?? []).map((t) => (
-                      <span
-                        key={t.id}
-                        className="px-1.5 py-0.5 rounded text-[10px] border"
-                        style={t.cor ? { borderColor: t.cor, color: t.cor } : undefined}
+                <div className="space-y-1">
+                  {FORMAS_AJUDA_OPTIONS.map((opt) => {
+                    const current = Array.isArray(contact.formas_ajuda) ? contact.formas_ajuda : [];
+                    const checked = current.includes(opt.value);
+                    return (
+                      <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox
+                          checked={checked}
+                          disabled={formasAjudaMut.isPending}
+                          onCheckedChange={(v) => {
+                            const next = v === true
+                              ? [...current, opt.value]
+                              : current.filter((f) => f !== opt.value);
+                            formasAjudaMut.mutate({ contact_id: contact.id, formas_ajuda: next });
+                          }}
+                        />
+                        <span className="text-[11px]">{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-muted-foreground">Tags:</span>
+                  {savedFlash === "tags" && <Check className="h-3 w-3 text-emerald-600" />}
+                </div>
+                <div className="flex flex-wrap items-center gap-1">
+                  {(convQ.data?.tags ?? []).map((t) => (
+                    <span
+                      key={t.id}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border"
+                      style={t.cor ? { borderColor: t.cor, color: t.cor } : undefined}
+                    >
+                      {t.nome}
+                      <button
+                        type="button"
+                        onClick={() => removeTagMut.mutate({ contact_id: contact.id, tag_id: t.id })}
+                        className="hover:opacity-70"
+                        aria-label={`Remover tag ${t.nome}`}
                       >
-                        {t.nome}
-                      </span>
-                    ))}
-                  </div>
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                  <ContactTagPicker
+                    excludeIds={(convQ.data?.tags ?? []).map((t) => t.id)}
+                    onPick={(tag: InboxTagRow) => addTagMut.mutate({ contact_id: contact.id, tag_id: tag.id })}
+                    onCreated={(tag: InboxTagRow) => addTagMut.mutate({ contact_id: contact.id, tag_id: tag.id })}
+                  />
                 </div>
-              )}
+              </div>
               {(convQ.data?.campaign?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-muted-foreground mb-1">Últimas campanhas:</div>
@@ -1532,6 +1770,17 @@ export function CommunicationInbox() {
                   </ul>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={copyContactFormatted}
+                className="w-full inline-flex items-center justify-center gap-1.5 text-[11px] px-2 py-1.5 rounded border hover:bg-muted"
+              >
+                {copiedContact ? (
+                  <><Check className="h-3 w-3" /> Copiado</>
+                ) : (
+                  <><Copy className="h-3 w-3" /> Copiar dados formatados</>
+                )}
+              </button>
             </div>
           )}
 
@@ -1659,16 +1908,29 @@ export function CommunicationInbox() {
   );
 }
 
-function describeEvent(e: { event_type: string; payload: Record<string, string | number | boolean | null> }) {
+function describeEvent(e: {
+  event_type: string;
+  payload: Record<string, string | number | boolean | null>;
+}) {
   switch (e.event_type) {
-    case "assigned": return "Conversa atribuída";
-    case "unassigned": return "Atribuição removida";
-    case "status_changed": return `Status: ${e.payload.from ?? "?"} → ${e.payload.to ?? "?"}`;
-    case "note": return "Nota interna adicionada";
-    case "mention": return "Mencionou um colega";
-    case "flagged": return "Marcada como importante";
-    case "unflagged": return "Removida a marcação";
-    default: return e.event_type;
+    case "assigned":
+      return "Conversa atribuída";
+    case "unassigned":
+      return "Atribuição removida";
+    case "status_changed":
+      return `Status: ${e.payload.from ?? "?"} → ${e.payload.to ?? "?"}`;
+    case "note":
+      return "Nota interna adicionada";
+    case "mention":
+      return "Mencionou um colega";
+    case "flagged":
+      return "Marcada como importante";
+    case "unflagged":
+      return "Removida a marcação";
+    case "archived":
+      return "Contato marcado como opt-out e conversa arquivada";
+    default:
+      return e.event_type;
   }
 }
 
