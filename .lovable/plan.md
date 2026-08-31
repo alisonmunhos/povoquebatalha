@@ -1,48 +1,31 @@
-# Diagnosticar e corrigir repositório GitHub conectado
+# Reconectar o GitHub na conta certa e conferir o que desceu
 
-## Situação
+A reconexão do GitHub é uma ação da interface do Lovable, ligada à sua conta — eu não consigo executá-la daqui. Daqui de dentro eu só enxergo o repositório interno do Lovable. Então o fluxo é: você reconecta, eu confiro.
 
-O repositório local visível no sandbox é o repositório interno do Lovable (`git.private.lovable-gcp.code.storage`), não o GitHub. O GitHub sync é uma configuração da conta/workspace Lovable. Se o editor mostra `povo-que-batalha` em vez de `alisonmunhos/whatsapp-connect`, o projeto está conectado ao repositório errado — provavelmente porque a conta GitHub autorizada no GitHub App do Lovable é outra ou o repositório foi selecionado incorretamente.
+## Passo 1 — Você reconecta (interface do Lovable)
 
-## Passo 1 — Verificar a conta e o repositório conectado no editor Lovable
+1. Menu **+** (canto inferior esquerdo do chat) → **GitHub**.
+2. Se a conta conectada não for `alisonmunhos`: **Desconectar**. Se precisar trocar de conta de verdade, revogue o app "Lovable" em https://github.com/settings/applications e conecte de novo.
+3. **Connect project** → escolher a conta `alisonmunhos` → escolher o repositório `whatsapp-connect`.
+4. Confirmar que a branch de sincronização é `main`.
 
-No editor do Lovable:
-1. Menu **+** (canto inferior esquerdo do chat) → **GitHub** → **Configurações do GitHub** (ou "GitHub settings").
-2. Confirmar qual conta GitHub aparece como conectada.
-3. Confirmar qual repositório está vinculado ao projeto.
+Atenção antes de confirmar: se `whatsapp-connect` já tiver um histórico diferente do projeto atual, a ligação pode gerar divergência. Me avise o que a tela mostrar antes de concluir, se aparecer qualquer aviso de conflito ou de repositório não vazio.
 
-Possíveis cenários:
-- A conta conectada é a errada → desconectar e reconectar com a conta correta.
-- A conta é a certa, mas o repositório selecionado é `povo-que-batalha` → trocar para `alisonmunhos/whatsapp-connect`.
+## Passo 2 — Eu confiro o que desceu
 
-## Passo 2 — Desconectar o repositório errado (se necessário)
+Assim que você avisar que reconectou:
 
-Se o repositório conectado for `povo-que-batalha` ou a conta for errada:
-1. No mesmo menu GitHub, escolher **Desconectar** / **Disconnect**.
-2. Se a conta estiver errada, também revogar o GitHub App do Lovable em: https://github.com/settings/applications (procure por "Lovable").
+- listo os commits novos que entraram e de quais PRs vieram;
+- checo conflitos ou sobrescritas nos arquivos mexidos aqui durante a pausa (`src/lib/communication.functions.ts`, `src/integrations/whatsapp-cloud/client.server.ts`, `src/integrations/supabase/types.ts`);
+- verifico migrations que vieram nos PRs e ainda não foram aplicadas, aplicando uma a uma sem apagar dados;
+- rodo typecheck e build.
 
-## Passo 3 — Reconectar ao repositório correto
+## Passo 3 — Relatório
 
-1. No editor Lovable: menu **+ → GitHub → Connect project**.
-2. Fazer login com a conta GitHub correta (`alisonmunhos`).
-3. Selecionar a organização/conta `alisonmunhos`.
-4. Selecionar o repositório `whatsapp-connect`.
-5. Confirmar que a branch de sincronização é `main`.
-
-## Passo 4 — Verificar sincronização e resolver conflitos
-
-Após a reconexão:
-1. Aguardar o Lovable sincronizar o histórico.
-2. Verificar se os commits recentes do GitHub (`alisonmunhos/whatsapp-connect`) aparecem no editor/histórico do Lovable.
-3. Se houver conflitos entre o código atual do Lovable e o do GitHub, resolver manualmente preservando dados e funcionalidades.
-4. Rodar typecheck e build para garantir que tudo está íntegro.
+Lista de PRs que entraram, o que precisou de ajuste manual e o que ficou pendente.
 
 ## Cuidados
 
-- Não reescrever o histórico já publicado.
+- Não reescrever histórico já publicado.
 - Preservar dados do banco e migrations existentes.
-- Se o repositório `whatsapp-connect` estiver vazio ou com código antigo, avaliar se deve mesclar ou substituir.
-
-## Próximo passo
-
-Confirme no editor qual conta e repositório estão conectados atualmente. A partir daí eu oriento a desconexão/reconexão ou resolvo conflitos se for necessário.
+- O plano de reações com emoji continua pausado (só backend, sem interface) — não atrapalha.
