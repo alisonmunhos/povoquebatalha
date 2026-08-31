@@ -231,14 +231,14 @@ export function CommunicationInbox() {
   });
 
   // Faixa fixa "Dentro da janela agora" — independente do chip/ordenação da
-  // lista principal abaixo. Recolhível (começa aberta) e com scroll próprio
+  // lista principal abaixo. Recolhível (começa fechada) e com scroll próprio
   // pra não empurrar a lista principal quando tiver muitos itens.
   const pinnedQ = useQuery({
     queryKey: ["comm-conv-pinned"],
     queryFn: () => pinnedFn(),
     refetchInterval: 15000,
   });
-  const [pinnedOpen, setPinnedOpen] = useState(true);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
 
   // Rolagem infinita real (offset), uma leva por vez — cada leva já vem
   // filtrada/ordenada/contada pelo servidor, então lista e contador nunca
