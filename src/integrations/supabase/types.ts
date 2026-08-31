@@ -1568,6 +1568,8 @@ export type Database = {
           erro: string | null
           failed_at: string | null
           fallback_reason: string | null
+          header_text: string | null
+          header_type: string | null
           id: string
           inbound_id: string | null
           link_description: string | null
@@ -1599,6 +1601,8 @@ export type Database = {
           erro?: string | null
           failed_at?: string | null
           fallback_reason?: string | null
+          header_text?: string | null
+          header_type?: string | null
           id?: string
           inbound_id?: string | null
           link_description?: string | null
@@ -1630,6 +1634,8 @@ export type Database = {
           erro?: string | null
           failed_at?: string | null
           fallback_reason?: string | null
+          header_text?: string | null
+          header_type?: string | null
           id?: string
           inbound_id?: string | null
           link_description?: string | null

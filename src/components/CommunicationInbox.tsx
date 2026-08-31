@@ -37,7 +37,7 @@ import { windowState } from "@/lib/inbox-window";
 import { getCatalogField } from "@/lib/form-field-catalog";
 
 import { QuickContactFromInboxDialog } from "@/components/QuickContactFromInboxDialog";
-import { SendWhatsAppWizard } from "@/components/SendWhatsAppWizard";
+import { SendOfficialTemplateDialog } from "@/components/inbox/SendOfficialTemplateDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -870,8 +870,13 @@ export function CommunicationInbox() {
         media_filename?: string | null; message_id?: string | null; endpoint_used?: string | null;
         link_url?: string | null; link_title?: string | null; link_description?: string | null; link_image?: string | null;
         buttons?: TemplateButton[] | null;
+        header_type?: string | null;
+        header_text?: string | null;
       };
       const isFlowBot = row.endpoint_used === "whatsapp-flow";
+      // Template avulso enviado direto do Inbox (Etapa 6) — sem campanha por
+      // trás, mesma convenção de endpoint_used da campanha (campaign-batch.server.ts).
+      const isTemplate = row.endpoint_used === "send-template";
       t.push({
         id: `d-${row.id}`, kind: "out", text: row.conteudo ?? "", at: row.created_at,
         meta: isFlowBot
@@ -888,6 +893,9 @@ export function CommunicationInbox() {
         link_description: row.link_description ?? null,
         link_image: row.link_image ?? null,
         buttons: row.buttons ?? [],
+        header_type: row.header_type ?? null,
+        header_text: row.header_text ?? null,
+        isTemplate,
       });
     }
     for (const m of convQ.data?.campaign ?? []) t.push({
@@ -2021,11 +2029,15 @@ export function CommunicationInbox() {
       )}
 
       {contact && (
-        <SendWhatsAppWizard
+        <SendOfficialTemplateDialog
           open={templateSendOpen}
           onOpenChange={setTemplateSendOpen}
-          source={{ ids: [contact.id] }}
-          labelSelecao={active?.nome ?? "este contato"}
+          contactId={contact.id}
+          contact={contact}
+          onSent={() => {
+            qc.invalidateQueries({ queryKey: ["comm-conv", convKey] });
+            qc.invalidateQueries({ queryKey: ["comm-conv-list-v2"] });
+          }}
         />
       )}
     </div>
