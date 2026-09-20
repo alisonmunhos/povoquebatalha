@@ -1672,6 +1672,105 @@ export type Database = {
           },
         ]
       }
+      eleicao_candidatos: {
+        Row: {
+          ano_eleicao: number
+          cargo: string
+          id: number
+          nm_partido: string | null
+          nome_completo: string | null
+          nome_urna: string
+          nr_candidato: string
+          sg_partido: string | null
+        }
+        Insert: {
+          ano_eleicao?: number
+          cargo: string
+          id?: number
+          nm_partido?: string | null
+          nome_completo?: string | null
+          nome_urna: string
+          nr_candidato: string
+          sg_partido?: string | null
+        }
+        Update: {
+          ano_eleicao?: number
+          cargo?: string
+          id?: number
+          nm_partido?: string | null
+          nome_completo?: string | null
+          nome_urna?: string
+          nr_candidato?: string
+          sg_partido?: string | null
+        }
+        Relationships: []
+      }
+      eleicao_votos_secao: {
+        Row: {
+          ano_eleicao: number
+          cargo: string
+          endereco_local: string | null
+          id: number
+          nm_local_votacao: string | null
+          nm_municipio: string
+          nr_candidato: string
+          nr_local_votacao: string | null
+          nr_secao: number
+          nr_turno: number
+          nr_zona: number
+          votos: number
+        }
+        Insert: {
+          ano_eleicao?: number
+          cargo: string
+          endereco_local?: string | null
+          id?: number
+          nm_local_votacao?: string | null
+          nm_municipio: string
+          nr_candidato: string
+          nr_local_votacao?: string | null
+          nr_secao: number
+          nr_turno?: number
+          nr_zona: number
+          votos: number
+        }
+        Update: {
+          ano_eleicao?: number
+          cargo?: string
+          endereco_local?: string | null
+          id?: number
+          nm_local_votacao?: string | null
+          nm_municipio?: string
+          nr_candidato?: string
+          nr_local_votacao?: string | null
+          nr_secao?: number
+          nr_turno?: number
+          nr_zona?: number
+          votos?: number
+        }
+        Relationships: []
+      }
+      enderecos_cep_rmpoa: {
+        Row: {
+          cep: string
+          id: number
+          municipio: string
+          total_enderecos: number
+        }
+        Insert: {
+          cep: string
+          id?: number
+          municipio: string
+          total_enderecos: number
+        }
+        Update: {
+          cep?: string
+          id?: number
+          municipio?: string
+          total_enderecos?: number
+        }
+        Relationships: []
+      }
       event_rsvps: {
         Row: {
           contact_id: string
@@ -3703,12 +3802,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3732,11 +3831,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3757,11 +3856,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3782,11 +3881,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3799,11 +3898,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
