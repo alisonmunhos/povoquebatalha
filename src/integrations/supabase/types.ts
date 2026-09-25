@@ -1559,6 +1559,7 @@ export type Database = {
       }
       direct_messages: {
         Row: {
+          buttons: Json | null
           contact_id: string | null
           conteudo: string
           created_at: string
@@ -1567,6 +1568,8 @@ export type Database = {
           erro: string | null
           failed_at: string | null
           fallback_reason: string | null
+          header_text: string | null
+          header_type: string | null
           id: string
           inbound_id: string | null
           link_description: string | null
@@ -1589,6 +1592,7 @@ export type Database = {
           zaap_id: string | null
         }
         Insert: {
+          buttons?: Json | null
           contact_id?: string | null
           conteudo: string
           created_at?: string
@@ -1597,6 +1601,8 @@ export type Database = {
           erro?: string | null
           failed_at?: string | null
           fallback_reason?: string | null
+          header_text?: string | null
+          header_type?: string | null
           id?: string
           inbound_id?: string | null
           link_description?: string | null
@@ -1619,6 +1625,7 @@ export type Database = {
           zaap_id?: string | null
         }
         Update: {
+          buttons?: Json | null
           contact_id?: string | null
           conteudo?: string
           created_at?: string
@@ -1627,6 +1634,8 @@ export type Database = {
           erro?: string | null
           failed_at?: string | null
           fallback_reason?: string | null
+          header_text?: string | null
+          header_type?: string | null
           id?: string
           inbound_id?: string | null
           link_description?: string | null
@@ -2511,6 +2520,32 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inbox_tag_pins: {
+        Row: {
+          pinned_at: string
+          pinned_by: string
+          tag_id: string
+        }
+        Insert: {
+          pinned_at?: string
+          pinned_by: string
+          tag_id: string
+        }
+        Update: {
+          pinned_at?: string
+          pinned_by?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_tag_pins_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: true
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
         ]
