@@ -24,13 +24,16 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     let lastRenderedWidth = 0;
     let renderGeneration = 0;
+    let isRendering = false;
 
     const renderDocument = async () => {
       const generation = ++renderGeneration;
+      isRendering = true;
       setStatus("loading");
       container.replaceChildren();
       const cssWidth = container.clientWidth;
       if (cssWidth <= 0) {
+        isRendering = false;
         setStatus("error");
         return;
       }
@@ -92,9 +95,13 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
           page.cleanup();
         }
 
-        if (!cancelled && generation === renderGeneration) setStatus("ready");
+        if (!cancelled && generation === renderGeneration) {
+          isRendering = false;
+          setStatus("ready");
+        }
       } catch (error) {
         if (!cancelled && generation === renderGeneration) {
+          isRendering = false;
           console.error("Falha ao renderizar PDF", error);
           container.replaceChildren();
           setStatus("error");
@@ -105,6 +112,7 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
     void renderDocument();
 
     const observer = new ResizeObserver(() => {
+      if (isRendering) return;
       if (Math.abs(container.clientWidth - lastRenderedWidth) < 1) return;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => void renderDocument(), 180);
