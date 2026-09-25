@@ -85,6 +85,7 @@ import { Route as ApiPublicFormsCadastroUsuarioRouteImport } from './routes/api/
 import { Route as ApiPublicFormsCadastroAgitadorRouteImport } from './routes/api/public/forms/cadastro-agitador'
 import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/forms/$slug'
 import { Route as ApiPublicEventsSlugRouteImport } from './routes/api/public/events/$slug'
+import { Route as ApiPublicDocsSplatRouteImport } from './routes/api/public/docs/$'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
 import { Route as ApiPublicFormsSlugSectionProgressRouteImport } from './routes/api/public/forms/$slug/section-progress'
 import { Route as ApiPublicFormsSlugOgImageRouteImport } from './routes/api/public/forms/$slug/og-image'
@@ -509,6 +510,11 @@ const ApiPublicEventsSlugRoute = ApiPublicEventsSlugRouteImport.update({
   path: '/api/public/events/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicDocsSplatRoute = ApiPublicDocsSplatRouteImport.update({
+  id: '/api/public/docs/$',
+  path: '/api/public/docs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   id: '/api/public/cep/$cep',
   path: '/api/public/cep/$cep',
@@ -632,6 +638,7 @@ export interface FileRoutesByFullPath {
   '/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/docs/$': typeof ApiPublicDocsSplatRoute
   '/api/public/events/$slug': typeof ApiPublicEventsSlugRouteWithChildren
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -719,6 +726,7 @@ export interface FileRoutesByTo {
   '/entrada-dados': typeof AuthenticatedEntradaDadosIndexRoute
   '/missoes-agitacao': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/docs/$': typeof ApiPublicDocsSplatRoute
   '/api/public/events/$slug': typeof ApiPublicEventsSlugRouteWithChildren
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -809,6 +817,7 @@ export interface FileRoutesById {
   '/_authenticated/entrada-dados/': typeof AuthenticatedEntradaDadosIndexRoute
   '/_authenticated/missoes-agitacao/': typeof AuthenticatedMissoesAgitacaoIndexRoute
   '/api/public/cep/$cep': typeof ApiPublicCepCepRoute
+  '/api/public/docs/$': typeof ApiPublicDocsSplatRoute
   '/api/public/events/$slug': typeof ApiPublicEventsSlugRouteWithChildren
   '/api/public/forms/$slug': typeof ApiPublicFormsSlugRouteWithChildren
   '/api/public/forms/cadastro-agitador': typeof ApiPublicFormsCadastroAgitadorRoute
@@ -899,6 +908,7 @@ export interface FileRouteTypes {
     | '/entrada-dados/'
     | '/missoes-agitacao/'
     | '/api/public/cep/$cep'
+    | '/api/public/docs/$'
     | '/api/public/events/$slug'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -986,6 +996,7 @@ export interface FileRouteTypes {
     | '/entrada-dados'
     | '/missoes-agitacao'
     | '/api/public/cep/$cep'
+    | '/api/public/docs/$'
     | '/api/public/events/$slug'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -1075,6 +1086,7 @@ export interface FileRouteTypes {
     | '/_authenticated/entrada-dados/'
     | '/_authenticated/missoes-agitacao/'
     | '/api/public/cep/$cep'
+    | '/api/public/docs/$'
     | '/api/public/events/$slug'
     | '/api/public/forms/$slug'
     | '/api/public/forms/cadastro-agitador'
@@ -1125,6 +1137,7 @@ export interface RootRouteChildren {
   TermosSlugRoute: typeof TermosSlugRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
+  ApiPublicDocsSplatRoute: typeof ApiPublicDocsSplatRoute
   ApiPublicEventsSlugRoute: typeof ApiPublicEventsSlugRouteWithChildren
   ApiPublicFormsSlugRoute: typeof ApiPublicFormsSlugRouteWithChildren
   ApiPublicFormsCadastroAgitadorRoute: typeof ApiPublicFormsCadastroAgitadorRoute
@@ -1682,6 +1695,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEventsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/docs/$': {
+      id: '/api/public/docs/$'
+      path: '/api/public/docs/$'
+      fullPath: '/api/public/docs/$'
+      preLoaderRoute: typeof ApiPublicDocsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cep/$cep': {
       id: '/api/public/cep/$cep'
       path: '/api/public/cep/$cep'
@@ -1934,6 +1954,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermosSlugRoute: TermosSlugRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
+  ApiPublicDocsSplatRoute: ApiPublicDocsSplatRoute,
   ApiPublicEventsSlugRoute: ApiPublicEventsSlugRouteWithChildren,
   ApiPublicFormsSlugRoute: ApiPublicFormsSlugRouteWithChildren,
   ApiPublicFormsCadastroAgitadorRoute: ApiPublicFormsCadastroAgitadorRoute,

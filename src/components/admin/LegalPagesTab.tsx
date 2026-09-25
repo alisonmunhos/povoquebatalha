@@ -4,6 +4,7 @@ import { useState } from "react";
 import { deleteLegalPage, getLegalPage, listLegalPages, upsertLegalPage } from "@/lib/legal-pages.functions";
 import { Copy, ExternalLink, FileText, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const ACCENT_MARKS = /[\u0300-\u036f]/g;
 
@@ -39,6 +40,8 @@ export function LegalPagesTab() {
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   function resetForm() {
     setEditingId(null);
@@ -46,6 +49,7 @@ export function LegalPagesTab() {
     setSlug("");
     setContent("");
     setSlugTouched(false);
+    setPdfUrl(null);
   }
 
   async function startCreate() {
@@ -61,11 +65,39 @@ export function LegalPagesTab() {
       setTitle(row.title);
       setSlug(row.slug);
       setContent(row.content);
+      setPdfUrl((row as { pdf_url?: string | null }).pdf_url ?? null);
       setSlugTouched(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao carregar página");
     } finally {
       setLoadingEdit(false);
+    }
+  }
+
+  async function onUploadPdf(file: File) {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Envie apenas arquivos PDF.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("O PDF deve ter no máximo 15 MB.");
+      return;
+    }
+    const folder = slugify(slug || title) || "sem-slug";
+    const base = slugify(file.name.replace(/\.pdf$/i, "")) || "documento";
+    const path = `${folder}/${Date.now()}-${base}.pdf`;
+    setUploading(true);
+    try {
+      const { error } = await supabase.storage
+        .from("public-docs")
+        .upload(path, file, { contentType: "application/pdf", upsert: false });
+      if (error) throw error;
+      setPdfUrl(`/api/public/docs/${path}`);
+      toast.success("PDF anexado. Clique em Salvar para publicar.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar PDF");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -79,6 +111,10 @@ export function LegalPagesTab() {
       toast.error("Slug inválido.");
       return;
     }
+    if (!pdfUrl && content.trim().length === 0) {
+      toast.error("Informe o conteúdo ou anexe um PDF.");
+      return;
+    }
     setSaving(true);
     try {
       await upsertFn({
@@ -87,6 +123,7 @@ export function LegalPagesTab() {
           title: title.trim(),
           slug: finalSlug,
           content,
+          pdf_url: pdfUrl,
         },
       });
       toast.success(editingId === "new" ? "Página criada" : "Página salva");
@@ -163,7 +200,40 @@ export function LegalPagesTab() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Conteúdo (texto puro)</label>
+            <label className="text-sm font-medium">Anexar PDF</label>
+            {pdfUrl ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <FileText className="h-4 w-4 shrink-0" />
+                <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">
+                  {decodeURIComponent(pdfUrl.split("/").pop() ?? "arquivo.pdf")}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPdfUrl(null)}
+                  className="text-xs px-3 py-1.5 rounded-md border text-destructive hover:bg-destructive/10"
+                >
+                  Remover PDF
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="application/pdf"
+                disabled={uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) onUploadPdf(f);
+                }}
+                className="mt-1 block w-full text-sm"
+              />
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {uploading ? "Enviando PDF…" : "Somente PDF, até 15 MB. Com PDF anexado, o texto abaixo é opcional."}
+            </p>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Conteúdo (texto puro){pdfUrl ? " — opcional" : ""}</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
