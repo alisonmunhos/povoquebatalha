@@ -29,6 +29,12 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
       const generation = ++renderGeneration;
       setStatus("loading");
       container.replaceChildren();
+      const cssWidth = container.clientWidth;
+      if (cssWidth <= 0) {
+        setStatus("error");
+        return;
+      }
+      lastRenderedWidth = cssWidth;
 
       try {
         const pdfjs = await import("pdfjs-dist");
@@ -37,10 +43,6 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
         loadingTask = pdfjs.getDocument({ url });
         const pdf = await loadingTask.promise;
         if (cancelled || generation !== renderGeneration) return;
-
-        const cssWidth = container.clientWidth;
-        if (cssWidth <= 0) throw new Error("O visualizador não possui largura disponível.");
-        lastRenderedWidth = cssWidth;
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
           if (cancelled || generation !== renderGeneration) return;
