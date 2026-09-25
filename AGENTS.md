@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Public legal PDFs render client-side through PDF.js with the worker bundled by Vite, because native embedded PDF viewers are inconsistent on mobile browsers.
