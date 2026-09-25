@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/public/legal-pages/$slug")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: page, error } = await supabaseAdmin
           .from("legal_pages")
-          .select("slug,title,content,updated_at")
+          .select("slug,title,content,pdf_url,updated_at")
           .eq("slug", slug)
           .maybeSingle();
 
