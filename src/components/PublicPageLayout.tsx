@@ -1,8 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/BrandMark";
+import { cn } from "@/lib/utils";
 
-export function PublicPageLayout({ children }: { children: ReactNode }) {
+export function PublicPageLayout({
+  children,
+  wide = false,
+}: {
+  children: ReactNode;
+  wide?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-background" translate="no">
       <header className="border-b-2 border-foreground bg-secondary text-secondary-foreground">
@@ -13,7 +20,14 @@ export function PublicPageLayout({ children }: { children: ReactNode }) {
           </Link>
         </div>
       </header>
-      <main className="max-w-md mx-auto px-6 py-10">{children}</main>
+      <main
+        className={cn(
+          "mx-auto py-10",
+          wide ? "w-full max-w-[900px] px-2 sm:px-6" : "max-w-md px-6",
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }

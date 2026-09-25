@@ -2,12 +2,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { PdfDocumentViewer } from "@/components/PdfDocumentViewer";
+import { Button } from "@/components/ui/button";
 import { shareMeta, canonical } from "@/lib/site-meta";
+
+function formatSlug(slug: string) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 export const Route = createFileRoute("/termos/$slug")({
   head: ({ params }) => ({
     meta: shareMeta({
-      title: `${params.slug} — Campanha do Povo que Batalha`,
+      title: `${formatSlug(params.slug)} — Campanha do Povo que Batalha`,
       description: "Termos e políticas da Campanha do Povo que Batalha.",
       path: `/termos/${params.slug}`,
     }),
@@ -42,8 +52,10 @@ function TermosPage() {
       .catch(() => setPage(null));
   }, [slug]);
 
+  const hasPdf = Boolean(page?.pdf_url);
+
   return (
-    <PublicPageLayout>
+    <PublicPageLayout wide={hasPdf}>
       {page === undefined ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
@@ -57,21 +69,16 @@ function TermosPage() {
           </Link>
         </div>
       ) : page.pdf_url ? (
-        <article className="space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight">{page.title}</h1>
-          <iframe
-            src={page.pdf_url}
-            title={page.title}
-            className="w-full h-[80dvh] border rounded-xl bg-card"
-          />
-          <a
-            href={page.pdf_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-full justify-center items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
-          >
-            <Download className="h-4 w-4" /> Baixar PDF
-          </a>
+        <article className="space-y-5">
+          <h1 className="px-2 text-3xl font-bold tracking-tight sm:px-0">{page.title}</h1>
+          <PdfDocumentViewer url={page.pdf_url} title={page.title} />
+          <div className="px-2 pb-[max(0px,env(safe-area-inset-bottom))] sm:px-0">
+            <Button asChild size="lg" className="w-full">
+              <a href={page.pdf_url} target="_blank" rel="noopener noreferrer">
+                <Download /> Baixar PDF
+              </a>
+            </Button>
+          </div>
         </article>
       ) : (
         <article className="space-y-4">
