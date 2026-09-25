@@ -52,6 +52,18 @@ function TermosPage() {
       .catch(() => setPage(null));
   }, [slug]);
 
+  useEffect(() => {
+    if (!page) return;
+    document.title = `${page.title} — Campanha do Povo que Batalha`;
+    if (!page.pdf_url) return;
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    description?.setAttribute("content", "Material da Campanha do Povo que Batalha");
+    const ogTitle = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
+    ogTitle?.setAttribute("content", page.title);
+    const ogDescription = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
+    ogDescription?.setAttribute("content", "Material da Campanha do Povo que Batalha");
+  }, [page]);
+
   const hasPdf = Boolean(page?.pdf_url);
 
   return (
