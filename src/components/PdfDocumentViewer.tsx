@@ -56,6 +56,7 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
           pageGroup.className = "overflow-hidden bg-card shadow-sm";
           pageGroup.setAttribute("role", "img");
           pageGroup.setAttribute("aria-label", `Página ${pageNumber} de ${pdf.numPages} — ${title}`);
+          container.append(pageGroup);
 
           const slicePixelHeight = Math.min(MAX_CANVAS_PIXEL_HEIGHT, renderViewport.height);
           const sliceCount = Math.ceil(renderViewport.height / slicePixelHeight);
@@ -86,7 +87,6 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
             pageGroup.append(canvas);
           }
 
-          container.append(pageGroup);
           page.cleanup();
         }
 
