@@ -83,13 +83,13 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
 
             const context = canvas.getContext("2d", { alpha: false });
             if (!context) throw new Error("Não foi possível exibir uma parte do PDF.");
+            pageGroup.append(canvas);
             await page.render({
               canvas,
               canvasContext: context,
               viewport: renderViewport,
               transform: [1, 0, 0, 1, 0, -pixelTop],
             }).promise;
-            pageGroup.append(canvas);
           }
 
           page.cleanup();
