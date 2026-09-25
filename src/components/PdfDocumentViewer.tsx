@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
+import type { PDFDocumentLoadingTask } from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { Button } from "@/components/ui/button";
 
 const MAX_CANVAS_PIXEL_HEIGHT = 4000;
@@ -18,7 +20,7 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
     if (!container) return;
 
     let cancelled = false;
-    let loadingTask: { destroy: () => Promise<void> } | undefined;
+    let loadingTask: PDFDocumentLoadingTask | undefined;
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     let lastRenderedWidth = 0;
     let renderGeneration = 0;
@@ -30,10 +32,9 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
 
       try {
         const pdfjs = await import("pdfjs-dist");
-        const workerUrl = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href;
-        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-        loadingTask = pdfjs.getDocument(url);
+        loadingTask = pdfjs.getDocument({ url });
         const pdf = await loadingTask.promise;
         if (cancelled || generation !== renderGeneration) return;
 
