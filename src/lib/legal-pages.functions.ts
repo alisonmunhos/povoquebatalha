@@ -41,6 +41,7 @@ const upsertSchema = z.object({
   title: z.string().trim().min(2).max(200),
   slug: slugSchema,
   content: z.string().max(50000),
+  pdf_url: z.string().max(1000).regex(/^\/api\/public\/docs\//).nullable().optional(),
 });
 
 export const upsertLegalPage = createServerFn({ method: "POST" })
@@ -48,10 +49,14 @@ export const upsertLegalPage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => upsertSchema.parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
+    if (!data.pdf_url && data.content.trim().length === 0) {
+      throw new Error("Informe o conteúdo ou anexe um PDF.");
+    }
     const row = {
       title: data.title,
       slug: data.slug,
       content: data.content,
+      pdf_url: data.pdf_url ?? null,
     };
     if (data.id) {
       const { data: updated, error } = await context.supabase

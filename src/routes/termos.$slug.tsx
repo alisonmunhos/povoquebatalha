@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 import { shareMeta, canonical } from "@/lib/site-meta";
 
@@ -21,6 +21,7 @@ type LegalPage = {
   slug: string;
   title: string;
   content: string;
+  pdf_url?: string | null;
   updated_at: string;
 };
 
@@ -55,6 +56,23 @@ function TermosPage() {
             Voltar ao início
           </Link>
         </div>
+      ) : page.pdf_url ? (
+        <article className="space-y-4">
+          <h1 className="text-3xl font-bold tracking-tight">{page.title}</h1>
+          <iframe
+            src={page.pdf_url}
+            title={page.title}
+            className="w-full h-[80dvh] border rounded-xl bg-card"
+          />
+          <a
+            href={page.pdf_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full justify-center items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-3 text-sm font-medium hover:bg-primary/90"
+          >
+            <Download className="h-4 w-4" /> Baixar PDF
+          </a>
+        </article>
       ) : (
         <article className="space-y-4">
           <h1 className="text-3xl font-bold tracking-tight">{page.title}</h1>
