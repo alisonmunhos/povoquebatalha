@@ -1,0 +1,1 @@
+ALTER TABLE public.legal_pages ADD COLUMN IF NOT EXISTS cover_jpeg_base64 text;
