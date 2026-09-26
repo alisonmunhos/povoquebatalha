@@ -4,7 +4,8 @@ import { Download, Loader2 } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 import { PdfDocumentViewer } from "@/components/PdfDocumentViewer";
 import { Button } from "@/components/ui/button";
-import { shareMeta, canonical } from "@/lib/site-meta";
+import { shareMeta, canonical, SITE_URL } from "@/lib/site-meta";
+import { getLegalPageMeta } from "@/lib/legal-page-meta.functions";
 
 function formatSlug(slug: string) {
   return slug
@@ -15,15 +16,20 @@ function formatSlug(slug: string) {
 }
 
 export const Route = createFileRoute("/termos/$slug")({
-  head: ({ params }) => ({
+  loader: ({ params }) => getLegalPageMeta({ data: { slug: params.slug } }),
+  head: ({ params, loaderData }) => ({
     meta: shareMeta({
-      title: `${formatSlug(params.slug)} — Campanha do Povo que Batalha`,
-      description: "Termos e políticas da Campanha do Povo que Batalha.",
+      title: `${loaderData?.title ?? formatSlug(params.slug)} — Campanha do Povo que Batalha`,
+      description: loaderData?.hasPdf
+        ? "Material da Campanha do Povo que Batalha"
+        : "Termos e políticas da Campanha do Povo que Batalha.",
       path: `/termos/${params.slug}`,
+      image: loaderData?.hasCover
+        ? `${SITE_URL}/api/public/legal-pages/${encodeURIComponent(params.slug)}/cover`
+        : undefined,
     }),
     links: canonical(`/termos/${params.slug}`),
   }),
-  ssr: false,
   component: TermosPage,
 });
 
