@@ -9,4 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- Public legal PDFs render client-side through PDF.js with the worker bundled by Vite, because native embedded PDF viewers are inconsistent on mobile browsers.
+- The long campaign report is pre-rendered into 1,500px WebP slices and served by its dedicated material route, avoiding PDF rendering on mobile.

@@ -24,6 +24,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TermosSlugRouteImport } from './routes/termos.$slug'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
+import { Route as MateriaisPrincipaisAcoesDoMandatoRouteImport } from './routes/materiais.principais-acoes-do-mandato'
 import { Route as FSlugRouteImport } from './routes/f.$slug'
 import { Route as EventoSlugRouteImport } from './routes/evento.$slug'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
@@ -173,6 +174,12 @@ const OptOutTokenRoute = OptOutTokenRouteImport.update({
   path: '/opt-out/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MateriaisPrincipaisAcoesDoMandatoRoute =
+  MateriaisPrincipaisAcoesDoMandatoRouteImport.update({
+    id: '/materiais/principais-acoes-do-mandato',
+    path: '/materiais/principais-acoes-do-mandato',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FSlugRoute = FSlugRouteImport.update({
   id: '/f/$slug',
   path: '/f/$slug',
@@ -624,6 +631,7 @@ export interface FileRoutesByFullPath {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/evento/$slug': typeof EventoSlugRoute
   '/f/$slug': typeof FSlugRoute
+  '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
@@ -713,6 +721,7 @@ export interface FileRoutesByTo {
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/evento/$slug': typeof EventoSlugRoute
   '/f/$slug': typeof FSlugRoute
+  '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
@@ -805,6 +814,7 @@ export interface FileRoutesById {
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/evento/$slug': typeof EventoSlugRoute
   '/f/$slug': typeof FSlugRoute
+  '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
@@ -897,6 +907,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/evento/$slug'
     | '/f/$slug'
+    | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
     | '/campanhas/$id'
@@ -986,6 +997,7 @@ export interface FileRouteTypes {
     | '/whatsapp'
     | '/evento/$slug'
     | '/f/$slug'
+    | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
     | '/campanhas/$id'
@@ -1077,6 +1089,7 @@ export interface FileRouteTypes {
     | '/_authenticated/whatsapp'
     | '/evento/$slug'
     | '/f/$slug'
+    | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
     | '/_authenticated/campanhas/$id'
@@ -1146,6 +1159,7 @@ export interface RootRouteChildren {
   TmpAudioCheckRoute: typeof TmpAudioCheckRoute
   EventoSlugRoute: typeof EventoSlugRoute
   FSlugRoute: typeof FSlugRoute
+  MateriaisPrincipaisAcoesDoMandatoRoute: typeof MateriaisPrincipaisAcoesDoMandatoRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   TermosSlugRoute: typeof TermosSlugRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
@@ -1279,6 +1293,13 @@ declare module '@tanstack/react-router' {
       path: '/opt-out/$token'
       fullPath: '/opt-out/$token'
       preLoaderRoute: typeof OptOutTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/materiais/principais-acoes-do-mandato': {
+      id: '/materiais/principais-acoes-do-mandato'
+      path: '/materiais/principais-acoes-do-mandato'
+      fullPath: '/materiais/principais-acoes-do-mandato'
+      preLoaderRoute: typeof MateriaisPrincipaisAcoesDoMandatoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/f/$slug': {
@@ -1984,6 +2005,8 @@ const rootRouteChildren: RootRouteChildren = {
   TmpAudioCheckRoute: TmpAudioCheckRoute,
   EventoSlugRoute: EventoSlugRoute,
   FSlugRoute: FSlugRoute,
+  MateriaisPrincipaisAcoesDoMandatoRoute:
+    MateriaisPrincipaisAcoesDoMandatoRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   TermosSlugRoute: TermosSlugRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
