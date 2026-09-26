@@ -42,6 +42,8 @@ const upsertSchema = z.object({
   slug: slugSchema,
   content: z.string().max(50000),
   pdf_url: z.string().max(1000).regex(/^\/api\/public\/docs\//).nullable().optional(),
+  // Capa JPEG (base64, sem prefixo data:) da 1ª página do PDF, usada na prévia do WhatsApp.
+  cover_jpeg_base64: z.string().max(1_500_000).regex(/^[A-Za-z0-9+/=]+$/).nullable().optional(),
 });
 
 export const upsertLegalPage = createServerFn({ method: "POST" })
@@ -57,6 +59,9 @@ export const upsertLegalPage = createServerFn({ method: "POST" })
       slug: data.slug,
       content: data.content,
       pdf_url: data.pdf_url ?? null,
+      ...(data.cover_jpeg_base64 !== undefined || !data.pdf_url
+        ? { cover_jpeg_base64: data.pdf_url ? data.cover_jpeg_base64 ?? null : null }
+        : {}),
     };
     if (data.id) {
       const { data: updated, error } = await context.supabase

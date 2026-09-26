@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
-import type { PDFDocumentLoadingTask } from "pdfjs-dist";
+import type { PDFDocumentLoadingTask, PDFPageProxy } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { Button } from "@/components/ui/button";
 
+// Fatias menores = primeira imagem aparece mais rápido e menos memória no celular.
+const SLICE_CSS_HEIGHT = 1200;
 const MAX_CANVAS_PIXEL_HEIGHT = 4000;
 
 type PdfDocumentViewerProps = {
   url: string;
   title: string;
+};
+
+type Slice = {
+  canvas: HTMLCanvasElement;
+  page: PDFPageProxy;
+  scale: number;
+  pixelTop: number;
+  rendered: boolean;
 };
 
 export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
@@ -21,106 +31,136 @@ export function PdfDocumentViewer({ url, title }: PdfDocumentViewerProps) {
 
     let cancelled = false;
     let loadingTask: PDFDocumentLoadingTask | undefined;
+    let observer: IntersectionObserver | undefined;
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-    let lastRenderedWidth = 0;
-    let renderGeneration = 0;
-    let isRendering = false;
+    let lastWidth = 0;
+    let generation = 0;
+    let pdfPromise: Promise<import("pdfjs-dist").PDFDocumentProxy> | undefined;
 
-    const renderDocument = async () => {
-      const generation = ++renderGeneration;
-      isRendering = true;
-      setStatus("loading");
-      container.replaceChildren();
-      const cssWidth = container.clientWidth;
-      if (cssWidth <= 0) {
-        isRendering = false;
-        setStatus("error");
-        return;
+    const loadPdf = () => {
+      if (!pdfPromise) {
+        pdfPromise = import("pdfjs-dist").then((pdfjs) => {
+          pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+          // Carrega por partes (range requests) e começa a mostrar antes do download terminar.
+          loadingTask = pdfjs.getDocument({ url, disableAutoFetch: true, rangeChunkSize: 262144 });
+          return loadingTask.promise;
+        });
       }
-      lastRenderedWidth = cssWidth;
+      return pdfPromise;
+    };
+
+    // Fila: renderiza uma fatia por vez, na ordem em que entram na tela.
+    const queue: Slice[] = [];
+    let working = false;
+    const pump = async (gen: number) => {
+      if (working) return;
+      working = true;
+      while (queue.length && !cancelled && gen === generation) {
+        const slice = queue.shift()!;
+        if (slice.rendered) continue;
+        slice.rendered = true;
+        const ctx = slice.canvas.getContext("2d", { alpha: false });
+        if (!ctx) continue;
+        try {
+          await slice.page.render({
+            canvasContext: ctx,
+            viewport: slice.page.getViewport({ scale: slice.scale }),
+            transform: [1, 0, 0, 1, 0, -slice.pixelTop],
+          }).promise;
+        } catch (error) {
+          console.error("Falha ao renderizar trecho do PDF", error);
+        }
+      }
+      working = false;
+    };
+
+    const layout = async () => {
+      const gen = ++generation;
+      observer?.disconnect();
+      queue.length = 0;
+      const cssWidth = container.clientWidth;
+      if (cssWidth <= 0) return;
+      lastWidth = cssWidth;
 
       try {
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        const pdf = await loadPdf();
+        if (cancelled || gen !== generation) return;
+        container.replaceChildren();
+        const slices = new Map<Element, Slice>();
 
-        loadingTask = pdfjs.getDocument({ url });
-        const pdf = await loadingTask.promise;
-        if (cancelled || generation !== renderGeneration) return;
+        observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              const slice = slices.get(entry.target);
+              if (slice && !slice.rendered) queue.push(slice);
+              observer?.unobserve(entry.target);
+            }
+            queue.sort((a, b) => a.canvas.offsetTop - b.canvas.offsetTop);
+            void pump(gen);
+          },
+          { rootMargin: "1500px 0px" },
+        );
 
-        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-          if (cancelled || generation !== renderGeneration) return;
+        for (let n = 1; n <= pdf.numPages; n += 1) {
+          const page = await pdf.getPage(n);
+          if (cancelled || gen !== generation) return;
+          const base = page.getViewport({ scale: 1 });
+          const cssScale = cssWidth / base.width;
+          const cssHeight = base.height * cssScale;
+          // Documentos muito longos: nitidez limitada para poupar memória do celular.
+          const dprCap = cssHeight > cssWidth * 3 ? 1.5 : 2;
+          const ratio = Math.min(dprCap, Math.max(1, window.devicePixelRatio || 1));
+          const scale = cssScale * ratio;
+          const pixelHeight = base.height * scale;
+          const pixelWidth = Math.ceil(base.width * scale);
+          const slicePixel = Math.min(MAX_CANVAS_PIXEL_HEIGHT, SLICE_CSS_HEIGHT * ratio);
 
-          const page = await pdf.getPage(pageNumber);
-          const baseViewport = page.getViewport({ scale: 1 });
-          const cssScale = cssWidth / baseViewport.width;
-          const cssViewport = page.getViewport({ scale: cssScale });
-          const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
-          const renderViewport = page.getViewport({ scale: cssScale * pixelRatio });
+          const group = document.createElement("div");
+          group.className = "overflow-hidden bg-card shadow-sm";
+          group.setAttribute("role", "img");
+          group.setAttribute("aria-label", `Página ${n} de ${pdf.numPages} — ${title}`);
+          container.append(group);
 
-          const pageGroup = document.createElement("div");
-          pageGroup.className = "overflow-hidden bg-card shadow-sm";
-          pageGroup.setAttribute("role", "img");
-          pageGroup.setAttribute("aria-label", `Página ${pageNumber} de ${pdf.numPages} — ${title}`);
-          container.append(pageGroup);
-
-          const slicePixelHeight = Math.min(MAX_CANVAS_PIXEL_HEIGHT, renderViewport.height);
-          const sliceCount = Math.ceil(renderViewport.height / slicePixelHeight);
-
-          for (let sliceIndex = 0; sliceIndex < sliceCount; sliceIndex += 1) {
-            if (cancelled || generation !== renderGeneration) return;
-            const pixelTop = sliceIndex * slicePixelHeight;
-            const currentPixelHeight = Math.min(
-              slicePixelHeight,
-              renderViewport.height - pixelTop,
-            );
-
+          for (let top = 0; top < pixelHeight; top += slicePixel) {
+            const h = Math.min(slicePixel, pixelHeight - top);
             const canvas = document.createElement("canvas");
-            canvas.width = Math.ceil(renderViewport.width);
-            canvas.height = Math.ceil(currentPixelHeight);
+            canvas.width = pixelWidth;
+            canvas.height = Math.ceil(h);
             canvas.style.display = "block";
             canvas.style.width = "100%";
-            canvas.style.height = `${currentPixelHeight / pixelRatio}px`;
-
-            const context = canvas.getContext("2d", { alpha: false });
-            if (!context) throw new Error("Não foi possível exibir uma parte do PDF.");
-            pageGroup.append(canvas);
-            await page.render({
-              canvasContext: context,
-              viewport: renderViewport,
-              transform: [1, 0, 0, 1, 0, -pixelTop],
-            }).promise;
+            canvas.style.height = `${h / ratio}px`;
+            canvas.style.background = "white";
+            group.append(canvas);
+            slices.set(canvas, { canvas, page, scale, pixelTop: top, rendered: false });
+            observer.observe(canvas);
           }
-
-          page.cleanup();
+          if (n === 1) setStatus("ready");
         }
-
-        if (!cancelled && generation === renderGeneration) {
-          isRendering = false;
-          setStatus("ready");
-        }
+        setStatus("ready");
       } catch (error) {
-        if (!cancelled && generation === renderGeneration) {
-          isRendering = false;
-          console.error("Falha ao renderizar PDF", error);
+        if (!cancelled && gen === generation) {
+          console.error("Falha ao carregar PDF", error);
           container.replaceChildren();
           setStatus("error");
         }
       }
     };
 
-    void renderDocument();
+    setStatus("loading");
+    void layout();
 
-    const observer = new ResizeObserver(() => {
-      if (isRendering) return;
-      if (Math.abs(container.clientWidth - lastRenderedWidth) < 1) return;
+    const resizeObserver = new ResizeObserver(() => {
+      if (Math.abs(container.clientWidth - lastWidth) < 8) return;
       if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => void renderDocument(), 180);
+      resizeTimer = setTimeout(() => void layout(), 250);
     });
-    observer.observe(container);
+    resizeObserver.observe(container);
 
     return () => {
       cancelled = true;
-      observer.disconnect();
+      observer?.disconnect();
+      resizeObserver.disconnect();
       if (resizeTimer) clearTimeout(resizeTimer);
       void loadingTask?.destroy();
       container.replaceChildren();

@@ -5,6 +5,7 @@ import { deleteLegalPage, getLegalPage, listLegalPages, upsertLegalPage } from "
 import { Copy, ExternalLink, FileText, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { renderPdfCoverBase64 } from "@/lib/pdf-cover";
 
 const ACCENT_MARKS = /[\u0300-\u036f]/g;
 
@@ -117,6 +118,13 @@ export function LegalPagesTab() {
     }
     setSaving(true);
     try {
+      let cover: string | null | undefined;
+      if (pdfUrl) {
+        cover = await renderPdfCoverBase64(pdfUrl).catch((err) => {
+          console.warn("Falha ao gerar capa do PDF", err);
+          return undefined;
+        });
+      }
       await upsertFn({
         data: {
           id: editingId && editingId !== "new" ? editingId : undefined,
@@ -124,6 +132,7 @@ export function LegalPagesTab() {
           slug: finalSlug,
           content,
           pdf_url: pdfUrl,
+          cover_jpeg_base64: cover,
         },
       });
       toast.success(editingId === "new" ? "Página criada" : "Página salva");

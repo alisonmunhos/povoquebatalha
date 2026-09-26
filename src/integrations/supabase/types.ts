@@ -2553,6 +2553,7 @@ export type Database = {
       legal_pages: {
         Row: {
           content: string
+          cover_jpeg_base64: string | null
           id: string
           pdf_url: string | null
           slug: string
@@ -2561,6 +2562,7 @@ export type Database = {
         }
         Insert: {
           content?: string
+          cover_jpeg_base64?: string | null
           id?: string
           pdf_url?: string | null
           slug: string
@@ -2569,6 +2571,7 @@ export type Database = {
         }
         Update: {
           content?: string
+          cover_jpeg_base64?: string | null
           id?: string
           pdf_url?: string | null
           slug?: string

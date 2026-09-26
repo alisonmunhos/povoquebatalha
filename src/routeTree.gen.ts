@@ -87,6 +87,7 @@ import { Route as ApiPublicFormsSlugRouteImport } from './routes/api/public/form
 import { Route as ApiPublicEventsSlugRouteImport } from './routes/api/public/events/$slug'
 import { Route as ApiPublicDocsSplatRouteImport } from './routes/api/public/docs/$'
 import { Route as ApiPublicCepCepRouteImport } from './routes/api/public/cep.$cep'
+import { Route as ApiPublicLegalPagesSlugCoverRouteImport } from './routes/api/public/legal-pages/$slug/cover'
 import { Route as ApiPublicFormsSlugSectionProgressRouteImport } from './routes/api/public/forms/$slug/section-progress'
 import { Route as ApiPublicFormsSlugOgImageRouteImport } from './routes/api/public/forms/$slug/og-image'
 import { Route as ApiPublicFormsSlugAccountSectionRouteImport } from './routes/api/public/forms/$slug/account-section'
@@ -520,6 +521,12 @@ const ApiPublicCepCepRoute = ApiPublicCepCepRouteImport.update({
   path: '/api/public/cep/$cep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLegalPagesSlugCoverRoute =
+  ApiPublicLegalPagesSlugCoverRouteImport.update({
+    id: '/cover',
+    path: '/cover',
+    getParentRoute: () => ApiPublicLegalPagesSlugRoute,
+  } as any)
 const ApiPublicFormsSlugSectionProgressRoute =
   ApiPublicFormsSlugSectionProgressRouteImport.update({
     id: '/section-progress',
@@ -650,7 +657,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/jobs/release-stalled-missions': typeof ApiPublicJobsReleaseStalledMissionsRoute
   '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
-  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
+  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRouteWithChildren
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
   '/api/public/push/vapid': typeof ApiPublicPushVapidRoute
@@ -667,6 +674,7 @@ export interface FileRoutesByFullPath {
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
   '/api/public/forms/$slug/og-image': typeof ApiPublicFormsSlugOgImageRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
+  '/api/public/legal-pages/$slug/cover': typeof ApiPublicLegalPagesSlugCoverRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -738,7 +746,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/jobs/release-stalled-missions': typeof ApiPublicJobsReleaseStalledMissionsRoute
   '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
-  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
+  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRouteWithChildren
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
   '/api/public/push/vapid': typeof ApiPublicPushVapidRoute
@@ -755,6 +763,7 @@ export interface FileRoutesByTo {
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
   '/api/public/forms/$slug/og-image': typeof ApiPublicFormsSlugOgImageRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
+  '/api/public/legal-pages/$slug/cover': typeof ApiPublicLegalPagesSlugCoverRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -829,7 +838,7 @@ export interface FileRoutesById {
   '/api/public/jobs/process-campaign-queue': typeof ApiPublicJobsProcessCampaignQueueRoute
   '/api/public/jobs/release-stalled-missions': typeof ApiPublicJobsReleaseStalledMissionsRoute
   '/api/public/jobs/weekly-impact': typeof ApiPublicJobsWeeklyImpactRoute
-  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRoute
+  '/api/public/legal-pages/$slug': typeof ApiPublicLegalPagesSlugRouteWithChildren
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/push/unsubscribe': typeof ApiPublicPushUnsubscribeRoute
   '/api/public/push/vapid': typeof ApiPublicPushVapidRoute
@@ -846,6 +855,7 @@ export interface FileRoutesById {
   '/api/public/forms/$slug/account-section': typeof ApiPublicFormsSlugAccountSectionRoute
   '/api/public/forms/$slug/og-image': typeof ApiPublicFormsSlugOgImageRoute
   '/api/public/forms/$slug/section-progress': typeof ApiPublicFormsSlugSectionProgressRoute
+  '/api/public/legal-pages/$slug/cover': typeof ApiPublicLegalPagesSlugCoverRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -937,6 +947,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/$slug/account-section'
     | '/api/public/forms/$slug/og-image'
     | '/api/public/forms/$slug/section-progress'
+    | '/api/public/legal-pages/$slug/cover'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1025,6 +1036,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/$slug/account-section'
     | '/api/public/forms/$slug/og-image'
     | '/api/public/forms/$slug/section-progress'
+    | '/api/public/legal-pages/$slug/cover'
   id:
     | '__root__'
     | '/'
@@ -1115,6 +1127,7 @@ export interface FileRouteTypes {
     | '/api/public/forms/$slug/account-section'
     | '/api/public/forms/$slug/og-image'
     | '/api/public/forms/$slug/section-progress'
+    | '/api/public/legal-pages/$slug/cover'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1149,7 +1162,7 @@ export interface RootRouteChildren {
   ApiPublicJobsProcessCampaignQueueRoute: typeof ApiPublicJobsProcessCampaignQueueRoute
   ApiPublicJobsReleaseStalledMissionsRoute: typeof ApiPublicJobsReleaseStalledMissionsRoute
   ApiPublicJobsWeeklyImpactRoute: typeof ApiPublicJobsWeeklyImpactRoute
-  ApiPublicLegalPagesSlugRoute: typeof ApiPublicLegalPagesSlugRoute
+  ApiPublicLegalPagesSlugRoute: typeof ApiPublicLegalPagesSlugRouteWithChildren
   ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
   ApiPublicPushUnsubscribeRoute: typeof ApiPublicPushUnsubscribeRoute
   ApiPublicPushVapidRoute: typeof ApiPublicPushVapidRoute
@@ -1709,6 +1722,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCepCepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/legal-pages/$slug/cover': {
+      id: '/api/public/legal-pages/$slug/cover'
+      path: '/cover'
+      fullPath: '/api/public/legal-pages/$slug/cover'
+      preLoaderRoute: typeof ApiPublicLegalPagesSlugCoverRouteImport
+      parentRoute: typeof ApiPublicLegalPagesSlugRoute
+    }
     '/api/public/forms/$slug/section-progress': {
       id: '/api/public/forms/$slug/section-progress'
       path: '/section-progress'
@@ -1934,6 +1954,20 @@ const ApiPublicFormsSlugRouteChildren: ApiPublicFormsSlugRouteChildren = {
 const ApiPublicFormsSlugRouteWithChildren =
   ApiPublicFormsSlugRoute._addFileChildren(ApiPublicFormsSlugRouteChildren)
 
+interface ApiPublicLegalPagesSlugRouteChildren {
+  ApiPublicLegalPagesSlugCoverRoute: typeof ApiPublicLegalPagesSlugCoverRoute
+}
+
+const ApiPublicLegalPagesSlugRouteChildren: ApiPublicLegalPagesSlugRouteChildren =
+  {
+    ApiPublicLegalPagesSlugCoverRoute: ApiPublicLegalPagesSlugCoverRoute,
+  }
+
+const ApiPublicLegalPagesSlugRouteWithChildren =
+  ApiPublicLegalPagesSlugRoute._addFileChildren(
+    ApiPublicLegalPagesSlugRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
@@ -1969,7 +2003,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsReleaseStalledMissionsRoute:
     ApiPublicJobsReleaseStalledMissionsRoute,
   ApiPublicJobsWeeklyImpactRoute: ApiPublicJobsWeeklyImpactRoute,
-  ApiPublicLegalPagesSlugRoute: ApiPublicLegalPagesSlugRoute,
+  ApiPublicLegalPagesSlugRoute: ApiPublicLegalPagesSlugRouteWithChildren,
   ApiPublicPushSubscribeRoute: ApiPublicPushSubscribeRoute,
   ApiPublicPushUnsubscribeRoute: ApiPublicPushUnsubscribeRoute,
   ApiPublicPushVapidRoute: ApiPublicPushVapidRoute,
