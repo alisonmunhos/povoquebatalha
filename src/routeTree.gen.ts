@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TmpAudioCheckRouteImport } from './routes/tmp-audio-check'
+import { Route as StoryRouteImport } from './routes/story'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
@@ -103,6 +104,11 @@ import { Route as ApiPublicAgitationMissionsMissionIdContactIdRouteImport } from
 const TmpAudioCheckRoute = TmpAudioCheckRouteImport.update({
   id: '/tmp-audio-check',
   path: '/tmp-audio-check',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StoryRoute = StoryRouteImport.update({
+  id: '/story',
+  path: '/story',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
@@ -605,6 +611,7 @@ export interface FileRoutesByFullPath {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/story': typeof StoryRoute
   '/tmp-audio-check': typeof TmpAudioCheckRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
@@ -696,6 +703,7 @@ export interface FileRoutesByTo {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/story': typeof StoryRoute
   '/tmp-audio-check': typeof TmpAudioCheckRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
@@ -788,6 +796,7 @@ export interface FileRoutesById {
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/story': typeof StoryRoute
   '/tmp-audio-check': typeof TmpAudioCheckRoute
   '/_authenticated/agitacao': typeof AuthenticatedAgitacaoRoute
   '/_authenticated/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
@@ -881,6 +890,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/story'
     | '/tmp-audio-check'
     | '/agitacao'
     | '/agitacao-notificacoes'
@@ -972,6 +982,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/story'
     | '/tmp-audio-check'
     | '/agitacao'
     | '/agitacao-notificacoes'
@@ -1063,6 +1074,7 @@ export interface FileRouteTypes {
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
+    | '/story'
     | '/tmp-audio-check'
     | '/_authenticated/agitacao'
     | '/_authenticated/agitacao-notificacoes'
@@ -1156,6 +1168,7 @@ export interface RootRouteChildren {
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  StoryRoute: typeof StoryRoute
   TmpAudioCheckRoute: typeof TmpAudioCheckRoute
   EventoSlugRoute: typeof EventoSlugRoute
   FSlugRoute: typeof FSlugRoute
@@ -1195,6 +1208,13 @@ declare module '@tanstack/react-router' {
       path: '/tmp-audio-check'
       fullPath: '/tmp-audio-check'
       preLoaderRoute: typeof TmpAudioCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/story': {
+      id: '/story'
+      path: '/story'
+      fullPath: '/story'
+      preLoaderRoute: typeof StoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/redefinir-senha': {
@@ -2002,6 +2022,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  StoryRoute: StoryRoute,
   TmpAudioCheckRoute: TmpAudioCheckRoute,
   EventoSlugRoute: EventoSlugRoute,
   FSlugRoute: FSlugRoute,
