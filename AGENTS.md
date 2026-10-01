@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - The long campaign report is pre-rendered into 1,500px WebP slices and served by its dedicated material route, avoiding PDF rendering on mobile.
+- The public Story maker processes uploaded photos entirely in-browser and never sends them to storage or server functions, preserving voter privacy.
