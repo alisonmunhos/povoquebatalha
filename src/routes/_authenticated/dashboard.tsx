@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getDashboardStats } from "@/lib/dashboard.functions";
-import { Users, MessageCircle, Send, UserMinus, MapPin, MapPinOff, Archive, Copy } from "lucide-react";
+import { getDashboardStats, getStoryStats } from "@/lib/dashboard.functions";
+import { Users, MessageCircle, Send, UserMinus, MapPin, MapPinOff, Archive, Copy, Camera } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
@@ -51,6 +51,8 @@ function Dashboard() {
         })}
       </div>
 
+      <StoryCard />
+
       <div className="mt-10 grid md:grid-cols-2 gap-4">
         <Link
           to="/contatos"
@@ -71,6 +73,53 @@ function Dashboard() {
           </p>
         </Link>
       </div>
+    </div>
+  );
+}
+
+function StoryCard() {
+  const fn = useServerFn(getStoryStats);
+  const { data } = useSuspenseQuery({ queryKey: ["dashboard", "stories"], queryFn: () => fn() });
+  const fmt = (d: string) => d.split("-").reverse().slice(0, 2).join("/");
+  return (
+    <div className="mt-10 border rounded-xl p-5 bg-card">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">Stories</h3>
+        <Camera className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">Uso anônimo da página /story — ninguém é identificado.</p>
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        {[
+          { l: "Aberturas", v: data.abriu },
+          { l: "Fotos escolhidas", v: data.foto },
+          { l: "Compartilhamentos", v: data.compartilhou },
+        ].map((c) => (
+          <div key={c.l}>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">{c.l}</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums">{c.v}</div>
+          </div>
+        ))}
+      </div>
+      <table className="mt-5 w-full text-sm">
+        <thead className="text-xs text-muted-foreground">
+          <tr className="border-b">
+            <th className="py-1 text-left font-medium">Dia</th>
+            <th className="py-1 text-right font-medium">Aberturas</th>
+            <th className="py-1 text-right font-medium">Fotos</th>
+            <th className="py-1 text-right font-medium">Compartilhamentos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.days.map((d) => (
+            <tr key={d.dia} className="border-b last:border-0 tabular-nums">
+              <td className="py-1">{fmt(d.dia)}</td>
+              <td className="py-1 text-right">{d.abriu}</td>
+              <td className="py-1 text-right">{d.foto}</td>
+              <td className="py-1 text-right">{d.compartilhou}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
