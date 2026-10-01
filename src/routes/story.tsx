@@ -4,6 +4,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Camera, CheckCircle2, ImageP
 import frameUrl from "@/assets/moldura-story-eu-voto-karen.png";
 import { Button } from "@/components/ui/button";
 import { canonical, shareMeta, SITE_URL } from "@/lib/site-meta";
+import { trackStoryEvent, trackStoryOpenOnce } from "@/lib/story-events";
 
 const STORY_WIDTH = 1080;
 const STORY_HEIGHT = 1920;
@@ -232,6 +233,10 @@ function StoryMakerPage() {
     };
   }, [setTransform]);
 
+  useEffect(() => {
+    trackStoryOpenOnce();
+  }, []);
+
   useEffect(() => () => {
     if (photoRef.current) URL.revokeObjectURL(photoRef.current.url);
   }, []);
@@ -253,6 +258,7 @@ function StoryMakerPage() {
       imageRef.current = normalized.image;
       setPhoto(normalized.photo);
       setTransform({ zoom: 1, x: 0, y: 0 });
+      trackStoryEvent("foto_escolhida");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Não foi possível abrir esta imagem.");
     } finally {
@@ -337,6 +343,7 @@ function StoryMakerPage() {
       const shareData = { files: [file], title: "Eu voto Karen 50555" };
       if (navigator.share && navigator.canShare?.(shareData)) {
         await navigator.share(shareData);
+        trackStoryEvent("compartilhou");
         return;
       }
       const url = URL.createObjectURL(blob);
@@ -347,6 +354,7 @@ function StoryMakerPage() {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
+      trackStoryEvent("baixou");
       setNotice("Imagem salva. Abra o Instagram e poste nos Stories.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
