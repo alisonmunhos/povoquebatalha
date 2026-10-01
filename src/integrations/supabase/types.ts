@@ -2990,6 +2990,27 @@ export type Database = {
         }
         Relationships: []
       }
+      story_events: {
+        Row: {
+          created_at: string
+          device: string
+          event: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          device: string
+          event: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          device?: string
+          event?: string
+          id?: string
+        }
+        Relationships: []
+      }
       system_notification_settings: {
         Row: {
           body_template: string
