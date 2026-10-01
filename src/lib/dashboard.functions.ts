@@ -73,3 +73,49 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       campanhasEmEnvio: campRunning.count ?? 0,
     };
   });
+
+export const getStoryStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase;
+    const count = (events: string[]) =>
+      supabase.from("story_events").select("id", { count: "exact", head: true }).in("event", events);
+    const since = new Date();
+    since.setUTCHours(0, 0, 0, 0);
+    since.setUTCDate(since.getUTCDate() - 13);
+    const [abriu, foto, comp, recent] = await Promise.all([
+      count(["abriu"]),
+      count(["foto_escolhida"]),
+      count(["compartilhou", "baixou"]),
+      supabase
+        .from("story_events")
+        .select("event, created_at")
+        .gte("created_at", since.toISOString())
+        .limit(50000),
+    ]);
+    const days: { dia: string; abriu: number; foto: number; compartilhou: number }[] = [];
+    const idx = new Map<string, (typeof days)[number]>();
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - i);
+      const key = d.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      if (idx.has(key)) continue;
+      const row = { dia: key, abriu: 0, foto: 0, compartilhou: 0 };
+      idx.set(key, row);
+      days.push(row);
+    }
+    for (const r of recent.data ?? []) {
+      const key = new Date(r.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      const row = idx.get(key);
+      if (!row) continue;
+      if (r.event === "abriu") row.abriu++;
+      else if (r.event === "foto_escolhida") row.foto++;
+      else row.compartilhou++;
+    }
+    return {
+      abriu: abriu.count ?? 0,
+      foto: foto.count ?? 0,
+      compartilhou: comp.count ?? 0,
+      days: days.reverse(),
+    };
+  });
