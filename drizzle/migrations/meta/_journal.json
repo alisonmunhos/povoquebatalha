@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791518305377,
+      "tag": "0000_eleicao_votos_munzona_indexes",
+      "breakpoints": true
+    }
+  ]
+}

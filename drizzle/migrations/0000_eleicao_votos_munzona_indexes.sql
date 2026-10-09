@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS eleicao_votos_munzona_ano_cargo_mun_idx ON public.eleicao_votos_munzona (ano_eleicao, cargo, nm_municipio);
+CREATE INDEX IF NOT EXISTS eleicao_votos_munzona_cand_ano_idx ON public.eleicao_votos_munzona (nr_candidato, ano_eleicao);
