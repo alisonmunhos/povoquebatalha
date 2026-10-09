@@ -1714,6 +1714,51 @@ export type Database = {
         }
         Relationships: []
       }
+      eleicao_votos_munzona: {
+        Row: {
+          ano_eleicao: number
+          cargo: string
+          id: number
+          nm_municipio: string
+          nome_urna: string | null
+          nr_candidato: string | null
+          nr_turno: number
+          nr_zona: number
+          sg_federacao: string | null
+          sg_partido: string | null
+          situacao_final: string | null
+          votos: number
+        }
+        Insert: {
+          ano_eleicao: number
+          cargo: string
+          id?: number
+          nm_municipio: string
+          nome_urna?: string | null
+          nr_candidato?: string | null
+          nr_turno: number
+          nr_zona: number
+          sg_federacao?: string | null
+          sg_partido?: string | null
+          situacao_final?: string | null
+          votos: number
+        }
+        Update: {
+          ano_eleicao?: number
+          cargo?: string
+          id?: number
+          nm_municipio?: string
+          nome_urna?: string | null
+          nr_candidato?: string | null
+          nr_turno?: number
+          nr_zona?: number
+          sg_federacao?: string | null
+          sg_partido?: string | null
+          situacao_final?: string | null
+          votos?: number
+        }
+        Relationships: []
+      }
       eleicao_votos_secao: {
         Row: {
           ano_eleicao: number
