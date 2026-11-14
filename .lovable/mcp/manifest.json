@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "sdk_version": "3.5.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://krdszcsjwxicfhlrfsqr.supabase.co/auth/v1",
+    "require_oauth_client_claim": true,
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "whatsapp-connect",
+      "version": "0.1.0",
+      "title": "WhatsApp Connect"
+    },
+    "tools": [
+      {
+        "name": "resumo_geral",
+        "title": "Resumo geral da campanha",
+        "description": "Mostra o total de contatos, os contatos novos dos últimos 7 dias, as campanhas agrupadas por situação, as mensagens recebidas ainda não lidas e o uso da página /story nos últimos 7 dias.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "listar_contatos",
+        "title": "Listar contatos",
+        "description": "Lista contatos da base, mais recentes primeiro, com filtros opcionais por texto (nome, cidade, bairro ou parte do telefone), situação do cadastro e origem.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "busca": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "Nome, cidade, bairro ou parte do telefone. Ex.: 'Karen', 'Porto Alegre', '9912'."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "importado_aguardando_recadastro",
+                "link_enviado",
+                "recadastro_iniciado",
+                "recadastro_concluido",
+                "nao_respondeu",
+                "telefone_invalido",
+                "precisa_revisao",
+                "duplicado_possivel",
+                "duplicado_mesclado",
+                "nao_enviar"
+              ],
+              "description": "Situação do cadastro no funil."
+            },
+            "origem": {
+              "type": "string",
+              "enum": [
+                "recadastro",
+                "inscricao",
+                "import",
+                "manual"
+              ],
+              "description": "De onde o contato veio."
+            },
+            "limite": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "description": "Quantos contatos devolver (1 a 100)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "buscar_contato",
+        "title": "Achar contato por telefone",
+        "description": "Procura contatos pelo número de telefone, com ou sem DDI/DDD e com qualquer formatação. Devolve no máximo 5 resultados.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "telefone": {
+              "type": "string",
+              "minLength": 6,
+              "maxLength": 20,
+              "description": "Número de telefone. Ex.: '51991234567', '+55 51 99123-4567'."
+            }
+          },
+          "required": [
+            "telefone"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "listar_campanhas",
+        "title": "Listar campanhas",
+        "description": "Lista as campanhas de mensagem, mais recentes primeiro, com contadores de enviados, entregues, lidos e falhas.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "running",
+                "paused",
+                "done",
+                "canceled"
+              ],
+              "description": "Situação da campanha. 'paused' são as pausadas."
+            },
+            "limite": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "description": "Quantas campanhas devolver."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "detalhes_campanha",
+        "title": "Detalhes de uma campanha",
+        "description": "Mostra uma campanha pelo id: contadores, situação, motivo da pausa (se houver), as 10 últimas falhas e as 10 últimas mensagens enviadas.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "campanha_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Id da campanha (vem de listar_campanhas)."
+            }
+          },
+          "required": [
+            "campanha_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "listar_mensagens_recebidas",
+        "title": "Mensagens recebidas",
+        "description": "Lista as mensagens recebidas pelo WhatsApp, mais recentes primeiro. Pode mostrar só as ainda não lidas.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "somente_nao_lidas": {
+              "type": "boolean",
+              "default": false,
+              "description": "Mostrar só as que ainda não foram lidas."
+            },
+            "limite": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "description": "Quantas mensagens devolver."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "listar_templates",
+        "title": "Modelos de mensagem",
+        "description": "Lista os modelos de mensagem guardados no app, com o texto de cada um, para reutilizar em campanhas.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "categoria": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "description": "Filtra por categoria."
+            },
+            "limite": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30,
+              "description": "Quantos modelos devolver."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estatisticas_story",
+        "title": "Uso da página /story",
+        "description": "Mostra o uso anônimo da página /story: aberturas, fotos escolhidas, compartilhamentos e downloads, somados e dia por dia (horário de Brasília).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "dias": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60,
+              "default": 14,
+              "description": "Quantos dias para trás considerar."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

@@ -17,12 +17,14 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CadastroAgitadorRouteImport } from './routes/cadastro-agitador'
 import { Route as CadastroUsuarioRouteImport } from './routes/cadastro-usuario'
 import { Route as InscreverRouteImport } from './routes/inscrever'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as PrimeiroAcessoRouteImport } from './routes/primeiro-acesso'
 import { Route as RecadastroRouteImport } from './routes/recadastro'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as TmpAudioCheckRouteImport } from './routes/tmp-audio-check'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedAgitacaoRouteImport } from './routes/_authenticated/agitacao'
 import { Route as AuthenticatedAgitacaoNotificacoesRouteImport } from './routes/_authenticated/agitacao-notificacoes'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
@@ -51,6 +53,7 @@ import { Route as FSlugRouteImport } from './routes/f.$slug'
 import { Route as MateriaisPrincipaisAcoesDoMandatoRouteImport } from './routes/materiais.principais-acoes-do-mandato'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
 import { Route as TermosSlugRouteImport } from './routes/termos.$slug'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
@@ -140,6 +143,11 @@ const InscreverRoute = InscreverRouteImport.update({
   path: '/inscrever',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ObrigadoRoute = ObrigadoRouteImport.update({
   id: '/obrigado',
   path: '/obrigado',
@@ -170,6 +178,12 @@ const TmpAudioCheckRoute = TmpAudioCheckRouteImport.update({
   path: '/tmp-audio-check',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAgitacaoRoute = AuthenticatedAgitacaoRouteImport.update({
   id: '/agitacao',
   path: '/agitacao',
@@ -316,6 +330,11 @@ const OptOutTokenRoute = OptOutTokenRouteImport.update({
 const TermosSlugRoute = TermosSlugRouteImport.update({
   id: '/termos/$slug',
   path: '/termos/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedCampanhasIndexRoute =
@@ -607,12 +626,14 @@ export interface FileRoutesByFullPath {
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
   '/inscrever': typeof InscreverRoute
+  '/mcp': typeof McpRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/story': typeof StoryRoute
   '/tmp-audio-check': typeof TmpAudioCheckRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
@@ -641,6 +662,7 @@ export interface FileRoutesByFullPath {
   '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -699,12 +721,14 @@ export interface FileRoutesByTo {
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
   '/inscrever': typeof InscreverRoute
+  '/mcp': typeof McpRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/story': typeof StoryRoute
   '/tmp-audio-check': typeof TmpAudioCheckRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/agitacao': typeof AuthenticatedAgitacaoRoute
   '/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
@@ -732,6 +756,7 @@ export interface FileRoutesByTo {
   '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -792,12 +817,14 @@ export interface FileRoutesById {
   '/cadastro-agitador': typeof CadastroAgitadorRoute
   '/cadastro-usuario': typeof CadastroUsuarioRoute
   '/inscrever': typeof InscreverRoute
+  '/mcp': typeof McpRoute
   '/obrigado': typeof ObrigadoRoute
   '/primeiro-acesso': typeof PrimeiroAcessoRoute
   '/recadastro': typeof RecadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/story': typeof StoryRoute
   '/tmp-audio-check': typeof TmpAudioCheckRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/agitacao': typeof AuthenticatedAgitacaoRoute
   '/_authenticated/agitacao-notificacoes': typeof AuthenticatedAgitacaoNotificacoesRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
@@ -826,6 +853,7 @@ export interface FileRoutesById {
   '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -886,12 +914,14 @@ export interface FileRouteTypes {
     | '/cadastro-agitador'
     | '/cadastro-usuario'
     | '/inscrever'
+    | '/mcp'
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
     | '/story'
     | '/tmp-audio-check'
+    | '/.well-known/oauth-protected-resource'
     | '/agitacao'
     | '/agitacao-notificacoes'
     | '/calendario'
@@ -920,6 +950,7 @@ export interface FileRouteTypes {
     | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
+    | '/.lovable/oauth/consent'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
@@ -978,12 +1009,14 @@ export interface FileRouteTypes {
     | '/cadastro-agitador'
     | '/cadastro-usuario'
     | '/inscrever'
+    | '/mcp'
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
     | '/story'
     | '/tmp-audio-check'
+    | '/.well-known/oauth-protected-resource'
     | '/agitacao'
     | '/agitacao-notificacoes'
     | '/calendario'
@@ -1011,6 +1044,7 @@ export interface FileRouteTypes {
     | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
+    | '/.lovable/oauth/consent'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
@@ -1070,12 +1104,14 @@ export interface FileRouteTypes {
     | '/cadastro-agitador'
     | '/cadastro-usuario'
     | '/inscrever'
+    | '/mcp'
     | '/obrigado'
     | '/primeiro-acesso'
     | '/recadastro'
     | '/redefinir-senha'
     | '/story'
     | '/tmp-audio-check'
+    | '/.well-known/oauth-protected-resource'
     | '/_authenticated/agitacao'
     | '/_authenticated/agitacao-notificacoes'
     | '/_authenticated/calendario'
@@ -1104,6 +1140,7 @@ export interface FileRouteTypes {
     | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/campanhas/$id'
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
@@ -1164,17 +1201,20 @@ export interface RootRouteChildren {
   CadastroAgitadorRoute: typeof CadastroAgitadorRoute
   CadastroUsuarioRoute: typeof CadastroUsuarioRoute
   InscreverRoute: typeof InscreverRoute
+  McpRoute: typeof McpRoute
   ObrigadoRoute: typeof ObrigadoRoute
   PrimeiroAcessoRoute: typeof PrimeiroAcessoRoute
   RecadastroRoute: typeof RecadastroRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   StoryRoute: typeof StoryRoute
   TmpAudioCheckRoute: typeof TmpAudioCheckRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   EventoSlugRoute: typeof EventoSlugRoute
   FSlugRoute: typeof FSlugRoute
   MateriaisPrincipaisAcoesDoMandatoRoute: typeof MateriaisPrincipaisAcoesDoMandatoRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   TermosSlugRoute: typeof TermosSlugRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
   ApiPublicDocsSplatRoute: typeof ApiPublicDocsSplatRoute
@@ -1259,6 +1299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InscreverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/obrigado': {
       id: '/obrigado'
       path: '/obrigado'
@@ -1299,6 +1346,13 @@ declare module '@tanstack/react-router' {
       path: '/tmp-audio-check'
       fullPath: '/tmp-audio-check'
       preLoaderRoute: typeof TmpAudioCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/agitacao': {
@@ -1495,6 +1549,13 @@ declare module '@tanstack/react-router' {
       path: '/termos/$slug'
       fullPath: '/termos/$slug'
       preLoaderRoute: typeof TermosSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/campanhas/': {
@@ -2018,18 +2079,22 @@ const rootRouteChildren: RootRouteChildren = {
   CadastroAgitadorRoute: CadastroAgitadorRoute,
   CadastroUsuarioRoute: CadastroUsuarioRoute,
   InscreverRoute: InscreverRoute,
+  McpRoute: McpRoute,
   ObrigadoRoute: ObrigadoRoute,
   PrimeiroAcessoRoute: PrimeiroAcessoRoute,
   RecadastroRoute: RecadastroRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   StoryRoute: StoryRoute,
   TmpAudioCheckRoute: TmpAudioCheckRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
   EventoSlugRoute: EventoSlugRoute,
   FSlugRoute: FSlugRoute,
   MateriaisPrincipaisAcoesDoMandatoRoute:
     MateriaisPrincipaisAcoesDoMandatoRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   TermosSlugRoute: TermosSlugRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
   ApiPublicDocsSplatRoute: ApiPublicDocsSplatRoute,
