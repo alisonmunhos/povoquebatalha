@@ -21,20 +21,19 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
     authorization_id:
       typeof search["authorization_id"] === "string" ? search["authorization_id"] : "",
   }),
-  beforeLoad: async ({ search, location }) => {
-    if (!search.authorization_id) {
+  beforeLoad: async ({ location }) => {
+    if (!new URLSearchParams(location.search).get("authorization_id")) {
       throw new Error("Pedido de conexão inválido: falta o identificador da autorização.");
     }
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      const next = oauthReturnPath(location.pathname + (location.searchStr ?? ""));
+      const next = oauthReturnPath(location.pathname + (location.search ?? ""));
       throw redirect({ to: "/auth", search: { next } });
     }
   },
-  loader: async ({ search }) => {
-    const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(
-      search.authorization_id,
-    );
+  loader: async ({ location }) => {
+    const authorizationId = new URLSearchParams(location.search).get("authorization_id") ?? "";
+    const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
     if (error) throw error;
     if (data && !("authorization_id" in data)) {
       // Já autorizado antes: o provedor devolve direto o retorno ao cliente.
@@ -75,16 +74,16 @@ const CAPACOES = [
 
 function ConsentPage() {
   const details = Route.useLoaderData();
-  const { authorization_id } = Route.useSearch();
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   async function decidir(aprovar: boolean) {
+    if (!details) return;
     setBusy(true);
     setErro(null);
     const chamada = aprovar
-      ? supabase.auth.oauth.approveAuthorization(authorization_id, { skipBrowserRedirect: true })
-      : supabase.auth.oauth.denyAuthorization(authorization_id, { skipBrowserRedirect: true });
+      ? supabase.auth.oauth.approveAuthorization(details.authorization_id, { skipBrowserRedirect: true })
+      : supabase.auth.oauth.denyAuthorization(details.authorization_id, { skipBrowserRedirect: true });
     const { data, error } = await chamada;
     if (error) {
       setBusy(false);
@@ -206,7 +205,7 @@ function ConsentPage() {
               to="/auth"
               search={{
                 next: oauthReturnPath(
-                  `/.lovable/oauth/consent?authorization_id=${encodeURIComponent(authorization_id)}`,
+                  `/.lovable/oauth/consent?authorization_id=${encodeURIComponent(details.authorization_id)}`,
                 ),
               }}
               className="text-primary hover:underline"
