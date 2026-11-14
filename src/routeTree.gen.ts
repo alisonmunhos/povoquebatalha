@@ -51,6 +51,7 @@ import { Route as FSlugRouteImport } from './routes/f.$slug'
 import { Route as MateriaisPrincipaisAcoesDoMandatoRouteImport } from './routes/materiais.principais-acoes-do-mandato'
 import { Route as OptOutTokenRouteImport } from './routes/opt-out.$token'
 import { Route as TermosSlugRouteImport } from './routes/termos.$slug'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as AuthenticatedCampanhasIdRouteImport } from './routes/_authenticated/campanhas.$id'
 import { Route as AuthenticatedComunicacaoIndexRouteImport } from './routes/_authenticated/comunicacao.index'
@@ -316,6 +317,11 @@ const OptOutTokenRoute = OptOutTokenRouteImport.update({
 const TermosSlugRoute = TermosSlugRouteImport.update({
   id: '/termos/$slug',
   path: '/termos/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedCampanhasIndexRoute =
@@ -641,6 +647,7 @@ export interface FileRoutesByFullPath {
   '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -732,6 +739,7 @@ export interface FileRoutesByTo {
   '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -826,6 +834,7 @@ export interface FileRoutesById {
   '/materiais/principais-acoes-do-mandato': typeof MateriaisPrincipaisAcoesDoMandatoRoute
   '/opt-out/$token': typeof OptOutTokenRoute
   '/termos/$slug': typeof TermosSlugRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/campanhas/$id': typeof AuthenticatedCampanhasIdRoute
   '/_authenticated/comunicacao/contatos': typeof AuthenticatedComunicacaoContatosRoute
   '/_authenticated/comunicacao/inbox': typeof AuthenticatedComunicacaoInboxRoute
@@ -920,6 +929,7 @@ export interface FileRouteTypes {
     | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
+    | '/.lovable/oauth/consent'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
@@ -1011,6 +1021,7 @@ export interface FileRouteTypes {
     | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
+    | '/.lovable/oauth/consent'
     | '/campanhas/$id'
     | '/comunicacao/contatos'
     | '/comunicacao/inbox'
@@ -1104,6 +1115,7 @@ export interface FileRouteTypes {
     | '/materiais/principais-acoes-do-mandato'
     | '/opt-out/$token'
     | '/termos/$slug'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/campanhas/$id'
     | '/_authenticated/comunicacao/contatos'
     | '/_authenticated/comunicacao/inbox'
@@ -1175,6 +1187,7 @@ export interface RootRouteChildren {
   MateriaisPrincipaisAcoesDoMandatoRoute: typeof MateriaisPrincipaisAcoesDoMandatoRoute
   OptOutTokenRoute: typeof OptOutTokenRoute
   TermosSlugRoute: typeof TermosSlugRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicBootstrapAdminRoute: typeof ApiPublicBootstrapAdminRoute
   ApiPublicCepCepRoute: typeof ApiPublicCepCepRoute
   ApiPublicDocsSplatRoute: typeof ApiPublicDocsSplatRoute
@@ -1495,6 +1508,13 @@ declare module '@tanstack/react-router' {
       path: '/termos/$slug'
       fullPath: '/termos/$slug'
       preLoaderRoute: typeof TermosSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/campanhas/': {
@@ -2030,6 +2050,7 @@ const rootRouteChildren: RootRouteChildren = {
     MateriaisPrincipaisAcoesDoMandatoRoute,
   OptOutTokenRoute: OptOutTokenRoute,
   TermosSlugRoute: TermosSlugRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicBootstrapAdminRoute: ApiPublicBootstrapAdminRoute,
   ApiPublicCepCepRoute: ApiPublicCepCepRoute,
   ApiPublicDocsSplatRoute: ApiPublicDocsSplatRoute,
